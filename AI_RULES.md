@@ -1,19 +1,23 @@
-# Tech Stack
+# Tech Stack & Code Quality Rules
 
-- You are building a React application.
-- Use TypeScript.
-- Use React Router. KEEP the routes in src/App.tsx
-- Always put source code in the src folder.
-- Put pages into src/pages/
-- Put components into src/components/
-- The main page (default page) is src/pages/Index.tsx
-- UPDATE the main page to include the new components. OTHERWISE, the user can NOT see any components!
-- ALWAYS try to use the shadcn/ui library.
-- Tailwind CSS: always use Tailwind CSS for styling components. Utilize Tailwind classes extensively for layout, spacing, colors, and other design aspects.
+## 🛠 Core Stack
+- **Framework**: React application with **TypeScript**.
+- **Routing**: Use **React Router**. Keep all routes centralized in `src/App.tsx`.
+- **Styling**: Always use **Tailwind CSS**. Utilize Tailwind classes extensively for layout, spacing, and design.
+- **Components**: Prioritize **shadcn/ui** and **Lucide React** for icons.
 
-Available packages and libraries:
+## 🏗 Project Structure
+- Source code MUST stay in the `src/` folder.
+- **Pages**: Store in `src/pages/`.
+- **Components**: Store in `src/components/`.
+- **Main Entry**: The default page is `src/pages/Index.tsx`. Always update it to include new components so they are visible.
 
-- The lucide-react package is installed for icons.
-- You ALREADY have ALL the shadcn/ui components and their dependencies installed. So you don't need to install them again.
-- You have ALL the necessary Radix UI components installed.
-- Use prebuilt components from the shadcn/ui library after importing them. Note that these files shouldn't be edited, so make new components if you need to change them.
+## 🛡 Code Quality & Linting (Critical)
+- **Lint Compliance**: All code must comply with the rules defined in `eslint.config.js`. 
+- **Type Safety**: Avoid using `any`. Define proper Interfaces or Types for all props and data structures.
+- **Imports**: Use clean, organized imports. Group internal and external dependencies separately.
+- **shadcn/ui Integrity**: Use prebuilt components from `@/components/ui/`. **DO NOT** edit these files directly; if customization is needed, wrap them in a new component.
+
+## 📦 Available Assets
+- All **shadcn/ui** and **Radix UI** components are already installed. Do not attempt to reinstall them.
+- Use **Lucide React** for consistent iconography.
