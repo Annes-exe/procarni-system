@@ -166,13 +166,11 @@ const ServiceOrderManagement = () => {
   };
 
   const handleViewDetails = (orderId: string) => {
-    // navigate(`/service-orders/${orderId}`); // TODO: Create details page
-    showError('La página de detalles de la Orden de Servicio aún no está implementada.');
+    navigate(`/service-orders/${orderId}`);
   };
 
   const handleEditOrder = (orderId: string) => {
-    // navigate(`/service-orders/edit/${orderId}`); // TODO: Create edit page
-    showError('La página de edición de la Orden de Servicio aún no está implementada.');
+    navigate(`/service-orders/edit/${orderId}`);
   };
 
   const getStatusBadgeClass = (status: string) => {

@@ -47,12 +47,12 @@ const ServiceOrderService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('CREATE_SERVICE_ORDER', { 
+    logAudit('CREATE_SERVICE_ORDER', {
       table: 'service_orders',
-      record_id: newOrder.id, 
+      record_id: newOrder.id,
       description: `Creación de Orden de Servicio #${newOrder.sequence_number}`,
       sequence_number: newOrder.sequence_number,
-      supplier_id: newOrder.supplier_id, 
+      supplier_id: newOrder.supplier_id,
       company_id: newOrder.company_id,
       items_count: items.length
     });
@@ -99,9 +99,9 @@ const ServiceOrderService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('UPDATE_SERVICE_ORDER', { 
+    logAudit('UPDATE_SERVICE_ORDER', {
       table: 'service_orders',
-      record_id: id, 
+      record_id: id,
       description: 'Actualización de Orden de Servicio',
       sequence_number: updatedOrder.sequence_number,
       updates: updates,
@@ -147,7 +147,7 @@ const ServiceOrderService = {
 
     return updatedOrder as ServiceOrder;
   },
-  
+
   updateStatus: async (id: string, newStatus: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived'): Promise<boolean> => {
     const { error } = await supabase
       .from('service_orders')
@@ -161,14 +161,14 @@ const ServiceOrderService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('UPDATE_SERVICE_ORDER_STATUS', { 
+    logAudit('UPDATE_SERVICE_ORDER_STATUS', {
       table: 'service_orders',
-      record_id: id, 
+      record_id: id,
       description: `Cambio de estado a ${newStatus}`,
-      new_status: newStatus 
+      new_status: newStatus
     });
     // -----------------
-    
+
     return true;
   },
 
@@ -193,20 +193,20 @@ const ServiceOrderService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('DELETE_SERVICE_ORDER', { 
+    logAudit('DELETE_SERVICE_ORDER', {
       table: 'service_orders',
       record_id: id,
       description: 'Eliminación permanente de Orden de Servicio'
     });
     // -----------------
-    
+
     return true;
   },
 
   getById: async (id: string): Promise<ServiceOrder | null> => {
-    const { data, error } = await supabase
+    const { data: order, error } = await supabase
       .from('service_orders')
-      .select('*, suppliers(*), companies(*), service_order_items(*)')
+      .select('*, suppliers(*), companies(*)')
       .eq('id', id)
       .single();
 
@@ -214,7 +214,24 @@ const ServiceOrderService = {
       console.error('[ServiceOrderService.getById] Error:', error);
       return null;
     }
-    return data as ServiceOrder;
+
+    // Manually fetch items to ensure they are retrieved regardless of join issues
+    const { data: items, error: itemsError } = await supabase
+      .from('service_order_items')
+      .select('*')
+      .eq('order_id', id);
+
+    if (itemsError) {
+      console.error('[ServiceOrderService.getById] Error fetching items:', itemsError);
+    }
+
+    // Attach items to order object manually
+    const orderWithItems = {
+      ...order,
+      service_order_items: items || []
+    };
+
+    return orderWithItems as ServiceOrder;
   },
 };
 

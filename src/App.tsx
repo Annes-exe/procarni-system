@@ -32,6 +32,7 @@ import QuoteComparisonManagement from "./pages/QuoteComparisonManagement";
 import GenerateServiceOrder from "./pages/GenerateServiceOrder";
 import ServiceOrderManagement from "./pages/ServiceOrderManagement";
 import ServiceOrderDetails from "./pages/ServiceOrderDetails"; // NEW IMPORT
+import EditServiceOrder from "./pages/EditServiceOrder";
 
 const queryClient = new QueryClient();
 
@@ -68,8 +69,8 @@ const App = () => (
                 <Route path="/purchase-orders/:id" element={<PurchaseOrderDetails />} />
                 <Route path="/purchase-orders/edit/:id" element={<EditPurchaseOrder />} />
                 <Route path="/service-order-management" element={<ServiceOrderManagement />} />
-                <Route path="/service-orders/:id" element={<ServiceOrderDetails />} /> {/* NEW ROUTE */}
-                {/* TODO: Add /service-orders/edit/:id */}
+                <Route path="/service-orders/:id" element={<ServiceOrderDetails />} />
+                <Route path="/service-orders/edit/:id" element={<EditServiceOrder />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/ficha-tecnica-upload" element={<FichaTecnicaUpload />} />
                 <Route path="/price-history" element={<PriceHistory />} />
