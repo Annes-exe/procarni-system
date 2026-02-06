@@ -77,17 +77,17 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
   const calculateItemTotals = (item: PurchaseOrderItemForm) => {
     const itemValue = item.quantity * item.unit_price;
-    
+
     const discountRate = (item.discount_percentage ?? 0) / 100;
     const discountAmount = itemValue * discountRate;
-    
+
     const subtotalAfterDiscount = itemValue - discountAmount;
-    
+
     const salesRate = (item.sales_percentage ?? 0) / 100;
     const salesAmount = subtotalAfterDiscount * salesRate;
 
     const itemIva = item.is_exempt ? 0 : subtotalAfterDiscount * (item.tax_rate || 0.16);
-    
+
     const totalItem = subtotalAfterDiscount + salesAmount + itemIva;
 
     return {
@@ -119,7 +119,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               </Button>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="space-y-1 col-span-2">
               <label className="text-xs font-medium text-muted-foreground flex items-center">
@@ -179,7 +179,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 className="h-9"
               />
             </div>
-            
+
             {/* NEW FIELDS */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Desc. (%)</label>
@@ -228,7 +228,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               </div>
             </div>
           </div>
-          
+
           <div className="flex flex-col pt-2 border-t mt-3 text-right">
             <span className="text-xs text-muted-foreground">Subtotal: {currency} {subtotal.toFixed(2)}</span>
             {discountAmount > 0 && <span className="text-xs text-red-600">Descuento: -{currency} {discountAmount.toFixed(2)}</span>}
@@ -263,7 +263,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             className="h-8"
           />
         </td>
-        <td className="px-2 py-2 whitespace-nowrap w-[6%] min-w-[70px]">
+        <td className="px-2 py-2 whitespace-nowrap w-[8%] min-w-[100px]">
           <Input
             type="number"
             value={item.quantity}
@@ -272,7 +272,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             className="h-8 w-full"
           />
         </td>
-        <td className="px-2 py-2 whitespace-nowrap w-[6%] min-w-[70px]">
+        <td className="px-2 py-2 whitespace-nowrap w-[8%] min-w-[100px]">
           <Select value={item.unit} onValueChange={(value) => onItemChange(index, 'unit', value)}>
             <SelectTrigger className="h-8">
               <SelectValue placeholder="Unidad" />
@@ -367,8 +367,8 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               <tr className="bg-gray-50">
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%] min-w-[180px]">Producto</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[6%] min-w-[80px]">Cód. Prov.</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[6%] min-w-[70px]">Cant.</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[6%] min-w-[70px]">Unidad</th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[100px]">Cant.</th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[100px]">Unidad</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[100px]">P. Unit.</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[6%] min-w-[80px]">Desc. (%)</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[6%] min-w-[80px]">Venta (%)</th>

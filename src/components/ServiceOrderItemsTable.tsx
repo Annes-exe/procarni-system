@@ -40,17 +40,17 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
     const quantity = item.quantity ?? 0;
     const unitPrice = item.unit_price ?? 0;
     const itemValue = quantity * unitPrice;
-    
+
     const discountRate = (item.discount_percentage ?? 0) / 100;
     const discountAmount = itemValue * discountRate;
-    
+
     const subtotalAfterDiscount = itemValue - discountAmount;
-    
+
     const salesRate = (item.sales_percentage ?? 0) / 100;
     const salesAmount = subtotalAfterDiscount * salesRate;
 
     const itemIva = item.is_exempt ? 0 : subtotalAfterDiscount * (item.tax_rate || 0.16);
-    
+
     const totalItem = subtotalAfterDiscount + salesAmount + itemIva;
 
     return {
@@ -76,7 +76,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="space-y-1 col-span-2">
               <label className="text-xs font-medium text-muted-foreground">Descripción del Costo/Servicio *</label>
@@ -143,7 +143,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
               </div>
             </div>
           </div>
-          
+
           <div className="flex flex-col pt-2 border-t mt-3 text-right">
             <span className="text-xs text-muted-foreground">Subtotal: {currency} {subtotal.toFixed(2)}</span>
             {discountAmount > 0 && <span className="text-xs text-red-600">Descuento: -{currency} {discountAmount.toFixed(2)}</span>}
@@ -167,7 +167,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
             className="h-8 min-h-8"
           />
         </td>
-        <td className="px-2 py-2 whitespace-nowrap w-[8%] min-w-[80px]">
+        <td className="px-2 py-2 whitespace-nowrap w-[8%] min-w-[100px]">
           <Input
             type="number"
             value={item.quantity}
@@ -243,7 +243,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
             <thead>
               <tr className="bg-gray-50">
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%] min-w-[200px]">Descripción</th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[80px]">Cant.</th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[100px]">Cant.</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%] min-w-[100px]">P. Unit.</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[80px]">Desc. (%)</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%] min-w-[80px]">Venta (%)</th>
