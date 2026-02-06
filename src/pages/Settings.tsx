@@ -14,33 +14,41 @@ const Settings = () => {
   const { session } = useSession();
   const navigate = useNavigate();
   const [startingNumber, setStartingNumber] = useState<number>(1);
+  const [soStartingNumber, setSoStartingNumber] = useState<number>(1);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [sequenceTypeToUpdate, setSequenceTypeToUpdate] = useState<'PO' | 'SO' | null>(null);
 
-  const handleUpdateSequenceClick = () => {
+  const handleUpdateSequenceClick = (type: 'PO' | 'SO') => {
     if (!session) {
       showError('No hay sesión activa. Por favor, inicia sesión.');
       return;
     }
+    setSequenceTypeToUpdate(type);
     setIsPinDialogOpen(true);
   };
 
   const handleConfirmSequenceUpdate = async (pin: string) => {
-    if (!session) return;
+    if (!session || !sequenceTypeToUpdate) return;
 
     setIsConfirming(true);
-    const toastId = showLoading('Actualizando secuencia de órdenes de compra...');
+    const isPO = sequenceTypeToUpdate === 'PO';
+    const endpoint = isPO ? 'set-po-sequence' : 'set-so-sequence';
+    const startNum = isPO ? startingNumber : soStartingNumber;
+    const docName = isPO ? 'órdenes de compra' : 'órdenes de servicio';
+
+    const toastId = showLoading(`Actualizando secuencia de ${docName}...`);
 
     try {
       const response = await fetch(
-        `https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/set-po-sequence`,
+        `https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/${endpoint}`,
         {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ startNumber: startingNumber, pin }),
+          body: JSON.stringify({ startNumber: startNum, pin }),
         }
       );
 
@@ -50,15 +58,16 @@ const Settings = () => {
       }
 
       const result = await response.json();
-      dismissToast(toastId);
+      dismissToast(String(toastId));
       showSuccess(result.message || 'Secuencia actualizada exitosamente.');
       setIsPinDialogOpen(false);
     } catch (error: any) {
       console.error('[Settings] Error updating sequence:', error);
-      dismissToast(toastId);
+      dismissToast(String(toastId));
       showError(error.message || 'Error desconocido al actualizar la secuencia.');
     } finally {
       setIsConfirming(false);
+      setSequenceTypeToUpdate(null);
     }
   };
 
@@ -78,10 +87,11 @@ const Settings = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            {/* Purchase Order Sequence */}
             <div className="border p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Secuencia de Órdenes de Compra</h3>
+              <h3 className="text-lg font-semibold mb-4 text-procarni-primary">Secuencia de Órdenes de Compra</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Configura el número inicial para la secuencia de órdenes de compra. 
+                Configura el número inicial para la secuencia de órdenes de compra.
                 Si ingresas 1, la secuencia se reiniciará y el próximo número será 1.
                 Si ingresas un número mayor (ej. 5), el próximo número será ese.
               </p>
@@ -99,12 +109,44 @@ const Settings = () => {
                 </div>
               </div>
               <div className="flex justify-end mt-4">
-                <Button 
-                  onClick={handleUpdateSequenceClick} 
+                <Button
+                  onClick={() => handleUpdateSequenceClick('PO')}
                   disabled={isConfirming}
                   className="bg-procarni-secondary hover:bg-green-700"
                 >
-                  {isConfirming ? 'Actualizando...' : 'Actualizar Secuencia'}
+                  {isConfirming && sequenceTypeToUpdate === 'PO' ? 'Actualizando...' : 'Actualizar Secuencia OC'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Service Order Sequence */}
+            <div className="border p-4 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 text-procarni-primary">Secuencia de Órdenes de Servicio</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Configura el número inicial para la secuencia de órdenes de servicio.
+                Si ingresas 1, la secuencia se reiniciará y el próximo número será 1.
+                Si ingresas un número mayor (ej. 50), el próximo número será ese.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="soStartingNumber">Número inicial</Label>
+                  <Input
+                    id="soStartingNumber"
+                    type="number"
+                    min="1"
+                    value={soStartingNumber}
+                    onChange={(e) => setSoStartingNumber(parseInt(e.target.value) || 1)}
+                    placeholder="1 para reiniciar, o un número mayor para iniciar desde allí"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end mt-4">
+                <Button
+                  onClick={() => handleUpdateSequenceClick('SO')}
+                  disabled={isConfirming}
+                  className="bg-procarni-secondary hover:bg-green-700"
+                >
+                  {isConfirming && sequenceTypeToUpdate === 'SO' ? 'Actualizando...' : 'Actualizar Secuencia OS'}
                 </Button>
               </div>
             </div>
@@ -117,8 +159,8 @@ const Settings = () => {
         isOpen={isPinDialogOpen}
         onClose={() => setIsPinDialogOpen(false)}
         onConfirm={handleConfirmSequenceUpdate}
-        title="Confirmar Actualización de Secuencia"
-        description="Esta acción modificará la secuencia de órdenes de compra. Introduce el PIN de 6 dígitos para autorizar."
+        title={`Confirmar Actualización de Secuencia ${sequenceTypeToUpdate === 'PO' ? 'OC' : 'OS'}`}
+        description={`Esta acción modificará la secuencia de las ${sequenceTypeToUpdate === 'PO' ? 'Órdenes de Compra' : 'Órdenes de Servicio'}. Introduce el PIN de 6 dígitos para autorizar.`}
         confirmText="Actualizar"
         isConfirming={isConfirming}
       />

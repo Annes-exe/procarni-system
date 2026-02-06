@@ -40,6 +40,8 @@ interface SupplierDetails {
   rif: string;
   email?: string;
   phone?: string;
+  payment_terms?: string;
+  credit_days?: number;
 }
 
 interface CompanyDetails {
@@ -128,8 +130,6 @@ const ServiceOrderDetails = () => {
     return `${sequence}-${supplierName}.pdf`;
   };
 
-
-
   const handleApproveOrder = async () => {
     if (!order || order.status === 'Approved' || order.status === 'Archived') return;
 
@@ -172,41 +172,36 @@ const ServiceOrderDetails = () => {
   };
 
   const displayPaymentTerms = () => {
-    if (order?.payment_terms === 'Otro' && order.custom_payment_terms) {
-      return order.custom_payment_terms;
+    // Payment terms come from supplier for Service Orders
+    if (order?.suppliers?.payment_terms === 'Crédito' && order.suppliers.credit_days) {
+      return `Crédito (${order.suppliers.credit_days} días)`;
     }
-    if (order?.payment_terms === 'Crédito' && order.credit_days) {
-      return `Crédito (${order.credit_days} días)`;
-    }
-    return order?.payment_terms || 'N/A';
+    return order?.suppliers?.payment_terms || 'Contado';
   };
 
   const handleSendEmail = async (customMessage: string, sendWhatsApp: boolean, phone?: string) => {
     if (!session?.user?.email || !order) return;
 
-    const toastId = showLoading('Generando PDF y enviando correo...');
+    // 1. Generate PDF
+    const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-so-pdf`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ orderId: order.id }),
+    });
 
-    try {
-      // 1. Generate PDF
-      const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-so-pdf`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ orderId: order.id }),
-      });
+    if (!pdfResponse.ok) {
+      const errorData = await pdfResponse.json();
+      throw new Error(errorData.error || 'Error al generar el PDF.');
+    }
 
-      if (!pdfResponse.ok) {
-        const errorData = await pdfResponse.json();
-        throw new Error(errorData.error || 'Error al generar el PDF.');
-      }
+    const pdfBlob = await pdfResponse.blob();
+    const pdfBase64 = await blobToBase64(pdfBlob);
 
-      const pdfBlob = await pdfResponse.blob();
-      const pdfBase64 = await blobToBase64(pdfBlob);
-
-      // 2. Send Email
-      const emailBody = `
+    // 2. Send Email
+    const emailBody = `
         <h2>Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)}</h2>
         <p><strong>Empresa:</strong> ${order.companies?.name}</p>
         <p><strong>Proveedor:</strong> ${order.suppliers?.name}</p>
@@ -216,43 +211,33 @@ const ServiceOrderDetails = () => {
         <p>Se adjunta el PDF con los detalles de la orden de servicio.</p>
       `;
 
-      const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: order.suppliers?.email,
-          subject: `Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} - ${order.companies?.name}`,
-          body: emailBody,
-          attachmentBase64: pdfBase64,
-          attachmentFilename: generateFileName(),
-        }),
-      });
+    const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: order.suppliers?.email,
+        subject: `Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} - ${order.companies?.name}`,
+        body: emailBody,
+        attachmentBase64: pdfBase64,
+        attachmentFilename: generateFileName(),
+      }),
+    });
 
-      if (!emailResponse.ok) {
-        const errorData = await emailResponse.json();
-        throw new Error(errorData.error || 'Error al enviar el correo.');
-      }
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      throw new Error(errorData.error || 'Error al enviar el correo.');
+    }
 
-      // 3. Send WhatsApp (if requested)
-      if (sendWhatsApp && phone) {
-        const formattedPhone = phone.replace(/\D/g, '');
-        const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-        const whatsappMessage = `Hola, te he enviado por correo la Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
-        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-        window.open(whatsappUrl, '_blank');
-      }
-
-      dismissToast(toastId);
-      showSuccess('Correo enviado exitosamente.');
-      setIsEmailModalOpen(false);
-
-    } catch (error: any) {
-      console.error('[ServiceOrderDetails] Error sending email:', error);
-      dismissToast(toastId);
-      showError(error.message || 'Error al enviar el correo.');
+    // 3. Send WhatsApp (if requested)
+    if (sendWhatsApp && phone) {
+      const formattedPhone = phone.replace(/\D/g, '');
+      const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
+      const whatsappMessage = `Hola, te he enviado por correo la Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
+      const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+      window.open(whatsappUrl, '_blank');
     }
   };
 
