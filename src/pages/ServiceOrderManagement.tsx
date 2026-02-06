@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Trash2, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, Wrench, ListOrdered } from 'lucide-react';
+import { PlusCircle, Trash2, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, Wrench } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { getAllServiceOrders, archiveServiceOrder, unarchiveServiceOrder, deleteServiceOrder } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -34,12 +34,12 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-  
+
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-  
+
   return `OS-${year}-${month}-${seq}`;
 };
 
@@ -127,7 +127,7 @@ const ServiceOrderManagement = () => {
       setOrderToModify(null);
     },
   });
-  
+
   const deleteMutation = useMutation({
     mutationFn: deleteServiceOrder,
     onSuccess: () => {
@@ -147,7 +147,7 @@ const ServiceOrderManagement = () => {
     setOrderToModify({ id, action });
     setIsConfirmDialogOpen(true);
   };
-  
+
   const confirmDelete = (id: string) => {
     setOrderToModify({ id, action: 'delete' });
     setIsDeleteDialogOpen(true);
@@ -200,7 +200,7 @@ const ServiceOrderManagement = () => {
   }
 
   const renderActions = (order: ServiceOrderWithDetails) => {
-    const isEditable = order.status === 'Draft';
+    const isEditable = order.status !== 'Approved' && order.status !== 'Archived';
     const isArchived = order.status === 'Archived';
 
     return (
@@ -279,15 +279,15 @@ const ServiceOrderManagement = () => {
             </CardTitle>
             <CardDescription>Administra tus órdenes de servicio generadas.</CardDescription>
           </div>
-          <Button 
-            asChild 
+          <Button
+            asChild
             className={cn(
               "bg-procarni-secondary hover:bg-green-700",
               isMobile && "w-10 h-10 p-0"
             )}
           >
             <Link to="/generate-so">
-              <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
+              <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
               {!isMobile && 'Nueva Orden'}
             </Link>
           </Button>
@@ -379,8 +379,8 @@ const ServiceOrderManagement = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={archiveMutation.isPending || unarchiveMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeAction} 
+            <AlertDialogAction
+              onClick={executeAction}
               disabled={archiveMutation.isPending || unarchiveMutation.isPending}
               className={orderToModify?.action === 'archive' ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-procarni-secondary hover:bg-green-700"}
             >
@@ -389,7 +389,7 @@ const ServiceOrderManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       {/* AlertDialog for permanent delete confirmation (OS only) */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
@@ -401,8 +401,8 @@ const ServiceOrderManagement = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeAction} 
+            <AlertDialogAction
+              onClick={executeAction}
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

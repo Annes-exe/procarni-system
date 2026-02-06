@@ -7,9 +7,8 @@ import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, FileText, Wrench, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createServiceOrder, searchSuppliers, searchCompanies } from '@/integrations/supabase/data';
+import { createServiceOrder, searchSuppliers } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
@@ -34,10 +33,10 @@ interface ServiceOrderItemForm {
   description: string;
   quantity: number;
   unit_price: number;
-  tax_rate?: number;
-  is_exempt?: boolean;
-  sales_percentage?: number;
-  discount_percentage?: number;
+  tax_rate: number;
+  is_exempt: boolean;
+  sales_percentage: number | null;
+  discount_percentage: number | null;
 }
 
 const SERVICE_TYPES = [
@@ -58,7 +57,7 @@ const GenerateServiceOrder = () => {
   const [supplierName, setSupplierName] = useState<string>('');
   const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
-  
+
   const [issueDate, setIssueDate] = useState<Date>(new Date());
   const [serviceDate, setServiceDate] = useState<Date | undefined>(undefined);
   const [equipmentName, setEquipmentName] = useState<string>('');
@@ -69,25 +68,23 @@ const GenerateServiceOrder = () => {
 
   const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
 
   const userId = session?.user?.id;
-  const userEmail = session?.user?.email;
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { 
-      description: '', 
-      quantity: 1, 
-      unit_price: 0, 
-      tax_rate: 0.16, 
-      is_exempt: false, 
+    setItems((prevItems) => [...prevItems, {
+      description: '',
+      quantity: 1,
+      unit_price: 0,
+      tax_rate: 0.16,
+      is_exempt: false,
       sales_percentage: 0,
       discount_percentage: 0,
     }]);
   };
 
-  const handleItemChange = (index: number, field: keyof ServiceOrderItemForm, value: any) => {
+  const handleItemChange = (index: number, field: keyof ServiceOrderItemForm, value: string | number | boolean) => {
     setItems((prevItems) =>
       prevItems.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
@@ -106,7 +103,7 @@ const GenerateServiceOrder = () => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
   };
-  
+
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
@@ -150,10 +147,10 @@ const GenerateServiceOrder = () => {
       showError('La tasa de cambio es requerida y debe ser mayor que cero para órdenes en Bolívares.');
       return;
     }
-    
-    const invalidItem = items.find(item => 
-      !item.description || 
-      item.quantity <= 0 || 
+
+    const invalidItem = items.find(item =>
+      !item.description ||
+      item.quantity <= 0 ||
       item.unit_price <= 0
     );
 
@@ -226,9 +223,9 @@ const GenerateServiceOrder = () => {
                   fetchFunction={searchSuppliers}
                   displayValue={supplierName}
                 />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
+                <Button
+                  variant="outline"
+                  size="icon"
                   onClick={() => setIsAddSupplierDialogOpen(true)}
                   className="shrink-0"
                   title="Añadir nuevo proveedor"
@@ -239,7 +236,7 @@ const GenerateServiceOrder = () => {
               {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
-          
+
           <ServiceOrderDetailsForm
             companyId={companyId}
             companyName={companyName}

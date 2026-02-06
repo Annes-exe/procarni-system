@@ -12,6 +12,7 @@ import {
     updateServiceOrder,
     searchSuppliers
 } from '@/integrations/supabase/data';
+import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
@@ -24,10 +25,17 @@ interface ServiceOrderItemForm {
     description: string;
     quantity: number;
     unit_price: number;
-    tax_rate?: number;
-    is_exempt?: boolean;
-    sales_percentage?: number;
-    discount_percentage?: number;
+    tax_rate: number;
+    is_exempt: boolean;
+    sales_percentage: number | null;
+    discount_percentage: number | null;
+}
+
+// Interface correctly matching the joined response from Supabase
+interface ServiceOrderDetailsResponse extends ServiceOrder {
+    suppliers?: { name: string };
+    companies?: { name: string };
+    service_order_items: ServiceOrderItem[];
 }
 
 const SERVICE_TYPES = [
@@ -70,8 +78,8 @@ const EditServiceOrder = () => {
             if (!id) return;
             setIsLoading(true);
             try {
-                // Cast to any to access joined properties that are not in the strict ServiceOrder type
-                const order = await getServiceOrderDetails(id) as any;
+                // Cast to the extended interface that includes the joined properties
+                const order = await getServiceOrderDetails(id) as unknown as ServiceOrderDetailsResponse;
                 if (!order) {
                     showError('Orden no encontrada.');
                     navigate('/service-order-management');
@@ -101,7 +109,8 @@ const EditServiceOrder = () => {
                 setSequenceNumber(order.sequence_number || 0);
 
                 // Map items
-                const loadedItems = order.service_order_items?.map((item: any) => ({
+                // Map items
+                const loadedItems: ServiceOrderItemForm[] = order.service_order_items?.map((item) => ({
                     id: item.id,
                     description: item.description,
                     quantity: item.quantity,
@@ -113,7 +122,7 @@ const EditServiceOrder = () => {
                 })) || [];
                 setItems(loadedItems);
 
-            } catch (error: any) {
+            } catch (error: unknown) {
                 console.error("Error loading order:", error);
                 showError('Error al cargar la orden.');
             } finally {
@@ -137,7 +146,7 @@ const EditServiceOrder = () => {
         }]);
     };
 
-    const handleItemChange = (index: number, field: keyof ServiceOrderItemForm, value: any) => {
+    const handleItemChange = (index: number, field: keyof ServiceOrderItemForm, value: string | number | boolean | null) => {
         setItems((prevItems) =>
             prevItems.map((item, i) => (i === index ? { ...item, [field]: value } : item))
         );
@@ -214,22 +223,21 @@ const EditServiceOrder = () => {
                 // user_id is generally preserved from creation or updated to last editor? usually preserved.
             };
 
-            // Using "createServiceOrder" logic but via "updateServiceOrder"
-            // We need to import updateServiceOrder
-            // Cast items to any to bypass strict type check for created_at which is not needed for update
-            const updated = await updateServiceOrder(id!, orderData, items as any[]);
+            const itemsForUpdate = items.map(({ id, ...rest }) => rest);
+            const updatedResult = await updateServiceOrder(id!, orderData, itemsForUpdate);
 
-            if (updated) {
+            if (updatedResult) {
                 showSuccess('Orden actualizada correctamente.');
                 navigate(`/service-orders/${id}`);
             } else {
                 throw new Error("Fallo en la actualización.");
             }
 
-        } catch (error: any) {
-            showError(error.message || 'Error al actualizar.');
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al actualizar.';
+            showError(errorMessage);
         } finally {
-            dismissToast(toastId);
+            if (toastId) dismissToast(String(toastId));
             setIsSubmitting(false);
         }
     };

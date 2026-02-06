@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 interface WhatsAppSenderButtonProps {
   recipientPhone?: string;
-  documentType: 'Solicitud de Cotización' | 'Orden de Compra';
+  documentType: 'Solicitud de Cotización' | 'Orden de Compra' | 'Orden de Servicio';
   documentId: string;
   documentNumber: string;
   companyName: string;
@@ -31,11 +31,11 @@ const WhatsAppSenderButton = React.forwardRef<HTMLButtonElement, WhatsAppSenderB
 
     const formattedPhone = recipientPhone.replace(/\D/g, '');
     const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-    
+
     const message = `Hola, te he enviado por correo la ${documentType} #${documentNumber} de ${companyName}. Por favor, revisa tu bandeja de entrada.`;
-    
+
     const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
-    
+
     window.open(whatsappUrl, '_blank');
   };
 

@@ -128,23 +128,10 @@ const ServiceOrderDetails = () => {
     return `${sequence}-${supplierName}.pdf`;
   };
 
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        resolve(result);
-      };
-      reader.onerror = (error) => {
-        console.error('[ServiceOrderDetails] Error converting blob to base64:', error);
-        reject(error);
-      };
-      reader.readAsDataURL(blob);
-    });
-  };
+
 
   const handleApproveOrder = async () => {
-    if (!order || order.status === 'Approved') return;
+    if (!order || order.status === 'Approved' || order.status === 'Archived') return;
 
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
@@ -160,10 +147,11 @@ const ServiceOrderDetails = () => {
       } else {
         throw new Error('Fallo al actualizar el estado.');
       }
-    } catch (error: any) {
-      showError(error.message || 'Error al aprobar la orden de servicio.');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al aprobar la orden de servicio.';
+      showError(errorMessage);
     } finally {
-      dismissToast(toastId);
+      dismissToast(String(toastId));
       setIsApproving(false);
     }
   };
@@ -515,7 +503,7 @@ const ServiceOrderDetails = () => {
         onSend={(message, sendWhatsApp) => handleSendEmail(message, sendWhatsApp, order.suppliers?.phone)}
         recipientEmail={order.suppliers?.email || ''}
         recipientPhone={order.suppliers?.phone}
-        documentType="Orden de Compra" // Using OC type temporarily
+        documentType="Orden de Servicio"
         documentId={order.id}
       />
 

@@ -5,6 +5,11 @@ import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton';
 import { getServiceOrderDetails } from '@/integrations/supabase/data';
 import { calculateTotals } from '@/utils/calculations';
+import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
+
+interface ServiceOrderDetails extends ServiceOrder {
+    service_order_items: ServiceOrderItem[];
+}
 
 interface ServiceOrderPDFViewerProps {
     orderId: string;
@@ -20,14 +25,14 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
     const { session } = useSession();
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [isLoadingPdf, setIsLoadingPdf] = useState(false);
-    const [loadingToastId, setLoadingToastId] = useState<string | null>(null);
-    const [successToastId, setSuccessToastId] = useState<string | null>(null);
-    const [orderData, setOrderData] = useState<any>(null);
+    const [loadingToastId, setLoadingToastId] = useState<string | number | null>(null);
+    const [successToastId, setSuccessToastId] = useState<string | number | null>(null);
+    const [orderData, setOrderData] = useState<ServiceOrderDetails | null>(null);
 
     const fetchOrderDetails = async () => {
         try {
             const details = await getServiceOrderDetails(orderId);
-            setOrderData(details);
+            setOrderData(details as unknown as ServiceOrderDetails);
         } catch (e) {
             console.error("Error fetching order details for viewer:", e);
         }
@@ -38,11 +43,11 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
             URL.revokeObjectURL(pdfUrl);
         }
         if (loadingToastId) {
-            dismissToast(loadingToastId);
+            dismissToast(String(loadingToastId));
             setLoadingToastId(null);
         }
         if (successToastId) {
-            dismissToast(successToastId);
+            dismissToast(String(successToastId));
             setSuccessToastId(null);
         }
         onClose();
@@ -58,8 +63,8 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
             return;
         }
 
-        if (loadingToastId) dismissToast(loadingToastId);
-        if (successToastId) dismissToast(successToastId);
+        if (loadingToastId) dismissToast(String(loadingToastId));
+        if (successToastId) dismissToast(String(successToastId));
 
         setIsLoadingPdf(true);
         const toastId = showLoading('Generando PDF de la Orden de Servicio...');
@@ -89,20 +94,20 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
             const url = URL.createObjectURL(blob);
             setPdfUrl(url);
 
-            dismissToast(toastId);
+            dismissToast(String(toastId));
             setLoadingToastId(null);
 
-            const successId = showLoading('PDF generado. Puedes previsualizarlo.', 2000);
+            const successId = showLoading('PDF generado. Puedes previsualizarlo.');
             setSuccessToastId(successId);
 
             setTimeout(() => {
-                dismissToast(successId);
+                dismissToast(String(successId));
                 setSuccessToastId(null);
             }, 2000);
 
         } catch (error: any) {
             console.error('[ServiceOrderPDFViewer] Error generating PDF:', error);
-            dismissToast(toastId);
+            if (loadingToastId) dismissToast(String(loadingToastId));
             setLoadingToastId(null);
             showError(error.message || 'Error desconocido al generar el PDF.');
         } finally {
@@ -119,21 +124,21 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
                 URL.revokeObjectURL(pdfUrl);
             }
             if (loadingToastId) {
-                dismissToast(loadingToastId);
+                dismissToast(String(loadingToastId));
             }
             if (successToastId) {
-                dismissToast(successToastId);
+                dismissToast(String(successToastId));
             }
         };
     }, [orderId]);
 
-    const itemsForCalculation = orderData?.service_order_items.map((item: any) => ({
+    const itemsForCalculation = orderData?.service_order_items.map((item) => ({
         quantity: item.quantity,
         unit_price: item.unit_price,
         tax_rate: item.tax_rate,
         is_exempt: item.is_exempt,
-        sales_percentage: item.sales_percentage,
-        discount_percentage: item.discount_percentage,
+        sales_percentage: item.sales_percentage || 0,
+        discount_percentage: item.discount_percentage || 0,
     })) || [];
 
     const totals = calculateTotals(itemsForCalculation);

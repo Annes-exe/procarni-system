@@ -13,7 +13,7 @@ interface EmailSenderModalProps {
   onSend: (message: string, sendWhatsApp: boolean) => Promise<void>;
   recipientEmail: string;
   recipientPhone?: string;
-  documentType: 'Solicitud de Cotización' | 'Orden de Compra';
+  documentType: 'Solicitud de Cotización' | 'Orden de Compra' | 'Orden de Servicio';
   documentId: string;
 }
 
@@ -53,7 +53,7 @@ const EmailSenderModal: React.FC<EmailSenderModalProps> = ({
       console.error('[EmailSenderModal] Error sending email:', error);
       showError(error.message || 'Error al enviar el correo.');
     } finally {
-      dismissToast(toastId);
+      dismissToast(String(toastId));
       setIsSending(false);
     }
   };

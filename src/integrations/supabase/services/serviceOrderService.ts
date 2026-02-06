@@ -33,7 +33,7 @@ const ServiceOrderService = {
     return data as ServiceOrder[];
   },
 
-  create: async (orderData: Omit<ServiceOrder, 'id' | 'created_at'>, items: Omit<ServiceOrderItem, 'id' | 'order_id'>[]): Promise<ServiceOrder | null> => {
+  create: async (orderData: Omit<ServiceOrder, 'id' | 'created_at' | 'sequence_number'>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
     const { data: newOrder, error: orderError } = await supabase
       .from('service_orders')
       .insert(orderData)
@@ -84,7 +84,7 @@ const ServiceOrderService = {
     return newOrder as ServiceOrder;
   },
 
-  update: async (id: string, updates: Partial<Omit<ServiceOrder, 'id' | 'created_at'>>, items: Omit<ServiceOrderItem, 'id' | 'order_id'>[]): Promise<ServiceOrder | null> => {
+  update: async (id: string, updates: Partial<Omit<ServiceOrder, 'id' | 'created_at'>>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
     const { data: updatedOrder, error: orderError } = await supabase
       .from('service_orders')
       .update(updates)
