@@ -156,19 +156,104 @@ const ServiceOrderDetails = () => {
     }
   };
 
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        resolve(result);
+      };
+      reader.onerror = (error) => {
+        console.error('[ServiceOrderDetails] Error converting blob to base64:', error);
+        reject(error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const displayPaymentTerms = () => {
+    if (order?.payment_terms === 'Otro' && order.custom_payment_terms) {
+      return order.custom_payment_terms;
+    }
+    if (order?.payment_terms === 'Crédito' && order.credit_days) {
+      return `Crédito (${order.credit_days} días)`;
+    }
+    return order?.payment_terms || 'N/A';
+  };
+
   const handleSendEmail = async (customMessage: string, sendWhatsApp: boolean, phone?: string) => {
     if (!session?.user?.email || !order) return;
 
-    showError('La función de envío de PDF por correo para Órdenes de Servicio aún no está implementada.');
-    // TODO: Implement PDF generation and email sending logic here
+    const toastId = showLoading('Generando PDF y enviando correo...');
 
-    // if (sendWhatsApp && phone) {
-    //   const formattedPhone = phone.replace(/\D/g, '');
-    //   const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-    //   const whatsappMessage = `Hola, te he enviado por correo la Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
-    //   const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-    //   window.open(whatsappUrl, '_blank');
-    // }
+    try {
+      // 1. Generate PDF
+      const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-so-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+
+      if (!pdfResponse.ok) {
+        const errorData = await pdfResponse.json();
+        throw new Error(errorData.error || 'Error al generar el PDF.');
+      }
+
+      const pdfBlob = await pdfResponse.blob();
+      const pdfBase64 = await blobToBase64(pdfBlob);
+
+      // 2. Send Email
+      const emailBody = `
+        <h2>Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)}</h2>
+        <p><strong>Empresa:</strong> ${order.companies?.name}</p>
+        <p><strong>Proveedor:</strong> ${order.suppliers?.name}</p>
+        <p><strong>Fecha de Servicio:</strong> ${order.service_date ? format(parseDateForDisplay(order.service_date), 'PPP', { locale: es }) : 'N/A'}</p>
+        <p><strong>Condición de Pago:</strong> ${displayPaymentTerms()}</p>
+        ${customMessage ? `<p><strong>Mensaje:</strong><br>${customMessage.replace(/\n/g, '<br>')}</p>` : ''}
+        <p>Se adjunta el PDF con los detalles de la orden de servicio.</p>
+      `;
+
+      const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: order.suppliers?.email,
+          subject: `Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} - ${order.companies?.name}`,
+          body: emailBody,
+          attachmentBase64: pdfBase64,
+          attachmentFilename: generateFileName(),
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        throw new Error(errorData.error || 'Error al enviar el correo.');
+      }
+
+      // 3. Send WhatsApp (if requested)
+      if (sendWhatsApp && phone) {
+        const formattedPhone = phone.replace(/\D/g, '');
+        const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
+        const whatsappMessage = `Hola, te he enviado por correo la Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
+        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+
+      dismissToast(toastId);
+      showSuccess('Correo enviado exitosamente.');
+      setIsEmailModalOpen(false);
+
+    } catch (error: any) {
+      console.error('[ServiceOrderDetails] Error sending email:', error);
+      dismissToast(toastId);
+      showError(error.message || 'Error al enviar el correo.');
+    }
   };
 
   if (isLoading) {
