@@ -29,9 +29,9 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         throw new Error('Failed to fetch daily rate');
       }
       const data = await response.json();
-      
-      const rate = data.promedio || data.valor; 
-      
+
+      const rate = data.promedio || data.valor;
+
       if (typeof rate === 'number' && rate > 0) {
         setDailyRate(rate);
         showSuccess(`Tasa del día cargada: ${rate.toFixed(2)} VES/USD`);
@@ -39,9 +39,10 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
       } else {
         throw new Error('Formato de tasa de cambio inválido.');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[ExchangeRateInput] Error fetching daily rate:', e);
-      showError(`Error al cargar la tasa del día: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : 'Error desconocido';
+      showError(`Error al cargar la tasa del día: ${errorMessage}`);
       setDailyRate(undefined);
       return undefined;
     } finally {
@@ -68,7 +69,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
       setRateSource('custom');
       onExchangeRateChange(undefined);
     }
-  }, [currency]); // Only run when currency changes
+  }, [currency, fetchDailyRate, onExchangeRateChange]); // Only run when currency changes
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {
@@ -80,7 +81,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         // This is handled by the input onChange below, but this ensures external updates are caught.
       }
     }
-  }, [rateSource, dailyRate]); // Run when internal rate source changes
+  }, [rateSource, dailyRate, exchangeRate, onExchangeRateChange, currency]); // Run when internal rate source changes
 
   const handleRateSourceChange = (source: 'custom' | 'daily') => {
     setRateSource(source);
@@ -131,10 +132,10 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
             disabled
             className="bg-gray-100 dark:bg-gray-700"
           />
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={handleRefreshRate} 
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefreshRate}
             disabled={isLoadingRate}
           >
             {isLoadingRate ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}

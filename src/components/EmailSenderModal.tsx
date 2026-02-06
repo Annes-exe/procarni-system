@@ -49,9 +49,10 @@ const EmailSenderModal: React.FC<EmailSenderModalProps> = ({
       await onSend(message, sendWhatsApp);
       showSuccess(`${documentType} enviada exitosamente.`);
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[EmailSenderModal] Error sending email:', error);
-      showError(error.message || 'Error al enviar el correo.');
+      const errorMessage = error instanceof Error ? error.message : 'Error al enviar el correo.';
+      showError(errorMessage);
     } finally {
       dismissToast(String(toastId));
       setIsSending(false);

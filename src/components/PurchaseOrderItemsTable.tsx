@@ -46,7 +46,7 @@ interface PurchaseOrderItemsTableProps {
   currency: 'USD' | 'VES';
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
-  onItemChange: (index: number, field: keyof PurchaseOrderItemForm, value: any) => void;
+  onItemChange: (index: number, field: keyof PurchaseOrderItemForm, value: PurchaseOrderItemForm[keyof PurchaseOrderItemForm]) => void;
   onMaterialSelect: (index: number, material: MaterialSearchResult) => void;
 }
 

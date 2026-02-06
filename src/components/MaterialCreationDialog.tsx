@@ -17,7 +17,7 @@ interface MaterialCreationDialogProps {
   // onMaterialCreated returns the created material object plus the specification entered in the dialog
   onMaterialCreated: (material: Material & { specification?: string }) => void;
   // supplierId is now optional. If provided, association happens immediately.
-  supplierId?: string; 
+  supplierId?: string;
   supplierName?: string; // Optional if supplierId is not provided
 }
 
@@ -43,13 +43,13 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 }) => {
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [materialName, setMaterialName] = useState('');
   const [category, setCategory] = useState(MATERIAL_CATEGORIES[0]);
   const [unit, setUnit] = useState(MATERIAL_UNITS[0]);
   const [isExempt, setIsExempt] = useState(false);
   const [specification, setSpecification] = useState('');
-  
+
   const [suggestedMaterial, setSuggestedMaterial] = useState<Material | null>(null); // Best match suggestion
   const [isCheckingExistence, setIsCheckingExistence] = useState(false);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -90,24 +90,24 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     }
 
     const trimmedName = materialName.trim();
-    
+
     if (trimmedName.length > 2) {
       setIsCheckingExistence(true);
       debounceTimeoutRef.current = setTimeout(async () => {
         try {
           const existingMaterials = await searchMaterials(trimmedName);
-          
+
           if (existingMaterials.length > 0) {
             // Use the first result as the best suggestion
             const bestMatch = existingMaterials[0];
             setSuggestedMaterial(bestMatch);
-            
+
             // If the match is exact, pre-fill fields immediately
             if (bestMatch.name.toUpperCase() === trimmedName.toUpperCase()) {
               setCategory(bestMatch.category || MATERIAL_CATEGORIES[0]);
               setUnit(bestMatch.unit || MATERIAL_UNITS[0]);
               // Use existing material's exemption status
-              setIsExempt(bestMatch.is_exempt || false); 
+              setIsExempt(bestMatch.is_exempt || false);
             } else {
               // If it's just a suggestion, keep current form values but show suggestion
               // We only reset fields if the user accepts the suggestion
@@ -209,7 +209,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       } else if (materialToAssociate) {
         showSuccess(`Material "${materialToAssociate.name}" creado.`);
       }
-      
+
       // 4. Call the callback with the material data and specification
       if (materialToAssociate) {
         onMaterialCreated({
@@ -220,15 +220,16 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
       handleClose();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MaterialCreationDialog] Error:', error);
-      showError(error.message || 'Error al crear/asociar el material.');
+      const errorMessage = error instanceof Error ? error.message : 'Error al crear/asociar el material.';
+      showError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const dialogDescription = supplierId 
+  const dialogDescription = supplierId
     ? `Crea un nuevo material o asocia uno existente a ${supplierName ? <strong>{supplierName}</strong> : 'este proveedor'}.`
     : 'Crea un nuevo material. Si estás creando un nuevo proveedor, este material se asociará al guardar el formulario.';
 
@@ -245,7 +246,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             {dialogDescription}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="materialName">Nombre del Material *</Label>
@@ -256,7 +257,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               onChange={(e) => setMaterialName(e.target.value)}
               disabled={isSubmitting}
             />
-            
+
             {isCheckingExistence && (
               <p className="text-sm text-muted-foreground flex items-center">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Buscando sugerencias...
@@ -269,10 +270,10 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                   {isExactMatch ? 'Material existente:' : 'Material sugerido:'} <strong>{suggestedMaterial.name}</strong>
                 </p>
                 {!isExactMatch && (
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={handleAcceptSuggestion}
                     className="h-8"
                   >

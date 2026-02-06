@@ -24,7 +24,7 @@ interface ServiceOrderItemsTableProps {
   currency: 'USD' | 'VES';
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
-  onItemChange: (index: number, field: keyof ServiceOrderItemForm, value: any) => void;
+  onItemChange: (index: number, field: keyof ServiceOrderItemForm, value: ServiceOrderItemForm[keyof ServiceOrderItemForm]) => void;
 }
 
 const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
