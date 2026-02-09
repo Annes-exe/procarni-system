@@ -19,25 +19,25 @@ const LOGO_SIZE = 50;
 
 // --- UTILITY FUNCTIONS (Kept outside serve) ---
 
-const calculateTotals = (items: Array<{ 
-  quantity: number | null | undefined; 
-  unit_price: number | null | undefined; 
-  tax_rate?: number | null | undefined; 
-  is_exempt?: boolean | null | undefined; 
-  sales_percentage?: number | null | undefined; 
-  discount_percentage?: number | null | undefined; 
+const calculateTotals = (items: Array<{
+  quantity: number | null | undefined;
+  unit_price: number | null | undefined;
+  tax_rate?: number | null | undefined;
+  is_exempt?: boolean | null | undefined;
+  sales_percentage?: number | null | undefined;
+  discount_percentage?: number | null | undefined;
 }>) => {
-  let baseImponible = 0; 
+  let baseImponible = 0;
   let montoIVA = 0;
-  let montoVenta = 0; 
-  let montoDescuento = 0; 
+  let montoVenta = 0;
+  let montoDescuento = 0;
   let total = 0;
 
   items.forEach(item => {
-    const quantity = item.quantity ?? 0; 
-    const unitPrice = item.unit_price ?? 0; 
+    const quantity = item.quantity ?? 0;
+    const unitPrice = item.unit_price ?? 0;
     const itemValue = quantity * unitPrice;
-    
+
     // Ensure percentages are treated as numbers, defaulting to 0
     const discountRate = (item.discount_percentage ?? 0) / 100;
     const salesRate = (item.sales_percentage ?? 0) / 100;
@@ -46,11 +46,11 @@ const calculateTotals = (items: Array<{
     // 1. Apply Discount
     const discountAmount = itemValue * discountRate;
     montoDescuento += discountAmount;
-    
+
     const subtotalAfterDiscount = itemValue - discountAmount;
-    
+
     // 2. Calculate Base Imponible (Subtotal after discount, before taxes)
-    baseImponible += subtotalAfterDiscount; 
+    baseImponible += subtotalAfterDiscount;
 
     // 3. Apply Sales Percentage (Additional Tax)
     const salesAmount = subtotalAfterDiscount * salesRate;
@@ -58,11 +58,11 @@ const calculateTotals = (items: Array<{
 
     // 4. Apply IVA (Standard Tax)
     let ivaAmount = 0;
-    if (!item.is_exempt) { 
+    if (!item.is_exempt) {
       ivaAmount = subtotalAfterDiscount * taxRate;
       montoIVA += ivaAmount;
     }
-    
+
     // 5. Calculate Total Item
     total += subtotalAfterDiscount + salesAmount + ivaAmount;
   });
@@ -161,12 +161,12 @@ function wrapText(text: string, maxCharsPerLine: number): string[] {
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-  
+
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-  
+
   return `OC-${year}-${month}-${seq}`;
 };
 
@@ -241,7 +241,7 @@ serve(async (req) => {
 
     // --- PDF Setup ---
     const pdfDoc = await PDFDocument.create();
-    let page = pdfDoc.addPage(); 
+    let page = pdfDoc.addPage();
     const { width, height } = page.getSize();
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -252,14 +252,14 @@ serve(async (req) => {
     const tableWidth = width - 2 * MARGIN;
     // Total 8 columns: Material, Cantidad, Unidad, P. Unitario, Desc. (%), Venta (%), IVA, Total
     const colWidths = [
-      tableWidth * 0.25,  // 1. Material/Description (Reduced from 30%)
-      tableWidth * 0.08,  // 2. Cantidad
+      tableWidth * 0.20,  // 1. Material/Description (Reduced from 25% to 20%)
+      tableWidth * 0.10,  // 2. Cantidad (Increased from 8% to 10%)
       tableWidth * 0.08,  // 3. Unidad
       tableWidth * 0.12,  // 4. P. Unitario
       tableWidth * 0.08,  // 5. Desc. (%) (NEW)
       tableWidth * 0.08,  // 6. Venta (%) (NEW)
       tableWidth * 0.10,  // 7. IVA (Reduced from 15%)
-      tableWidth * 0.21   // 8. Total (Increased from 20%)
+      tableWidth * 0.24   // 8. Total (Increased from 21% to 24%)
     ];
     const colHeaders = ['Material', 'Cant.', 'Unid.', 'P. Unit.', 'Desc. (%)', 'Venta (%)', 'IVA', 'Total'];
 
@@ -278,7 +278,7 @@ serve(async (req) => {
     // --- Core Drawing Helpers ---
 
     const drawText = (state: PDFState, text: string, x: number, yPos: number, options: any = {}) => {
-      const safeText = String(text || 'N/A'); 
+      const safeText = String(text || 'N/A');
       state.page.drawText(safeText, {
         x,
         y: yPos,
@@ -303,17 +303,17 @@ serve(async (req) => {
 
     const drawTableHeader = (state: PDFState): PDFState => {
       let currentX = MARGIN;
-      
+
       state.page.drawLine({
         start: { x: MARGIN, y: state.y - LINE_HEIGHT },
         end: { x: MARGIN + tableWidth, y: state.y - LINE_HEIGHT },
         thickness: 1,
         color: LIGHT_GRAY,
       });
-      
+
       for (let i = 0; i < colHeaders.length; i++) {
-        drawText(state, colHeaders[i], currentX + 5, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, { 
-          font: boldFont, 
+        drawText(state, colHeaders[i], currentX + 5, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
+          font: boldFont,
           size: 8, // Reduced font size for headers to fit
           color: PROC_RED
         });
@@ -324,16 +324,16 @@ serve(async (req) => {
     };
 
     const checkPageBreak = (state: PDFState, requiredSpace: number): PDFState => {
-      if (state.y - requiredSpace < MARGIN + LINE_HEIGHT * 10) { 
+      if (state.y - requiredSpace < MARGIN + LINE_HEIGHT * 10) {
         state.page = pdfDoc.addPage();
         state.y = height - MARGIN;
-        state = drawTableHeader(state); 
+        state = drawTableHeader(state);
       }
       return state;
     };
 
     // --- Modular Drawing Functions (Header, Details, Observations remain the same) ---
-    
+
     const drawHeader = async (state: PDFState, order: any): Promise<PDFState> => {
       let companyLogoImage = null;
       if (order.companies?.logo_url) {
@@ -362,10 +362,10 @@ serve(async (req) => {
           height: LOGO_SIZE,
         });
 
-        drawText(state, order.companies?.name || 'N/A', logoX + LOGO_SIZE + 10, state.y - (LOGO_SIZE / 2) + (COMPANY_NAME_FONT_SIZE / 2), { 
-          font: boldFont, 
-          size: COMPANY_NAME_FONT_SIZE, 
-          color: PROC_RED 
+        drawText(state, order.companies?.name || 'N/A', logoX + LOGO_SIZE + 10, state.y - (LOGO_SIZE / 2) + (COMPANY_NAME_FONT_SIZE / 2), {
+          font: boldFont,
+          size: COMPANY_NAME_FONT_SIZE,
+          color: PROC_RED
         });
       } else {
         drawText(state, order.companies?.name || 'N/A', MARGIN, state.y, { font: boldFont, size: COMPANY_NAME_FONT_SIZE, color: PROC_RED });
@@ -374,13 +374,13 @@ serve(async (req) => {
       // 2. Draw Document Title and Number (Top Right)
       const titleX = width - MARGIN - 150;
       drawText(state, 'ORDEN DE COMPRA', titleX, state.y, { font: boldFont, size: 16, color: PROC_RED });
-      
-      drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 }); 
+
+      drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       drawText(state, `Fecha: ${new Date(order.created_at).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
       // Update Y position based on the tallest element in the header
       state.y -= Math.max(companyLogoImage ? LOGO_SIZE : LINE_HEIGHT * 3, LINE_HEIGHT * 3);
-      
+
       // Separator line (Red, 2pt)
       state.page.drawLine({
         start: { x: MARGIN, y: state.y },
@@ -395,17 +395,17 @@ serve(async (req) => {
     const drawSupplierDetails = (state: PDFState, order: any): PDFState => {
       // Draw title
       drawText(state, 'DATOS DEL PROVEEDOR:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
-      
+
       // Draw separator line immediately below the title text area
       state.page.drawLine({
-        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 }, 
+        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
         end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
         thickness: 0.5,
         color: LIGHT_GRAY,
       });
-      
-      state.y -= LINE_HEIGHT * 2; 
-      
+
+      state.y -= LINE_HEIGHT * 2;
+
       drawText(state, `Nombre: ${order.suppliers?.name || 'N/A'}`, MARGIN, state.y);
       state.y -= LINE_HEIGHT;
       drawText(state, `RIF: ${order.suppliers?.rif || 'N/A'}`, MARGIN, state.y);
@@ -418,17 +418,17 @@ serve(async (req) => {
 
       // Draw title
       drawText(state, 'DETALLES DE LA ORDEN:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
-      
+
       // Draw separator line immediately below the title text area
       state.page.drawLine({
-        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 }, 
+        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
         end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
         thickness: 0.5,
         color: LIGHT_GRAY,
       });
-      
-      state.y -= LINE_HEIGHT * 2; 
-      
+
+      state.y -= LINE_HEIGHT * 2;
+
       drawText(state, `Fecha de Entrega: ${order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('es-VE') : 'N/A'}`, MARGIN, state.y);
       state.y -= LINE_HEIGHT;
       drawText(state, `Condición de Pago: ${paymentTerms}`, MARGIN, state.y);
@@ -441,59 +441,59 @@ serve(async (req) => {
 
       // Draw title
       drawText(state, 'OBSERVACIONES:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
-      
+
       // Draw separator line immediately below the title text area
       state.page.drawLine({
-        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 }, 
+        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
         end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
         thickness: 0.5,
         color: LIGHT_GRAY,
       });
-      
-      state.y -= LINE_HEIGHT * 2; 
-      
+
+      state.y -= LINE_HEIGHT * 2;
+
       const observationsText = order.observations;
-      const maxCharsPerLine = 100; 
+      const maxCharsPerLine = 100;
       const textRuns = wrapText(observationsText, maxCharsPerLine);
-      
+
       for (const run of textRuns) {
         state = checkPageBreak(state, LINE_HEIGHT);
         drawText(state, run, MARGIN, state.y);
         state.y -= LINE_HEIGHT;
       }
-      state.y -= LINE_HEIGHT; 
+      state.y -= LINE_HEIGHT;
       return state;
     };
 
     const drawItemsTable = (state: PDFState, items: any[]): PDFState => {
       // Draw title
       drawText(state, 'ÍTEMS DE LA ORDEN:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
-      
+
       // Draw separator line immediately below the title text area
       state.page.drawLine({
-        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 }, 
+        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
         end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
         thickness: 0.5,
         color: LIGHT_GRAY,
       });
-      
-      state.y -= LINE_HEIGHT * 2; 
-      
+
+      state.y -= LINE_HEIGHT * 2;
+
       state = drawTableHeader(state);
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        
+
         // Calculate item totals using the updated function
         const totals = calculateTotals([{
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            tax_rate: item.tax_rate,
-            is_exempt: item.is_exempt,
-            sales_percentage: item.sales_percentage ?? 0, 
-            discount_percentage: item.discount_percentage ?? 0, 
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          tax_rate: item.tax_rate,
+          is_exempt: item.is_exempt,
+          sales_percentage: item.sales_percentage ?? 0,
+          discount_percentage: item.discount_percentage ?? 0,
         }]);
-        
+
         // CORRECTED: Map the Spanish keys from calculateTotals to local variables
         const subtotalAfterDiscount = totals.baseImponible; // Base Imponible is subtotal after discount
         const discountAmount = totals.montoDescuento;
@@ -502,23 +502,23 @@ serve(async (req) => {
         const totalItem = totals.total;
 
         // Combine material name and description for the first column
-        let materialContent = String(item.material_name || ''); 
-        
-        if (item.supplier_code || item.description) {
-            if (item.supplier_code) {
-                materialContent += `\n(Cód. Prov: ${item.supplier_code})`;
-            }
-            if (item.description) {
-                materialContent += `\n${item.description}`;
-            }
-        }
-        
-        // Wrap the combined content for the first column (25% width, approx 30 chars per line)
-        const materialLines = wrapText(materialContent, 30); 
-        const lineSpacing = (FONT_SIZE - 1) * 1.2;
-        const requiredHeight = materialLines.length * lineSpacing + 5; 
+        let materialContent = String(item.material_name || '');
 
-        state = checkPageBreak(state, requiredHeight + 10); 
+        if (item.supplier_code || item.description) {
+          if (item.supplier_code) {
+            materialContent += `\n(Cód. Prov: ${item.supplier_code})`;
+          }
+          if (item.description) {
+            materialContent += `\n${item.description}`;
+          }
+        }
+
+        // Wrap the combined content for the first column (20% width, approx 24 chars per line)
+        const materialLines = wrapText(materialContent, 24);
+        const lineSpacing = (FONT_SIZE - 1) * 1.2;
+        const requiredHeight = materialLines.length * lineSpacing + 5;
+
+        state = checkPageBreak(state, requiredHeight + 10);
 
         // Draw thin gray line above the row content (to separate rows)
         state.page.drawLine({
@@ -529,30 +529,30 @@ serve(async (req) => {
         });
 
         let currentX = MARGIN;
-        let currentY = state.y - 3; 
+        let currentY = state.y - 3;
 
         // 1. Material/Description (Multi-line)
         for (const line of materialLines) {
-          drawText(state, line, currentX + 5, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 }); 
+          drawText(state, line, currentX + 5, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
           currentY -= lineSpacing;
         }
         currentX += colWidths[0];
 
         const finalY = state.y - requiredHeight;
-        
+
         // Helper to draw data centered vertically and right-aligned
         const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font) => {
-            const cellWidth = colWidths[colIndex];
-            const textWidth = fontToUse.widthOfTextAtSize(text, size);
-            
-            const verticalCenterY = finalY + requiredHeight / 2 - size / 2;
+          const cellWidth = colWidths[colIndex];
+          const textWidth = fontToUse.widthOfTextAtSize(text, size);
 
-            const xPos = isRightAligned 
-                ? currentX + cellWidth - 5 - textWidth 
-                : currentX + 5;
-            
-            drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse });
-            currentX += cellWidth;
+          const verticalCenterY = finalY + requiredHeight / 2 - size / 2;
+
+          const xPos = isRightAligned
+            ? currentX + cellWidth - 5 - textWidth
+            : currentX + 5;
+
+          drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse });
+          currentX += cellWidth;
         };
 
         // 2. Cantidad
@@ -562,7 +562,7 @@ serve(async (req) => {
         drawCellData(item.unit || 'UND', 2);
 
         // 4. P. Unitario
-        drawCellData((item.unit_price ?? 0).toFixed(2), 3); 
+        drawCellData((item.unit_price ?? 0).toFixed(2), 3);
 
         // 5. Desc. (%) (NEW)
         drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 4);
@@ -578,14 +578,14 @@ serve(async (req) => {
 
         state.y = finalY; // Update Y position for the next row
       }
-      
+
       state.page.drawLine({
         start: { x: MARGIN, y: state.y },
         end: { x: MARGIN + tableWidth, y: state.y },
         thickness: 1,
         color: LIGHT_GRAY,
       });
-      
+
       state.y -= LINE_HEIGHT * 2;
       return state;
     };
@@ -599,49 +599,49 @@ serve(async (req) => {
         sales_percentage: item.sales_percentage ?? 0,
         discount_percentage: item.discount_percentage ?? 0,
       })));
-      
+
       const totalSectionWidth = 200;
-      const totalSectionX = width - MARGIN - totalSectionWidth; 
-      
+      const totalSectionX = width - MARGIN - totalSectionWidth;
+
       // Determine number of rows needed for totals
-      let totalRows = 5; 
+      let totalRows = 5;
       let hasUsdTotal = false;
       if (order.currency === 'VES' && order.exchange_rate && order.exchange_rate > 0) {
         totalRows = 6;
         hasUsdTotal = true;
       }
-      
-      const totalRowHeight = LINE_HEIGHT * 1.5; 
-      const totalSectionHeight = totalRowHeight * totalRows + 5; 
 
-      state = checkPageBreak(state, totalSectionHeight + LINE_HEIGHT * 3); 
+      const totalRowHeight = LINE_HEIGHT * 1.5;
+      const totalSectionHeight = totalRowHeight * totalRows + 5;
+
+      state = checkPageBreak(state, totalSectionHeight + LINE_HEIGHT * 3);
 
       // Draw the outer box
       drawBorderedRect(state, totalSectionX, state.y - totalSectionHeight, totalSectionWidth, totalSectionHeight, {
         borderColor: LIGHT_GRAY,
         borderWidth: 1,
       });
-      
-      let currentY = state.y - 5; 
+
+      let currentY = state.y - 5;
 
       const drawTotalRow = (label: string, value: string, isBold: boolean = false, color: rgb = rgb(0, 0, 0), size: number = FONT_SIZE) => {
         const fontToUse = isBold ? boldFont : font;
-        
+
         const verticalCenterY = currentY - totalRowHeight / 2 + size / 2;
-        
+
         // Draw label (left aligned)
         drawText(state, label, totalSectionX + 5, verticalCenterY, { font: fontToUse, size, color });
-        
+
         // Draw value (right aligned)
         const valueWidth = fontToUse.widthOfTextAtSize(value, size);
         drawText(state, value, totalSectionX + totalSectionWidth - 5 - valueWidth, verticalCenterY, { font: fontToUse, size, color });
-        
-        currentY -= totalRowHeight; 
+
+        currentY -= totalRowHeight;
       };
 
       // Draw rows
       drawTotalRow('Base Imponible:', `${order.currency} ${calculatedTotals.baseImponible.toFixed(2)}`);
-      
+
       // NEW: Descuento
       drawTotalRow('Monto Descuento:', `- ${order.currency} ${calculatedTotals.montoDescuento.toFixed(2)}`, false, PROC_RED);
 
@@ -650,8 +650,8 @@ serve(async (req) => {
 
       drawTotalRow('Monto IVA:', `+ ${order.currency} ${calculatedTotals.montoIVA.toFixed(2)}`);
 
-      drawTotalRow('TOTAL:', `${order.currency} ${calculatedTotals.total.toFixed(2)}`, true, PROC_RED, FONT_SIZE + 2); 
-      
+      drawTotalRow('TOTAL:', `${order.currency} ${calculatedTotals.total.toFixed(2)}`, true, PROC_RED, FONT_SIZE + 2);
+
       if (hasUsdTotal) {
         const totalInUSD = (calculatedTotals.total / order.exchange_rate).toFixed(2);
         drawTotalRow('TOTAL (USD):', `USD ${totalInUSD}`, true, DARK_GRAY, FONT_SIZE);

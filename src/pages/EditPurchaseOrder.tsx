@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { PlusCircle, ArrowLeft, Loader2, FileText } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { getPurchaseOrderDetails, searchMaterialsBySupplier, updatePurchaseOrder, searchSuppliers } from '@/integrations/supabase/data';
+import { getPurchaseOrderDetails, searchMaterialsBySupplier, updatePurchaseOrder, searchSuppliers, searchCompanies } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { calculateTotals } from '@/utils/calculations';
@@ -66,7 +66,7 @@ const EditPurchaseOrder = () => {
   const [supplierName, setSupplierName] = useState<string>('');
   const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
-  
+
   const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
   const [paymentTerms, setPaymentTerms] = useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
   const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
@@ -95,7 +95,7 @@ const EditPurchaseOrder = () => {
       setSupplierName(initialOrder.suppliers?.name || '');
       setCurrency(initialOrder.currency as 'USD' | 'VES');
       setExchangeRate(initialOrder.exchange_rate || undefined);
-      
+
       if (initialOrder.delivery_date) {
         setDeliveryDate(parseISO(initialOrder.delivery_date));
       } else {
@@ -124,15 +124,15 @@ const EditPurchaseOrder = () => {
   }, [initialOrder]);
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { 
-      material_id: undefined, 
-      material_name: '', 
-      supplier_code: '', 
-      quantity: 0, 
-      unit_price: 0, 
-      tax_rate: 0.16, 
-      is_exempt: false, 
-      unit: 'KG', 
+    setItems((prevItems) => [...prevItems, {
+      material_id: undefined,
+      material_name: '',
+      supplier_code: '',
+      quantity: 0,
+      unit_price: 0,
+      tax_rate: 0.16,
+      is_exempt: false,
+      unit: 'KG',
       description: '',
       sales_percentage: 0,
       discount_percentage: 0,
@@ -168,7 +168,7 @@ const EditPurchaseOrder = () => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
   };
-  
+
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
@@ -201,11 +201,11 @@ const EditPurchaseOrder = () => {
       showError('La tasa de cambio es requerida y debe ser mayor que cero para órdenes en Bolívares.');
       return;
     }
-    
-    const invalidItem = items.find(item => 
-      !item.material_id || 
-      !item.material_name || 
-      item.quantity <= 0 || 
+
+    const invalidItem = items.find(item =>
+      !item.material_id ||
+      !item.material_name ||
+      item.quantity <= 0 ||
       item.unit_price <= 0
     );
 
@@ -330,9 +330,9 @@ const EditPurchaseOrder = () => {
                   fetchFunction={searchSuppliers}
                   displayValue={supplierName}
                 />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
+                <Button
+                  variant="outline"
+                  size="icon"
                   onClick={() => setIsAddSupplierDialogOpen(true)}
                   className="shrink-0"
                   title="Añadir nuevo proveedor"
@@ -343,7 +343,7 @@ const EditPurchaseOrder = () => {
               {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
-          
+
           <PurchaseOrderDetailsForm
             companyId={companyId}
             companyName={companyName}
