@@ -668,14 +668,35 @@ serve(async (req) => {
 
     const drawFooter = (state: PDFState, order: any, user: any): PDFState => {
       const footerY = MARGIN;
+      const col1Center = width * 0.25;
+      const col2Center = width * 0.75;
+      const lineHalfWidth = 80;
+
+      // 1. Elaborado por (Left)
       state.page.drawLine({
-        start: { x: width / 2 - 100, y: footerY + LINE_HEIGHT },
-        end: { x: width / 2 + 100, y: footerY + LINE_HEIGHT },
+        start: { x: col1Center - lineHalfWidth, y: footerY + LINE_HEIGHT },
+        end: { x: col1Center + lineHalfWidth, y: footerY + LINE_HEIGHT },
         thickness: 1,
         color: DARK_GRAY,
       });
-      drawText(state, 'Firma Autorizada', width / 2 - 50, footerY, { font: font, size: 9 });
-      drawText(state, `Generado por: ${order.created_by || user.email}`, MARGIN, footerY + LINE_HEIGHT * 2);
+      const text1 = 'Elaborado por';
+      const text1Width = font.widthOfTextAtSize(text1, 9);
+      drawText(state, text1, col1Center - (text1Width / 2), footerY, { font: font, size: 9 });
+
+      // 2. Firma Autorizada (Right)
+      state.page.drawLine({
+        start: { x: col2Center - lineHalfWidth, y: footerY + LINE_HEIGHT },
+        end: { x: col2Center + lineHalfWidth, y: footerY + LINE_HEIGHT },
+        thickness: 1,
+        color: DARK_GRAY,
+      });
+      const text2 = 'Firma Autorizada';
+      const text2Width = font.widthOfTextAtSize(text2, 9);
+      drawText(state, text2, col2Center - (text2Width / 2), footerY, { font: font, size: 9 });
+
+      // Generado por (Moved up slightly to clear signatures)
+      drawText(state, `Generado por: ${order.created_by || user.email}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
+
       return state;
     };
 
