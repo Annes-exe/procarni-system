@@ -190,9 +190,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error('[generate-po-pdf] Auth Error:', authError);
+      return new Response(JSON.stringify({ error: `Unauthorized: ${authError?.message || 'User not found'}` }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const { orderId } = await req.json();
