@@ -33,11 +33,12 @@ const MATERIAL_CATEGORIES = [
   'ENCERADOS',
   'PUBLICIDAD', // Nueva categoría
   'MAQUINARIA', // Nueva categoría
+  'COMEDOR', // Nueva categoría
 ];
 
 // Define las unidades de medida.
 const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
+  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR', 'BULTO'
 ];
 
 // Esquema de validación con Zod
@@ -89,7 +90,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
       });
     }
   }, [initialData, form]);
-  
+
   // Effect to enforce is_exempt=true when category is FRESCA
   React.useEffect(() => {
     if (watchedCategory === 'FRESCA' && form.getValues('is_exempt') !== true) {
@@ -98,7 +99,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
       // If switching away from FRESCA, reset is_exempt to false only if it was forced true by FRESCA
       // If they switch away, let them manually control it again, but default to false.
       if (initialData?.category !== 'FRESCA') {
-         form.setValue('is_exempt', false, { shouldDirty: true });
+        form.setValue('is_exempt', false, { shouldDirty: true });
       }
     }
   }, [watchedCategory, form, initialData]);

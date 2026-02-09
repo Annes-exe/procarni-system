@@ -28,10 +28,11 @@ const MATERIAL_CATEGORIES = [
   'FUMICACION', 'EQUIPOS DE CARNICERIA', 'FARMACIA', 'MEDICION Y MANIPULACION',
   'ENCERADOS', 'PUBLICIDAD',
   'MAQUINARIA', // Nueva categoría
+  'COMEDOR', // Nueva categoría
 ];
 
 const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
+  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR', 'BULTO'
 ];
 
 const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({

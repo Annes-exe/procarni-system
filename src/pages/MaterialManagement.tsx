@@ -48,6 +48,7 @@ const MATERIAL_CATEGORIES = [
   'ENCERADOS',
   'PUBLICIDAD', // Nueva categoría
   'MAQUINARIA', // Nueva categoría
+  'COMEDOR', // Nueva categoría
 ];
 
 const MaterialManagement = () => {
@@ -196,14 +197,14 @@ const MaterialManagement = () => {
           <div className="flex gap-2">
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
               <DialogTrigger asChild>
-                <Button 
-                  onClick={handleAddMaterial} 
+                <Button
+                  onClick={handleAddMaterial}
                   className={cn(
                     "bg-procarni-secondary hover:bg-green-700",
                     isMobile && "w-10 h-10 p-0" // Hacer el botón cuadrado y sin padding en móvil
                   )}
                 >
-                  <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
+                  <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
                   {!isMobile && 'Añadir Material'}
                 </Button>
               </DialogTrigger>
