@@ -90,16 +90,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div>
-          <Label htmlFor="company">Empresa de Origen</Label>
-          <SmartSearch
-            placeholder="Buscar empresa por RIF o nombre"
-            onSelect={onCompanySelect}
-            fetchFunction={searchCompanies}
-            displayValue={companyName}
-          />
-          {companyName && <p className="text-sm text-muted-foreground mt-1">Empresa seleccionada: {companyName}</p>}
-        </div>
+        {/* Empresa de Origen field removed - handled by parent component */}
         <div className="md:col-span-1">
           <Label htmlFor="deliveryDate">Fecha de Entrega</Label>
           <Popover>

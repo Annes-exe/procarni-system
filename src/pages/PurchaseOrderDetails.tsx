@@ -18,13 +18,13 @@ import { es } from 'date-fns/locale'; // Importar la localización en español
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel 
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,8 @@ interface PurchaseOrderItem {
   is_exempt: boolean;
   unit?: string;
   description?: string;
+  sales_percentage?: number;
+  discount_percentage?: number;
 }
 
 interface SupplierDetails {
@@ -87,12 +89,12 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-  
+
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-  
+
   return `OC-${year}-${month}-${seq}`;
 };
 
@@ -106,7 +108,7 @@ const PurchaseOrderDetails = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
-  
+
   const pdfViewerRef = React.useRef<PurchaseOrderPDFViewerRef>(null);
 
   // Helper function to correctly parse date strings (YYYY-MM-DD) for display
@@ -122,7 +124,7 @@ const PurchaseOrderDetails = () => {
       if (!id) throw new Error('Purchase Order ID is missing.');
       const details = await getPurchaseOrderDetails(id);
       if (!details) throw new Error('Purchase Order not found.');
-      return details as PurchaseOrderDetailsData;
+      return details as unknown as PurchaseOrderDetailsData;
     },
     enabled: !!id,
   });
@@ -132,6 +134,8 @@ const PurchaseOrderDetails = () => {
     unit_price: item.unit_price,
     tax_rate: item.tax_rate,
     is_exempt: item.is_exempt,
+    sales_percentage: item.sales_percentage || 0,
+    discount_percentage: item.discount_percentage || 0,
   })) || [];
 
   const totals = calculateTotals(itemsForCalculation);
@@ -182,7 +186,7 @@ const PurchaseOrderDetails = () => {
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
     const toastId = showLoading('Aprobando orden...');
-    
+
     try {
       const success = await updatePurchaseOrderStatus(order.id, 'Approved');
       if (success) {
@@ -356,7 +360,7 @@ const PurchaseOrderDetails = () => {
           />
         </DialogContent>
       </Dialog>
-      
+
       {/* 2. Descargar PDF */}
       <DropdownMenuItem asChild>
         <PDFDownloadButton
@@ -375,7 +379,7 @@ const PurchaseOrderDetails = () => {
       <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsEmailModalOpen(true); }} disabled={!order.suppliers?.email} className="cursor-pointer">
         <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
       </DropdownMenuItem>
-      
+
       {/* 4. Enviar por WhatsApp */}
       <DropdownMenuItem asChild>
         <WhatsAppSenderButton
@@ -417,7 +421,7 @@ const PurchaseOrderDetails = () => {
         <Button variant="outline" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary">
@@ -468,7 +472,7 @@ const PurchaseOrderDetails = () => {
               <strong>Condición de Pago:</strong> {displayPaymentTerms()}
             </p>
             <p className="md:col-span-3">
-              <strong>Estado:</strong> 
+              <strong>Estado:</strong>
               <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(order.status))}>
                 {STATUS_TRANSLATIONS[order.status] || order.status}
               </span>
@@ -490,69 +494,77 @@ const PurchaseOrderDetails = () => {
                   const subtotal = item.quantity * item.unit_price;
                   const itemIva = item.is_exempt ? 0 : subtotal * item.tax_rate;
                   return (
-                        <Card key={item.id} className="p-3 shadow-sm">
-                          <p className="font-semibold text-procarni-primary">{item.material_name}</p>
-                          <div className="text-sm mt-1 grid grid-cols-2 gap-2">
-                            <p><strong>Cód. Prov:</strong> {item.supplier_code || 'N/A'}</p>
-                            <p><strong>Cantidad:</strong> {item.quantity} {item.unit || 'N/A'}</p>
-                            <p><strong>P. Unitario:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
-                            <p><strong>Subtotal:</strong> {order.currency} {subtotal.toFixed(2)}</p>
-                            <p><strong>IVA:</strong> {order.currency} {itemIva.toFixed(2)}</p>
-                            <p><strong>Exento:</strong> {item.is_exempt ? 'Sí' : 'No'}</p>
-                            {item.description && <p className="col-span-2"><strong>Descripción:</strong> {item.description}</p>}
-                          </div>
-                          <div className="mt-2 pt-2 border-t flex justify-between font-bold text-sm">
-                            <span>Total Ítem:</span>
-                            <span>{order.currency} {(subtotal + itemIva).toFixed(2)}</span>
-                          </div>
-                        </Card>
+                    <Card key={item.id} className="p-3 shadow-sm">
+                      <p className="font-semibold text-procarni-primary">{item.material_name}</p>
+                      <div className="text-sm mt-1 grid grid-cols-2 gap-2">
+                        <p><strong>Cód. Prov:</strong> {item.supplier_code || 'N/A'}</p>
+                        <p><strong>Cantidad:</strong> {item.quantity} {item.unit || 'N/A'}</p>
+                        <p><strong>P. Unitario:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
+                        <p><strong>Subtotal:</strong> {order.currency} {subtotal.toFixed(2)}</p>
+                        <p><strong>IVA:</strong> {order.currency} {itemIva.toFixed(2)}</p>
+                        <p><strong>Exento:</strong> {item.is_exempt ? 'Sí' : 'No'}</p>
+                        {item.description && <p className="col-span-2"><strong>Descripción:</strong> {item.description}</p>}
+                      </div>
+                      <div className="mt-2 pt-2 border-t flex justify-between font-bold text-sm">
+                        <span>Total Ítem:</span>
+                        <span>{order.currency} {(subtotal + itemIva).toFixed(2)}</span>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead>Cód. Prov.</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>P. Unitario ({order.currency})</TableHead>
+                      <TableHead>Subtotal ({order.currency})</TableHead>
+                      <TableHead>IVA ({order.currency})</TableHead>
+                      <TableHead>Exento</TableHead>
+                      <TableHead>Descripción</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {order.purchase_order_items.map((item) => {
+                      const subtotal = item.quantity * item.unit_price;
+                      const itemIva = item.is_exempt ? 0 : subtotal * item.tax_rate;
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.material_name}</TableCell>
+                          <TableCell>{item.supplier_code || 'N/A'}</TableCell>
+                          <TableCell>{item.quantity} {item.unit || 'N/A'}</TableCell>
+                          <TableCell>{item.unit_price.toFixed(2)}</TableCell>
+                          <TableCell>{subtotal.toFixed(2)}</TableCell>
+                          <TableCell>{itemIva.toFixed(2)}</TableCell>
+                          <TableCell>{item.is_exempt ? 'Sí' : 'No'}</TableCell>
+                          <TableCell className="text-xs max-w-[150px] truncate">{item.description || 'N/A'}</TableCell>
+                        </TableRow>
                       );
                     })}
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Material</TableHead>
-                          <TableHead>Cód. Prov.</TableHead>
-                          <TableHead>Cantidad</TableHead>
-                          <TableHead>P. Unitario ({order.currency})</TableHead>
-                          <TableHead>Subtotal ({order.currency})</TableHead>
-                          <TableHead>IVA ({order.currency})</TableHead>
-                          <TableHead>Exento</TableHead>
-                          <TableHead>Descripción</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {order.purchase_order_items.map((item) => {
-                          const subtotal = item.quantity * item.unit_price;
-                          const itemIva = item.is_exempt ? 0 : subtotal * item.tax_rate;
-                          return (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium">{item.material_name}</TableCell>
-                              <TableCell>{item.supplier_code || 'N/A'}</TableCell>
-                              <TableCell>{item.quantity} {item.unit || 'N/A'}</TableCell>
-                              <TableCell>{item.unit_price.toFixed(2)}</TableCell>
-                              <TableCell>{subtotal.toFixed(2)}</TableCell>
-                              <TableCell>{itemIva.toFixed(2)}</TableCell>
-                              <TableCell>{item.is_exempt ? 'Sí' : 'No'}</TableCell>
-                              <TableCell className="text-xs max-w-[150px] truncate">{item.description || 'N/A'}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )
-              ) : (
-                <p className="text-muted-foreground">Esta orden no tiene ítems registrados.</p>
-              )}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          ) : (
+            <p className="text-muted-foreground">Esta orden no tiene ítems registrados.</p>
+          )}
 
           <div className="mt-8 border-t pt-4">
             <div className="flex justify-end items-center mb-2">
               <span className="font-semibold mr-2">Base Imponible:</span>
               <span>{order.currency} {totals.baseImponible.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-end items-center mb-2">
+              <span className="font-semibold mr-2">Monto Descuento:</span>
+              <span className="text-red-600">- {order.currency} {totals.montoDescuento.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-end items-center mb-2">
+              <span className="font-semibold mr-2">Monto Venta:</span>
+              <span className="text-blue-600">+ {order.currency} {totals.montoVenta.toFixed(2)}</span>
             </div>
             <div className="flex justify-end items-center mb-2">
               <span className="font-semibold mr-2">Monto IVA:</span>
