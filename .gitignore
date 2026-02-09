@@ -10,6 +10,8 @@ dist-ssr/
 .env
 .env*.local
 *.local
+.env.test
+.env.prod
 
 # --- Supabase ---
 supabase/.temp/
