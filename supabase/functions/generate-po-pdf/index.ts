@@ -179,6 +179,7 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
+    console.log(`[generate-po-pdf] Auth header present: ${!!authHeader}`); // Added logging
     if (!authHeader) {
       return new Response('Unauthorized', { status: 401, headers: corsHeaders });
     }
@@ -200,7 +201,8 @@ serve(async (req) => {
     }
 
     const { orderId } = await req.json();
-    console.log(`[generate-po-pdf] Generating PDF for order ID: ${orderId} by user: ${user.email}`);
+    console.log(`[generate-po-pdf] Request received. Order ID: ${orderId}`);
+    console.log(`[generate-po-pdf] Auth header present: ${!!authHeader}`);
 
     // --- Data Fetching ---
     const { data: order, error: orderError } = await supabaseClient
@@ -226,7 +228,8 @@ serve(async (req) => {
       .eq('order_id', orderId);
 
     if (itemsError) {
-      return new Response(JSON.stringify({ error: 'Error fetching order items.' }), {
+      console.error('[generate-po-pdf] Error fetching order items:', itemsError);
+      return new Response(JSON.stringify({ error: 'Error fetching order items.', details: itemsError }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

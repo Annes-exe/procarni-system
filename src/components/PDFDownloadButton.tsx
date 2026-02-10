@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
-import { cn } from '@/lib/utils'; // Import cn for conditional class application
+import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PDFDownloadButtonProps {
   requestId?: string; // For quote requests
@@ -57,13 +58,26 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
     const toastId = showLoading('Generando PDF para descarga...');
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/${endpoint}`, {
+      // Fetch fresh session to ensure we have the latest token for the configured project
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        showError('No hay sesión activa para descargar el PDF.');
+        return;
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) throw new Error('VITE_SUPABASE_URL not defined');
+
+      const functionUrl = `${supabaseUrl}/functions/v1/${endpoint}`;
+
+      const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ requestId: requestId, orderId: orderId }),
+        body: JSON.stringify({ requestId, orderId }),
       });
 
       if (!response.ok) {
@@ -100,7 +114,7 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
       asChild={asChild}
       // When asChild is true, the parent (DropdownMenuItem) handles the layout, 
       // but we keep the class here for when it's used as a standalone button (asChild=false)
-      className={cn("flex items-center gap-2", asChild ? "w-full justify-start" : "")} 
+      className={cn("flex items-center gap-2", asChild ? "w-full justify-start" : "")}
       ref={ref} // Forward the ref to the Button component
     >
       {/* Wrap content in a single span element to ensure it's a single child element, 
