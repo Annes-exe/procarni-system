@@ -254,18 +254,18 @@ serve(async (req) => {
         const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-        // Table column configuration (Original 6 columns + 2 new percentage columns)
+        // Table column configuration (Adjusted for better fit)
         const tableWidth = width - 2 * MARGIN;
         // Total 8 columns: Material, Cantidad, Unidad, P. Unitario, Desc. (%), Venta (%), IVA, Total
         const colWidths = [
-            tableWidth * 0.25,  // 1. Material/Description (Reduced from 30%)
+            tableWidth * 0.35,  // 1. Material/Description (Increased to 35%)
             tableWidth * 0.08,  // 2. Cantidad
             tableWidth * 0.08,  // 3. Unidad
             tableWidth * 0.12,  // 4. P. Unitario
-            tableWidth * 0.08,  // 5. Desc. (%) (NEW)
-            tableWidth * 0.08,  // 6. Venta (%) (NEW)
-            tableWidth * 0.10,  // 7. IVA (Reduced from 15%)
-            tableWidth * 0.21   // 8. Total (Increased from 20%)
+            tableWidth * 0.07,  // 5. Desc. (%) (Reduced to 7%)
+            tableWidth * 0.07,  // 6. Venta (%) (Reduced to 7%)
+            tableWidth * 0.08,  // 7. IVA (Reduced to 8%)
+            tableWidth * 0.15   // 8. Total (Reduced to 15%)
         ];
         const colHeaders = ['Servicio/Desc.', 'Cant.', 'Unid.', 'P. Unit.', 'Desc. (%)', 'Venta (%)', 'IVA', 'Total'];
 
@@ -318,7 +318,7 @@ serve(async (req) => {
             });
 
             for (let i = 0; i < colHeaders.length; i++) {
-                drawText(state, colHeaders[i], currentX + 5, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
+                drawText(state, colHeaders[i], currentX + 2, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
                     font: boldFont,
                     size: 8, // Reduced font size for headers to fit
                     color: PROC_RED
@@ -443,37 +443,24 @@ serve(async (req) => {
             // NEW: Detailed Service Description
             const serviceDetails = order.detailed_service_description || 'N/A';
             const serviceDetailsTitle = 'Detalle del Servicio: ';
-            const maxCharsPerLine = 90;
+            const maxCharsPerLine = 95; // Increased slightly as we use full width
 
             drawText(state, serviceDetailsTitle, MARGIN, state.y, { font: boldFont });
-            const titleWidth = boldFont.widthOfTextAtSize(serviceDetailsTitle, FONT_SIZE);
+
+            // Move to next line for the description content to allow full width usage
+            state.y -= LINE_HEIGHT;
 
             // Wrap the description text
             const descriptionLines = wrapText(serviceDetails, maxCharsPerLine);
 
-            // Draw first line on the same line as title if it fits, else next line
-            // Actually, let's just put it below or inline. Inline is better for space.
-            // But if it's long, we need to handle it.
-
-            // Let's do: Title on one line, then description below if long? 
-            // Or Title: Value.
-            // Let's try Title: Value, wrapping Value.
-
-            let currentX = MARGIN + titleWidth;
-            let firstLine = true;
-
             for (const line of descriptionLines) {
-                if (firstLine) {
-                    drawText(state, line, currentX, state.y);
-                    firstLine = false;
-                    currentX = MARGIN; // Reset X for subsequent lines
-                } else {
-                    state.y -= LINE_HEIGHT;
-                    drawText(state, line, currentX, state.y);
-                }
+                // Check page break for description lines
+                state = checkPageBreak(state, LINE_HEIGHT);
+                drawText(state, line, MARGIN, state.y);
+                state.y -= LINE_HEIGHT;
             }
 
-            state.y -= LINE_HEIGHT * 2;
+            state.y -= LINE_HEIGHT;
             return state;
         };
 
@@ -554,7 +541,7 @@ serve(async (req) => {
                     }
                 }
 
-                // Wrap the combined content for the first column (25% width, approx 30 chars per line)
+                // Wrap the combined content for the first column (35% width, approx 30 chars per line to be safe)
                 const materialLines = wrapText(materialContent, 30);
                 const lineSpacing = (FONT_SIZE - 1) * 1.2;
                 const requiredHeight = materialLines.length * lineSpacing + 5;
@@ -574,7 +561,7 @@ serve(async (req) => {
 
                 // 1. Material/Description (Multi-line)
                 for (const line of materialLines) {
-                    drawText(state, line, currentX + 5, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
+                    drawText(state, line, currentX + 2, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
                     currentY -= lineSpacing;
                 }
                 currentX += colWidths[0];
@@ -582,7 +569,7 @@ serve(async (req) => {
                 const finalY = state.y - requiredHeight;
 
                 // Helper to draw data centered vertically and right-aligned
-                const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font) => {
+                const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font, color: any = rgb(0, 0, 0)) => {
                     const cellWidth = colWidths[colIndex];
                     const textWidth = fontToUse.widthOfTextAtSize(text, size);
 
@@ -592,7 +579,7 @@ serve(async (req) => {
                         ? currentX + cellWidth - 5 - textWidth
                         : currentX + 5;
 
-                    drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse });
+                    drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse, color });
                     currentX += cellWidth;
                 };
 
@@ -612,7 +599,11 @@ serve(async (req) => {
                 drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 5);
 
                 // 7. IVA
-                drawCellData(item.is_exempt ? 'EXENTO' : itemIva.toFixed(2), 6);
+                if (item.is_exempt) {
+                    drawCellData('EXENTO', 6, true, 8, font, DARK_GRAY);
+                } else {
+                    drawCellData(itemIva.toFixed(2), 6);
+                }
 
                 // 8. Total
                 drawCellData(totalItem.toFixed(2), 7, true, FONT_SIZE + 1, boldFont); // Slightly larger font for total
