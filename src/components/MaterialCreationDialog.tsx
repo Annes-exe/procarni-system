@@ -29,6 +29,7 @@ const MATERIAL_CATEGORIES = [
   'ENCERADOS', 'PUBLICIDAD',
   'MAQUINARIA', // Nueva categoría
   'COMEDOR', // Nueva categoría
+  'OPERACIONAL', // Nueva categoría
 ];
 
 const MATERIAL_UNITS = [
@@ -184,6 +185,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           unit,
           is_exempt: finalIsExempt, // Use the determined final status
           user_id: session.user.id,
+          code: '', // Allow trigger to generate it
         });
 
         if (!newMaterial) {
@@ -299,7 +301,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 <SelectTrigger id="category">
                   <SelectValue placeholder="Selecciona categoría" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[200px] overflow-y-auto">
                   {MATERIAL_CATEGORIES.map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
@@ -313,7 +315,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 <SelectTrigger id="unit">
                   <SelectValue placeholder="Selecciona unidad" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[200px] overflow-y-auto">
                   {MATERIAL_UNITS.map(u => (
                     <SelectItem key={u} value={u}>{u}</SelectItem>
                   ))}

@@ -438,6 +438,41 @@ serve(async (req) => {
             drawText(state, `Fecha de Servicio: ${formatServiceDate(order.service_date)}`, MARGIN, state.y);
             state.y -= LINE_HEIGHT;
             drawText(state, `Condición de Pago: ${paymentTerms}`, MARGIN, state.y);
+            state.y -= LINE_HEIGHT;
+
+            // NEW: Detailed Service Description
+            const serviceDetails = order.detailed_service_description || 'N/A';
+            const serviceDetailsTitle = 'Detalle del Servicio: ';
+            const maxCharsPerLine = 90;
+
+            drawText(state, serviceDetailsTitle, MARGIN, state.y, { font: boldFont });
+            const titleWidth = boldFont.widthOfTextAtSize(serviceDetailsTitle, FONT_SIZE);
+
+            // Wrap the description text
+            const descriptionLines = wrapText(serviceDetails, maxCharsPerLine);
+
+            // Draw first line on the same line as title if it fits, else next line
+            // Actually, let's just put it below or inline. Inline is better for space.
+            // But if it's long, we need to handle it.
+
+            // Let's do: Title on one line, then description below if long? 
+            // Or Title: Value.
+            // Let's try Title: Value, wrapping Value.
+
+            let currentX = MARGIN + titleWidth;
+            let firstLine = true;
+
+            for (const line of descriptionLines) {
+                if (firstLine) {
+                    drawText(state, line, currentX, state.y);
+                    firstLine = false;
+                    currentX = MARGIN; // Reset X for subsequent lines
+                } else {
+                    state.y -= LINE_HEIGHT;
+                    drawText(state, line, currentX, state.y);
+                }
+            }
+
             state.y -= LINE_HEIGHT * 2;
             return state;
         };

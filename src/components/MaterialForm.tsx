@@ -34,6 +34,7 @@ const MATERIAL_CATEGORIES = [
   'PUBLICIDAD', // Nueva categoría
   'MAQUINARIA', // Nueva categoría
   'COMEDOR', // Nueva categoría
+  'OPERACIONAL', // Nueva categoría
 ];
 
 // Define las unidades de medida.
