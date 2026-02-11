@@ -172,7 +172,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 
 // --- MAIN SERVE HANDLER ---
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -255,20 +255,19 @@ serve(async (req) => {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-    // Table column configuration (Original 6 columns + 2 new percentage columns)
+    // Table column configuration (Adjusted: Material reduced, Cant/Unit merged)
     const tableWidth = width - 2 * MARGIN;
-    // Total 8 columns: Material, Cantidad, Unidad, P. Unitario, Desc. (%), Venta (%), IVA, Total
+    // Total 7 columns: Material, Cant./Unid., P. Unitario, Desc. (%), Venta (%), IVA, Total
     const colWidths = [
-      tableWidth * 0.20,  // 1. Material/Description (Reduced from 25% to 20%)
-      tableWidth * 0.10,  // 2. Cantidad (Increased from 8% to 10%)
-      tableWidth * 0.08,  // 3. Unidad
-      tableWidth * 0.12,  // 4. P. Unitario
-      tableWidth * 0.08,  // 5. Desc. (%) (NEW)
-      tableWidth * 0.08,  // 6. Venta (%) (NEW)
-      tableWidth * 0.10,  // 7. IVA (Reduced from 15%)
-      tableWidth * 0.24   // 8. Total (Increased from 21% to 24%)
+      tableWidth * 0.25,  // 1. Material/Description (Reduced to 25%)
+      tableWidth * 0.15,  // 2. Cant. / Unid. (Merged, 15%)
+      tableWidth * 0.15,  // 3. P. Unitario (Increased to 15%)
+      tableWidth * 0.10,  // 4. Desc. (%) (Increased to 10%)
+      tableWidth * 0.10,  // 5. Venta (%) (Increased to 10%)
+      tableWidth * 0.10,  // 6. IVA (Increased to 10%)
+      tableWidth * 0.15   // 7. Total (15%)
     ];
-    const colHeaders = ['Material', 'Cant.', 'Unid.', 'P. Unit.', 'Desc. (%)', 'Venta (%)', 'IVA', 'Total'];
+    const colHeaders = ['Material', 'Cant. / Unid.', 'P. Unit.', 'Desc. (%)', 'Venta (%)', 'IVA', 'Total'];
 
     // PDF State Management
     interface PDFState {
@@ -319,7 +318,7 @@ serve(async (req) => {
       });
 
       for (let i = 0; i < colHeaders.length; i++) {
-        drawText(state, colHeaders[i], currentX + 5, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
+        drawText(state, colHeaders[i], currentX + 2, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
           font: boldFont,
           size: 8, // Reduced font size for headers to fit
           color: PROC_RED
@@ -339,7 +338,7 @@ serve(async (req) => {
       return state;
     };
 
-    // --- Modular Drawing Functions (Header, Details, Observations remain the same) ---
+    // --- Modular Drawing Functions ---
 
     const drawHeader = async (state: PDFState, order: any): Promise<PDFState> => {
       let companyLogoImage = null;
@@ -520,8 +519,8 @@ serve(async (req) => {
           }
         }
 
-        // Wrap the combined content for the first column (20% width, approx 24 chars per line)
-        const materialLines = wrapText(materialContent, 24);
+        // Wrap the combined content for the first column (25% width, approx 20 chars per line for safety)
+        const materialLines = wrapText(materialContent, 20);
         const lineSpacing = (FONT_SIZE - 1) * 1.2;
         const requiredHeight = materialLines.length * lineSpacing + 5;
 
@@ -540,7 +539,7 @@ serve(async (req) => {
 
         // 1. Material/Description (Multi-line)
         for (const line of materialLines) {
-          drawText(state, line, currentX + 5, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
+          drawText(state, line, currentX + 2, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
           currentY -= lineSpacing;
         }
         currentX += colWidths[0];
@@ -548,7 +547,7 @@ serve(async (req) => {
         const finalY = state.y - requiredHeight;
 
         // Helper to draw data centered vertically and right-aligned
-        const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font) => {
+        const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font, color: any = rgb(0, 0, 0)) => {
           const cellWidth = colWidths[colIndex];
           const textWidth = fontToUse.widthOfTextAtSize(text, size);
 
@@ -558,30 +557,33 @@ serve(async (req) => {
             ? currentX + cellWidth - 5 - textWidth
             : currentX + 5;
 
-          drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse });
+          drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse, color });
           currentX += cellWidth;
         };
 
-        // 2. Cantidad
-        drawCellData(String(item.quantity ?? 0), 1); // Ensure quantity is safely accessed
+        // 2. Cantidad / Unidad (Merged)
+        const quantityStr = String(item.quantity ?? 0);
+        const unitStr = item.unit || 'UND';
+        drawCellData(`${quantityStr} ${unitStr}`, 1);
 
-        // 3. Unidad
-        drawCellData(item.unit || 'UND', 2);
+        // 3. P. Unitario
+        drawCellData((item.unit_price ?? 0).toFixed(2), 2);
 
-        // 4. P. Unitario
-        drawCellData((item.unit_price ?? 0).toFixed(2), 3);
+        // 4. Desc. (%) (NEW)
+        drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 3);
 
-        // 5. Desc. (%) (NEW)
-        drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 4);
+        // 5. Venta (%) (NEW)
+        drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 4);
 
-        // 6. Venta (%) (NEW)
-        drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 5);
+        // 6. IVA
+        if (item.is_exempt) {
+          drawCellData('EXENTO', 5, true, 8, font, DARK_GRAY);
+        } else {
+          drawCellData(itemIva.toFixed(2), 5);
+        }
 
-        // 7. IVA
-        drawCellData(item.is_exempt ? 'EXENTO' : itemIva.toFixed(2), 6);
-
-        // 8. Total
-        drawCellData(totalItem.toFixed(2), 7, true, FONT_SIZE + 1, boldFont); // Slightly larger font for total
+        // 7. Total
+        drawCellData(totalItem.toFixed(2), 6, true, FONT_SIZE + 1, boldFont); // Slightly larger font for total
 
         state.y = finalY; // Update Y position for the next row
       }
