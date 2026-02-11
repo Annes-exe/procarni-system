@@ -19,9 +19,20 @@ interface SmartSearchProps {
   displayValue?: string; // Optional prop to control the displayed value
   selectedId?: string; // NEW: Optional prop to indicate the currently selected ID
   disabled?: boolean; // New prop
+  className?: string;
+  autoFocus?: boolean;
 }
 
-const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchFunction, displayValue, selectedId, disabled = false }) => {
+const SmartSearch: React.FC<SmartSearchProps> = ({
+  placeholder,
+  onSelect,
+  fetchFunction,
+  displayValue,
+  selectedId,
+  disabled = false,
+  className,
+  autoFocus
+}) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -87,7 +98,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between overflow-hidden", "min-w-[150px] md:min-w-[200px] lg:min-w-[250px]")}
+          className={cn("w-full justify-between overflow-hidden min-w-[150px] md:min-w-[200px] lg:min-w-[250px]", className)}
           disabled={disabled}
         >
           <span className="truncate text-left w-full mr-2">
@@ -102,6 +113,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
             placeholder={placeholder}
             value={query}
             onValueChange={setQuery}
+            autoFocus={autoFocus}
           />
           <CommandList className="max-h-60 overflow-y-auto"> {/* Added max-h-60 and overflow-y-auto */}
             <CommandEmpty>No se encontraron resultados.</CommandEmpty>
