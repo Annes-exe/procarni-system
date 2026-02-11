@@ -12,19 +12,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import QuoteRequestItemsTable from '@/components/QuoteRequestItemsTable';
+import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
 
 interface Company {
   id: string;
   name: string;
   rif: string;
-}
-
-interface QuoteRequestItem {
-  material_name: string;
-  quantity: number;
-  description?: string;
-  unit?: string;
 }
 
 interface MaterialSearchResult {
@@ -57,7 +50,7 @@ const GenerateQuoteRequest = () => {
   const [companyName, setCompanyName] = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
-  const [items, setItems] = useState<QuoteRequestItem[]>([]);
+  const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
@@ -93,10 +86,10 @@ const GenerateQuoteRequest = () => {
   }, [supplierId]);
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0] }]);
+    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0], material_id: undefined }]);
   };
 
-  const handleItemChange = (index: number, field: keyof QuoteRequestItem, value: any) => {
+  const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
     setItems((prevItems) =>
       prevItems.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
@@ -109,6 +102,7 @@ const GenerateQuoteRequest = () => {
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || MATERIAL_UNITS[0]);
+    handleItemChange(index, 'material_id', material.id); // Save ID
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);
     }
@@ -162,7 +156,7 @@ const GenerateQuoteRequest = () => {
       exchange_rate: null,
       created_by: userEmail || 'unknown',
       user_id: userId,
-      status: 'pending' // Added status
+      status: 'Draft' // Fixed from 'pending'
     };
 
     // @ts-ignore - The createQuoteRequest type definition might be missing status in Omit but it's required by DB

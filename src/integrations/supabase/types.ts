@@ -114,6 +114,7 @@ export type QuoteRequestItem = {
   description: string | null;
   unit: string | null;
   is_exempt: boolean | null;
+  material_id: string | null; // Added
 };
 
 export type PriceHistory = {

@@ -14,20 +14,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import QuoteRequestPreviewModal from '@/components/QuoteRequestPreviewModal';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import QuoteRequestItemsTable from '@/components/QuoteRequestItemsTable';
+import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
 
 interface Company {
   id: string;
   name: string;
   rif: string;
-}
-
-interface QuoteRequestItemForm {
-  id?: string;
-  material_name: string;
-  quantity: number;
-  description?: string;
-  unit?: string;
 }
 
 interface MaterialSearchResult {
@@ -84,6 +76,7 @@ const EditQuoteRequest = () => {
         quantity: item.quantity,
         description: item.description || '',
         unit: item.unit || MATERIAL_UNITS[0],
+        material_id: item.material_id || undefined, // Mapped
       })));
     }
   }, [initialRequest]);
@@ -126,7 +119,7 @@ const EditQuoteRequest = () => {
   }
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0] }]);
+    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0], material_id: undefined }]);
   };
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
@@ -142,6 +135,7 @@ const EditQuoteRequest = () => {
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || MATERIAL_UNITS[0]);
+    handleItemChange(index, 'material_id', material.id); // Save ID
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);
     }
@@ -184,7 +178,7 @@ const EditQuoteRequest = () => {
       exchange_rate: null,
       created_by: userEmail || 'unknown',
       user_id: userId,
-      status: 'pending'
+      status: 'Draft'
     };
 
     // @ts-ignore

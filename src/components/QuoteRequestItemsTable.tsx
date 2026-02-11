@@ -12,12 +12,13 @@ import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 
-interface QuoteRequestItemForm {
+export interface QuoteRequestItemForm {
     id?: string;
     material_name: string;
     quantity: number;
     unit?: string;
     description?: string;
+    material_id?: string; // Added for name update propagation
 }
 
 interface MaterialSearchResult {
