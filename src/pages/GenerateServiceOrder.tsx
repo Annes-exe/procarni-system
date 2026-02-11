@@ -233,7 +233,7 @@ const GenerateServiceOrder = () => {
                   <PlusCircle className="h-4 w-4" />
                 </Button>
               </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
+              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
 
