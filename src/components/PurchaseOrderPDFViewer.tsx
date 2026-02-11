@@ -70,7 +70,8 @@ const PurchaseOrderPDFViewer = React.forwardRef<PurchaseOrderPDFViewerRef, Purch
 
     try {
       // Usamos la función Edge para generar el PDF
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-po-pdf`, {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/generate-po-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -87,7 +88,7 @@ const PurchaseOrderPDFViewer = React.forwardRef<PurchaseOrderPDFViewerRef, Purch
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
-      
+
       // Dismiss loading toast and show success toast
       dismissToast(toastId);
       setLoadingToastId(null);
@@ -114,7 +115,7 @@ const PurchaseOrderPDFViewer = React.forwardRef<PurchaseOrderPDFViewerRef, Purch
   useEffect(() => {
     fetchOrderDetails();
     generatePdf();
-    
+
     // Cleanup function runs on unmount
     return () => {
       if (pdfUrl) {

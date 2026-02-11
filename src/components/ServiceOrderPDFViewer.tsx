@@ -71,8 +71,9 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
         setLoadingToastId(toastId);
 
         try {
-            // Endpoint hypothetically named generate-so-pdf
-            const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-so-pdf`, {
+            // Use environment variable for Supabase URL
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const response = await fetch(`${supabaseUrl}/functions/v1/generate-so-pdf`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${session.access_token}`,

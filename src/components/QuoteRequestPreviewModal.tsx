@@ -57,7 +57,8 @@ const QuoteRequestPreviewModal = React.forwardRef<QuoteRequestPreviewModalRef, Q
     setLoadingToastId(toastId);
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-qr-pdf`, {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/generate-qr-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
