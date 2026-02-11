@@ -299,10 +299,7 @@ const GenerateServiceOrder = () => {
           </div>
 
           <div className="flex justify-end gap-2 mt-6">
-            {/* TODO: Implement ServiceOrderDraftPreview */}
-            <Button variant="secondary" disabled={true}>
-              <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF (WIP)
-            </Button>
+
             <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !supplierId || !serviceDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Servicio'}
             </Button>

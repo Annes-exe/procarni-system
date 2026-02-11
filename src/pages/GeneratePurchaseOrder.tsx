@@ -9,7 +9,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { createPurchaseOrder, searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import PurchaseOrderDraftPreview from '@/components/PurchaseOrderDraftPreview';
+
 import { useLocation, useNavigate } from 'react-router-dom';
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 import PurchaseOrderDetailsForm from '@/components/PurchaseOrderDetailsForm';
@@ -57,7 +57,7 @@ const GeneratePurchaseOrder = () => {
   const [supplierName, setSupplierName] = React.useState<string>('');
   const [currency, setCurrency] = React.useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
-  
+
   const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(undefined);
   const [paymentTerms, setPaymentTerms] = React.useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
   const [customPaymentTerms, setCustomPaymentTerms] = React.useState<string>('');
@@ -65,7 +65,7 @@ const GeneratePurchaseOrder = () => {
   const [observations, setObservations] = React.useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
+
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = React.useState(false);
 
   const userId = session?.user?.id;
@@ -87,19 +87,19 @@ const GeneratePurchaseOrder = () => {
         setObservations(`Generado desde Solicitud de Cotización: ${quoteRequest.id.substring(0, 8)}`);
 
         clearCart();
-        
+
         const supplierIdForSearch = quoteRequest.supplier_id;
-        
+
         for (const item of quoteRequest.quote_request_items) {
           let materialId: string | undefined = undefined;
           let supplierCode: string = '';
           let isExempt: boolean = false;
-          
+
           if (supplierIdForSearch) {
             try {
               const associatedMaterials = await searchMaterialsBySupplier(supplierIdForSearch, item.material_name);
               const exactMatch = associatedMaterials.find(m => m.name.toLowerCase() === item.material_name.toLowerCase());
-              
+
               if (exactMatch) {
                 materialId = exactMatch.id;
                 supplierCode = exactMatch.code || '';
@@ -185,15 +185,15 @@ const GeneratePurchaseOrder = () => {
   };
 
   const handleAddItem = () => {
-    addItem({ 
-      material_id: undefined, 
-      material_name: '', 
-      supplier_code: '', 
-      quantity: 0, 
-      unit_price: 0, 
-      tax_rate: 0.16, 
-      is_exempt: false, 
-      unit: MATERIAL_UNITS[0], 
+    addItem({
+      material_id: undefined,
+      material_name: '',
+      supplier_code: '',
+      quantity: 0,
+      unit_price: 0,
+      tax_rate: 0.16,
+      is_exempt: false,
+      unit: MATERIAL_UNITS[0],
       description: '',
       sales_percentage: 0,
       discount_percentage: 0,
@@ -217,7 +217,7 @@ const GeneratePurchaseOrder = () => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
   };
-  
+
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
@@ -250,11 +250,11 @@ const GeneratePurchaseOrder = () => {
       showError('La tasa de cambio es requerida y debe ser mayor que cero para órdenes en Bolívares.');
       return;
     }
-    
-    const invalidItem = items.find(item => 
-      !item.material_id || 
-      !item.material_name || 
-      item.quantity <= 0 || 
+
+    const invalidItem = items.find(item =>
+      !item.material_id ||
+      !item.material_name ||
+      item.quantity <= 0 ||
       item.unit_price <= 0
     );
 
@@ -318,7 +318,7 @@ const GeneratePurchaseOrder = () => {
         }));
 
         const updatedQR = await updateQuoteRequest(quoteRequest.id, { status: 'Archived' }, itemsPayload);
-        
+
         if (updatedQR) {
           console.log(`Quote Request ${quoteRequest.id} archived successfully.`);
         } else {
@@ -375,9 +375,9 @@ const GeneratePurchaseOrder = () => {
                   fetchFunction={searchSuppliers}
                   displayValue={supplierName}
                 />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
+                <Button
+                  variant="outline"
+                  size="icon"
                   onClick={() => setIsAddSupplierDialogOpen(true)}
                   className="shrink-0"
                   title="Añadir nuevo proveedor"
@@ -388,7 +388,7 @@ const GeneratePurchaseOrder = () => {
               {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
-          
+
           <PurchaseOrderDetailsForm
             companyId={companyId}
             companyName={companyName}
@@ -452,36 +452,7 @@ const GeneratePurchaseOrder = () => {
           </div>
 
           <div className="flex justify-end gap-2 mt-6">
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" disabled={isSubmitting || !companyId || items.length === 0}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Previsualización de Orden de Compra</DialogTitle>
-                </DialogHeader>
-                <PurchaseOrderDraftPreview
-                  orderData={{
-                    supplier_id: supplierId,
-                    company_id: companyId || '',
-                    currency,
-                    exchange_rate: currency === 'VES' ? exchangeRate : null,
-                    status: 'Draft',
-                    created_by: userEmail || 'unknown',
-                    user_id: userId || '',
-                    delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
-                    payment_terms: paymentTerms,
-                    custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
-                    credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
-                    observations: observations || null,
-                  }}
-                  itemsData={items}
-                  onClose={() => setIsModalOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
+
             <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Compra'}
             </Button>
