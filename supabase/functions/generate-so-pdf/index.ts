@@ -254,20 +254,19 @@ serve(async (req) => {
         const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-        // Table column configuration (Adjusted for better fit)
+        // Table column configuration (Adjusted: Service/Desc reduced, Cant/Unit merged)
         const tableWidth = width - 2 * MARGIN;
-        // Total 8 columns: Material, Cantidad, Unidad, P. Unitario, Desc. (%), Venta (%), IVA, Total
+        // Total 7 columns: Servicio/Desc., Cant./Unid., P. Unitario, Desc. (%), Venta (%), IVA, Total
         const colWidths = [
-            tableWidth * 0.35,  // 1. Material/Description (Increased to 35%)
-            tableWidth * 0.08,  // 2. Cantidad
-            tableWidth * 0.08,  // 3. Unidad
-            tableWidth * 0.12,  // 4. P. Unitario
-            tableWidth * 0.07,  // 5. Desc. (%) (Reduced to 7%)
-            tableWidth * 0.07,  // 6. Venta (%) (Reduced to 7%)
-            tableWidth * 0.08,  // 7. IVA (Reduced to 8%)
-            tableWidth * 0.15   // 8. Total (Reduced to 15%)
+            tableWidth * 0.25,  // 1. Servicio/Desc. (Reduced to 25%)
+            tableWidth * 0.15,  // 2. Cant. / Unid. (Merged, 15%)
+            tableWidth * 0.15,  // 3. P. Unitario (Increased to 15%)
+            tableWidth * 0.10,  // 4. Desc. (%) (Increased to 10%)
+            tableWidth * 0.10,  // 5. Venta (%) (Increased to 10%)
+            tableWidth * 0.10,  // 6. IVA (Increased to 10%)
+            tableWidth * 0.15   // 7. Total (15%)
         ];
-        const colHeaders = ['Servicio/Desc.', 'Cant.', 'Unid.', 'P. Unit.', 'Desc. (%)', 'Venta (%)', 'IVA', 'Total'];
+        const colHeaders = ['Servicio/Desc.', 'Cant. / Unid.', 'P. Unit.', 'Desc. (%)', 'Venta (%)', 'IVA', 'Total'];
 
         // PDF State Management
         interface PDFState {
@@ -541,8 +540,8 @@ serve(async (req) => {
                     }
                 }
 
-                // Wrap the combined content for the first column (35% width, approx 30 chars per line to be safe)
-                const materialLines = wrapText(materialContent, 30);
+                // Wrap the combined content for the first column (25% width, approx 20 chars per line to be safe)
+                const materialLines = wrapText(materialContent, 20);
                 const lineSpacing = (FONT_SIZE - 1) * 1.2;
                 const requiredHeight = materialLines.length * lineSpacing + 5;
 
@@ -583,30 +582,29 @@ serve(async (req) => {
                     currentX += cellWidth;
                 };
 
-                // 2. Cantidad
-                drawCellData(String(item.quantity ?? 0), 1); // Ensure quantity is safely accessed
+                // 2. Cantidad / Unidad (Merged)
+                const quantityStr = String(item.quantity ?? 0);
+                const unitStr = item.unit || 'UND';
+                drawCellData(`${quantityStr} ${unitStr}`, 1);
 
-                // 3. Unidad
-                drawCellData(item.unit || 'UND', 2);
+                // 3. P. Unitario
+                drawCellData((item.unit_price ?? 0).toFixed(2), 2);
 
-                // 4. P. Unitario
-                drawCellData((item.unit_price ?? 0).toFixed(2), 3);
+                // 4. Desc. (%) (NEW)
+                drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 3);
 
-                // 5. Desc. (%) (NEW)
-                drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 4);
+                // 5. Venta (%) (NEW)
+                drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 4);
 
-                // 6. Venta (%) (NEW)
-                drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 5);
-
-                // 7. IVA
+                // 6. IVA
                 if (item.is_exempt) {
-                    drawCellData('EXENTO', 6, true, 8, font, DARK_GRAY);
+                    drawCellData('EXENTO', 5, true, 8, font, DARK_GRAY);
                 } else {
-                    drawCellData(itemIva.toFixed(2), 6);
+                    drawCellData(itemIva.toFixed(2), 5);
                 }
 
-                // 8. Total
-                drawCellData(totalItem.toFixed(2), 7, true, FONT_SIZE + 1, boldFont); // Slightly larger font for total
+                // 7. Total
+                drawCellData(totalItem.toFixed(2), 6, true, FONT_SIZE + 1, boldFont); // Slightly larger font for total
 
                 state.y = finalY; // Update Y position for the next row
             }
