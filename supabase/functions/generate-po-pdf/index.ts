@@ -373,8 +373,15 @@ serve(async (req: Request) => {
           size: COMPANY_NAME_FONT_SIZE,
           color: PROC_RED
         });
+        // Draw RIF below name
+        drawText(state, `RIF: ${order.companies?.rif || 'N/A'}`, logoX + LOGO_SIZE + 10, state.y - (LOGO_SIZE / 2) + (COMPANY_NAME_FONT_SIZE / 2) - LINE_HEIGHT, {
+          size: 8,
+          color: DARK_GRAY
+        });
       } else {
         drawText(state, order.companies?.name || 'N/A', MARGIN, state.y, { font: boldFont, size: COMPANY_NAME_FONT_SIZE, color: PROC_RED });
+        // Draw RIF below name
+        drawText(state, `RIF: ${order.companies?.rif || 'N/A'}`, MARGIN, state.y - LINE_HEIGHT, { size: 8, color: DARK_GRAY });
       }
 
       // 2. Draw Document Title and Number (Top Right)
