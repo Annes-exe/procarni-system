@@ -12,7 +12,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Link, useNavigate } from 'react-router-dom';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +42,8 @@ const QuoteRequestManagement = () => {
   const { session } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const isMobileView = isMobile || isTablet;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved'>('active');
@@ -52,21 +54,21 @@ const QuoteRequestManagement = () => {
   // Fetch active requests
   const { data: activeQuoteRequests, isLoading: isLoadingActive, error: activeError } = useQuery<QuoteRequest[]>({
     queryKey: ['quoteRequests', 'Active'],
-    queryFn: () => getAllQuoteRequests('Active'),
+    queryFn: async () => (await getAllQuoteRequests('Active')) as unknown as QuoteRequest[],
     enabled: !!session && activeTab === 'active',
   });
 
   // Fetch approved requests
   const { data: approvedQuoteRequests, isLoading: isLoadingApproved, error: approvedError } = useQuery<QuoteRequest[]>({
     queryKey: ['quoteRequests', 'Approved'],
-    queryFn: () => getAllQuoteRequests('Approved'),
+    queryFn: async () => (await getAllQuoteRequests('Approved')) as unknown as QuoteRequest[],
     enabled: !!session && activeTab === 'approved',
   });
 
   // Fetch archived requests
   const { data: archivedQuoteRequests, isLoading: isLoadingArchived, error: archivedError } = useQuery<QuoteRequest[]>({
     queryKey: ['quoteRequests', 'Archived'],
-    queryFn: () => getAllQuoteRequests('Archived'),
+    queryFn: async () => (await getAllQuoteRequests('Archived')) as unknown as QuoteRequest[],
     enabled: !!session && activeTab === 'archived',
   });
 
@@ -238,7 +240,7 @@ const QuoteRequestManagement = () => {
         <p><strong>Fecha:</strong> {new Date(request.created_at).toLocaleDateString('es-VE')}</p>
         {/* Status badge moved here */}
         <p>
-          <strong>Estado:</strong> 
+          <strong>Estado:</strong>
           <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(request.status))}>
             {STATUS_TRANSLATIONS[request.status] || request.status}
           </span>
@@ -246,12 +248,27 @@ const QuoteRequestManagement = () => {
       </div>
       <div className="flex justify-end gap-2 mt-4 border-t pt-3">
         <Button variant="outline" size="sm" onClick={() => handleViewDetails(request.id)}>
-          <Eye className="h-4 w-4 mr-2" /> Ver Detalles
+          <Eye className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Ver"}
         </Button>
+        {request.status === 'Draft' && (
+          <Button variant="outline" size="sm" onClick={() => handleEditRequest(request.id)}>
+            <Edit className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Editar"}
+          </Button>
+        )}
         {request.status !== 'Archived' && (
           <Button variant="outline" size="sm" onClick={() => confirmAction(request.id, 'archive')}>
-            <Archive className="h-4 w-4" />
+            <Archive className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Archivar"}
           </Button>
+        )}
+        {request.status === 'Archived' && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => confirmAction(request.id, 'unarchive')}>
+              <RotateCcw className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Desarchivar"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => confirmDelete(request.id)} className="text-destructive border-destructive hover:bg-destructive/10">
+              <Trash2 className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Eliminar"}
+            </Button>
+          </>
         )}
       </div>
     </Card>
@@ -270,16 +287,16 @@ const QuoteRequestManagement = () => {
             <CardTitle className="text-procarni-primary">Gestión de Solicitudes de Cotización</CardTitle>
             <CardDescription>Administra tus solicitudes de cotización enviadas a proveedores.</CardDescription>
           </div>
-          <Button 
-            asChild 
+          <Button
+            asChild
             className={cn(
               "bg-procarni-secondary hover:bg-green-700",
-              isMobile && "w-10 h-10 p-0" // Adaptación móvil
+              isMobileView && "w-10 h-10 p-0" // Adaptación móvil
             )}
           >
             <Link to="/generate-quote">
-              <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
-              {!isMobile && 'Nueva Solicitud'}
+              <PlusCircle className={cn("h-4 w-4", !isMobileView && "mr-2")} />
+              {!isMobileView && 'Nueva Solicitud'}
             </Link>
           </Button>
         </CardHeader>
@@ -290,7 +307,7 @@ const QuoteRequestManagement = () => {
               <TabsTrigger value="approved">Aprobadas</TabsTrigger>
               <TabsTrigger value="archived">Archivadas</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value={activeTab} className="mt-4">
               <div className="relative mb-4">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -302,11 +319,11 @@ const QuoteRequestManagement = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              
+
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-8">Cargando solicitudes...</div>
               ) : filteredQuoteRequests.length > 0 ? (
-                isMobile ? (
+                isMobileView ? (
                   <div className="grid gap-4">
                     {filteredQuoteRequests.map(renderMobileCard)}
                   </div>
@@ -368,8 +385,8 @@ const QuoteRequestManagement = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={archiveMutation.isPending || unarchiveMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeAction} 
+            <AlertDialogAction
+              onClick={executeAction}
               disabled={archiveMutation.isPending || unarchiveMutation.isPending}
               className={requestToModify?.action === 'archive' ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-procarni-secondary hover:bg-green-700"}
             >
@@ -390,8 +407,8 @@ const QuoteRequestManagement = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeAction} 
+            <AlertDialogAction
+              onClick={executeAction}
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

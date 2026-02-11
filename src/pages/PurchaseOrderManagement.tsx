@@ -11,7 +11,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Link, useNavigate } from 'react-router-dom';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
@@ -40,12 +40,12 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-  
+
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-  
+
   return `OC-${year}-${month}-${seq}`;
 };
 
@@ -54,6 +54,8 @@ const PurchaseOrderManagement = () => {
   const { session } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const isMobileView = isMobile || isTablet;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved'>('active');
@@ -63,21 +65,21 @@ const PurchaseOrderManagement = () => {
   // Fetch active orders
   const { data: activePurchaseOrders, isLoading: isLoadingActive, error: activeError } = useQuery<PurchaseOrder[]>({
     queryKey: ['purchaseOrders', 'Active'],
-    queryFn: () => getAllPurchaseOrders('Active'),
+    queryFn: async () => (await getAllPurchaseOrders('Active')) as unknown as PurchaseOrder[],
     enabled: !!session && activeTab === 'active',
   });
 
   // Fetch approved orders
   const { data: approvedPurchaseOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<PurchaseOrder[]>({
     queryKey: ['purchaseOrders', 'Approved'],
-    queryFn: () => getAllPurchaseOrders('Approved'),
+    queryFn: async () => (await getAllPurchaseOrders('Approved')) as unknown as PurchaseOrder[],
     enabled: !!session && activeTab === 'approved',
   });
 
   // Fetch archived orders
   const { data: archivedPurchaseOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<PurchaseOrder[]>({
     queryKey: ['purchaseOrders', 'Archived'],
-    queryFn: () => getAllPurchaseOrders('Archived'),
+    queryFn: async () => (await getAllPurchaseOrders('Archived')) as unknown as PurchaseOrder[],
     enabled: !!session && activeTab === 'archived',
   });
 
@@ -232,11 +234,21 @@ const PurchaseOrderManagement = () => {
       </div>
       <div className="flex justify-end gap-2 mt-4 border-t pt-3">
         <Button variant="outline" size="sm" onClick={() => handleViewDetails(order.id)}>
-          <Eye className="h-4 w-4 mr-2" /> Ver Detalles
+          <Eye className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Ver"}
         </Button>
+        {order.status === 'Draft' && (
+          <Button variant="outline" size="sm" onClick={() => handleEditOrder(order.id)}>
+            <Edit className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Editar"}
+          </Button>
+        )}
         {order.status !== 'Archived' && (
           <Button variant="outline" size="sm" onClick={() => confirmAction(order.id, 'archive')}>
-            <Archive className="h-4 w-4" />
+            <Archive className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Archivar"}
+          </Button>
+        )}
+        {order.status === 'Archived' && (
+          <Button variant="outline" size="sm" onClick={() => confirmAction(order.id, 'unarchive')}>
+            <RotateCcw className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Desarchivar"}
           </Button>
         )}
       </div>
@@ -256,16 +268,16 @@ const PurchaseOrderManagement = () => {
             <CardTitle className="text-procarni-primary">Gestión de Órdenes de Compra</CardTitle>
             <CardDescription>Administra tus órdenes de compra generadas.</CardDescription>
           </div>
-          <Button 
-            asChild 
+          <Button
+            asChild
             className={cn(
               "bg-procarni-secondary hover:bg-green-700",
-              isMobile && "w-10 h-10 p-0" // Adaptación móvil
+              isMobileView && "w-10 h-10 p-0" // Adaptación móvil
             )}
           >
             <Link to="/generate-po">
-              <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
-              {!isMobile && 'Nueva Orden'}
+              <PlusCircle className={cn("h-4 w-4", !isMobileView && "mr-2")} />
+              {!isMobileView && 'Nueva Orden'}
             </Link>
           </Button>
         </CardHeader>
@@ -292,7 +304,7 @@ const PurchaseOrderManagement = () => {
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-8">Cargando órdenes...</div>
               ) : filteredPurchaseOrders.length > 0 ? (
-                isMobile ? (
+                isMobileView ? (
                   <div className="grid gap-4">
                     {filteredPurchaseOrders.map(renderMobileCard)}
                   </div>
@@ -358,8 +370,8 @@ const PurchaseOrderManagement = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={archiveMutation.isPending || unarchiveMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeAction} 
+            <AlertDialogAction
+              onClick={executeAction}
               disabled={archiveMutation.isPending || unarchiveMutation.isPending}
               className={orderToModify?.action === 'archive' ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-procarni-secondary hover:bg-green-700"}
             >

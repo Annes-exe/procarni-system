@@ -13,7 +13,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Link, useNavigate } from 'react-router-dom';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ServiceOrder } from '@/integrations/supabase/types';
@@ -48,6 +48,8 @@ const ServiceOrderManagement = () => {
   const { session } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const isMobileView = isMobile || isTablet;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved'>('active');
@@ -253,11 +255,21 @@ const ServiceOrderManagement = () => {
       </div>
       <div className="flex justify-end gap-2 mt-4 border-t pt-3">
         <Button variant="outline" size="sm" onClick={() => handleViewDetails(order.id)}>
-          <Eye className="h-4 w-4 mr-2" /> Ver Detalles
+          <Eye className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Ver"}
         </Button>
+        {order.status !== 'Approved' && order.status !== 'Archived' && (
+          <Button variant="outline" size="sm" onClick={() => handleEditOrder(order.id)}>
+            <Edit className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Editar"}
+          </Button>
+        )}
         {order.status !== 'Archived' && (
           <Button variant="outline" size="sm" onClick={() => confirmAction(order.id, 'archive')}>
-            <Archive className="h-4 w-4" />
+            <Archive className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Archivar"}
+          </Button>
+        )}
+        {order.status === 'Archived' && (
+          <Button variant="outline" size="sm" onClick={() => confirmAction(order.id, 'unarchive')}>
+            <RotateCcw className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Desarchivar"}
           </Button>
         )}
       </div>
@@ -283,12 +295,12 @@ const ServiceOrderManagement = () => {
             asChild
             className={cn(
               "bg-procarni-secondary hover:bg-green-700",
-              isMobile && "w-10 h-10 p-0"
+              isMobileView && "w-10 h-10 p-0"
             )}
           >
             <Link to="/generate-so">
-              <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-              {!isMobile && 'Nueva Orden'}
+              <PlusCircle className={cn("h-4 w-4", !isMobileView && "mr-2")} />
+              {!isMobileView && 'Nueva Orden'}
             </Link>
           </Button>
         </CardHeader>
@@ -315,7 +327,7 @@ const ServiceOrderManagement = () => {
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-8">Cargando órdenes...</div>
               ) : filteredServiceOrders.length > 0 ? (
-                isMobile ? (
+                isMobileView ? (
                   <div className="grid gap-4">
                     {filteredServiceOrders.map(renderMobileCard)}
                   </div>

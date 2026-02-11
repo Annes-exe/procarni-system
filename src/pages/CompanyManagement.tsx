@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Phone, Mail, ArrowLeft, Tag, MapPin } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
@@ -12,7 +12,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import CompanyForm from '@/components/CompanyForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +44,8 @@ const CompanyManagement = () => {
   const { session } = useSession();
   const userId = session?.user?.id;
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const isMobileView = isMobile || isTablet;
   const navigate = useNavigate();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -72,8 +74,17 @@ const CompanyManagement = () => {
   }, [companies, searchTerm]);
 
   const createMutation = useMutation({
-    mutationFn: (newCompany: Omit<Company, 'id' | 'created_at' | 'updated_at' | 'user_id' | 'fiscal_data'>) =>
-      createCompany({ ...newCompany, user_id: userId! }),
+    mutationFn: (newCompany: CompanyFormValues) =>
+      createCompany({
+        name: newCompany.name,
+        rif: newCompany.rif,
+        logo_url: newCompany.logo_url || null,
+        address: newCompany.address || null,
+        phone: newCompany.phone || null,
+        email: newCompany.email || null,
+        user_id: userId!,
+        fiscal_data: {},
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       setIsFormOpen(false);
@@ -178,13 +189,23 @@ const CompanyManagement = () => {
           </div>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-              <Button onClick={handleAddCompany} className="bg-procarni-secondary hover:bg-green-700">
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Empresa
+              <Button
+                onClick={handleAddCompany}
+                className={cn(
+                  "bg-procarni-secondary hover:bg-green-700",
+                  isMobile && "w-10 h-10 p-0"
+                )}
+              >
+                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
+                {!isMobile && "Añadir Empresa"}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto" description={editingCompany ? 'Edita los detalles de la empresa existente.' : 'Completa los campos para añadir una nueva empresa.'}>
+            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingCompany ? 'Editar Empresa' : 'Añadir Nueva Empresa'}</DialogTitle>
+                <DialogDescription>
+                  {editingCompany ? 'Edita los detalles de la empresa existente.' : 'Completa los campos para añadir una nueva empresa.'}
+                </DialogDescription>
               </DialogHeader>
               <CompanyForm
                 initialData={editingCompany || undefined}
@@ -208,18 +229,33 @@ const CompanyManagement = () => {
           </div>
 
           {filteredCompanies.length > 0 ? (
-            isMobile ? (
-              <div className="grid gap-4">
+            isMobileView ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredCompanies.map((company) => (
-                  <Card key={company.id} className="p-4 shadow-md">
-                    <CardTitle className="text-lg mb-1">{company.name}</CardTitle>
+                  <Card key={company.id} className="p-4 shadow-md flex flex-col h-full overflow-hidden">
+                    <CardTitle className="text-lg mb-1 truncate" title={company.name}>{company.name}</CardTitle>
                     <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3" /> RIF: {company.rif}
+                      <Tag className="mr-1 h-3 w-3 shrink-0" /> <span className="truncate flex-1 min-w-0">RIF: {company.rif}</span>
                     </CardDescription>
-                    <div className="text-sm space-y-1 mt-2 w-full">
-                      {company.email && <p className="flex items-center"><Mail className="mr-1 h-3 w-3" /> Email: <a href={`mailto:${company.email}`} className="text-blue-600 hover:underline ml-1">{company.email}</a></p>}
-                      {company.phone && <p className="flex items-center"><Phone className="mr-1 h-3 w-3" /> Teléfono: {company.phone}</p>}
-                      {company.address && <p className="flex items-center"><MapPin className="mr-1 h-3 w-3" /> Dirección: {company.address}</p>}
+                    <div className="text-sm space-y-1 mt-2 w-full flex-grow min-w-0">
+                      {company.email && (
+                        <p className="flex items-center w-full" title={company.email}>
+                          <Mail className="mr-1 h-3 w-3 shrink-0" />
+                          <span className="truncate flex-1 min-w-0">Email: <a href={`mailto:${company.email}`} className="text-blue-600 hover:underline ml-1">{company.email}</a></span>
+                        </p>
+                      )}
+                      {company.phone && (
+                        <p className="flex items-center w-full" title={company.phone}>
+                          <Phone className="mr-1 h-3 w-3 shrink-0" />
+                          <span className="truncate flex-1 min-w-0">Teléfono: {company.phone}</span>
+                        </p>
+                      )}
+                      {company.address && (
+                        <p className="flex items-start w-full" title={company.address}>
+                          <MapPin className="mr-1 h-3 w-3 shrink-0 mt-0.5" />
+                          <span className="line-clamp-2 flex-1 min-w-0">Dirección: {company.address}</span>
+                        </p>
+                      )}
                     </div>
                     <div className="flex justify-end gap-2 mt-4 border-t pt-3">
                       <Button
@@ -228,7 +264,7 @@ const CompanyManagement = () => {
                         onClick={(e) => { e.stopPropagation(); handleEditCompany(company); }}
                         disabled={deleteMutation.isPending}
                       >
-                        <Edit className="h-4 w-4 mr-2" /> Editar
+                        <Edit className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Editar"}
                       </Button>
                       <Button
                         variant="destructive"
@@ -258,12 +294,12 @@ const CompanyManagement = () => {
                   <TableBody>
                     {filteredCompanies.map((company) => (
                       <TableRow key={company.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <TableCell className="font-medium">{company.name}</TableCell>
-                        <TableCell>{company.rif}</TableCell>
-                        <TableCell>{company.email || 'N/A'}</TableCell>
-                        <TableCell>{company.phone || 'N/A'}</TableCell>
-                        <TableCell>{company.address || 'N/A'}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="font-medium max-w-[200px] truncate" title={company.name}>{company.name}</TableCell>
+                        <TableCell className="whitespace-nowrap">{company.rif}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={company.email}>{company.email || 'N/A'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{company.phone || 'N/A'}</TableCell>
+                        <TableCell className="max-w-[250px] truncate" title={company.address}>{company.address || 'N/A'}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="icon"
