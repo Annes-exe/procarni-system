@@ -33,7 +33,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
     if (displayValue) {
       setQuery(displayValue);
       // Synchronize selectedItem based on displayValue and selectedId
-      setSelectedItem({ id: selectedId || '', name: displayValue }); 
+      setSelectedItem({ id: selectedId || '', name: displayValue });
     } else {
       setQuery('');
       setSelectedItem(null);
@@ -87,11 +87,13 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between", "min-w-[150px] md:min-w-[200px] lg:min-w-[250px]")}
+          className={cn("w-full justify-between overflow-hidden", "min-w-[150px] md:min-w-[200px] lg:min-w-[250px]")}
           disabled={disabled}
         >
-          {selectedItem ? selectedItem.name : placeholder}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="truncate text-left w-full mr-2">
+            {selectedItem ? selectedItem.name : placeholder}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">

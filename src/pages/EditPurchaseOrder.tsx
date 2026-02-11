@@ -319,7 +319,7 @@ const EditPurchaseOrder = () => {
                 fetchFunction={searchCompanies}
                 displayValue={companyName}
               />
-              {companyName && <p className="text-sm text-muted-foreground mt-1">Empresa seleccionada: {companyName}</p>}
+              {companyName && <p className="text-sm text-muted-foreground mt-1 break-words">Empresa seleccionada: {companyName}</p>}
             </div>
             <div className="md:col-span-1">
               <Label htmlFor="supplier">Proveedor</Label>
@@ -340,7 +340,7 @@ const EditPurchaseOrder = () => {
                   <PlusCircle className="h-4 w-4" />
                 </Button>
               </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
+              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
 
