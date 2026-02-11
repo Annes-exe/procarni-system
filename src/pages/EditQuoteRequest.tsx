@@ -4,14 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { getQuoteRequestDetails, searchSuppliers, searchMaterialsBySupplier, searchCompanies, updateQuoteRequest } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import SmartSearch from '@/components/SmartSearch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import QuoteRequestPreviewModal from '@/components/QuoteRequestPreviewModal';
+
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
@@ -42,7 +41,7 @@ const EditQuoteRequest = () => {
   const { session, isLoadingSession } = useSession();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isMobile = useIsMobile();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
 
   const [companyId, setCompanyId] = useState<string>('');
@@ -191,13 +190,7 @@ const EditQuoteRequest = () => {
     setIsSubmitting(false);
   };
 
-  const generateFileName = () => {
-    if (!initialRequest) return '';
-    // @ts-ignore
-    const supplierName = initialRequest.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-    const date = new Date(initialRequest.created_at).toLocaleDateString('es-VE').replace(/\//g, '-');
-    return `SC_${initialRequest.id.substring(0, 8)}_${supplierName}_${date}.pdf`;
-  };
+
 
   return (
     <div className="container mx-auto p-4">
@@ -250,23 +243,7 @@ const EditQuoteRequest = () => {
           />
 
           <div className="flex justify-end gap-2 mt-6">
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" disabled={isSubmitting || !companyId || items.length === 0}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Previsualización de Solicitud de Cotización</DialogTitle>
-                </DialogHeader>
-                <QuoteRequestPreviewModal
-                  requestId={id!}
-                  onClose={() => setIsModalOpen(false)}
-                  fileName={generateFileName()}
-                />
-              </DialogContent>
-            </Dialog>
+
             <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Cambios'}
             </Button>

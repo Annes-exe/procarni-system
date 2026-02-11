@@ -3,14 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2, FileText } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { getPurchaseOrderDetails, searchMaterialsBySupplier, updatePurchaseOrder, searchSuppliers, searchCompanies } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { calculateTotals } from '@/utils/calculations';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import PurchaseOrderDraftPreview from '@/components/PurchaseOrderDraftPreview';
+
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale'; // Importar la localización en español
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
@@ -75,7 +74,7 @@ const EditPurchaseOrder = () => {
 
   const [items, setItems] = useState<PurchaseOrderItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false); // NEW STATE
 
   const userId = session?.user?.id;
@@ -407,36 +406,7 @@ const EditPurchaseOrder = () => {
           </div>
 
           <div className="flex justify-end gap-2 mt-6">
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" disabled={isSubmitting || !companyId || items.length === 0}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Previsualización de Orden de Compra</DialogTitle>
-                </DialogHeader>
-                <PurchaseOrderDraftPreview
-                  orderData={{
-                    supplier_id: supplierId,
-                    company_id: companyId,
-                    currency,
-                    exchange_rate: currency === 'VES' ? exchangeRate : null,
-                    status: initialOrder.status,
-                    created_by: userEmail || 'unknown',
-                    user_id: userId || '',
-                    delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
-                    payment_terms: paymentTerms,
-                    custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
-                    credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
-                    observations: observations || null,
-                  }}
-                  itemsData={items}
-                  onClose={() => setIsModalOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
+
             <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Cambios'}
             </Button>
