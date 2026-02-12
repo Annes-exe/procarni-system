@@ -2,7 +2,7 @@
 
 import { supabase } from '../client';
 import { showError } from '@/utils/toast';
-import { ServiceOrder, ServiceOrderItem } from '../types';
+import { ServiceOrder, ServiceOrderItem, ServiceOrderMaterial } from '../types';
 import { logAudit } from './auditLogService';
 
 const ServiceOrderService = {
@@ -33,7 +33,7 @@ const ServiceOrderService = {
     return data as ServiceOrder[];
   },
 
-  create: async (orderData: Omit<ServiceOrder, 'id' | 'created_at' | 'sequence_number'>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
+  create: async (orderData: Omit<ServiceOrder, 'id' | 'created_at' | 'sequence_number'>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[], materials?: Omit<ServiceOrderMaterial, 'id' | 'service_order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
     const { data: newOrder, error: orderError } = await supabase
       .from('service_orders')
       .insert(orderData)
@@ -77,6 +77,34 @@ const ServiceOrderService = {
       if (itemsError) {
         console.error('[ServiceOrderService.create] Error al crear ítems:', itemsError);
         showError('Error al crear los ítems de la orden de servicio.');
+        return null;
+      }
+    }
+
+    // 3. Insert materials (if any)
+    if (materials && materials.length > 0) {
+      const orderMaterials = materials.map(mat => ({
+        service_order_id: newOrder.id,
+        supplier_id: mat.supplier_id,
+        material_id: mat.material_id,
+        quantity: mat.quantity,
+        unit_price: mat.unit_price,
+        tax_rate: mat.tax_rate,
+        is_exempt: mat.is_exempt,
+        supplier_code: mat.supplier_code,
+        unit: mat.unit,
+        description: mat.description,
+        sales_percentage: mat.sales_percentage,
+        discount_percentage: mat.discount_percentage,
+      }));
+
+      const { error: materialsError } = await supabase
+        .from('service_order_materials')
+        .insert(orderMaterials);
+
+      if (materialsError) {
+        console.error('[ServiceOrderService.create] Error al crear materiales:', materialsError);
+        showError('Error al crear los materiales de la orden de servicio.');
         return null;
       }
     }

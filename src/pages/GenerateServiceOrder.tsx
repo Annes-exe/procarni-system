@@ -1,11 +1,12 @@
 // src/pages/GenerateServiceOrder.tsx
 
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
-import { ArrowLeft, Loader2, FileText, Wrench, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, FileText, Wrench, PlusCircle, Package } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { createServiceOrder, searchSuppliers } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
@@ -16,6 +17,14 @@ import ServiceOrderItemsTable from '@/components/ServiceOrderItemsTable';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import SmartSearch from '@/components/SmartSearch';
 import { Label } from '@/components/ui/label';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable'; // Reuse existing component
+
 
 interface Company {
   id: string;
@@ -37,6 +46,29 @@ interface ServiceOrderItemForm {
   is_exempt: boolean;
   sales_percentage: number | null;
   discount_percentage: number | null;
+}
+
+// Reuse the PurchaseOrderItemForm for spare parts, but adapted if needed
+interface SparePartItem {
+  id?: string;
+  material_id?: string;
+  material_name: string;
+  supplier_code?: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate?: number;
+  is_exempt?: boolean;
+  unit?: string;
+  description?: string;
+  sales_percentage?: number;
+  discount_percentage?: number;
+}
+
+interface SparePartsGroup {
+  internalId: string; // Unique ID for React keys
+  supplierId: string;
+  supplierName: string;
+  items: SparePartItem[];
 }
 
 const SERVICE_TYPES = [
@@ -67,6 +99,12 @@ const GenerateServiceOrder = () => {
   const [observations, setObservations] = useState<string>('');
 
   const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
+
+  // NEW STATE: Spare Parts Groups
+  const [sparePartsGroups, setSparePartsGroups] = useState<SparePartsGroup[]>([]);
+  const [sparePartsSupplierId, setSparePartsSupplierId] = useState<string>(''); // For the new section search
+  const [sparePartsSupplierName, setSparePartsSupplierName] = useState<string>(''); // For the new section search
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
 
@@ -109,7 +147,106 @@ const GenerateServiceOrder = () => {
     setSupplierName(supplier.name);
   };
 
-  const totals = calculateTotals(items);
+  // --- SPARE PARTS LOGIC ---
+
+  const handleAddSparePartsSupplier = (supplier: { id: string; name: string }) => {
+    // Check if supplier is already added
+    if (sparePartsGroups.some(g => g.supplierId === supplier.id)) {
+      showError('Este proveedor ya ha sido agregado a la lista de repuestos.');
+      setSparePartsSupplierId('');
+      setSparePartsSupplierName('');
+      return;
+    }
+
+    setSparePartsGroups(prev => [
+      ...prev,
+      {
+        internalId: crypto.randomUUID(),
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        items: []
+      }
+    ]);
+    // Clear search
+    setSparePartsSupplierId('');
+    setSparePartsSupplierName('');
+  };
+
+  const handleAddSparePartItem = (groupIndex: number) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items.push({
+        material_name: '',
+        quantity: 1,
+        unit_price: 0,
+        tax_rate: 0.16,
+        is_exempt: false,
+        sales_percentage: 0,
+        discount_percentage: 0
+      });
+      return newGroups;
+    });
+  };
+
+  const handleRemoveSparePartsGroup = (groupIndex: number) => {
+    setSparePartsGroups(prev => prev.filter((_, i) => i !== groupIndex));
+  };
+
+  const handleRemoveSparePartItem = (groupIndex: number, itemIndex: number) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items = newGroups[groupIndex].items.filter((_, i) => i !== itemIndex);
+      return newGroups;
+    });
+  };
+
+  const handleSparePartItemChange = (groupIndex: number, itemIndex: number, field: keyof SparePartItem, value: any) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items[itemIndex] = {
+        ...newGroups[groupIndex].items[itemIndex],
+        [field]: value
+      };
+      return newGroups;
+    });
+  };
+
+  const handleSparePartMaterialSelect = (groupIndex: number, itemIndex: number, material: any) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items[itemIndex] = {
+        ...newGroups[groupIndex].items[itemIndex],
+        material_id: material.id,
+        material_name: material.name,
+        supplier_code: material.specification || '', // Assuming specification maps to code/ref
+        unit: material.unit || 'UND',
+        is_exempt: material.is_exempt || false,
+        unit_price: 0 // Reset price or fetch from history if implemented
+      };
+      return newGroups;
+    });
+  };
+
+  // --- TOTALS CALCULATION ---
+
+  const calculateGrandTotals = () => {
+    const serviceTotals = calculateTotals(items);
+
+    // Flatten all spare parts items to calculate their totals
+    const allSpareParts = sparePartsGroups.flatMap(g => g.items);
+    // Be careful with type compatibility. calculateTotals expects basic fields which both match
+    const materialsTotals = calculateTotals(allSpareParts as any); // Cast as any or match interface
+
+    return {
+      baseImponible: serviceTotals.baseImponible + materialsTotals.baseImponible,
+      montoDescuento: serviceTotals.montoDescuento + materialsTotals.montoDescuento,
+      montoVenta: serviceTotals.montoVenta + materialsTotals.montoVenta,
+      montoIVA: serviceTotals.montoIVA + materialsTotals.montoIVA,
+      total: serviceTotals.total + materialsTotals.total
+    };
+  };
+
+  const totals = calculateGrandTotals();
 
   const totalInUSD = React.useMemo(() => {
     if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
@@ -154,9 +291,26 @@ const GenerateServiceOrder = () => {
       item.unit_price <= 0
     );
 
-    if (items.length === 0 || invalidItem) {
-      showError('Por favor, añade al menos un ítem de costo/servicio válido con descripción, cantidad y precio unitario mayor a cero.');
+    if (items.length === 0 && sparePartsGroups.every(g => g.items.length === 0)) {
+      showError('Por favor, añade al menos un servicio o un repuesto.');
       return;
+    }
+
+    // Validate services if any
+    if (items.length > 0 && invalidItem) {
+      showError('Por favor, revisa los ítems de servicio: descripción, cantidad y precio obligatorios.');
+      return;
+    }
+
+    // Validate spare parts if any
+    for (const group of sparePartsGroups) {
+      const invalidPart = group.items.find(item =>
+        !item.material_name || item.quantity <= 0 || item.unit_price <= 0
+      );
+      if (invalidPart) {
+        showError(`Revisa los repuestos del proveedor ${group.supplierName}: nombre, cantidad y precio obligatorios.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -176,7 +330,24 @@ const GenerateServiceOrder = () => {
       user_id: userId,
     };
 
-    const createdOrder = await createServiceOrder(orderData, items);
+    // Flatten spare parts for backend
+    const materialsToSave = sparePartsGroups.flatMap(group =>
+      group.items.map(item => ({
+        supplier_id: group.supplierId,
+        material_id: item.material_id || null,
+        description: item.description || null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        tax_rate: item.tax_rate ?? 0.16,
+        is_exempt: item.is_exempt ?? false,
+        supplier_code: item.supplier_code || null,
+        unit: item.unit || null,
+        sales_percentage: item.sales_percentage || null,
+        discount_percentage: item.discount_percentage || null,
+      }))
+    );
+
+    const createdOrder = await createServiceOrder(orderData, items, materialsToSave);
 
     if (createdOrder) {
       showSuccess('Orden de Servicio creada exitosamente.');
@@ -193,7 +364,11 @@ const GenerateServiceOrder = () => {
       setDetailedServiceDescription('');
       setDestinationAddress(DESTINATION_ADDRESSES[0]);
       setObservations('');
+      setObservations('');
       setItems([]);
+      setSparePartsGroups([]);
+      setSparePartsSupplierId('');
+      setSparePartsSupplierName('');
     }
     setIsSubmitting(false);
   };
@@ -269,6 +444,65 @@ const GenerateServiceOrder = () => {
             onItemChange={handleItemChange}
           />
 
+          {/* --- SECCIÓN DE REPUESTOS Y ADICIONALES --- */}
+          <div className="mt-8 mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-procarni-primary border-b pb-2 mb-4">
+              <Package className="h-5 w-5" /> Repuestos y Adicionales (Opcional)
+            </h3>
+
+            <div className="mb-4 max-w-md">
+              <Label>Añadir Proveedor de Repuestos</Label>
+              <SmartSearch
+                placeholder="Buscar proveedor (ej. Ferretería...)"
+                onSelect={handleAddSparePartsSupplier}
+                fetchFunction={searchSuppliers}
+                displayValue={sparePartsSupplierName}
+                className="mt-1"
+              />
+            </div>
+
+            {sparePartsGroups.length === 0 ? (
+              <div className="text-center p-6 border-2 border-dashed rounded-lg text-muted-foreground bg-gray-50">
+                No se han agregado proveedores de repuestos.
+              </div>
+            ) : (
+              <Accordion type="multiple" className="w-full space-y-4" defaultValue={sparePartsGroups.map(g => g.internalId)}>
+                {sparePartsGroups.map((group, groupIndex) => (
+                  <AccordionItem key={group.internalId} value={group.internalId} className="border rounded-lg bg-white shadow-sm px-4">
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex justify-between items-center w-full pr-4">
+                        <span className="font-bold text-gray-700">{group.supplierName}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveSparePartsGroup(groupIndex);
+                          }}
+                        >
+                          Quitar Grupo
+                        </Button>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2 pb-4">
+                      <PurchaseOrderItemsTable
+                        items={group.items as any} // Cast compatible type
+                        supplierId={group.supplierId}
+                        supplierName={group.supplierName}
+                        currency={currency}
+                        onAddItem={() => handleAddSparePartItem(groupIndex)}
+                        onRemoveItem={(itemIndex) => handleRemoveSparePartItem(groupIndex, itemIndex)}
+                        onItemChange={(itemIndex, field, value) => handleSparePartItemChange(groupIndex, itemIndex, field as any, value)}
+                        onMaterialSelect={(itemIndex, material) => handleSparePartMaterialSelect(groupIndex, itemIndex, material)}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
+          </div>
+
           <div className="mt-8 border-t pt-4">
             <div className="flex justify-end items-center mb-2">
               <span className="font-semibold mr-2">Base Imponible:</span>
@@ -300,7 +534,7 @@ const GenerateServiceOrder = () => {
 
           <div className="flex justify-end gap-2 mt-6">
 
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !supplierId || !serviceDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
+            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !supplierId || !serviceDate || (items.length === 0 && sparePartsGroups.every(g => g.items.length === 0))} className="bg-procarni-secondary hover:bg-green-700">
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Servicio'}
             </Button>
           </div>

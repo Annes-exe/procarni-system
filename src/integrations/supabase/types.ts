@@ -234,3 +234,20 @@ export type ServiceOrderItem = {
   discount_percentage: number | null;
   created_at: string | null;
 };
+
+export type ServiceOrderMaterial = {
+  id: string;
+  service_order_id: string;
+  supplier_id: string;
+  material_id: string | null;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+  is_exempt: boolean;
+  supplier_code: string | null;
+  unit: string | null;
+  description: string | null;
+  sales_percentage: number | null;
+  discount_percentage: number | null;
+  created_at: string | null;
+};
