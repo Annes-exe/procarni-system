@@ -22,7 +22,7 @@ const FichaTecnicaService = {
     }
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/upload-ficha-tecnica`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-ficha-tecnica`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -37,18 +37,18 @@ const FichaTecnicaService = {
       }
 
       const newFicha: FichaTecnica = await response.json();
-      
+
       // --- AUDIT LOG ---
-      logAudit('UPLOAD_FICHA_TECNICA', { 
+      logAudit('UPLOAD_FICHA_TECNICA', {
         table: 'fichas_tecnicas',
-        record_id: newFicha.id, 
+        record_id: newFicha.id,
         description: `Subida de ficha técnica para ${newFicha.nombre_producto}`,
-        nombre_producto: newFicha.nombre_producto, 
+        nombre_producto: newFicha.nombre_producto,
         proveedor_id: newFicha.proveedor_id,
         file_name: payload.fileName
       });
       // -----------------
-      
+
       return newFicha;
 
     } catch (error: any) {
@@ -84,7 +84,7 @@ const FichaTecnicaService = {
       console.error('[FichaTecnicaService.getBySupplierAndProduct] Error:', error);
       return null;
     }
-    
+
     // Si hay datos, devolvemos el primer resultado (o null si no hay)
     return data.length > 0 ? data[0] as FichaTecnica : null;
   },
@@ -98,7 +98,7 @@ const FichaTecnicaService = {
 
     try {
       // Llama a la Edge Function para manejar la eliminación del archivo y el registro DB
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/delete-ficha-tecnica`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-ficha-tecnica`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -111,13 +111,13 @@ const FichaTecnicaService = {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Error desconocido al eliminar la ficha técnica.');
       }
-      
+
       // --- AUDIT LOG ---
-      logAudit('DELETE_FICHA_TECNICA', { 
+      logAudit('DELETE_FICHA_TECNICA', {
         table: 'fichas_tecnicas',
-        record_id: fichaId, 
+        record_id: fichaId,
         description: 'Eliminación de ficha técnica',
-        storage_url: storageUrl 
+        storage_url: storageUrl
       });
       // -----------------
 

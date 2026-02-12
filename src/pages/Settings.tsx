@@ -41,7 +41,7 @@ const Settings = () => {
 
     try {
       const response = await fetch(
-        `https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/${endpoint}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${endpoint}`,
         {
           method: 'POST',
           headers: {

@@ -212,7 +212,7 @@ const PurchaseOrderDetails = () => {
 
     try {
       // 1. Generate PDF
-      const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-po-pdf`, {
+      const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-po-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -240,7 +240,7 @@ const PurchaseOrderDetails = () => {
         <p>Se adjunta el PDF con los detalles de la orden de compra.</p>
       `;
 
-      const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
+      const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

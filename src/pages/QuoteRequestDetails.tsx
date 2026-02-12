@@ -17,13 +17,13 @@ import { es } from 'date-fns/locale'; // Importar la localización en español
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel 
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
@@ -87,7 +87,7 @@ const QuoteRequestDetails = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
-  
+
   const qrViewerRef = React.useRef<QuoteRequestPreviewModalRef>(null);
 
   const { data: request, isLoading, error } = useQuery<QuoteRequestDetailsData | null>({
@@ -116,7 +116,7 @@ const QuoteRequestDetails = () => {
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
     const toastId = showLoading('Aprobando solicitud...');
-    
+
     try {
       const success = await updateQuoteRequestStatus(request.id, 'Approved');
       if (success) {
@@ -164,7 +164,7 @@ const QuoteRequestDetails = () => {
 
     try {
       // 1. Generate PDF
-      const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-qr-pdf`, {
+      const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-qr-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -191,7 +191,7 @@ const QuoteRequestDetails = () => {
         <p>Se adjunta el PDF con los detalles de la solicitud.</p>
       `;
 
-      const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
+      const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -309,7 +309,7 @@ const QuoteRequestDetails = () => {
           />
         </DialogContent>
       </Dialog>
-      
+
       {/* 2. Descargar PDF */}
       <DropdownMenuItem asChild>
         <PDFDownloadButton
@@ -328,7 +328,7 @@ const QuoteRequestDetails = () => {
       <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsEmailModalOpen(true); }} disabled={!request.suppliers?.email} className="cursor-pointer">
         <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
       </DropdownMenuItem>
-      
+
       {/* 4. Enviar por WhatsApp */}
       <DropdownMenuItem asChild>
         <WhatsAppSenderButton
@@ -377,7 +377,7 @@ const QuoteRequestDetails = () => {
         <Button variant="outline" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary">
@@ -425,7 +425,7 @@ const QuoteRequestDetails = () => {
               <strong>Fecha:</strong> {format(new Date(request.created_at), 'PPP', { locale: es })}
             </p>
             <p className="md:col-span-3">
-              <strong>Estado:</strong> 
+              <strong>Estado:</strong>
               <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(request.status))}>
                 {STATUS_TRANSLATIONS[request.status] || request.status}
               </span>

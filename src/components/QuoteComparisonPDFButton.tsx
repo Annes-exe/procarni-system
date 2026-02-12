@@ -59,15 +59,15 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
     const toastId = showLoading('Generando PDF de comparación...');
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-quote-comparison-pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quote-comparison-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          comparisonResults, 
-          baseCurrency, 
+        body: JSON.stringify({
+          comparisonResults,
+          baseCurrency,
           globalExchangeRate,
           isSingleMaterial,
         }),

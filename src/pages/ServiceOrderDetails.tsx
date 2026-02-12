@@ -183,7 +183,7 @@ const ServiceOrderDetails = () => {
     if (!session?.user?.email || !order) return;
 
     // 1. Generate PDF
-    const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-so-pdf`, {
+    const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-so-pdf`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
@@ -211,7 +211,7 @@ const ServiceOrderDetails = () => {
         <p>Se adjunta el PDF con los detalles de la orden de servicio.</p>
       `;
 
-    const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
+    const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,

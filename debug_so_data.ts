@@ -1,8 +1,15 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = "https://sbmwuttfblpwwwpifmza.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNibXd1dHRmYmxwd3d3cGlmbXphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0ODM1MzksImV4cCI6MjA4NDA1OTUzOX0.a4fT7Da0XmIFTVx72KBj1ahlqJo_46bQb8wdlwJRPjE";
+// Ensure environment variables are loaded before running this script
+// Start with: node --env-file=.env debug_so_data.ts (Node 20+) or use dotenv
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+
+if (!supabaseUrl || !supabaseKey) {
+    console.error("Error: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set in environment variables.");
+    process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

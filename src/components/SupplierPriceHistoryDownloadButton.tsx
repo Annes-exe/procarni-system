@@ -38,7 +38,7 @@ const SupplierPriceHistoryDownloadButton = React.forwardRef<HTMLButtonElement, S
 
     try {
       // NEW: Call the PDF generation function
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-supplier-price-history-pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-supplier-price-history-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

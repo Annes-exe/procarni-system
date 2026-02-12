@@ -108,7 +108,7 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
       }
 
       // 3. Invoke the edge function with the temporary order ID
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-po-pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-po-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -125,7 +125,7 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
-      
+
       // Extract filename from headers (if available) or use a default draft name
       const contentDisposition = response.headers.get('Content-Disposition');
       const fileNameMatch = contentDisposition && contentDisposition.match(/filename="([^"]+)"/);

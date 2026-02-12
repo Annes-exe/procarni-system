@@ -35,7 +35,7 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
 
     try {
       // Use the new PDF generation function
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-material-price-history-pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-material-price-history-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

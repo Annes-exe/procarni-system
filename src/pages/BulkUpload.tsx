@@ -65,7 +65,7 @@ const BulkUpload = () => {
       formData.append('file', file);
       formData.append('type', type);
 
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/bulk-upload`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bulk-upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -119,7 +119,7 @@ const BulkUpload = () => {
       const functionName = mode === 'template' ? 'generate-template' : 'export-data';
       const body = mode === 'template' ? JSON.stringify({ type }) : JSON.stringify({ type, pin });
 
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/${functionName}`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -170,7 +170,7 @@ const BulkUpload = () => {
     const loadingToastId = showLoading(`Eliminando todos los ${type === 'supplier' ? 'proveedores' : (type === 'material' ? 'materiales' : 'relaciones proveedor-material')}...`);
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/delete-all-data`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-all-data`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
