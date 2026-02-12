@@ -19,6 +19,15 @@ import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
 import ServiceOrderItemsTable from '@/components/ServiceOrderItemsTable';
 import SmartSearch from '@/components/SmartSearch';
 import { Label } from '@/components/ui/label';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
+import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
+import SupplierCreationDialog from '@/components/SupplierCreationDialog';
+import { Package } from 'lucide-react';
 
 interface ServiceOrderItemForm {
     id?: string;
@@ -32,10 +41,35 @@ interface ServiceOrderItemForm {
 }
 
 // Interface correctly matching the joined response from Supabase
+// Interface correctly matching the joined response from Supabase
 interface ServiceOrderDetailsResponse extends ServiceOrder {
     suppliers?: { name: string };
     companies?: { name: string };
     service_order_items: ServiceOrderItem[];
+    service_order_materials: any[]; // We will map this to our form state
+}
+
+interface ServiceOrderMaterialForm {
+    id?: string;
+    material_id?: string;
+    material_name: string; // Added for display in PurchaseOrderItemsTable
+    supplier_id: string; // The supplier of the spare part
+    quantity: number;
+    unit_price: number;
+    tax_rate: number;
+    is_exempt: boolean;
+    supplier_code?: string;
+    unit?: string;
+    description?: string;
+    sales_percentage: number | null;
+    discount_percentage: number | null;
+}
+
+interface SparePartsGroup {
+    internalId: string; // For React keys
+    supplierId: string;
+    supplierName: string;
+    items: ServiceOrderMaterialForm[];
 }
 
 const SERVICE_TYPES = [
@@ -72,6 +106,12 @@ const EditServiceOrder = () => {
     const [sequenceNumber, setSequenceNumber] = useState<number>(0);
 
     const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
+
+    // Spare Parts State
+    const [sparePartsGroups, setSparePartsGroups] = useState<SparePartsGroup[]>([]);
+    const [sparePartsSupplierId, setSparePartsSupplierId] = useState<string>('');
+    const [sparePartsSupplierName, setSparePartsSupplierName] = useState<string>('');
+    const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -122,6 +162,50 @@ const EditServiceOrder = () => {
                 })) || [];
                 setItems(loadedItems);
 
+                // Map Materials to SparePartsGroups
+                if (order.service_order_materials && order.service_order_materials.length > 0) {
+                    const groups: Record<string, SparePartsGroup> = {};
+
+                    order.service_order_materials.forEach(mat => {
+                        const supplierId = mat.supplier_id;
+                        // For editing, we rely on the backend join to get supplier name if possible, 
+                        // or falls back to 'Proveedor'. Better approach is to ensure backend returns it.
+                        // We updated getById to return suppliers(name) for materials.
+                        // However, the typed response for getById (ServiceOrder) doesn't strictly have nested joins typed 
+                        // unless we cast it properly.
+                        // Let's assume the data structure matches what we set up in backend.
+                        // @ts-ignore
+                        const supName = mat.suppliers?.name || 'Proveedor';
+
+                        if (!groups[supplierId]) {
+                            groups[supplierId] = {
+                                internalId: Math.random().toString(36).substr(2, 9),
+                                supplierId: supplierId,
+                                supplierName: supName,
+                                items: []
+                            };
+                        }
+
+                        groups[supplierId].items.push({
+                            id: mat.id,
+                            material_id: mat.material_id,
+                            supplier_id: mat.supplier_id,
+                            quantity: mat.quantity,
+                            unit_price: mat.unit_price,
+                            tax_rate: mat.tax_rate,
+                            is_exempt: mat.is_exempt,
+                            supplier_code: mat.supplier_code || undefined,
+                            unit: mat.unit || undefined,
+                            description: mat.description || '',
+                            // @ts-ignore
+                            material_name: mat.materials?.name || '',
+                            sales_percentage: mat.sales_percentage || 0,
+                            discount_percentage: mat.discount_percentage || 0,
+                        });
+                    });
+                    setSparePartsGroups(Object.values(groups));
+                }
+
             } catch (error: unknown) {
                 console.error("Error loading order:", error);
                 showError('Error al cargar la orden.');
@@ -166,7 +250,100 @@ const EditServiceOrder = () => {
         setSupplierName(supplier.name);
     };
 
-    const totals = calculateTotals(items);
+    // Spare Parts Handlers
+    const handleAddSparePartsSupplier = (supplier: { id: string; name: string }) => {
+        if (!sparePartsGroups.some(group => group.supplierId === supplier.id)) {
+            setSparePartsGroups(prev => [...prev, {
+                internalId: Math.random().toString(36).substr(2, 9),
+                supplierId: supplier.id,
+                supplierName: supplier.name,
+                items: []
+            }]);
+        }
+        setSparePartsSupplierId('');
+        setSparePartsSupplierName('');
+    };
+
+    const handleRemoveSparePartsSupplier = (supplierId: string) => {
+        setSparePartsGroups(prev => prev.filter(group => group.supplierId !== supplierId));
+    };
+
+    const handleSparePartItemChange = (supplierId: string, index: number, field: keyof ServiceOrderMaterialForm, value: any) => {
+        setSparePartsGroups(prev => prev.map(group => {
+            if (group.supplierId !== supplierId) return group;
+            const newItems = [...group.items];
+            newItems[index] = { ...newItems[index], [field]: value };
+            return { ...group, items: newItems };
+        }));
+    };
+
+    const handleAddSparePartItem = (supplierId: string) => {
+        setSparePartsGroups(prev => prev.map(group => {
+            if (group.supplierId !== supplierId) return group;
+            return {
+                ...group,
+                items: [...group.items, {
+                    supplier_id: supplierId,
+                    material_name: '',
+                    quantity: 1,
+                    unit_price: 0,
+                    tax_rate: 0.16,
+                    is_exempt: false,
+                    sales_percentage: 0,
+                    discount_percentage: 0,
+                }]
+            };
+        }));
+    };
+
+    const handleRemoveSparePartItem = (supplierId: string, index: number) => {
+        setSparePartsGroups(prev => prev.map(group => {
+            if (group.supplierId !== supplierId) return group;
+            return {
+                ...group,
+                items: group.items.filter((_, i) => i !== index)
+            };
+        }));
+    };
+
+    const handleSearchResultSelect = (supplierId: string, index: number, item: any) => {
+        setSparePartsGroups(prev => prev.map(group => {
+            if (group.supplierId !== supplierId) return group;
+            const newItems = [...group.items];
+            newItems[index] = {
+                ...newItems[index],
+                material_id: item.id,
+                material_name: item.name,
+                description: '', // Reset description or keep it? usually reset or empty if selecting new material
+                unit: item.unit,
+                is_exempt: item.is_exempt || false,
+                // Reset price and quantity? user might want to keep it or it might be in the material?
+                // usually material doesn't have a default price in this context unless from price history (not implemented yet for auto-fill)
+            };
+            return { ...group, items: newItems };
+        }));
+    };
+
+    const itemsForCalculation = [
+        ...items.map(item => ({
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            tax_rate: item.tax_rate,
+            is_exempt: item.is_exempt,
+            sales_percentage: item.sales_percentage,
+            discount_percentage: item.discount_percentage,
+        })),
+        ...sparePartsGroups.flatMap(group => group.items.map(item => ({
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            tax_rate: item.tax_rate,
+            is_exempt: item.is_exempt,
+            sales_percentage: item.sales_percentage,
+            discount_percentage: item.discount_percentage,
+        })))
+    ];
+
+    const totals = calculateTotals(itemsForCalculation);
     const totalInUSD = React.useMemo(() => {
         if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
             return (totals.total / exchangeRate).toFixed(2);
@@ -198,8 +375,16 @@ const EditServiceOrder = () => {
         }
 
         const invalidItem = items.find(item => !item.description || item.quantity <= 0 || item.unit_price <= 0);
-        if (items.length === 0 || invalidItem) {
-            showError('Revise los ítems. Debe haber al menos uno y ser válidos.');
+        const hasServiceItems = items.length > 0;
+        const hasSpareParts = sparePartsGroups.some(g => g.items.length > 0);
+
+        if (!hasServiceItems && !hasSpareParts) {
+            showError('Debe haber al menos un servicio o un repuesto.');
+            return;
+        }
+
+        if (invalidItem) {
+            showError('Revise los ítems de servicio. Deben ser válidos.');
             return;
         }
 
@@ -224,7 +409,24 @@ const EditServiceOrder = () => {
             };
 
             const itemsForUpdate = items.map(({ id, ...rest }) => rest);
-            const updatedResult = await updateServiceOrder(id!, orderData, itemsForUpdate);
+
+            const materialsForUpdate = sparePartsGroups.flatMap(group =>
+                group.items.map(item => ({
+                    supplier_id: group.supplierId, // Ensure it matches group
+                    material_id: item.material_id || null,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    tax_rate: item.tax_rate,
+                    is_exempt: item.is_exempt,
+                    supplier_code: item.supplier_code || null,
+                    unit: item.unit || null,
+                    description: item.description || null,
+                    sales_percentage: item.sales_percentage,
+                    discount_percentage: item.discount_percentage,
+                }))
+            );
+
+            const updatedResult = await updateServiceOrder(id!, orderData, itemsForUpdate, materialsForUpdate);
 
             if (updatedResult) {
                 showSuccess('Orden actualizada correctamente.');
@@ -311,6 +513,85 @@ const EditServiceOrder = () => {
                         onRemoveItem={handleRemoveItem}
                         onItemChange={handleItemChange}
                     />
+
+                    {/* Spare Parts Section */}
+                    <div className="mt-8 border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4 text-procarni-primary flex items-center">
+                            <Package className="mr-2 h-5 w-5" /> Repuestos y Adicionales
+                        </h3>
+
+                        <div className="space-y-4">
+                            {sparePartsGroups.map((group) => (
+                                <Accordion type="single" collapsible key={group.internalId} className="border rounded-lg bg-gray-50/50">
+                                    <AccordionItem value={group.internalId} className="border-0">
+                                        <AccordionTrigger className="px-4 py-2 hover:no-underline">
+                                            <div className="flex justify-between items-center w-full pr-4">
+                                                <span className="font-semibold text-gray-700">{group.supplierName}</span>
+                                                <div
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0 flex items-center justify-center rounded-md cursor-pointer transition-colors"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemoveSparePartsSupplier(group.supplierId);
+                                                    }}
+                                                    title="Eliminar proveedor y sus ítems"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </div>
+                                            </div>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="px-4 pb-4">
+                                            <PurchaseOrderItemsTable
+                                                items={group.items.map(item => ({
+                                                    ...item,
+                                                    id: item.id || Math.random().toString(36).substr(2, 9),
+                                                    // Ensure material_name is passed for display if it exists in description or separate field
+                                                    // The table likely uses 'description' for the text input value.
+                                                    // If we want it to look like a selected material, we might need to populate the SmartSearch inside the table? 
+                                                    // Actually PurchaseOrderItemsTable might just use description.
+                                                })) as any}
+                                                currency={currency}
+                                                onAddItem={() => handleAddSparePartItem(group.supplierId)}
+                                                onRemoveItem={(index) => handleRemoveSparePartItem(group.supplierId, index)}
+                                                onItemChange={(index, field, value) => handleSparePartItemChange(group.supplierId, index, field as any, value)}
+                                                supplierId={group.supplierId}
+                                                supplierName={group.supplierName}
+                                                // @ts-ignore
+                                                onMaterialSelect={(index, item) => handleSearchResultSelect(group.supplierId, index, item)}
+                                            />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
+                            ))}
+
+                            <div className="mb-4 max-w-md">
+                                <Label>Añadir Proveedor de Repuestos</Label>
+                                <div className="flex gap-2 mt-1">
+                                    <SmartSearch
+                                        placeholder="Buscar proveedor (ej. Ferretería...)"
+                                        onSelect={handleAddSparePartsSupplier}
+                                        fetchFunction={searchSuppliers}
+                                        displayValue={sparePartsSupplierName}
+                                        className="w-full"
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setIsSparePartsSupplierDialogOpen(true)}
+                                        className="shrink-0"
+                                        title="Añadir nuevo proveedor de repuestos"
+                                    >
+                                        <PlusCircle className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <SupplierCreationDialog
+                                isOpen={isSparePartsSupplierDialogOpen}
+                                onClose={() => setIsSparePartsSupplierDialogOpen(false)}
+                                onSupplierCreated={handleAddSparePartsSupplier}
+                            />
+                        </div>
+                    </div>
 
                     {/* Totals Section */}
                     <div className="mt-8 border-t pt-4">

@@ -490,17 +490,17 @@ const GenerateServiceOrder = () => {
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex justify-between items-center w-full pr-4">
                         <span className="font-bold text-gray-700">{group.supplierName}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2"
+                        <div
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 flex items-center justify-center rounded-md cursor-pointer transition-colors px-3 py-1 font-medium text-sm"
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveSparePartsGroup(groupIndex);
                           }}
                         >
                           Quitar Grupo
-                        </Button>
+                        </div>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pt-2 pb-4">
