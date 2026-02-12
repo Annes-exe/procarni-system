@@ -90,7 +90,7 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">Cantidad</label>
-                        <Input type="number" value={item.quantity || ''} onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" />
+                        <Input type="number" value={item.quantity || ''} onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
                     </div>
                     <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">Unidad</label>
@@ -188,6 +188,7 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                                 onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                 className="h-9 font-medium border-gray-200"
                                 placeholder="0"
+                                onWheel={(e) => e.currentTarget.blur()}
                             />
                         </div>
 
