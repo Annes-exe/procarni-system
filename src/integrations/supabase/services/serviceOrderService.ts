@@ -352,10 +352,21 @@ const ServiceOrderService = {
       console.error('[ServiceOrderService.getById] Error fetching items:', itemsError);
     }
 
-    // Attach items to order object manually
+    // Manually fetch materials with supplier name and material name
+    const { data: materials, error: materialsError } = await supabase
+      .from('service_order_materials')
+      .select('*, suppliers(name), materials(name)')
+      .eq('service_order_id', id);
+
+    if (materialsError) {
+      console.error('[ServiceOrderService.getById] Error fetching materials:', materialsError);
+    }
+
+    // Attach items and materials to order object manually
     const orderWithItems = {
       ...order,
-      service_order_items: items || []
+      service_order_items: items || [],
+      service_order_materials: materials || []
     };
 
     return orderWithItems as ServiceOrder;

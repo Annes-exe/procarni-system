@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Download, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, Wrench, ListOrdered } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Download, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, Wrench, ListOrdered, Package } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { getServiceOrderDetails, updateServiceOrderStatus } from '@/integrations/supabase/data';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -104,14 +104,50 @@ const ServiceOrderDetails = () => {
     enabled: !!id,
   });
 
-  const itemsForCalculation = order?.service_order_items.map(item => ({
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    tax_rate: item.tax_rate,
-    is_exempt: item.is_exempt,
-    sales_percentage: item.sales_percentage,
-    discount_percentage: item.discount_percentage,
-  })) || [];
+  const itemsForCalculation = [
+    ...(order?.service_order_items?.map(item => ({
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      tax_rate: item.tax_rate,
+      is_exempt: item.is_exempt,
+      sales_percentage: item.sales_percentage,
+      discount_percentage: item.discount_percentage,
+    })) || []),
+    ...(order?.service_order_materials?.map(item => ({
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      tax_rate: item.tax_rate,
+      is_exempt: item.is_exempt,
+      sales_percentage: item.sales_percentage,
+      discount_percentage: item.discount_percentage,
+    })) || [])
+  ];
+
+  const groupedMaterials = useMemo(() => {
+    if (!order?.service_order_materials) return {};
+
+    const groups: Record<string, { name: string; items: any[] }> = {};
+
+    order.service_order_materials.forEach(item => {
+      const supplierId = item.supplier_id;
+      // @ts-ignore - Backend join provides this
+      const supplierName = item.suppliers?.name || "Proveedor desconocido";
+
+      if (!groups[supplierId]) {
+        groups[supplierId] = {
+          name: supplierName,
+          items: []
+        };
+      }
+      groups[supplierId].items.push(item);
+    });
+
+    return groups;
+  }, [order?.service_order_materials]);
+
+
+
+
 
   const totals = calculateTotals(itemsForCalculation);
   const amountInWords = order ? numberToWords(totals.total, order.currency) : '';
@@ -532,6 +568,84 @@ const ServiceOrderDetails = () => {
             )
           ) : (
             <p className="text-muted-foreground">Esta orden de servicio no tiene ítems registrados.</p>
+          )}
+
+          {Object.keys(groupedMaterials).length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-4 text-procarni-primary flex items-center">
+                <Package className="mr-2 h-5 w-5" /> Repuestos y Adicionales
+              </h3>
+
+              {Object.entries(groupedMaterials).map(([supplierId, group]) => (
+                <div key={supplierId} className="mb-6 border rounded-lg overflow-hidden">
+                  <div className="bg-muted px-4 py-2 font-medium border-b flex justify-between items-center">
+                    <span>{group.name}</span>
+                  </div>
+
+                  {isMobile ? (
+                    <div className="p-3 space-y-3">
+                      {group.items.map((item: any) => {
+                        const itemTotals = calculateTotals([{
+                          quantity: item.quantity,
+                          unit_price: item.unit_price,
+                          tax_rate: item.tax_rate,
+                          is_exempt: item.is_exempt,
+                          sales_percentage: item.sales_percentage,
+                          discount_percentage: item.discount_percentage,
+                        }]);
+                        return (
+                          <Card key={item.id} className="p-3 shadow-sm bg-gray-50/50">
+                            <p className="font-semibold text-sm">{item.description || item.materials?.name || 'Sin descripción'}</p>
+                            <div className="text-xs mt-1 grid grid-cols-2 gap-2 text-muted-foreground">
+                              <p><strong>Cant:</strong> {item.quantity}</p>
+                              <p><strong>Precio:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
+                              <p><strong>Total:</strong> {order.currency} {itemTotals.total.toFixed(2)}</p>
+                            </div>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50/50">
+                            <TableHead className="w-[40%]">Descripción</TableHead>
+                            <TableHead className="text-center">Cant.</TableHead>
+                            <TableHead className="text-right">Precio</TableHead>
+                            <TableHead className="text-right">Desc.%</TableHead>
+                            <TableHead className="text-right">Venta%</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {group.items.map((item: any) => {
+                            const itemTotals = calculateTotals([{
+                              quantity: item.quantity,
+                              unit_price: item.unit_price,
+                              tax_rate: item.tax_rate,
+                              is_exempt: item.is_exempt,
+                              sales_percentage: item.sales_percentage,
+                              discount_percentage: item.discount_percentage,
+                            }]);
+                            return (
+                              <TableRow key={item.id}>
+                                <TableCell className="font-medium">{item.description || item.materials?.name || 'Sin descripción'}</TableCell>
+                                <TableCell className="text-center">{item.quantity}</TableCell>
+                                <TableCell className="text-right">{item.unit_price.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{(item.discount_percentage || 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{(item.sales_percentage || 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold">{itemTotals.total.toFixed(2)}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
 
           <div className="mt-8 border-t pt-4">

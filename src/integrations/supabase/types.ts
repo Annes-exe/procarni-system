@@ -221,6 +221,8 @@ export type ServiceOrder = {
   created_at: string | null;
   supplier?: Supplier;
   company?: Company;
+  service_order_items?: ServiceOrderItem[];
+  service_order_materials?: ServiceOrderMaterial[];
 };
 
 export type ServiceOrderItem = {
@@ -250,5 +252,11 @@ export type ServiceOrderMaterial = {
   description: string | null;
   sales_percentage: number | null;
   discount_percentage: number | null;
+  suppliers?: {
+    name: string;
+  };
+  materials?: {
+    name: string;
+  };
   created_at: string | null;
 };
