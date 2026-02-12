@@ -36,12 +36,14 @@ const SearchManagement = () => {
       value: isLoadingOrders ? "Cargando..." : pendingOrdersCount,
       icon: Clock,
       description: "Órdenes en estado Borrador o Enviado.",
+      path: "/purchase-order-management"
     },
     {
       title: "Proveedores Totales",
       value: isLoadingSuppliers ? "Cargando..." : totalSuppliersCount,
       icon: Users,
       description: "Total de proveedores registrados.",
+      path: "/supplier-management"
     },
   ];
 
@@ -50,7 +52,11 @@ const SearchManagement = () => {
       {/* KPI Section */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 mb-6">
         {kpis.map((kpi, index) => (
-          <Card key={index} className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <Card
+            key={index}
+            className="shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer"
+            onClick={() => navigate(kpi.path)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-procarni-primary">
                 {kpi.title}
@@ -78,22 +84,22 @@ const SearchManagement = () => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate('/generate-po')}
               className="flex items-center justify-center py-4 text-sm border-procarni-primary/30 hover:bg-procarni-primary/10 hover:border-procarni-primary"
             >
               <FilePlus className="mr-2 h-4 w-4 text-procarni-primary" /> + Nueva Orden de Compra
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate('/generate-quote')}
               className="flex items-center justify-center py-4 text-sm border-procarni-primary/30 hover:bg-procarni-primary/10 hover:border-procarni-primary"
             >
               <ClipboardPlus className="mr-2 h-4 w-4 text-procarni-primary" /> + Nueva Solicitud de Cotización
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate('/quote-comparison')}
               className="flex items-center justify-center py-4 text-sm border-procarni-primary/30 hover:bg-procarni-primary/10 hover:border-procarni-primary"
             >
@@ -105,7 +111,7 @@ const SearchManagement = () => {
 
       {/* Search Quick Access */}
       <MaterialSearchQuickAccess />
-      
+
       <MadeWithDyad />
     </div>
   );
