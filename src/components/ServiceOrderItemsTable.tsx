@@ -87,19 +87,19 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Cantidad</label>
-            <Input type="number" value={item.quantity} onChange={(e) => onItemChange(index, 'quantity', parseFloat(e.target.value))} className="h-9" />
+            <Input type="number" value={item.quantity || ''} onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Precio ({currency})</label>
-            <Input type="number" step="0.01" value={item.unit_price} onChange={(e) => onItemChange(index, 'unit_price', parseFloat(e.target.value))} className="h-9" />
+            <Input type="number" step="0.01" value={item.unit_price || ''} onChange={(e) => onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Desc %</label>
-            <Input type="number" value={item.discount_percentage || ''} onChange={(e) => onItemChange(index, 'discount_percentage', parseFloat(e.target.value))} className="h-9" placeholder="0" />
+            <Input type="number" value={item.discount_percentage || ''} onChange={(e) => onItemChange(index, 'discount_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Venta %</label>
-            <Input type="number" value={item.sales_percentage || ''} onChange={(e) => onItemChange(index, 'sales_percentage', parseFloat(e.target.value))} className="h-9" placeholder="0" />
+            <Input type="number" value={item.sales_percentage || ''} onChange={(e) => onItemChange(index, 'sales_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" />
           </div>
         </div>
 
@@ -182,9 +182,10 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Cantidad</label>
               <Input
                 type="number" min="0"
-                value={item.quantity}
-                onChange={(e) => onItemChange(index, 'quantity', parseFloat(e.target.value))}
+                value={item.quantity || ''}
+                onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                 className="h-9 font-medium border-gray-200"
+                placeholder="0"
               />
             </div>
 
@@ -197,9 +198,10 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 <span className="absolute left-2.5 top-2.5 text-xs text-gray-400 font-medium">{currency === 'USD' ? '$' : 'Bs'}</span>
                 <Input
                   type="number" step="0.01" min="0"
-                  value={item.unit_price}
-                  onChange={(e) => onItemChange(index, 'unit_price', parseFloat(e.target.value))}
+                  value={item.unit_price || ''}
+                  onChange={(e) => onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className="h-9 pl-6 text-right font-semibold bg-gray-50/30 border-gray-200"
+                  placeholder="0"
                 />
               </div>
             </div>
@@ -219,7 +221,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 <Input
                   type="number" min="0" max="100"
                   value={item.discount_percentage || ''}
-                  onChange={(e) => onItemChange(index, 'discount_percentage', parseFloat(e.target.value))}
+                  onChange={(e) => onItemChange(index, 'discount_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className="h-9 text-right pr-6 bg-gray-50/30 border-gray-200"
                   placeholder="0"
                 />
@@ -234,7 +236,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 <Input
                   type="number" min="0"
                   value={item.sales_percentage || ''}
-                  onChange={(e) => onItemChange(index, 'sales_percentage', parseFloat(e.target.value))}
+                  onChange={(e) => onItemChange(index, 'sales_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                   className="h-9 text-right pr-6 bg-gray-50/30 border-gray-200"
                   placeholder="0"
                 />
