@@ -125,6 +125,7 @@ export type PriceHistory = {
   currency: string;
   exchange_rate: number | null;
   purchase_order_id: string | null;
+  service_order_id: string | null;
   recorded_at: string | null;
   user_id: string;
 };

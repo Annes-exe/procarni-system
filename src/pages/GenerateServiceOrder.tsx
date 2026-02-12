@@ -107,6 +107,7 @@ const GenerateServiceOrder = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
+  const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
 
   const userId = session?.user?.id;
 
@@ -452,14 +453,31 @@ const GenerateServiceOrder = () => {
 
             <div className="mb-4 max-w-md">
               <Label>Añadir Proveedor de Repuestos</Label>
-              <SmartSearch
-                placeholder="Buscar proveedor (ej. Ferretería...)"
-                onSelect={handleAddSparePartsSupplier}
-                fetchFunction={searchSuppliers}
-                displayValue={sparePartsSupplierName}
-                className="mt-1"
-              />
+              <div className="flex gap-2 mt-1">
+                <SmartSearch
+                  placeholder="Buscar proveedor (ej. Ferretería...)"
+                  onSelect={handleAddSparePartsSupplier}
+                  fetchFunction={searchSuppliers}
+                  displayValue={sparePartsSupplierName}
+                  className="w-full"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsSparePartsSupplierDialogOpen(true)}
+                  className="shrink-0"
+                  title="Añadir nuevo proveedor de repuestos"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
+            <SupplierCreationDialog
+              isOpen={isSparePartsSupplierDialogOpen}
+              onClose={() => setIsSparePartsSupplierDialogOpen(false)}
+              onSupplierCreated={handleAddSparePartsSupplier}
+            />
 
             {sparePartsGroups.length === 0 ? (
               <div className="text-center p-6 border-2 border-dashed rounded-lg text-muted-foreground bg-gray-50">

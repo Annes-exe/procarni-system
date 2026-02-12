@@ -107,12 +107,35 @@ const ServiceOrderService = {
         showError('Error al crear los materiales de la orden de servicio.');
         return null;
       }
+
+      // --- Record Price History ---
+      const priceHistoryEntries = materials
+        .filter(mat => mat.material_id && mat.unit_price > 0)
+        .map(mat => ({
+          material_id: mat.material_id!,
+          supplier_id: mat.supplier_id, // Use the material's supplier
+          unit_price: mat.unit_price,
+          currency: newOrder.currency,
+          exchange_rate: newOrder.exchange_rate,
+          service_order_id: newOrder.id,
+          user_id: newOrder.user_id,
+        }));
+
+      if (priceHistoryEntries.length > 0) {
+        const { error: historyError } = await supabase
+          .from('price_history')
+          .insert(priceHistoryEntries);
+
+        if (historyError) {
+          console.error('[ServiceOrderService.create] Error al registrar historial de precios:', historyError);
+        }
+      }
     }
 
     return newOrder as ServiceOrder;
   },
 
-  update: async (id: string, updates: Partial<Omit<ServiceOrder, 'id' | 'created_at'>>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
+  update: async (id: string, updates: Partial<Omit<ServiceOrder, 'id' | 'created_at'>>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[], materials?: Omit<ServiceOrderMaterial, 'id' | 'service_order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
     const { data: updatedOrder, error: orderError } = await supabase
       .from('service_orders')
       .update(updates)
@@ -170,6 +193,82 @@ const ServiceOrderService = {
         console.error('[ServiceOrderService.update] Error al crear nuevos ítems:', itemsError);
         showError('Error al actualizar los ítems de la orden de servicio.');
         return null;
+      }
+    }
+
+    // 3. Handle Materials (Delete old, Insert new) and Update Price History
+    if (materials) { // Only if materials array is provided
+      // Delete existing materials
+      const { error: deleteMaterialsError } = await supabase
+        .from('service_order_materials')
+        .delete()
+        .eq('service_order_id', id);
+
+      if (deleteMaterialsError) {
+        console.error('[ServiceOrderService.update] Error al eliminar materiales antiguos:', deleteMaterialsError);
+        // We might want to stop here or continue? Continuing for now.
+      }
+
+      // Insert new materials
+      if (materials.length > 0) {
+        const orderMaterials = materials.map(mat => ({
+          service_order_id: id,
+          supplier_id: mat.supplier_id,
+          material_id: mat.material_id,
+          quantity: mat.quantity,
+          unit_price: mat.unit_price,
+          tax_rate: mat.tax_rate,
+          is_exempt: mat.is_exempt,
+          supplier_code: mat.supplier_code,
+          unit: mat.unit,
+          description: mat.description,
+          sales_percentage: mat.sales_percentage,
+          discount_percentage: mat.discount_percentage,
+        }));
+
+        const { error: materialsError } = await supabase
+          .from('service_order_materials')
+          .insert(orderMaterials);
+
+        if (materialsError) {
+          console.error('[ServiceOrderService.update] Error al crear nuevos materiales:', materialsError);
+          showError('Error al actualizar los materiales de la orden.');
+          return null;
+        }
+
+        // --- Update Price History ---
+        // 1. Delete existing price history for this Service Order
+        const { error: deleteHistoryError } = await supabase
+          .from('price_history')
+          .delete()
+          .eq('service_order_id', id);
+
+        if (deleteHistoryError) {
+          console.error('[ServiceOrderService.update] Error al limpiar historial de precios:', deleteHistoryError);
+        }
+
+        // 2. Insert new price history
+        const priceHistoryEntries = materials
+          .filter(mat => mat.material_id && mat.unit_price > 0)
+          .map(mat => ({
+            material_id: mat.material_id!,
+            supplier_id: mat.supplier_id,
+            unit_price: mat.unit_price,
+            currency: updatedOrder.currency,
+            exchange_rate: updatedOrder.exchange_rate,
+            service_order_id: id,
+            user_id: updatedOrder.user_id,
+          }));
+
+        if (priceHistoryEntries.length > 0) {
+          const { error: historyError } = await supabase
+            .from('price_history')
+            .insert(priceHistoryEntries);
+
+          if (historyError) {
+            console.error('[ServiceOrderService.update] Error al registrar historial de precios:', historyError);
+          }
+        }
       }
     }
 
