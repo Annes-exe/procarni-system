@@ -77,6 +77,7 @@ const GeneratePurchaseOrder = () => {
 
   React.useEffect(() => {
     const loadQuoteRequestItems = async () => {
+      // 1. Handle Quote Request
       if (quoteRequest) {
         setCompanyId(quoteRequest.company_id);
         setCompanyName(quoteRequest.companies?.name || '');
@@ -125,10 +126,51 @@ const GeneratePurchaseOrder = () => {
           });
         }
       }
+      // 2. Handle Service Order Items
+      else if (location.state?.serviceOrderItems && location.state?.serviceOrder) {
+        const { serviceOrder, serviceOrderItems, supplier } = location.state;
+
+        setCompanyId(serviceOrder.company_id);
+        setCompanyName(serviceOrder.companies?.name || ''); // Assuming company name is available
+        if (supplier) {
+          setSupplierId(supplier.id);
+          setSupplierName(supplier.name);
+        }
+
+        // Default to Service Order currency if possible, or defined defaults
+        setCurrency(serviceOrder.currency || 'USD');
+
+        setObservations(`Generado desde Orden de Servicio #${serviceOrder.sequence_number || serviceOrder.id.substring(0, 8)}`);
+
+        clearCart();
+
+        for (const item of serviceOrderItems) {
+          // Check if item has material_id from the service order item
+          // The structure in ServiceOrderDetails maps 'items' which are from 'service_order_materials'
+          // which has 'material_id', 'quantity', 'unit_price', etc.
+          // AND 'materials' object with 'name' from the join.
+
+          const materialName = item.materials?.name || item.material_name || item.description || 'Material sin nombre';
+
+          addItem({
+            material_id: item.material_id, // This should exist on service_order_materials
+            material_name: materialName,
+            supplier_code: item.supplier_code || '',
+            quantity: item.quantity || 0,
+            unit_price: item.unit_price || 0,
+            tax_rate: item.tax_rate || 0.16,
+            is_exempt: item.is_exempt || false,
+            unit: item.unit || 'UND',
+            description: item.description || '',
+            sales_percentage: item.sales_percentage || 0,
+            discount_percentage: item.discount_percentage || 0,
+          });
+        }
+      }
     };
 
     loadQuoteRequestItems();
-  }, [quoteRequest]);
+  }, [quoteRequest, location.state]);
 
   React.useEffect(() => {
     if (supplierData) {
@@ -306,7 +348,9 @@ const GeneratePurchaseOrder = () => {
       quote_request_id: quoteRequest?.id || null,
     };
 
-    const createdOrder = await createPurchaseOrder(orderData, items);
+    // Cast orderData to any because the PurchaseOrder type includes joined fields (supplier, company)
+    // and DB-generated fields (sequence_number) that are not required for creation.
+    const createdOrder = await createPurchaseOrder(orderData as any, items);
 
     if (createdOrder) {
       if (quoteRequest?.id && quoteRequest.quote_request_items) {

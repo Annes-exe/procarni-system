@@ -578,8 +578,25 @@ const ServiceOrderDetails = () => {
 
               {Object.entries(groupedMaterials).map(([supplierId, group]) => (
                 <div key={supplierId} className="mb-6 border rounded-lg overflow-hidden">
-                  <div className="bg-muted px-4 py-2 font-medium border-b flex justify-between items-center">
+                  <div className="bg-muted px-4 py-2 font-medium border-b flex justify-between items-center flex-wrap gap-2">
                     <span>{group.name}</span>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-procarni-secondary hover:bg-green-700 text-white"
+                      onClick={() => {
+                        navigate('/generate-po', {
+                          state: {
+                            serviceOrder: order,
+                            serviceOrderItems: group.items,
+                            supplier: { id: supplierId, name: group.name }
+                          }
+                        });
+                      }}
+                    >
+                      <Package className="mr-2 h-4 w-4" />
+                      Generar Orden de Compra
+                    </Button>
                   </div>
 
                   {isMobile ? (
@@ -595,7 +612,10 @@ const ServiceOrderDetails = () => {
                         }]);
                         return (
                           <Card key={item.id} className="p-3 shadow-sm bg-gray-50/50">
-                            <p className="font-semibold text-sm">{item.description || item.materials?.name || 'Sin descripción'}</p>
+                            <div className="mb-1">
+                              <p className="font-semibold text-sm text-procarni-primary">{item.materials?.name || 'Material sin nombre'}</p>
+                              {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                            </div>
                             <div className="text-xs mt-1 grid grid-cols-2 gap-2 text-muted-foreground">
                               <p><strong>Cant:</strong> {item.quantity}</p>
                               <p><strong>Precio:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
@@ -610,7 +630,7 @@ const ServiceOrderDetails = () => {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-gray-50/50">
-                            <TableHead className="w-[40%]">Descripción</TableHead>
+                            <TableHead className="w-[40%]">Material / Descripción</TableHead>
                             <TableHead className="text-center">Cant.</TableHead>
                             <TableHead className="text-right">Precio</TableHead>
                             <TableHead className="text-right">Desc.%</TableHead>
@@ -630,7 +650,12 @@ const ServiceOrderDetails = () => {
                             }]);
                             return (
                               <TableRow key={item.id}>
-                                <TableCell className="font-medium">{item.description || item.materials?.name || 'Sin descripción'}</TableCell>
+                                <TableCell className="font-medium">
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold">{item.materials?.name || 'Material sin nombre'}</span>
+                                    {item.description && <span className="text-xs text-muted-foreground">{item.description}</span>}
+                                  </div>
+                                </TableCell>
                                 <TableCell className="text-center">{item.quantity}</TableCell>
                                 <TableCell className="text-right">{item.unit_price.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">{(item.discount_percentage || 0).toFixed(2)}</TableCell>
