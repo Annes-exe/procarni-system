@@ -33,6 +33,7 @@ import GenerateServiceOrder from "./pages/GenerateServiceOrder";
 import ServiceOrderManagement from "./pages/ServiceOrderManagement";
 import ServiceOrderDetails from "./pages/ServiceOrderDetails"; // NEW IMPORT
 import EditServiceOrder from "./pages/EditServiceOrder";
+import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/ficha-tecnica-upload" element={<FichaTecnicaUpload />} />
                 <Route path="/price-history" element={<PriceHistory />} />
+                <Route path="/purchase-history" element={<PurchaseHistory />} />
                 <Route path="/audit-log" element={<AuditLog />} />
                 <Route path="/quote-comparison" element={<QuoteComparison />} />
                 <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />

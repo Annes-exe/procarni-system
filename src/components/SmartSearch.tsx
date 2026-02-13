@@ -21,6 +21,7 @@ interface SmartSearchProps {
   disabled?: boolean; // New prop
   className?: string;
   autoFocus?: boolean;
+  icon?: React.ReactNode; // New prop for icon
 }
 
 const SmartSearch: React.FC<SmartSearchProps> = ({
@@ -31,7 +32,8 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   selectedId,
   disabled = false,
   className,
-  autoFocus
+  autoFocus,
+  icon
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -98,11 +100,14 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between overflow-hidden min-w-[150px] md:min-w-[200px] lg:min-w-[250px]", className)}
+          className={cn("w-full justify-between overflow-hidden min-w-[150px] md:min-w-[200px] lg:min-w-[250px] text-left", className)}
           disabled={disabled}
         >
-          <span className="truncate text-left w-full mr-2">
-            {selectedItem ? selectedItem.name : placeholder}
+          <span className="flex items-center truncate w-full mr-2">
+            {icon && <span className="mr-2 shrink-0">{icon}</span>}
+            <span className="truncate">
+              {selectedItem ? selectedItem.name : placeholder}
+            </span>
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>

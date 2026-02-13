@@ -14,6 +14,7 @@ const navItems = [
       { to: '/quote-comparison', icon: <Scale className="h-5 w-5" />, label: 'Comparación de Cotizaciones' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gestión de Comparaciones' },
       { to: '/price-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Precios' },
+      { to: '/purchase-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Compras' },
     ]
   },
   {
@@ -69,13 +70,13 @@ const SidebarNav = () => {
             <nav className="grid items-start px-2 text-sm font-medium">
               {category.items.map((item) => {
                 const isOrdersCategory = category.category === 'Órdenes y Cotizaciones';
-                
+
                 // Determine classes based on category
-                const activeClasses = isOrdersCategory 
-                  ? 'bg-procarni-secondary text-white' 
+                const activeClasses = isOrdersCategory
+                  ? 'bg-procarni-secondary text-white'
                   : 'bg-procarni-primary text-white';
-                
-                const hoverClasses = isOrdersCategory 
+
+                const hoverClasses = isOrdersCategory
                   ? 'text-sidebar-foreground hover:bg-procarni-secondary/10 hover:text-procarni-secondary'
                   : 'text-sidebar-foreground hover:bg-procarni-primary/10 hover:text-procarni-primary';
 
