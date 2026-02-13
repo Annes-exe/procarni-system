@@ -104,6 +104,7 @@ const GenerateServiceOrder = () => {
   const [sparePartsGroups, setSparePartsGroups] = useState<SparePartsGroup[]>([]);
   const [sparePartsSupplierId, setSparePartsSupplierId] = useState<string>(''); // For the new section search
   const [sparePartsSupplierName, setSparePartsSupplierName] = useState<string>(''); // For the new section search
+  const [supplierListVersion, setSupplierListVersion] = useState(0); // To force refresh of SmartSearch
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
@@ -146,6 +147,7 @@ const GenerateServiceOrder = () => {
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
+    setSupplierListVersion(v => v + 1); // Refresh lists
   };
 
   // --- SPARE PARTS LOGIC ---
@@ -171,6 +173,7 @@ const GenerateServiceOrder = () => {
     // Clear search
     setSparePartsSupplierId('');
     setSparePartsSupplierName('');
+    setSupplierListVersion(v => v + 1); // Refresh lists
   };
 
   const handleAddSparePartItem = (groupIndex: number) => {
@@ -370,6 +373,7 @@ const GenerateServiceOrder = () => {
       setSparePartsGroups([]);
       setSparePartsSupplierId('');
       setSparePartsSupplierName('');
+      setSparePartsSupplierName('');
     }
     setIsSubmitting(false);
   };
@@ -394,6 +398,7 @@ const GenerateServiceOrder = () => {
               <Label htmlFor="supplier">Proveedor *</Label>
               <div className="flex gap-2">
                 <SmartSearch
+                  key={`main-supplier-${supplierListVersion}`} // Force refresh
                   placeholder="Buscar proveedor por RIF o nombre"
                   onSelect={handleSupplierSelect}
                   fetchFunction={searchSuppliers}
@@ -455,6 +460,7 @@ const GenerateServiceOrder = () => {
               <Label>Añadir Proveedor de Repuestos</Label>
               <div className="flex gap-2 mt-1">
                 <SmartSearch
+                  key={`spare-parts-supplier-${supplierListVersion}`} // Force refresh
                   placeholder="Buscar proveedor (ej. Ferretería...)"
                   onSelect={handleAddSparePartsSupplier}
                   fetchFunction={searchSuppliers}
