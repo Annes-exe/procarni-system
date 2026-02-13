@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
-import { showError, showLoading, dismissToast } from '@/utils/toast';
+import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton'; // Importar el botón de descarga
 import { getPurchaseOrderDetails } from '@/integrations/supabase/data'; // Importar servicio para obtener detalles
@@ -20,7 +20,7 @@ const PurchaseOrderPDFViewer = React.forwardRef<PurchaseOrderPDFViewerRef, Purch
   const { session } = useSession();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
-  const [loadingToastId, setLoadingToastId] = useState<string | null>(null);
+  const [loadingToastId, setLoadingToastId] = useState<string | number | null>(null);
   const [successToastId, setSuccessToastId] = useState<string | null>(null);
   const [orderData, setOrderData] = useState<any>(null); // State to hold order details for totals
 
@@ -93,14 +93,9 @@ const PurchaseOrderPDFViewer = React.forwardRef<PurchaseOrderPDFViewerRef, Purch
       dismissToast(toastId);
       setLoadingToastId(null);
 
-      const successId = showLoading('PDF generado. Puedes previsualizarlo.', 2000);
-      setSuccessToastId(successId);
-
-      // Auto-dismiss the success toast after 2 seconds
-      setTimeout(() => {
-        dismissToast(successId);
-        setSuccessToastId(null);
-      }, 2000);
+      const successId = showSuccess('PDF generado. Puedes previsualizarlo.');
+      // Success toast auto-dismisses, no need to store ID or set timeout
+      setSuccessToastId(null);
 
     } catch (error: any) {
       console.error('[PurchaseOrderPDFViewer] Error generating PDF:', error);

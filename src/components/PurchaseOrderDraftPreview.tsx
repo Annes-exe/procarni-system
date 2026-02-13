@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { showError, showLoading, dismissToast } from '@/utils/toast';
+import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton'; // Importar el botón de descarga
 import { calculateTotals } from '@/utils/calculations'; // Import calculateTotals
+import { supabase } from '@/integrations/supabase/client';
 
 interface PurchaseOrderHeader {
   supplier_id: string;
@@ -41,7 +42,7 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const [tempOrderId, setTempOrderId] = useState<string | null>(null);
-  const [loadingToastId, setLoadingToastId] = useState<string | null>(null);
+  const [loadingToastId, setLoadingToastId] = useState<string | number | null>(null);
   const [successToastId, setSuccessToastId] = useState<string | null>(null);
   const [draftFileName, setDraftFileName] = useState<string>(''); // State to hold the generated filename
 
@@ -60,7 +61,7 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
     try {
       // 1. Create the temporary purchase order to get an ID
       if (!currentOrderId) {
-        const { data: newOrder, error: createError } = await session.supabase
+        const { data: newOrder, error: createError } = await supabase
           .from('purchase_orders')
           .insert({
             supplier_id: orderData.supplier_id,
@@ -90,14 +91,14 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
 
       // 2. Insert items for the temporary order (or re-insert if already exists, ensuring clean state)
       // First, delete existing items associated with the temporary ID
-      await session.supabase.from('purchase_order_items').delete().eq('order_id', currentOrderId);
+      await supabase.from('purchase_order_items').delete().eq('order_id', currentOrderId);
 
       if (itemsData.length > 0) {
         const itemsWithOrderId = itemsData.map(item => ({
           ...item,
           order_id: currentOrderId,
         }));
-        const { error: itemsError } = await session.supabase
+        const { error: itemsError } = await supabase
           .from('purchase_order_items')
           .insert(itemsWithOrderId);
 
@@ -139,16 +140,8 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
       }
 
       // Show success toast that will auto-dismiss
-      const successId = showLoading('PDF generado. Puedes previsualizarlo.', 2000);
-      setSuccessToastId(successId);
-
-      // Auto-dismiss the success toast after 2 seconds
-      setTimeout(() => {
-        if (successId) {
-          dismissToast(successId);
-          setSuccessToastId(null);
-        }
-      }, 2000);
+      showSuccess('PDF generado. Puedes previsualizarlo.');
+      setSuccessToastId(null);
 
 
     } catch (error: any) {
@@ -169,7 +162,7 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
     if (!session || !orderData.user_id) return;
     try {
       // Only delete if it's still a Draft and belongs to the user
-      const { data: orderToDelete, error: fetchCleanupError } = await session.supabase
+      const { data: orderToDelete, error: fetchCleanupError } = await supabase
         .from('purchase_orders')
         .select('id')
         .eq('id', id)
@@ -180,8 +173,8 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
       if (fetchCleanupError && fetchCleanupError.code !== 'PGRST116') {
         console.error('[PurchaseOrderDraftPreview] Error fetching order for cleanup:', fetchCleanupError);
       } else if (orderToDelete) {
-        await session.supabase.from('purchase_order_items').delete().eq('order_id', orderToDelete.id);
-        await session.supabase.from('purchase_orders').delete().eq('id', orderToDelete.id);
+        await supabase.from('purchase_order_items').delete().eq('order_id', orderToDelete.id);
+        await supabase.from('purchase_orders').delete().eq('id', orderToDelete.id);
         console.log('[PurchaseOrderDraftPreview] Temporary order and items cleaned up.');
       }
     } catch (cleanupError) {

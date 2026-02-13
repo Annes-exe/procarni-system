@@ -58,12 +58,12 @@ const Settings = () => {
       }
 
       const result = await response.json();
-      dismissToast(String(toastId));
+      dismissToast(toastId);
       showSuccess(result.message || 'Secuencia actualizada exitosamente.');
       setIsPinDialogOpen(false);
     } catch (error: any) {
       console.error('[Settings] Error updating sequence:', error);
-      dismissToast(String(toastId));
+      dismissToast(toastId);
       showError(error.message || 'Error desconocido al actualizar la secuencia.');
     } finally {
       setIsConfirming(false);

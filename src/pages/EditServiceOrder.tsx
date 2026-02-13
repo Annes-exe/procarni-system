@@ -439,7 +439,7 @@ const EditServiceOrder = () => {
             const errorMessage = error instanceof Error ? error.message : 'Error al actualizar.';
             showError(errorMessage);
         } finally {
-            if (toastId) dismissToast(String(toastId));
+            if (toastId) dismissToast(toastId);
             setIsSubmitting(false);
         }
     };

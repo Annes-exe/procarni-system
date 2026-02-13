@@ -187,7 +187,7 @@ const ServiceOrderDetails = () => {
       const errorMessage = error instanceof Error ? error.message : 'Error al aprobar la orden de servicio.';
       showError(errorMessage);
     } finally {
-      dismissToast(String(toastId));
+      dismissToast(toastId);
       setIsApproving(false);
     }
   };
