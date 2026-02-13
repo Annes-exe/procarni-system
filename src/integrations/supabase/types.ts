@@ -70,6 +70,7 @@ export type PurchaseOrder = {
   credit_days: number | null;
   observations: string | null;
   quote_request_id: string | null;
+  service_order_id?: string | null; // Added
   supplier: Supplier; // Assuming we might join this
   company: Company; // Assuming we might join this
 };

@@ -57,6 +57,7 @@ const GeneratePurchaseOrder = () => {
   const [supplierName, setSupplierName] = React.useState<string>('');
   const [currency, setCurrency] = React.useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
+  const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null); // New State
 
   const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(undefined);
   const [paymentTerms, setPaymentTerms] = React.useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
@@ -132,6 +133,8 @@ const GeneratePurchaseOrder = () => {
 
         setCompanyId(serviceOrder.company_id);
         setCompanyName(serviceOrder.companies?.name || ''); // Assuming company name is available
+        setServiceOrderId(serviceOrder.id); // Capturing Service Order ID
+
         if (supplier) {
           setSupplierId(supplier.id);
           setSupplierName(supplier.name);
@@ -346,11 +349,12 @@ const GeneratePurchaseOrder = () => {
       credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
       observations: observations || null,
       quote_request_id: quoteRequest?.id || null,
+      service_order_id: serviceOrderId || null, // Added
     };
 
     // Cast orderData to any because the PurchaseOrder type includes joined fields (supplier, company)
     // and DB-generated fields (sequence_number) that are not required for creation.
-    const createdOrder = await createPurchaseOrder(orderData as any, items);
+    const createdOrder = await createPurchaseOrder(orderData as any, items as any);
 
     if (createdOrder) {
       if (quoteRequest?.id && quoteRequest.quote_request_items) {
