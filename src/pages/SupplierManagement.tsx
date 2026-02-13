@@ -251,14 +251,14 @@ const SupplierManagement = () => {
           </div>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-              <Button 
-                onClick={handleAddSupplier} 
+              <Button
+                onClick={handleAddSupplier}
                 className={cn(
                   "bg-procarni-secondary hover:bg-green-700",
                   isMobile && "w-10 h-10 p-0" // Hacer el botón cuadrado y sin padding en móvil
                 )}
               >
-                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
+                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
                 {!isMobile && 'Añadir Proveedor'}
               </Button>
             </DialogTrigger>
@@ -337,7 +337,7 @@ const SupplierManagement = () => {
                       </p>
                       {/* Etiqueta de estado movida aquí */}
                       <p>
-                        <strong>Estado:</strong> 
+                        <strong>Estado:</strong>
                         <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
                           {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                         </span>

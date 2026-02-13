@@ -1,26 +1,27 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct } from '@/integrations/supabase/data';
-import { showError } from '@/utils/toast';
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier } from '@/integrations/supabase/data';
+import { showError, showSuccess } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FichaTecnica } from '@/integrations/supabase/types';
+import { FichaTecnica, Supplier } from '@/integrations/supabase/types'; // Import Supplier type
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel 
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
+import SupplierForm from '@/components/SupplierForm'; // Import SupplierForm
 
 interface MaterialAssociation {
   id: string; // ID of supplier_materials entry
@@ -55,9 +56,11 @@ const SupplierDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
+  const [isEditOpen, setIsEditOpen] = useState(false); // New state for edit dialog
 
   const { data: supplier, isLoading, error } = useQuery<SupplierDetailsData | null>({
     queryKey: ['supplierDetails', id],
@@ -82,6 +85,34 @@ const SupplierDetails = () => {
   const fichaStatusResults = useQueries({ queries: materialQueries });
   const isLoadingFichaStatus = fichaStatusResults.some(result => result.isLoading);
   // --------------------------------------------------------------------
+
+  // Mutation for updating supplier
+  const updateMutation = useMutation({
+    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: Array<{ material_id: string; specification?: string }> }) =>
+      updateSupplier(id, supplierData, materials),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] }); // Also update list
+      setIsEditOpen(false);
+      showSuccess('Proveedor actualizado exitosamente.');
+    },
+    onError: (err) => {
+      showError(`Error al actualizar proveedor: ${err.message}`);
+    },
+  });
+
+  const handleEditSubmit = async (data: any) => {
+    if (!supplier) return;
+
+    const { materials, ...supplierData } = data;
+    const materialsPayload = materials?.map((mat: any) => ({
+      material_id: mat.material_id,
+      specification: mat.specification,
+    })) || [];
+
+    await updateMutation.mutateAsync({ id: supplier.id, supplierData, materials: materialsPayload });
+  };
+
 
   const formatPhoneNumberForWhatsApp = (phone: string) => {
     const digitsOnly = phone.replace(/\D/g, '');
@@ -166,7 +197,7 @@ const SupplierDetails = () => {
         <Button variant="outline" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" className={cn(isMobile ? 'w-10 h-10 p-0' : '')}>
@@ -177,24 +208,24 @@ const SupplierDetails = () => {
           <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel>Opciones de Proveedor</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            
+
             {/* 1. Generar SC */}
             <DropdownMenuItem onSelect={handleGenerateSC} className="cursor-pointer text-procarni-secondary focus:text-green-700">
               <PlusCircle className="mr-2 h-4 w-4" /> Generar Solicitud (SC)
             </DropdownMenuItem>
-            
+
             {/* 2. Generar OC */}
             <DropdownMenuItem onSelect={handleGenerateOC} className="cursor-pointer text-blue-600 focus:text-blue-700">
               <ShoppingCart className="mr-2 h-4 w-4" /> Generar Orden (OC)
             </DropdownMenuItem>
-            
+
             <DropdownMenuSeparator />
-            
+
             {/* 3. Editar Proveedor */}
-            <DropdownMenuItem onSelect={() => navigate(`/supplier-management?editId=${supplier.id}`)} className="cursor-pointer">
+            <DropdownMenuItem onSelect={() => setIsEditOpen(true)} className="cursor-pointer">
               <Edit className="mr-2 h-4 w-4" /> Editar Proveedor
             </DropdownMenuItem>
-            
+
             {/* 4. Historial de Precios (Download Button as DropdownMenuItem) */}
             <DropdownMenuItem asChild>
               <SupplierPriceHistoryDownloadButton
@@ -204,7 +235,7 @@ const SupplierDetails = () => {
                 asChild
               />
             </DropdownMenuItem>
-            
+
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -260,7 +291,7 @@ const SupplierDetails = () => {
               <div className="space-y-3">
                 {supplier.materials.map((sm, index) => {
                   const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
-                  
+
                   return (
                     <Card key={sm.id || index} className="p-3">
                       <p className="font-semibold text-procarni-primary">{sm.materials.name}</p>
@@ -274,7 +305,7 @@ const SupplierDetails = () => {
                           <span className="text-sm text-muted-foreground">Cargando estado...</span>
                         ) : hasFicha ? (
                           <Button variant="outline" size="sm" onClick={() => handleViewFicha(sm.materials.name)}>
-                            <FileText className="mr-2 h-4 w-4" /> 
+                            <FileText className="mr-2 h-4 w-4" />
                             Ver Ficha Técnica
                           </Button>
                         ) : (
@@ -300,7 +331,7 @@ const SupplierDetails = () => {
                   <TableBody>
                     {supplier.materials.map((sm, index) => {
                       const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
-                      
+
                       return (
                         <TableRow key={sm.id || index}>
                           <TableCell>{sm.materials.code || 'N/A'}</TableCell>
@@ -344,6 +375,21 @@ const SupplierDetails = () => {
               <div className="text-center text-destructive">No se pudo cargar el documento.</div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW EDIT DIALOG */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Proveedor</DialogTitle>
+          </DialogHeader>
+          <SupplierForm
+            initialData={supplier as any}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setIsEditOpen(false)}
+            isSubmitting={updateMutation.isPending}
+          />
         </DialogContent>
       </Dialog>
     </div>
