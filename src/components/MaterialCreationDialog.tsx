@@ -93,7 +93,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
     const trimmedName = materialName.trim();
 
-    if (trimmedName.length > 2) {
+    if (trimmedName.length > 0) {
       setIsCheckingExistence(true);
       debounceTimeoutRef.current = setTimeout(async () => {
         try {
@@ -166,8 +166,10 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
     try {
       let materialToAssociate: Material | null = null;
+      let isNewMaterial = false;
 
       // 1. Check if the final name matches an existing material (case insensitive)
+      // We re-fetch to be absolutely sure, relying on the service which handles searching.
       const existingMaterials = await searchMaterials(trimmedMaterialName);
       const exactMatch = existingMaterials.find(m => m.name.toUpperCase() === trimmedMaterialName);
 
@@ -175,10 +177,12 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       const finalIsExempt = category === 'FRESCA' ? true : isExempt;
 
       if (exactMatch) {
+        // USE EXISTING
         materialToAssociate = exactMatch;
-        showSuccess(`Material existente "${materialToAssociate.name}" encontrado.`);
+        // Optional: We could update the existing material if the user changed category/unit, but usually we just link it.
+        // For now, we trust the existing material's definition.
       } else {
-        // 2. Create the new material
+        // CREATE NEW
         const newMaterial = await createMaterial({
           name: trimmedMaterialName,
           category,
@@ -192,25 +196,37 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           throw new Error('No se pudo crear el material.');
         }
         materialToAssociate = newMaterial;
-        showSuccess('Material creado exitosamente.');
+        isNewMaterial = true;
       }
 
       // 3. Associate the material with the supplier IF supplierId is provided
       if (supplierId && materialToAssociate) {
-        const relationCreated = await createSupplierMaterialRelation({
+        const result = await createSupplierMaterialRelation({
           supplier_id: supplierId,
           material_id: materialToAssociate.id,
           specification: specification.trim() || undefined,
           user_id: session.user.id,
         });
 
-        if (!relationCreated) {
-          showError('Advertencia: La relación con el proveedor ya existía o falló la asociación.');
+        if (!result.success) {
+          showError('Advertencia: Falló la asociación con el proveedor.');
         } else {
-          showSuccess(`Material "${materialToAssociate.name}" asociado con el proveedor exitosamente.`);
+          if (result.existed) {
+            showSuccess(`El material "${materialToAssociate.name}" ya estaba asociado a este proveedor.`);
+          } else {
+            if (isNewMaterial) {
+              showSuccess('Material creado y asociado exitosamente.');
+            } else {
+              showSuccess(`Material existente "${materialToAssociate.name}" asociado exitosamente.`);
+            }
+          }
         }
       } else if (materialToAssociate) {
-        showSuccess(`Material "${materialToAssociate.name}" creado.`);
+        if (isNewMaterial) {
+          showSuccess(`Material "${materialToAssociate.name}" creado.`);
+        } else {
+          showSuccess(`Material "${materialToAssociate.name}" seleccionado.`);
+        }
       }
 
       // 4. Call the callback with the material data and specification
