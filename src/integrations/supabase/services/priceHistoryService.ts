@@ -10,6 +10,7 @@ export interface PriceHistoryEntry {
   unit_price: number;
   currency: string;
   exchange_rate?: number | null;
+  purchase_order_id?: string | null;
   service_order_id?: string | null;
   recorded_at: string;
   suppliers: {

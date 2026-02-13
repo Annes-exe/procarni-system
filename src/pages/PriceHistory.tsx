@@ -30,6 +30,8 @@ interface PriceHistoryEntry {
   unit_price: number;
   currency: string;
   exchange_rate?: number | null;
+  purchase_order_id?: string | null;
+  service_order_id?: string | null;
   recorded_at: string;
   suppliers: {
     name: string;
@@ -99,7 +101,7 @@ const PriceHistory = () => {
         };
       }
       acc[supplierId].prices.push(convertedPrice);
-      
+
       // Determine the latest price based on recorded_at timestamp
       if (new Date(entry.recorded_at) > new Date(acc[supplierId].latestEntry.recorded_at)) {
         acc[supplierId].latestEntry = entry;
@@ -166,7 +168,7 @@ const PriceHistory = () => {
               <CardDescription className="mb-2">Cód: {data.supplierCode || 'N/A'}</CardDescription>
               <div className="text-sm space-y-1">
                 <p>
-                  <strong>Último Precio ({data.baseCurrency}):</strong> {formatPrice(data.latestPrice, data.baseCurrency)} 
+                  <strong>Último Precio ({data.baseCurrency}):</strong> {formatPrice(data.latestPrice, data.baseCurrency)}
                   {data.latestEntry.recorded_at && isValidDate(data.latestEntry.recorded_at) && ` (${format(new Date(data.latestEntry.recorded_at), 'dd/MM/yy')})`}
                 </p>
                 <p className="flex items-center text-green-600">
@@ -210,8 +212,8 @@ const PriceHistory = () => {
                   {formatPrice(data.latestPrice, data.baseCurrency)}
                 </TableCell>
                 <TableCell>
-                  {data.latestEntry.recorded_at && isValidDate(data.latestEntry.recorded_at) 
-                    ? format(new Date(data.latestEntry.recorded_at), 'dd/MM/yyyy') 
+                  {data.latestEntry.recorded_at && isValidDate(data.latestEntry.recorded_at)
+                    ? format(new Date(data.latestEntry.recorded_at), 'dd/MM/yyyy')
                     : 'N/A'}
                 </TableCell>
                 <TableCell className="text-green-600 font-semibold">
@@ -293,9 +295,9 @@ const PriceHistory = () => {
               disabled={!selectedMaterial || comparisonData.length === 0}
             />
           </div>
-          
+
           {renderComparisonTable()}
-          
+
           {/* Detailed History Table */}
           {priceHistory && priceHistory.length > 0 && (
             <div className="mt-8">
@@ -317,14 +319,25 @@ const PriceHistory = () => {
                   </TableHeader>
                   <TableBody>
                     {priceHistory.map((entry) => (
-                      <TableRow key={entry.id} className={cn(entry.currency === 'VES' ? 'bg-blue-50/50 dark:bg-blue-900/20' : '')}>
+                      <TableRow
+                        key={entry.id}
+                        className={cn(
+                          entry.currency === 'VES' ? 'bg-blue-50/50 dark:bg-blue-900/20' : '',
+                          entry.purchase_order_id ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : ''
+                        )}
+                        onClick={() => {
+                          if (entry.purchase_order_id) {
+                            navigate(`/purchase-orders/${entry.purchase_order_id}`);
+                          }
+                        }}
+                      >
                         <TableCell>{entry.suppliers.name}</TableCell>
                         <TableCell>{entry.unit_price.toFixed(2)}</TableCell>
                         <TableCell>{entry.currency}</TableCell>
                         <TableCell>{entry.exchange_rate ? entry.exchange_rate.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell>
-                          {entry.recorded_at && isValidDate(entry.recorded_at) 
-                            ? format(new Date(entry.recorded_at), 'dd/MM/yyyy HH:mm') 
+                          {entry.recorded_at && isValidDate(entry.recorded_at)
+                            ? format(new Date(entry.recorded_at), 'dd/MM/yyyy HH:mm')
                             : 'N/A'}
                         </TableCell>
                       </TableRow>
@@ -337,7 +350,7 @@ const PriceHistory = () => {
         </CardContent>
       </Card>
       <MadeWithDyad />
-    </div>
+    </div >
   );
 };
 
