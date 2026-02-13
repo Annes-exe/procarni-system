@@ -14,11 +14,12 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Separator } from '@/components/ui/separator';
 
 const PurchaseHistory = () => {
     const isMobile = useIsMobile();
+    const isTablet = useIsTablet();
     const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
     const [selectedMaterial, setSelectedMaterial] = useState<any | null>(null);
     const [date, setDate] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -236,7 +237,7 @@ const PurchaseHistory = () => {
                     <p className="mt-2 text-sm text-gray-500">Cargando resultados...</p>
                 </div>
             ) : historyData && historyData.length > 0 ? (
-                isMobile ? (
+                isMobile || isTablet ? ( // Check both or just isTablet since isTablet covers < 1180 which includes mobile
                     <div className="space-y-4">
                         {historyData.map((item: any) => (
                             <Card key={item.id} className="border-l-4 border-l-procarni-primary/50">
