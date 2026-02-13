@@ -228,6 +228,18 @@ serve(async (req) => {
             });
         }
 
+        const { data: materials, error: materialsError } = await supabaseClient
+            .from('service_order_materials')
+            .select('*, suppliers(name), materials(name)')
+            .eq('service_order_id', orderId);
+
+        if (materialsError) {
+            return new Response(JSON.stringify({ error: 'Error fetching order materials.' }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
         // Helper function to format payment terms
         const formatPaymentTerms = (order: any) => {
             if (order.payment_terms === 'Otro' && order.custom_payment_terms) {
@@ -329,7 +341,7 @@ serve(async (req) => {
         };
 
         const checkPageBreak = (state: PDFState, requiredSpace: number): PDFState => {
-            if (state.y - requiredSpace < MARGIN + LINE_HEIGHT * 10) {
+            if (state.y - requiredSpace < MARGIN + LINE_HEIGHT * 2) {
                 state.page = pdfDoc.addPage();
                 state.y = height - MARGIN;
                 state = drawTableHeader(state);
@@ -620,6 +632,141 @@ serve(async (req) => {
             return state;
         };
 
+        const drawMaterialsSection = (state: PDFState, materials: any[]): PDFState => {
+            if (!materials || materials.length === 0) return state;
+
+            // Group by Supplier
+            const groupedMaterials: { [key: string]: { name: string, items: any[] } } = {};
+
+            materials.forEach(mat => {
+                const supplierId = mat.supplier_id;
+                const supplierName = mat.suppliers?.name || 'Proveedor Desconocido';
+
+                if (!groupedMaterials[supplierId]) {
+                    groupedMaterials[supplierId] = { name: supplierName, items: [] };
+                }
+                groupedMaterials[supplierId].items.push(mat);
+            });
+
+            // Draw Section Title
+            drawText(state, 'REPUESTOS Y ADICIONALES:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
+
+            state.page.drawLine({
+                start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
+                end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
+                thickness: 0.5,
+                color: LIGHT_GRAY,
+            });
+
+            state.y -= LINE_HEIGHT * 2;
+
+            // Iterate Groups
+            Object.values(groupedMaterials).forEach(group => {
+                // Check space for Header + Table Header + 1 Row
+                state = checkPageBreak(state, LINE_HEIGHT * 4);
+
+                // Draw Supplier Sub-header
+                drawText(state, `Proveedor: ${group.name}`, MARGIN, state.y, { font: boldFont, size: 10, color: DARK_GRAY });
+                state.y -= LINE_HEIGHT;
+
+                // Draw Table Header (Reuse existing function)
+                state = drawTableHeader(state);
+
+                // Draw Items
+                for (let i = 0; i < group.items.length; i++) {
+                    const item = group.items[i];
+
+                    const totals = calculateTotals([{
+                        quantity: item.quantity,
+                        unit_price: item.unit_price,
+                        tax_rate: item.tax_rate,
+                        is_exempt: item.is_exempt,
+                        sales_percentage: item.sales_percentage ?? 0,
+                        discount_percentage: item.discount_percentage ?? 0,
+                    }]);
+
+                    const itemIva = totals.montoIVA;
+                    const totalItem = totals.total;
+
+                    // Combine material name and description
+                    let materialContent = String(item.materials?.name || item.description || 'Material sin nombre');
+                    if (item.materials?.name && item.description) {
+                        materialContent += `\n${item.description}`;
+                    }
+                    if (item.supplier_code) {
+                        materialContent += `\n(Cód: ${item.supplier_code})`;
+                    }
+
+                    const materialLines = wrapText(materialContent, 20);
+                    const lineSpacing = (FONT_SIZE - 1) * 1.2;
+                    const requiredHeight = materialLines.length * lineSpacing + 5;
+
+                    state = checkPageBreak(state, requiredHeight + 10);
+
+                    state.page.drawLine({
+                        start: { x: MARGIN, y: state.y },
+                        end: { x: MARGIN + tableWidth, y: state.y },
+                        thickness: 0.5,
+                        color: LIGHT_GRAY,
+                    });
+
+                    let currentX = MARGIN;
+                    let currentY = state.y - 3;
+
+                    // 1. Material Name
+                    for (const line of materialLines) {
+                        drawText(state, line, currentX + 2, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
+                        currentY -= lineSpacing;
+                    }
+                    currentX += colWidths[0];
+
+                    const finalY = state.y - requiredHeight;
+
+                    const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font, color: any = rgb(0, 0, 0)) => {
+                        const cellWidth = colWidths[colIndex];
+                        const textWidth = fontToUse.widthOfTextAtSize(text, size);
+                        const verticalCenterY = finalY + requiredHeight / 2 - size / 2;
+                        const xPos = isRightAligned ? currentX + cellWidth - 5 - textWidth : currentX + 5;
+                        drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse, color });
+                        currentX += cellWidth;
+                    };
+
+                    // 2. Quantity
+                    drawCellData(`${String(item.quantity ?? 0)} ${item.unit || 'UND'}`, 1);
+
+                    // 3. Unit Price
+                    drawCellData((item.unit_price ?? 0).toFixed(2), 2);
+
+                    // 4. Desc %
+                    drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 3);
+
+                    // 5. Sales %
+                    drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 4);
+
+                    // 6. IVA
+                    if (item.is_exempt) {
+                        drawCellData('EXENTO', 5, true, 8, font, DARK_GRAY);
+                    } else {
+                        drawCellData(itemIva.toFixed(2), 5);
+                    }
+
+                    // 7. Total
+                    drawCellData(totalItem.toFixed(2), 6, true, FONT_SIZE + 1, boldFont);
+
+                    state.y = finalY;
+                }
+                state.page.drawLine({
+                    start: { x: MARGIN, y: state.y },
+                    end: { x: MARGIN + tableWidth, y: state.y },
+                    thickness: 1,
+                    color: LIGHT_GRAY,
+                });
+                state.y -= LINE_HEIGHT * 2;
+            });
+
+            return state;
+        };
+
         const drawTotalsAndSummary = async (state: PDFState, order: any, items: any[], effectiveExchangeRate: number): Promise<PDFState> => {
             const calculatedTotals = calculateTotals(items.map(item => ({
                 quantity: item.quantity,
@@ -796,7 +943,10 @@ serve(async (req) => {
         state = drawOrderDetails(state, order);
         state = drawObservations(state, order);
         state = drawItemsTable(state, items);
-        state = await drawTotalsAndSummary(state, order, items, effectiveExchangeRate);
+        state = drawMaterialsSection(state, materials || []);
+
+        const allItems = [...items, ...(materials || [])];
+        state = await drawTotalsAndSummary(state, order, allItems, effectiveExchangeRate);
         state = drawFooter(state, order, user);
 
         const pdfBytes = await pdfDoc.save();
