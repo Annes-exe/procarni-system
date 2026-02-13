@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
@@ -7,7 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -16,7 +17,10 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.warn('[export-data] Unauthorized: No Authorization header');
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Unauthorized: No Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -26,10 +30,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      console.warn('[export-data] Unauthorized: Invalid user session');
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error('[export-data] Auth Error:', authError);
+      return new Response(JSON.stringify({ error: `Unauthorized: ${authError?.message || 'User not found'}` }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const { type, pin } = await req.json();
@@ -64,7 +71,7 @@ serve(async (req) => {
           .eq('user_id', user.id); // Only export user's own data
 
         if (supplierError) throw supplierError;
-        dataToExport = suppliers.map(s => ({
+        dataToExport = suppliers.map((s: any) => ({
           'Código': s.code || '',
           'RIF': s.rif,
           'Nombre': s.name,
@@ -93,7 +100,7 @@ serve(async (req) => {
           .eq('user_id', user.id); // Only export user's own data
 
         if (materialError) throw materialError;
-        dataToExport = materials.map(m => ({
+        dataToExport = materials.map((m: any) => ({
           'Código': m.code || '',
           'Nombre': m.name,
           'Categoría': m.category || '',
@@ -115,7 +122,7 @@ serve(async (req) => {
           .eq('user_id', user.id); // Only export user's own data
 
         if (relationError) throw relationError;
-        dataToExport = relations.map(r => ({
+        dataToExport = relations.map((r: any) => ({
           'Código P': r.suppliers?.code || '',
           'Código MP': r.materials?.code || '',
           'ESPECIFICACION': r.specification || '',
@@ -147,7 +154,7 @@ serve(async (req) => {
       },
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[export-data] Error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,

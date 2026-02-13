@@ -16,7 +16,10 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.warn('[generate-template] Unauthorized: No Authorization header');
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Unauthorized: No Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -26,10 +29,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      console.warn('[generate-template] Unauthorized: Invalid user session');
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error('[generate-template] Auth Error:', authError);
+      return new Response(JSON.stringify({ error: `Unauthorized: ${authError?.message || 'User not found'}` }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const { type } = await req.json();
