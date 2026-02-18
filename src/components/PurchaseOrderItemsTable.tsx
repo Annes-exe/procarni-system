@@ -119,7 +119,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Unidad</label>
-            <Select value={item.unit} onValueChange={(v) => onItemChange(index, 'unit', v)}>
+            <Select value={item.unit || ''} onValueChange={(v) => onItemChange(index, 'unit', v)}>
               <SelectTrigger className="h-9"><SelectValue placeholder="Ud." /></SelectTrigger>
               <SelectContent>{MATERIAL_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
             </Select>
@@ -254,7 +254,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             {/* Col 5-6: Unidad */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</label>
-              <Select value={item.unit} onValueChange={(v) => onItemChange(index, 'unit', v)}>
+              <Select value={item.unit || ''} onValueChange={(v) => onItemChange(index, 'unit', v)}>
                 <SelectTrigger className="h-9 bg-gray-50/50 border-gray-200"><SelectValue placeholder="Ud." /></SelectTrigger>
                 <SelectContent>{MATERIAL_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
               </Select>
