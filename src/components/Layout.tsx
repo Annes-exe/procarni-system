@@ -10,6 +10,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import UserDropdown from './UserDropdown';
 import SidebarNav from './SidebarNav';
 import ScrollToTopButton from './ScrollToTopButton';
+import { DynamicBreadcrumbs } from './DynamicBreadcrumbs';
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -18,10 +19,10 @@ const Layout = () => {
   const SidebarHeader = () => (
     <div className="flex flex-col items-center justify-center py-4 border-b border-gray-200 bg-background dark:bg-gray-900">
       <NavLink to="/" className="flex flex-col items-center gap-2 font-semibold text-procarni-primary dark:text-white">
-        <img 
-          src="/Sis-Prov.png" 
-          alt="Sis-Prov Logo" 
-          className="h-10 w-auto object-contain drop-shadow-md" 
+        <img
+          src="/Sis-Prov.png"
+          alt="Sis-Prov Logo"
+          className="h-10 w-auto object-contain drop-shadow-md"
         />
       </NavLink>
     </div>
@@ -79,8 +80,8 @@ const Layout = () => {
   }
 
   return (
-    <ResizablePanelGroup 
-      direction="horizontal" 
+    <ResizablePanelGroup
+      direction="horizontal"
       className="flex h-screen w-full rounded-lg border overflow-hidden"
     >
       <ResizablePanel defaultSize={15} minSize={10} maxSize={20}>
@@ -96,6 +97,7 @@ const Layout = () => {
             </div>
           </header>
           <main ref={mainContentRef} className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 overflow-y-auto">
+            <DynamicBreadcrumbs />
             <Outlet />
           </main>
         </div>

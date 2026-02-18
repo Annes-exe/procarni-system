@@ -3,29 +3,29 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Search, ShoppingCart, FileText, Factory, Users, Box, Upload, ClipboardList, Building2, ListOrdered, Settings, Cog, FileUp, DollarSign, ScrollText, Scale, Wrench } from 'lucide-react'; // Import Wrench icon
+import { Search, ShoppingCart, FileText, Factory, Users, Box, Upload, ClipboardList, Building2, ListOrdered, Settings, Cog, FileUp, DollarSign, ScrollText, Scale, Wrench, LayoutDashboard, FileQuestion, Briefcase } from 'lucide-react';
 
 const navItems = [
   {
-    category: 'Inicio y Búsqueda',
+    category: 'Inicio',
     items: [
-      { to: '/', icon: <Search className="h-5 w-5" />, label: 'Búsqueda / Gestión' },
-      { to: '/search-suppliers-by-material', icon: <Factory className="h-5 w-5" />, label: 'Buscar Proveedores por Material' },
-      { to: '/quote-comparison', icon: <Scale className="h-5 w-5" />, label: 'Comparación de Cotizaciones' },
-      { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gestión de Comparaciones' },
-      { to: '/price-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Precios' },
-      { to: '/purchase-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Compras' },
+      { to: '/', icon: <LayoutDashboard className="h-5 w-5" />, label: 'Dashboard' },
     ]
   },
   {
-    category: 'Órdenes y Cotizaciones',
+    category: 'Operaciones',
     items: [
-      { to: '/generate-quote', icon: <FileText className="h-5 w-5" />, label: 'Generar Solicitud (SC)' },
-      { to: '/quote-request-management', icon: <ClipboardList className="h-5 w-5" />, label: 'Gestión de Solicitudes (SC)' },
-      { to: '/generate-po', icon: <ShoppingCart className="h-5 w-5" />, label: 'Generar Orden (OC)' },
-      { to: '/purchase-order-management', icon: <ListOrdered className="h-5 w-5" />, label: 'Gestión de Órdenes (OC)' },
-      { to: '/generate-so', icon: <Wrench className="h-5 w-5" />, label: 'Generar Orden (OS)' }, // NEW ITEM
-      { to: '/service-order-management', icon: <Wrench className="h-5 w-5" />, label: 'Gestión de Órdenes (OS)' }, // NEW ITEM
+      { to: '/quote-request-management', icon: <FileQuestion className="h-5 w-5" />, label: 'Cotizaciones' },
+      { to: '/purchase-order-management', icon: <ShoppingCart className="h-5 w-5" />, label: 'Órdenes de Compra' },
+      { to: '/service-order-management', icon: <Briefcase className="h-5 w-5" />, label: 'Órdenes de Servicio' },
+    ]
+  },
+  {
+    category: 'Reportes',
+    items: [
+      { to: '/price-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Precios' },
+      { to: '/purchase-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Compras' },
+      { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gestión de Comparaciones' },
     ]
   },
   {
@@ -48,7 +48,7 @@ const navItems = [
 ];
 
 const SidebarNav = () => {
-  const [openItems, setOpenItems] = useState<string[]>(['Inicio y Búsqueda', 'Órdenes y Cotizaciones', 'Maestros de Datos', 'Administración']);
+  const [openItems, setOpenItems] = useState<string[]>(['Inicio', 'Operaciones', 'Reportes', 'Maestros de Datos', 'Administración']);
 
   const handleValueChange = (value: string[]) => {
     setOpenItems(value);
@@ -69,7 +69,7 @@ const SidebarNav = () => {
           <AccordionContent className="pb-2">
             <nav className="grid items-start px-2 text-sm font-medium">
               {category.items.map((item) => {
-                const isOrdersCategory = category.category === 'Órdenes y Cotizaciones';
+                const isOrdersCategory = category.category === 'Operaciones';
 
                 // Determine classes based on category
                 const activeClasses = isOrdersCategory
