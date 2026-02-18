@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Search, ShoppingCart, FileText, Factory, Users, Box, Upload, ClipboardList, Building2, ListOrdered, Settings, Cog, FileUp, DollarSign, ScrollText, Scale, Wrench, LayoutDashboard, FileQuestion, Briefcase } from 'lucide-react';
+import { Search, ShoppingCart, FileText, Factory, Users, Box, Upload, ClipboardList, Building2, ListOrdered, Settings, Cog, FileUp, DollarSign, ScrollText, Scale, Wrench, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
 
 const navItems = [
   {
@@ -23,8 +23,7 @@ const navItems = [
   {
     category: 'Reportes',
     items: [
-      { to: '/price-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Precios' },
-      { to: '/purchase-history', icon: <DollarSign className="h-5 w-5" />, label: 'Historial de Compras' },
+      { to: '/reports', icon: <BarChart3 className="h-5 w-5" />, label: 'Centro de Reportes' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gestión de Comparaciones' },
     ]
   },
