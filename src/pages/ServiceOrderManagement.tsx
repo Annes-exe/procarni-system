@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Trash2, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, Wrench } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getAllServiceOrders, archiveServiceOrder, unarchiveServiceOrder, deleteServiceOrder } from '@/integrations/supabase/data';
+import { getAllServiceOrders, archiveServiceOrder, unarchiveServiceOrder, deleteServiceOrder, updateServiceOrderStatus } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ServiceOrder } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CheckCircle } from 'lucide-react';
 
 interface ServiceOrderWithDetails extends ServiceOrder {
   suppliers: { name: string };
@@ -56,6 +58,10 @@ const ServiceOrderManagement = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' | 'delete' } | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
+  const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
 
   // Fetch active orders
   const { data: activeServiceOrders, isLoading: isLoadingActive, error: activeError } = useQuery<ServiceOrderWithDetails[]>({
@@ -165,6 +171,50 @@ const ServiceOrderManagement = () => {
     } else if (orderToModify.action === 'delete') {
       await deleteMutation.mutateAsync(orderToModify.id);
     }
+  }
+
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filteredServiceOrders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredServiceOrders.map(o => o.id)));
+    }
+  };
+
+  const executeBulkApprove = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => updateServiceOrderStatus(id, 'Approved')));
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      showSuccess(`${selectedIds.size} órdenes de servicio aprobadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkApproveDialogOpen(false);
+    } catch (error) {
+      console.error('Error approving orders:', error);
+      showError('Error al aprobar las órdenes de servicio seleccionadas.');
+    }
+  };
+
+  const executeBulkArchive = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => archiveServiceOrder(id)));
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      showSuccess(`${selectedIds.size} órdenes de servicio archivadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkArchiveDialogOpen(false);
+    } catch (error) {
+      console.error('Error archiving orders:', error);
+      showError('Error al archivar las órdenes de servicio seleccionadas.');
+    }
   };
 
   const handleViewDetails = (orderId: string) => {
@@ -240,9 +290,17 @@ const ServiceOrderManagement = () => {
   };
 
   const renderMobileCard = (order: ServiceOrderWithDetails) => (
-    <Card key={order.id} className="p-4 shadow-md">
+    <Card key={order.id} className={cn("p-4 shadow-md", selectedIds.has(order.id) && "border-procarni-secondary border-2")}>
       <div className="flex justify-between items-start mb-2">
-        <CardTitle className="text-lg truncate">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
+        <div className="flex items-center gap-2">
+          {activeTab !== 'archived' && (
+            <Checkbox
+              checked={selectedIds.has(order.id)}
+              onCheckedChange={() => toggleSelection(order.id)}
+            />
+          )}
+          <CardTitle className="text-lg truncate">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
+        </div>
         <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(order.status))}>
           {STATUS_TRANSLATIONS[order.status] || order.status}
         </span>
@@ -324,6 +382,36 @@ const ServiceOrderManagement = () => {
                 />
               </div>
 
+              {/* Bulk Actions Bar */}
+              {selectedIds.size > 0 && (
+                <div className="bg-muted p-2 rounded-md mb-4 flex items-center justify-between">
+                  <span className="text-sm font-medium">{selectedIds.size} seleccionados</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                      Cancelar
+                    </Button>
+                    {activeTab === 'active' && (
+                      <>
+                        <Button
+                          className="bg-procarni-secondary hover:bg-green-700 text-white"
+                          size="sm"
+                          onClick={() => setIsBulkApproveDialogOpen(true)}
+                        >
+                          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsBulkArchiveDialogOpen(true)}
+                        >
+                          <Archive className="mr-2 h-4 w-4" /> Archivar
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-8">Cargando órdenes...</div>
               ) : filteredServiceOrders.length > 0 ? (
@@ -336,6 +424,12 @@ const ServiceOrderManagement = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[50px]">
+                            <Checkbox
+                              checked={filteredServiceOrders.length > 0 && selectedIds.size === filteredServiceOrders.length}
+                              onCheckedChange={toggleAll}
+                            />
+                          </TableHead>
                           <TableHead>N° Orden</TableHead>
                           <TableHead>Proveedor</TableHead>
                           <TableHead>Equipo</TableHead>
@@ -348,6 +442,12 @@ const ServiceOrderManagement = () => {
                       <TableBody>
                         {filteredServiceOrders.map((order) => (
                           <TableRow key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(order.id)}
+                                onCheckedChange={() => toggleSelection(order.id)}
+                              />
+                            </TableCell>
                             <TableCell className="font-medium">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
                             <TableCell>{order.suppliers.name}</TableCell>
                             <TableCell>{order.equipment_name}</TableCell>
@@ -423,6 +523,43 @@ const ServiceOrderManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Approve Confirmation Dialog */}
+      <AlertDialog open={isBulkApproveDialogOpen} onOpenChange={setIsBulkApproveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Aprobación Masiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas aprobar las {selectedIds.size} órdenes de servicio seleccionadas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkApprove} className="bg-procarni-secondary hover:bg-green-700 text-white">
+              Aprobar {selectedIds.size} Órdenes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Archive Confirmation Dialog */}
+      <AlertDialog open={isBulkArchiveDialogOpen} onOpenChange={setIsBulkArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Archivado Masivo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas archivar las {selectedIds.size} órdenes de servicio seleccionadas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkArchive} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Archivar {selectedIds.size} Órdenes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };

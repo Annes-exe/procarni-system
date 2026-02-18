@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getAllQuoteRequests, deleteQuoteRequest, archiveQuoteRequest, unarchiveQuoteRequest } from '@/integrations/supabase/data';
+import { getAllQuoteRequests, deleteQuoteRequest, archiveQuoteRequest, unarchiveQuoteRequest, updateQuoteRequestStatus } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface QuoteRequest {
   id: string;
@@ -50,6 +51,10 @@ const QuoteRequestManagement = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Nuevo estado para eliminación permanente
   const [requestToModify, setRequestToModify] = useState<{ id: string; action: 'archive' | 'unarchive' | 'delete' } | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
+  const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
 
   // Fetch active requests
   const { data: activeQuoteRequests, isLoading: isLoadingActive, error: activeError } = useQuery<QuoteRequest[]>({
@@ -161,6 +166,50 @@ const QuoteRequestManagement = () => {
     }
   };
 
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filteredQuoteRequests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredQuoteRequests.map(q => q.id)));
+    }
+  };
+
+  const executeBulkApprove = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => updateQuoteRequestStatus(id, 'Approved')));
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+      showSuccess(`${selectedIds.size} solicitudes aprobadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkApproveDialogOpen(false);
+    } catch (error) {
+      console.error('Error approving requests:', error);
+      showError('Error al aprobar las solicitudes seleccionadas.');
+    }
+  };
+
+  const executeBulkArchive = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => archiveQuoteRequest(id)));
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+      showSuccess(`${selectedIds.size} solicitudes archivadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkArchiveDialogOpen(false);
+    } catch (error) {
+      console.error('Error archiving requests:', error);
+      showError('Error al archivar las solicitudes seleccionadas.');
+    }
+  };
+
   const handleViewDetails = (requestId: string) => {
     navigate(`/quote-requests/${requestId}`);
   };
@@ -228,9 +277,17 @@ const QuoteRequestManagement = () => {
   };
 
   const renderMobileCard = (request: QuoteRequest) => (
-    <Card key={request.id} className="p-4 shadow-md">
+    <Card key={request.id} className={cn("p-4 shadow-md", selectedIds.has(request.id) && "border-procarni-secondary border-2")}>
       <div className="flex justify-between items-start mb-2">
-        <CardTitle className="text-lg truncate">{request.suppliers.name}</CardTitle>
+        <div className="flex items-center gap-2">
+          {activeTab !== 'archived' && (
+            <Checkbox
+              checked={selectedIds.has(request.id)}
+              onCheckedChange={() => toggleSelection(request.id)}
+            />
+          )}
+          <CardTitle className="text-lg truncate">{request.suppliers.name}</CardTitle>
+        </div>
         {/* Status badge removed from top right */}
       </div>
       <CardDescription className="mb-2">Empresa: {request.companies.name}</CardDescription>
@@ -320,6 +377,36 @@ const QuoteRequestManagement = () => {
                 />
               </div>
 
+              {/* Bulk Actions Bar */}
+              {selectedIds.size > 0 && (
+                <div className="bg-muted p-2 rounded-md mb-4 flex items-center justify-between">
+                  <span className="text-sm font-medium">{selectedIds.size} seleccionados</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                      Cancelar
+                    </Button>
+                    {activeTab === 'active' && (
+                      <>
+                        <Button
+                          className="bg-procarni-secondary hover:bg-green-700 text-white"
+                          size="sm"
+                          onClick={() => setIsBulkApproveDialogOpen(true)}
+                        >
+                          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsBulkArchiveDialogOpen(true)}
+                        >
+                          <Archive className="mr-2 h-4 w-4" /> Archivar
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-8">Cargando solicitudes...</div>
               ) : filteredQuoteRequests.length > 0 ? (
@@ -332,6 +419,12 @@ const QuoteRequestManagement = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[50px]">
+                            <Checkbox
+                              checked={filteredQuoteRequests.length > 0 && selectedIds.size === filteredQuoteRequests.length}
+                              onCheckedChange={toggleAll}
+                            />
+                          </TableHead>
                           <TableHead>ID</TableHead>
                           <TableHead>Proveedor</TableHead>
                           <TableHead>Empresa</TableHead>
@@ -343,6 +436,12 @@ const QuoteRequestManagement = () => {
                       <TableBody>
                         {filteredQuoteRequests.map((request) => (
                           <TableRow key={request.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(request.id)}
+                                onCheckedChange={() => toggleSelection(request.id)}
+                              />
+                            </TableCell>
                             <TableCell className="text-xs">{request.id.substring(0, 8)}</TableCell>
                             <TableCell className="font-medium">{request.suppliers.name}</TableCell>
                             <TableCell>{request.companies.name}</TableCell>
@@ -413,6 +512,42 @@ const QuoteRequestManagement = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar Permanentemente'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Approve Confirmation Dialog */}
+      <AlertDialog open={isBulkApproveDialogOpen} onOpenChange={setIsBulkApproveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Aprobación Masiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas aprobar las {selectedIds.size} solicitudes de cotización seleccionadas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkApprove} className="bg-procarni-secondary hover:bg-green-700 text-white">
+              Aprobar {selectedIds.size} Solicitudes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Archive Confirmation Dialog */}
+      <AlertDialog open={isBulkArchiveDialogOpen} onOpenChange={setIsBulkArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Archivado Masivo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas archivar las {selectedIds.size} solicitudes de cotización seleccionadas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkArchive} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Archivar {selectedIds.size} Solicitudes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -14,6 +14,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { QuoteComparison } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const QuoteComparisonManagement = () => {
   const navigate = useNavigate();
@@ -23,6 +24,9 @@ const QuoteComparisonManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [comparisonToDeleteId, setComparisonToDeleteId] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
   const { data: comparisons, isLoading, error } = useQuery<QuoteComparison[]>({
     queryKey: ['quoteComparisons'],
@@ -70,6 +74,37 @@ const QuoteComparisonManagement = () => {
     }
   };
 
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filteredComparisons.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredComparisons.map(c => c.id)));
+    }
+  };
+
+  const executeBulkDelete = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => deleteQuoteComparison(id)));
+      queryClient.invalidateQueries({ queryKey: ['quoteComparisons'] });
+      showSuccess(`${selectedIds.size} comparaciones eliminadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Error deleting comparisons:', error);
+      showError('Error al eliminar las comparaciones seleccionadas.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4 text-center text-muted-foreground">
@@ -93,8 +128,16 @@ const QuoteComparisonManagement = () => {
 
     if (isMobile) {
       return (
-        <Card key={comparison.id} className="p-4 shadow-md">
-          <CardTitle className="text-lg mb-1 truncate">{comparison.name}</CardTitle>
+        <Card key={comparison.id} className={cn("p-4 shadow-md", selectedIds.has(comparison.id) && "border-destructive border-2")}>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selectedIds.has(comparison.id)}
+                onCheckedChange={() => toggleSelection(comparison.id)}
+              />
+              <CardTitle className="text-lg mb-1 truncate">{comparison.name}</CardTitle>
+            </div>
+          </div>
           <CardDescription className="mb-2 flex items-center">
             <Scale className="mr-1 h-3 w-3" /> ID: {comparison.id.substring(0, 8)}
           </CardDescription>
@@ -128,6 +171,12 @@ const QuoteComparisonManagement = () => {
 
     return (
       <TableRow key={comparison.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+        <TableCell>
+          <Checkbox
+            checked={selectedIds.has(comparison.id)}
+            onCheckedChange={() => toggleSelection(comparison.id)}
+          />
+        </TableCell>
         <TableCell className="font-medium">{comparison.name}</TableCell>
         <TableCell className="text-xs">{comparison.id.substring(0, 8)}</TableCell>
         <TableCell>{comparison.base_currency}</TableCell>
@@ -175,14 +224,14 @@ const QuoteComparisonManagement = () => {
               Carga, edita o elimina comparaciones de cotizaciones guardadas previamente.
             </CardDescription>
           </div>
-          <Button 
-            onClick={() => navigate('/quote-comparison')} 
+          <Button
+            onClick={() => navigate('/quote-comparison')}
             className={cn(
               "bg-procarni-secondary hover:bg-green-700",
               isMobile && "w-10 h-10 p-0"
             )}
           >
-            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
+            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
             {!isMobile && 'Nueva Comparación'}
           </Button>
         </CardHeader>
@@ -208,6 +257,12 @@ const QuoteComparisonManagement = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                        <Checkbox
+                          checked={filteredComparisons.length > 0 && selectedIds.size === filteredComparisons.length}
+                          onCheckedChange={toggleAll}
+                        />
+                      </TableHead>
                       <TableHead>Nombre</TableHead>
                       <TableHead>ID</TableHead>
                       <TableHead>Moneda Base</TableHead>
@@ -245,6 +300,24 @@ const QuoteComparisonManagement = () => {
             <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeDeleteComparison} disabled={deleteMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Eliminación Masiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar permanentemente las {selectedIds.size} comparaciones seleccionadas? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar {selectedIds.size} Comparaciones
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
