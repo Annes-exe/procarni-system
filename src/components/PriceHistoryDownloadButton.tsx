@@ -4,11 +4,15 @@ import { Download } from 'lucide-react';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 
+import { cn } from '@/lib/utils';
+
 interface PriceHistoryDownloadButtonProps {
   materialId: string;
   materialName: string;
   // baseCurrency: 'USD' | 'VES'; // Removed as PDF report is always USD
   disabled?: boolean;
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
+  className?: string;
 }
 
 const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
@@ -16,6 +20,8 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
   materialName,
   // baseCurrency, // Removed
   disabled = false,
+  variant = 'outline',
+  className
 }) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -78,11 +84,11 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
     <Button
       onClick={handleDownload}
       disabled={isDownloading || disabled || !materialId}
-      variant="outline"
-      className="bg-procarni-secondary text-white hover:bg-green-700"
+      variant={variant || "outline"}
+      className={cn("bg-procarni-secondary text-white hover:bg-green-700", className)}
     >
       <Download className="mr-2 h-4 w-4" />
-      {isDownloading ? 'Descargando...' : 'Descargar Reporte PDF'}
+      {isDownloading ? 'Descargando...' : 'Descargar PDF'}
     </Button>
   );
 };

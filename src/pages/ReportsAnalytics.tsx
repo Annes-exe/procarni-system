@@ -38,6 +38,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 
 // Import services
+import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
+import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
 import {
     getPurchaseHistoryReport,
     getAllSuppliers,
@@ -47,6 +49,286 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 
+// --- Sub-components (Defined before main component) ---
+
+const KpiCard = ({ title, value, prefix = '', isCurrency = true, icon, colorClass }: any) => {
+    return (
+        <Card className="bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {title}
+                </CardTitle>
+                {icon}
+            </CardHeader>
+            <CardContent>
+                <div className={cn("text-2xl font-bold text-gray-900", colorClass)}>
+                    {prefix}{typeof value === 'number' ? value.toLocaleString('en-US', { minimumFractionDigits: isCurrency ? 2 : 0, maximumFractionDigits: isCurrency ? 2 : 0 }) : value}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+const CustomTooltip = ({ active, payload, label, currency }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-white/90 backdrop-blur-md p-3 border border-gray-200 rounded-lg shadow-lg">
+                <p className="text-xs font-semibold text-gray-500 mb-1">{label}</p>
+                <p className="text-sm font-bold text-gray-900">
+                    {currency === 'USD' ? '$' : 'Bs'}{payload[0].value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </p>
+            </div>
+        );
+    }
+    return null;
+};
+
+// Price Variation Component (Complex logic separated)
+const PriceVariationTab = ({ materials, currency, dateRange }: { materials: any[], currency: string, dateRange: any }) => {
+    const navigate = useNavigate();
+    const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+
+    const { data: priceHistory = [] } = useQuery({
+        queryKey: ['priceTrends', selectedMaterialIds, currency],
+        queryFn: async () => {
+            if (selectedMaterialIds.length === 0) return [];
+            const promises = selectedMaterialIds.map(id => getPriceHistoryByMaterialId(id));
+            const results = await Promise.all(promises);
+            return results;
+        },
+        enabled: selectedMaterialIds.length > 0
+    });
+
+    const chartData = useMemo(() => {
+        if (!priceHistory || priceHistory.length === 0) return [];
+        const dateMap: Record<string, any> = {};
+
+        priceHistory.forEach((historyList: any[], index) => {
+            const matId = selectedMaterialIds[index];
+            const matName = materials.find((m: any) => m.id === matId)?.name || matId;
+
+            historyList.forEach((item: any) => {
+                if (item.currency !== currency) return;
+                const d = format(new Date(item.recorded_at), 'yyyy-MM-dd');
+                if (!dateMap[d]) dateMap[d] = { date: d };
+                dateMap[d][matName] = item.unit_price;
+            });
+        });
+        return Object.values(dateMap).sort((a: any, b: any) => a.date.localeCompare(b.date));
+    }, [priceHistory, currency, materials, selectedMaterialIds]);
+
+    // Calculate Variation Data for Table
+    const variationTableData = useMemo(() => {
+        if (!priceHistory || priceHistory.length === 0) return [];
+        const variations: any[] = [];
+
+        priceHistory.forEach((historyList: any[], index) => {
+            const matId = selectedMaterialIds[index];
+            const matName = materials.find((m: any) => m.id === matId)?.name || 'Desconocido';
+
+            // Filter by currency and sort descending
+            const relevantHistory = historyList
+                .filter((item: any) => item.currency === currency)
+                .sort((a: any, b: any) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+
+            if (relevantHistory.length >= 2) {
+                const latest = relevantHistory[0];
+                const previous = relevantHistory[1];
+                const change = latest.unit_price - previous.unit_price;
+                const percent = (change / previous.unit_price) * 100;
+
+                variations.push({
+                    material: matName,
+                    currentPrice: latest.unit_price,
+                    previousPrice: previous.unit_price,
+                    change: change,
+                    percent: percent,
+                    date: latest.recorded_at,
+                    supplier: latest.suppliers?.name,
+                    orderId: latest.purchase_order_id // Add orderId
+                });
+            } else if (relevantHistory.length === 1) {
+                const latest = relevantHistory[0];
+                variations.push({
+                    material: matName,
+                    currentPrice: latest.unit_price,
+                    previousPrice: 0,
+                    change: 0,
+                    percent: 0,
+                    date: latest.recorded_at,
+                    supplier: latest.suppliers?.name,
+                    isNew: true,
+                    orderId: latest.purchase_order_id // Add orderId
+                });
+            }
+        });
+        return variations;
+    }, [priceHistory, currency, materials, selectedMaterialIds]);
+
+    const COLORS = ['#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#7B1FA2'];
+
+    return (
+        <div className="space-y-6">
+            <Card className="border-gray-200 shadow-sm bg-white">
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle className="text-lg font-semibold text-gray-800">Tendencia de Precios</CardTitle>
+                            <CardDescription>Comparativa de costos unitarios en el tiempo.</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {selectedMaterialIds.length === 1 && (
+                                <PriceHistoryDownloadButton
+                                    materialId={selectedMaterialIds[0]}
+                                    materialName={materials.find((m: any) => m.id === selectedMaterialIds[0])?.name || 'Material'}
+                                    variant="outline"
+                                />
+                            )}
+                            <Select
+                                value={selectedMaterialIds.length > 0 ? selectedMaterialIds[0] : ""}
+                                onValueChange={(val) => {
+                                    if (!selectedMaterialIds.includes(val)) {
+                                        if (selectedMaterialIds.length >= 5) {
+                                            setSelectedMaterialIds([...selectedMaterialIds.slice(1), val]);
+                                        } else {
+                                            setSelectedMaterialIds([...selectedMaterialIds, val]);
+                                        }
+                                    }
+                                }}
+                            >
+                                <SelectTrigger className="w-[250px] h-9 text-xs">
+                                    <SelectValue placeholder="Agregar material al gráfico" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {materials.map((m: any) => (
+                                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                        {selectedMaterialIds.map((id, idx) => {
+                            const m = materials.find((mat: any) => mat.id === id);
+                            return (
+                                <Badge key={id} variant="secondary" className="gap-1 pl-2 pr-1 py-1" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20', color: COLORS[idx % COLORS.length] }}>
+                                    {m?.name}
+                                    <button onClick={() => setSelectedMaterialIds(prev => prev.filter(x => x !== id))} className="ml-1 hover:bg-black/10 rounded-full p-0.5">
+                                        <ArrowDownRight className="h-3 w-3 rotate-45" />
+                                    </button>
+                                </Badge>
+                            )
+                        })}
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-[400px] w-full mt-4">
+                        {selectedMaterialIds.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-lg">
+                                <TrendingUp className="h-8 w-8 mb-2 opacity-50" />
+                                <p>Selecciona materiales para comparar sus precios</p>
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                    <Legend />
+                                    {selectedMaterialIds.map((id, idx) => {
+                                        const m = materials.find((mat: any) => mat.id === id);
+                                        return (
+                                            <Line
+                                                key={id}
+                                                type="monotone"
+                                                dataKey={m?.name}
+                                                stroke={COLORS[idx % COLORS.length]}
+                                                strokeWidth={2}
+                                                dot={{ r: 3 }}
+                                                activeDot={{ r: 6 }}
+                                            />
+                                        );
+                                    })}
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Variation Table */}
+            <Card className="border-gray-200 shadow-sm bg-white">
+                <CardHeader className="py-4 border-b">
+                    <CardTitle className="text-sm font-medium">Última Variación de Precio</CardTitle>
+                </CardHeader>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Material</TableHead>
+                                <TableHead>Proveedor</TableHead>
+                                <TableHead className="text-right">Precio Actual</TableHead>
+                                <TableHead className="text-right">Precio Anterior</TableHead>
+                                <TableHead className="text-right">Variación</TableHead>
+                                <TableHead className="text-right">Fecha</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {variationTableData.map((item: any, idx) => (
+                                <TableRow
+                                    key={idx}
+                                    className={cn("hover:bg-gray-50/50 transition-colors", item.orderId && "cursor-pointer")}
+                                    onClick={() => item.orderId && navigate(`/purchase-orders/${item.orderId}`)}
+                                >
+                                    <TableCell className="font-medium text-gray-900">{item.material}</TableCell>
+                                    <TableCell className="text-gray-500">{item.supplier}</TableCell>
+                                    <TableCell className="text-right font-mono">
+                                        {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-gray-500">
+                                        {item.isNew ? '-' : `${currency === 'USD' ? '$' : 'Bs'}${item.previousPrice.toFixed(2)}`}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {item.isNew ? (
+                                            <Badge variant="outline">Nuevo</Badge>
+                                        ) : (
+                                            <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                    item.change > 0 ? "bg-red-50 text-red-700 border-red-200" :
+                                                        item.change < 0 ? "bg-green-50 text-green-700 border-green-200" :
+                                                            "bg-gray-50 text-gray-700 border-gray-200"
+                                                )}
+                                            >
+                                                {item.change > 0 && '+'}{item.percent.toFixed(1)}%
+                                            </Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm text-gray-500">
+                                        <div className="flex items-center justify-end gap-1">
+                                            {format(new Date(item.date), 'dd/MM/yy')}
+                                            {item.orderId && <ArrowUpRight className="h-3 w-3 text-gray-400" />}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {variationTableData.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center text-gray-500">
+                                        Selecciona materiales para ver sus variaciones.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </Card>
+        </div>
+    );
+};
+
+// --- Main Component ---
 const ReportsAnalytics = () => {
     const navigate = useNavigate();
     // --- Global State ---
@@ -66,6 +348,12 @@ const ReportsAnalytics = () => {
         queryFn: getAllSuppliers,
     });
 
+    // Find selected supplier name for the button
+    const selectedSupplierName = useMemo(() => {
+        if (selectedSupplierId === 'all') return '';
+        return suppliers.find((s: any) => s.id === selectedSupplierId)?.name || '';
+    }, [selectedSupplierId, suppliers]);
+
     // 2. Materials for Trends
     const { data: materials = [] } = useQuery({
         queryKey: ['allMaterials'],
@@ -73,9 +361,6 @@ const ReportsAnalytics = () => {
     });
 
     // 3. Main Purchase Data (Reports)
-    // We fetch a broad range or based on the date filter if set, otherwise default to "all time" or a reasonable limit if needed.
-    // The prompt suggests reusing getPurchaseOrders logic. getPurchaseHistoryReport is flexible.
-    // We'll fetch based on the date range to avoid over-fetching, but default to current month if null.
     const { data: purchaseData = [], isLoading: isLoadingPurchases } = useQuery({
         queryKey: ['reportsPurchases', date.from, date.to, selectedSupplierId],
         queryFn: () => getPurchaseHistoryReport({
@@ -92,52 +377,48 @@ const ReportsAnalytics = () => {
         return purchaseData.filter((item: any) => item.purchase_orders.currency === currency);
     }, [purchaseData, currency]);
 
-    // KPI Calculations
     const kpis = useMemo(() => {
         const totalSpend = filteredData.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
-        const totalOrders = new Set(filteredData.map((item: any) => item.order_id)).size;
-        const avgOrderValue = totalOrders > 0 ? totalSpend / totalOrders : 0;
+
+        // Count unique orders
+        const uniqueOrders = new Set(filteredData.map((item: any) => item.purchase_order_id)).size;
+
+        const avgOrderValue = uniqueOrders > 0 ? totalSpend / uniqueOrders : 0;
 
         // Top Material
-        const materialSpend: Record<string, number> = {};
+        const matGroups: Record<string, number> = {};
         filteredData.forEach((item: any) => {
-            const matName = item.materials?.name || 'Desconocido';
-            materialSpend[matName] = (materialSpend[matName] || 0) + (item.unit_price * item.quantity);
+            const name = item.materials?.name || 'Desconocido';
+            matGroups[name] = (matGroups[name] || 0) + (item.unit_price * item.quantity);
         });
-        const topMaterialEntry = Object.entries(materialSpend).sort((a, b) => b[1] - a[1])[0];
+        const topMat = Object.entries(matGroups).sort((a, b) => b[1] - a[1])[0];
 
         return {
             totalSpend,
-            totalOrders,
+            totalOrders: uniqueOrders,
             avgOrderValue,
-            topMaterial: topMaterialEntry ? topMaterialEntry[0] : '-',
-            topMaterialSpend: topMaterialEntry ? topMaterialEntry[1] : 0
+            topMaterial: topMat ? topMat[0] : '-',
+            topMaterialSpend: topMat ? topMat[1] : 0
         };
     }, [filteredData]);
 
-    // Tab 1: Cash Flow Data (Group by Date)
+    // Tab 1: Cash Flow Data (Monthly)
     const cashFlowData = useMemo(() => {
-        const grouped: Record<string, number> = {};
+        const months: Record<string, number> = {};
         filteredData.forEach((item: any) => {
-            const d = format(new Date(item.created_at), 'dd MMM');
-            grouped[d] = (grouped[d] || 0) + (item.unit_price * item.quantity);
+            const m = format(new Date(item.created_at), 'MMM', { locale: es });
+            months[m] = (months[m] || 0) + (item.unit_price * item.quantity);
         });
-        return Object.entries(grouped).map(([name, value]) => ({ name, value }));
+        return Object.entries(months).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
-
-    // Tab 2: Price History Logic
-    // We need to fetch price history for selected materials. 
-    // This is a bit complex as we might need to fetch it separately.
-    // We'll use a separate component or effect for this to not block the main view.
-    // specific logic will be inside the Tab content or a sub-component.
 
     // Tab 3: Top Suppliers Data
     const topSuppliersData = useMemo(() => {
-        const grouped: Record<string, { value: number, orderCount: number, lastDate: string | null }> = {};
+        const grouped: Record<string, { value: number, orderCount: number, lastDate: string | null, lastOrderId: string | null }> = {};
         filteredData.forEach((item: any) => {
             const supName = item.purchase_orders.suppliers?.name || 'Desconocido';
             if (!grouped[supName]) {
-                grouped[supName] = { value: 0, orderCount: 0, lastDate: null };
+                grouped[supName] = { value: 0, orderCount: 0, lastDate: null, lastOrderId: null };
             }
             grouped[supName].value += (item.unit_price * item.quantity);
             grouped[supName].orderCount += 1;
@@ -145,6 +426,7 @@ const ReportsAnalytics = () => {
             // Update last date
             if (!grouped[supName].lastDate || new Date(item.created_at) > new Date(grouped[supName].lastDate!)) {
                 grouped[supName].lastDate = item.created_at;
+                grouped[supName].lastOrderId = item.purchase_orders?.id;
             }
         });
         return Object.entries(grouped)
@@ -188,17 +470,27 @@ const ReportsAnalytics = () => {
                         </div>
 
                         {/* Supplier Select */}
-                        <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
-                            <SelectTrigger className="w-[180px] h-9 bg-white text-xs">
-                                <SelectValue placeholder="Proveedor" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todos los proveedores</SelectItem>
-                                {suppliers.map((s: any) => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                            <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
+                                <SelectTrigger className="w-[180px] h-9 bg-white text-xs">
+                                    <SelectValue placeholder="Proveedor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos los proveedores</SelectItem>
+                                    {suppliers.map((s: any) => (
+                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {selectedSupplierId !== 'all' && (
+                                <SupplierPriceHistoryDownloadButton
+                                    supplierId={selectedSupplierId}
+                                    supplierName={selectedSupplierName}
+                                    variant="outline"
+                                    asChild={false}
+                                />
+                            )}
+                        </div>
 
                         {/* Date Range Picker */}
                         <Popover>
@@ -357,7 +649,7 @@ const ReportsAnalytics = () => {
                                             <TableRow
                                                 key={item.id}
                                                 className="hover:bg-gray-50/80 cursor-pointer transition-colors"
-                                                onClick={() => navigate(`/purchase-orders/${item.order_id}`)}
+                                                onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)}
                                             >
                                                 <TableCell className="font-medium text-gray-600">
                                                     {format(new Date(item.created_at), 'dd MMM yyyy')}
@@ -455,14 +747,6 @@ const ReportsAnalytics = () => {
                                     </TableHeader>
                                     <TableBody>
                                         {topSuppliersData.map((item: any, index: number) => {
-                                            // We need more data than just name/value (which is just total spend).
-                                            // The topSuppliersData construction above was simplistic.
-                                            // We should probably refine the calculation in the main component or re-calculate here if we have the raw data filtered.
-                                            // Actually, topSuppliersData currently only has { name, value }.
-                                            // Accessing 'filteredData' inside this map is invalid scope unless we pass it or change how topSuppliersData is built.
-
-                                            // Better approach: Recompute detailed stats for Top Suppliers in the main useMemo.
-
                                             return (
                                                 <TableRow key={index} className="hover:bg-gray-50/50">
                                                     <TableCell className="text-gray-500 font-mono">{index + 1}</TableCell>
@@ -472,7 +756,20 @@ const ReportsAnalytics = () => {
                                                     </TableCell>
                                                     <TableCell className="text-right text-gray-600">{item.orderCount}</TableCell>
                                                     <TableCell className="text-right text-gray-500 text-sm">
-                                                        {item.lastDate ? format(new Date(item.lastDate), 'dd/MM/yy') : '-'}
+                                                        {item.lastDate ? (
+                                                            item.lastOrderId ? (
+                                                                <Button
+                                                                    variant="link"
+                                                                    className="h-auto p-0 text-gray-500 hover:text-blue-600 font-normal"
+                                                                    onClick={() => navigate(`/purchase-orders/${item.lastOrderId}`)}
+                                                                >
+                                                                    {format(new Date(item.lastDate), 'dd/MM/yy')}
+                                                                    <ArrowUpRight className="h-3 w-3 ml-1" />
+                                                                </Button>
+                                                            ) : (
+                                                                format(new Date(item.lastDate), 'dd/MM/yy')
+                                                            )
+                                                        ) : '-'}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <Badge variant="secondary" className="bg-gray-100 text-gray-700">
@@ -489,266 +786,6 @@ const ReportsAnalytics = () => {
                     </TabsContent>
                 </Tabs>
             </div>
-        </div>
-    );
-};
-
-// --- Sub-components ---
-
-const KpiCard = ({ title, value, prefix = '', isCurrency = true, icon, colorClass }: any) => {
-    return (
-        <Card className="bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {title}
-                </CardTitle>
-                {icon}
-            </CardHeader>
-            <CardContent>
-                <div className={cn("text-2xl font-bold text-gray-900", colorClass)}>
-                    {prefix}{typeof value === 'number' ? value.toLocaleString('en-US', { minimumFractionDigits: isCurrency ? 2 : 0, maximumFractionDigits: isCurrency ? 2 : 0 }) : value}
-                </div>
-            </CardContent>
-        </Card>
-    );
-};
-
-const CustomTooltip = ({ active, payload, label, currency }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-white/90 backdrop-blur-md p-3 border border-gray-200 rounded-lg shadow-lg">
-                <p className="text-xs font-semibold text-gray-500 mb-1">{label}</p>
-                <p className="text-sm font-bold text-gray-900">
-                    {currency === 'USD' ? '$' : 'Bs'}{payload[0].value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </p>
-            </div>
-        );
-    }
-    return null;
-};
-
-// Price Variation Component (Complex logic separated)
-const PriceVariationTab = ({ materials, currency, dateRange }: { materials: any[], currency: string, dateRange: any }) => {
-    const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
-
-    const { data: priceHistory = [] } = useQuery({
-        queryKey: ['priceTrends', selectedMaterialIds, currency],
-        queryFn: async () => {
-            if (selectedMaterialIds.length === 0) return [];
-            const promises = selectedMaterialIds.map(id => getPriceHistoryByMaterialId(id));
-            const results = await Promise.all(promises);
-            return results;
-        },
-        enabled: selectedMaterialIds.length > 0
-    });
-
-    const chartData = useMemo(() => {
-        if (!priceHistory || priceHistory.length === 0) return [];
-        const dateMap: Record<string, any> = {};
-
-        priceHistory.forEach((historyList: any[], index) => {
-            const matId = selectedMaterialIds[index];
-            const matName = materials.find((m: any) => m.id === matId)?.name || matId;
-
-            historyList.forEach((item: any) => {
-                if (item.currency !== currency) return;
-                const d = format(new Date(item.recorded_at), 'yyyy-MM-dd');
-                if (!dateMap[d]) dateMap[d] = { date: d };
-                dateMap[d][matName] = item.unit_price;
-            });
-        });
-        return Object.values(dateMap).sort((a: any, b: any) => a.date.localeCompare(b.date));
-    }, [priceHistory, currency, materials, selectedMaterialIds]);
-
-    // Calculate Variation Data for Table
-    const variationTableData = useMemo(() => {
-        if (!priceHistory || priceHistory.length === 0) return [];
-        const variations: any[] = [];
-
-        priceHistory.forEach((historyList: any[], index) => {
-            const matId = selectedMaterialIds[index];
-            const matName = materials.find((m: any) => m.id === matId)?.name || 'Desconocido';
-
-            // Filter by currency and sort descending
-            const relevantHistory = historyList
-                .filter((item: any) => item.currency === currency)
-                .sort((a: any, b: any) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-
-            if (relevantHistory.length >= 2) {
-                const latest = relevantHistory[0];
-                const previous = relevantHistory[1];
-                const change = latest.unit_price - previous.unit_price;
-                const percent = (change / previous.unit_price) * 100;
-
-                variations.push({
-                    material: matName,
-                    currentPrice: latest.unit_price,
-                    previousPrice: previous.unit_price,
-                    change: change,
-                    percent: percent,
-                    date: latest.recorded_at,
-                    supplier: latest.suppliers?.name
-                });
-            } else if (relevantHistory.length === 1) {
-                const latest = relevantHistory[0];
-                variations.push({
-                    material: matName,
-                    currentPrice: latest.unit_price,
-                    previousPrice: 0,
-                    change: 0,
-                    percent: 0,
-                    date: latest.recorded_at,
-                    supplier: latest.suppliers?.name,
-                    isNew: true
-                });
-            }
-        });
-        return variations;
-    }, [priceHistory, currency, materials, selectedMaterialIds]);
-
-    const COLORS = ['#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#7B1FA2'];
-
-    return (
-        <div className="space-y-6">
-            <Card className="border-gray-200 shadow-sm bg-white">
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <CardTitle className="text-lg font-semibold text-gray-800">Tendencia de Precios</CardTitle>
-                            <CardDescription>Comparativa de costos unitarios en el tiempo.</CardDescription>
-                        </div>
-                        <Select
-                            value={selectedMaterialIds.length > 0 ? selectedMaterialIds[0] : ""}
-                            onValueChange={(val) => {
-                                if (!selectedMaterialIds.includes(val)) {
-                                    if (selectedMaterialIds.length >= 5) {
-                                        setSelectedMaterialIds([...selectedMaterialIds.slice(1), val]);
-                                    } else {
-                                        setSelectedMaterialIds([...selectedMaterialIds, val]);
-                                    }
-                                }
-                            }}
-                        >
-                            <SelectTrigger className="w-[250px] h-9 text-xs">
-                                <SelectValue placeholder="Agregar material al gráfico" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {materials.map((m: any) => (
-                                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                        {selectedMaterialIds.map((id, idx) => {
-                            const m = materials.find((mat: any) => mat.id === id);
-                            return (
-                                <Badge key={id} variant="secondary" className="gap-1 pl-2 pr-1 py-1" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20', color: COLORS[idx % COLORS.length] }}>
-                                    {m?.name}
-                                    <button onClick={() => setSelectedMaterialIds(prev => prev.filter(x => x !== id))} className="ml-1 hover:bg-black/10 rounded-full p-0.5">
-                                        <ArrowDownRight className="h-3 w-3 rotate-45" />
-                                    </button>
-                                </Badge>
-                            )
-                        })}
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="h-[400px] w-full mt-4">
-                        {selectedMaterialIds.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-lg">
-                                <TrendingUp className="h-8 w-8 mb-2 opacity-50" />
-                                <p>Selecciona materiales para comparar sus precios</p>
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                    <Legend />
-                                    {selectedMaterialIds.map((id, idx) => {
-                                        const m = materials.find((mat: any) => mat.id === id);
-                                        return (
-                                            <Line
-                                                key={id}
-                                                type="monotone"
-                                                dataKey={m?.name}
-                                                stroke={COLORS[idx % COLORS.length]}
-                                                strokeWidth={2}
-                                                dot={{ r: 3 }}
-                                                activeDot={{ r: 6 }}
-                                            />
-                                        );
-                                    })}
-                                </LineChart>
-                            </ResponsiveContainer>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Variation Table */}
-            <Card className="border-gray-200 shadow-sm bg-white">
-                <CardHeader className="py-4 border-b">
-                    <CardTitle className="text-sm font-medium">Última Variación de Precio</CardTitle>
-                </CardHeader>
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Material</TableHead>
-                                <TableHead>Proveedor</TableHead>
-                                <TableHead className="text-right">Precio Actual</TableHead>
-                                <TableHead className="text-right">Precio Anterior</TableHead>
-                                <TableHead className="text-right">Variación</TableHead>
-                                <TableHead className="text-right">Fecha</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {variationTableData.map((item: any, idx) => (
-                                <TableRow key={idx}>
-                                    <TableCell className="font-medium text-gray-900">{item.material}</TableCell>
-                                    <TableCell className="text-gray-500">{item.supplier}</TableCell>
-                                    <TableCell className="text-right font-mono">
-                                        {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono text-gray-500">
-                                        {item.isNew ? '-' : `${currency === 'USD' ? '$' : 'Bs'}${item.previousPrice.toFixed(2)}`}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        {item.isNew ? (
-                                            <Badge variant="outline">Nuevo</Badge>
-                                        ) : (
-                                            <Badge
-                                                variant="outline"
-                                                className={cn(
-                                                    item.change > 0 ? "bg-red-50 text-red-700 border-red-200" :
-                                                        item.change < 0 ? "bg-green-50 text-green-700 border-green-200" :
-                                                            "bg-gray-50 text-gray-700 border-gray-200"
-                                                )}
-                                            >
-                                                {item.change > 0 && '+'}{item.percent.toFixed(1)}%
-                                            </Badge>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right text-sm text-gray-500">
-                                        {format(new Date(item.date), 'dd/MM/yy')}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {variationTableData.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-gray-500">
-                                        Selecciona materiales para ver sus variaciones.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </Card>
         </div>
     );
 };
