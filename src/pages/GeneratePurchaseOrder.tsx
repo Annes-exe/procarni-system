@@ -1,10 +1,10 @@
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
-import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
@@ -16,7 +16,8 @@ import PurchaseOrderDetailsForm from '@/components/PurchaseOrderDetailsForm';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
-import SmartSearch from '@/components/SmartSearch';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+
 
 interface Company {
   id: string;
@@ -55,6 +56,7 @@ const GeneratePurchaseOrder = () => {
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = React.useState(false);
+  const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = React.useState(false);
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -249,6 +251,11 @@ const GeneratePurchaseOrder = () => {
     clearCart();
   };
 
+  const handleMaterialCreated = (material: any) => {
+    // Optionally trigger a refresh or select the new material
+    // For now, simpler to just let them search it or if we knew which row triggered it, auto-fill.
+  };
+
   const totals = calculateTotals(items);
 
   const totalInUSD = React.useMemo(() => {
@@ -398,42 +405,18 @@ const GeneratePurchaseOrder = () => {
       </div>
 
       <Card className="mb-6 border-gray-200 shadow-sm overflow-visible">
-        <CardContent className="pt-6">
-
-          {/* 2. HEADERS (Company & Supplier) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div>
-              <label className={microLabelClass}>Empresa de Origen</label>
-              <SmartSearch
-                placeholder="Buscar empresa por RIF o nombre"
-                onSelect={handleCompanySelect}
-                fetchFunction={searchCompanies}
-                displayValue={companyName}
-                className="bg-gray-50/50 border-gray-200 focus:bg-white"
-              />
-            </div>
-            <div>
-              <label className={microLabelClass}>Proveedor</label>
-              <div className="flex gap-2">
-                <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                  className="bg-gray-50/50 border-gray-200 focus:bg-white"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0 border-dashed border-gray-300 hover:border-procarni-primary hover:text-procarni-primary"
-                  title="Añadir nuevo proveedor"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
-              </div>
+        <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+              Información General
+            </CardTitle>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <Info className="h-4 w-4" />
+              <span>Detalles de la orden</span>
             </div>
           </div>
+        </CardHeader>
+        <CardContent className="p-6 md:p-8">
 
           {/* 3. DETAILS FORM */}
           <PurchaseOrderDetailsForm
@@ -456,9 +439,33 @@ const GeneratePurchaseOrder = () => {
             onCustomPaymentTermsChange={setCustomPaymentTerms}
             onCreditDaysChange={setCreditDays}
             onObservationsChange={setObservations}
+            onSupplierSelect={handleSupplierSelect}
+            onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
           />
 
-          {/* 4. ITEMS TABLE */}
+        </CardContent>
+      </Card>
+
+      <Card className="border-gray-200 shadow-sm overflow-hidden mb-8">
+        <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between border-b border-gray-200">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+            <ShoppingCart className="h-4 w-4 mr-2" /> Ítems de la Orden
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setIsAddMaterialDialogOpen(true)}
+              variant="secondary"
+              size="sm"
+              disabled={!supplierId}
+            >
+              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+            </Button>
+            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
           <PurchaseOrderItemsTable
             items={items}
             supplierId={supplierId}
@@ -468,13 +475,21 @@ const GeneratePurchaseOrder = () => {
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}
             onMaterialSelect={handleMaterialSelect}
+            hideHeader={true}
           />
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems agregados a la orden.</p>
+              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
+            </div>
+          )}
+        </CardContent>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/30">
 
           {/* 5. TOTALS SECTION ("TICKET DE CAJA") */}
-          <div className="mt-8 flex justify-end">
+          <div className="flex justify-end">
             <div className="w-full max-w-sm bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
-
-
 
               {/* 2. Discount */}
               {totals.montoDescuento > 0 && (
@@ -489,8 +504,6 @@ const GeneratePurchaseOrder = () => {
                 <span className="text-gray-500 font-medium">Base Imponible</span>
                 <span className="font-mono text-gray-700">{currency} {totals.baseImponible.toFixed(2)}</span>
               </div>
-
-
 
               {/* 5. Sales Percentage / Margin (montoVenta) */}
               {totals.montoVenta > 0 && (
@@ -524,7 +537,7 @@ const GeneratePurchaseOrder = () => {
             </div>
           </div>
 
-        </CardContent>
+        </div>
       </Card>
 
       <MadeWithDyad />
@@ -532,6 +545,13 @@ const GeneratePurchaseOrder = () => {
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
+      />
+      <MaterialCreationDialog
+        isOpen={isAddMaterialDialogOpen}
+        onClose={() => setIsAddMaterialDialogOpen(false)}
+        onMaterialCreated={handleMaterialCreated}
+        supplierId={supplierId}
+        supplierName={supplierName}
       />
     </div>
   );

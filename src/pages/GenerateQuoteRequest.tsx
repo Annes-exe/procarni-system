@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
@@ -226,42 +226,55 @@ const GenerateQuoteRequest = () => {
       <div className="grid gap-6">
         {/* PHASE 2: GENERAL INFO CARD */}
         <Card className="border-gray-200 shadow-sm overflow-hidden">
-          <CardHeader className="bg-gray-50/50 pb-4">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-              Información General
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="company" className="text-sm font-medium text-gray-700">Empresa de Origen <span className="text-red-500">*</span></Label>
-                <SmartSearch
-                  placeholder="Buscar empresa (RIF o Nombre)..."
-                  onSelect={handleCompanySelect}
-                  fetchFunction={searchCompanies}
-                  displayValue={companyName}
-                  className="bg-white"
-                />
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                Información General
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Detalles de la solicitud</span>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="supplier" className="text-sm font-medium text-gray-700">Proveedor <span className="text-red-500">*</span></Label>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => setIsAddSupplierDialogOpen(true)}
-                    className="h-auto p-0 text-xs text-procarni-primary"
-                  >
-                    + Nuevo Proveedor
-                  </Button>
-                </div>
-                <div className="flex gap-2">
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label htmlFor="supplier" className="text-sm font-semibold text-gray-700">
+                      Proveedor Principal <span className="text-red-500">*</span>
+                    </Label>
+                    <div
+                      className="text-xs font-semibold text-procarni-primary hover:text-green-700 cursor-pointer flex items-center transition-colors"
+                      onClick={() => setIsAddSupplierDialogOpen(true)}
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" /> Nuevo Proveedor
+                    </div>
+                  </div>
                   <SmartSearch
-                    placeholder="Buscar proveedor (RIF o Nombre)..."
+                    placeholder="Buscar proveedor por RIF o nombre"
                     onSelect={handleSupplierSelect}
                     fetchFunction={searchSuppliers}
                     displayValue={supplierName}
-                    className="bg-white flex-1"
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
+                    icon={<Search className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <Label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Empresa de Origen <span className="text-red-500">*</span>
+                  </Label>
+                  <SmartSearch
+                    placeholder="Buscar empresa por RIF o nombre"
+                    onSelect={handleCompanySelect}
+                    fetchFunction={searchCompanies}
+                    displayValue={companyName}
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
+                    icon={<Building2 className="h-4 w-4 text-gray-400" />}
                   />
                 </div>
               </div>
@@ -270,7 +283,7 @@ const GenerateQuoteRequest = () => {
         </Card>
 
         {/* PHASE 3: ITEMS TABLE */}
-        <Card className="border-gray-200 shadow-sm overflow-hidden min-h-[400px]">
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
           <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
               <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
@@ -301,7 +314,7 @@ const GenerateQuoteRequest = () => {
             />
           </CardContent>
           {items.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400 bg-white">
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
               <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
               <p className="text-sm">No hay ítems agregados a la solicitud.</p>
               <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
