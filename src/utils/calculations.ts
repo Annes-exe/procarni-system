@@ -5,32 +5,38 @@
  * @param items Array de objetos con 'quantity', 'unit_price', 'tax_rate', 'is_exempt', 'sales_percentage', 'discount_percentage'.
  * @returns Objeto con baseImponible, montoIVA, montoVenta, montoDescuento, y total.
  */
-export const calculateTotals = (items: Array<{ 
-  quantity: number; 
-  unit_price: number; 
-  tax_rate?: number; 
-  is_exempt?: boolean; 
+export const calculateTotals = (items: Array<{
+  quantity: number;
+  unit_price: number;
+  tax_rate?: number;
+  is_exempt?: boolean;
   sales_percentage?: number; // NEW
   discount_percentage?: number; // NEW
 }>) => {
-  let baseImponible = 0; // Suma de subtotales después de descuento (Base para IVA y Venta)
+  let subtotal = 0; // Suma bruta (Qty * Price)
+  let baseImponible = 0; // Base para IVA
+  let montoExento = 0; // Monto exento
   let montoIVA = 0;
-  let montoVenta = 0; 
-  let montoDescuento = 0; 
+  let montoVenta = 0;
+  let montoDescuento = 0;
   let total = 0;
 
   items.forEach(item => {
     const itemValue = item.quantity * item.unit_price;
-    
+    subtotal += itemValue;
+
     // 1. Apply Discount
     const discountRate = (item.discount_percentage ?? 0) / 100;
     const discountAmount = itemValue * discountRate;
     montoDescuento += discountAmount;
-    
+
     const subtotalAfterDiscount = itemValue - discountAmount;
-    
-    // 2. Calculate Base Imponible (Subtotal after discount, before taxes)
-    baseImponible += subtotalAfterDiscount; 
+
+    if (item.is_exempt) {
+      montoExento += subtotalAfterDiscount;
+    } else {
+      baseImponible += subtotalAfterDiscount;
+    }
 
     // 3. Apply Sales Percentage (Additional Tax)
     const salesRate = (item.sales_percentage ?? 0) / 100;
@@ -39,18 +45,20 @@ export const calculateTotals = (items: Array<{
 
     // 4. Apply IVA (Standard Tax)
     let ivaAmount = 0;
-    if (!item.is_exempt) { 
+    if (!item.is_exempt) {
       const taxRate = item.tax_rate ?? 0.16; // Default IVA 16%
       ivaAmount = subtotalAfterDiscount * taxRate;
       montoIVA += ivaAmount;
     }
-    
+
     // 5. Calculate Total Item
     total += subtotalAfterDiscount + salesAmount + ivaAmount;
   });
 
   return {
+    subtotal: parseFloat(subtotal.toFixed(2)),
     baseImponible: parseFloat(baseImponible.toFixed(2)),
+    montoExento: parseFloat(montoExento.toFixed(2)),
     montoIVA: parseFloat(montoIVA.toFixed(2)),
     montoVenta: parseFloat(montoVenta.toFixed(2)),
     montoDescuento: parseFloat(montoDescuento.toFixed(2)),

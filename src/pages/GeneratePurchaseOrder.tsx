@@ -1,26 +1,22 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
-import { PlusCircle, Trash2, ArrowLeft, Loader2, FileText } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 import PurchaseOrderDetailsForm from '@/components/PurchaseOrderDetailsForm';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import SmartSearch from '@/components/SmartSearch';
-import { Label } from '@/components/ui/label';
-
 
 interface Company {
   id: string;
@@ -28,27 +24,17 @@ interface Company {
   rif: string;
 }
 
-interface MaterialSearchResult {
-  id: string;
-  name: string;
-  code: string;
-  category?: string;
-  unit?: string;
-  is_exempt?: boolean;
-  specification?: string;
-}
+const MATERIAL_UNITS = [
+  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
+];
 
 interface Supplier {
   id: string;
   name: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
-
 const GeneratePurchaseOrder = () => {
-  const { session, isLoadingSession } = useSession();
+  const { session } = useSession();
   const { items, addItem, updateItem, removeItem, clearCart } = useShoppingCart();
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,7 +45,7 @@ const GeneratePurchaseOrder = () => {
   const [supplierName, setSupplierName] = React.useState<string>('');
   const [currency, setCurrency] = React.useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
-  const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null); // New State
+  const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null);
 
   const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(undefined);
   const [paymentTerms, setPaymentTerms] = React.useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
@@ -68,7 +54,6 @@ const GeneratePurchaseOrder = () => {
   const [observations, setObservations] = React.useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = React.useState(false);
 
   const userId = session?.user?.id;
@@ -134,31 +119,24 @@ const GeneratePurchaseOrder = () => {
         const { serviceOrder, serviceOrderItems, supplier } = location.state;
 
         setCompanyId(serviceOrder.company_id);
-        setCompanyName(serviceOrder.companies?.name || ''); // Assuming company name is available
-        setServiceOrderId(serviceOrder.id); // Capturing Service Order ID
+        setCompanyName(serviceOrder.companies?.name || '');
+        setServiceOrderId(serviceOrder.id);
 
         if (supplier) {
           setSupplierId(supplier.id);
           setSupplierName(supplier.name);
         }
 
-        // Default to Service Order currency if possible, or defined defaults
         setCurrency(serviceOrder.currency || 'USD');
-
         setObservations(`Generado desde Orden de Servicio #${serviceOrder.sequence_number || serviceOrder.id.substring(0, 8)}`);
 
         clearCart();
 
         for (const item of serviceOrderItems) {
-          // Check if item has material_id from the service order item
-          // The structure in ServiceOrderDetails maps 'items' which are from 'service_order_materials'
-          // which has 'material_id', 'quantity', 'unit_price', etc.
-          // AND 'materials' object with 'name' from the join.
-
           const materialName = item.materials?.name || item.material_name || item.description || 'Material sin nombre';
 
           addItem({
-            material_id: item.material_id, // This should exist on service_order_materials
+            material_id: item.material_id,
             material_name: materialName,
             supplier_code: item.supplier_code || '',
             quantity: item.quantity || 0,
@@ -221,7 +199,7 @@ const GeneratePurchaseOrder = () => {
     }
   }, [supplierDetails]);
 
-  const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
+  const handleMaterialSelect = (index: number, material: any) => {
     updateItem(index, {
       material_id: material.id,
       material_name: material.name,
@@ -336,7 +314,6 @@ const GeneratePurchaseOrder = () => {
       return;
     }
 
-    // ... inside handleSubmit ...
     setIsSubmitting(true);
     const orderData = {
       supplier_id: supplierId,
@@ -355,16 +332,11 @@ const GeneratePurchaseOrder = () => {
       service_order_id: serviceOrderId || null,
     };
 
-    // Use the new service instead of raw data function
-    // We cast orderData to CreatePurchaseOrderInput because the service expects strict input
-    // and some fields might be incompatible if not perfectly aligned, but here they seem fine.
-    // The service handles item creation internally if passed.
     const createdOrder = await purchaseOrderService.create(orderData as any, items as any);
 
     if (createdOrder) {
       if (quoteRequest?.id && quoteRequest.quote_request_items) {
         const itemsPayload = quoteRequest.quote_request_items.map((item: any) => ({
-          // ... logic remains same ...
           material_name: item.material_name,
           quantity: item.quantity,
           description: item.description,
@@ -392,62 +364,78 @@ const GeneratePurchaseOrder = () => {
       setCustomPaymentTerms('');
       setCreditDays(0);
       setObservations('');
-
-      // Navigate to the management page or details page
       // navigate('/purchase-order-management'); // Optional: redirect user
     }
     setIsSubmitting(false);
   };
 
-  // ... (inside component)
+  // Shared Styles
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1.5 block";
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex items-center mb-2 -mt-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+
+      {/* 1. STICKY ACTION BAR */}
+      <div className="sticky top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Orden</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Compra</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0}
+            className="bg-procarni-primary hover:bg-red-800 text-white font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
+          >
+            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden'}
+          </Button>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Generar Orden de Compra (OC)</CardTitle>
-          <CardDescription>Crea una nueva orden de compra para tus proveedores.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="md:col-span-1">
-              <Label htmlFor="company">Empresa de Origen</Label>
+
+      <Card className="mb-6 border-gray-200 shadow-sm overflow-visible">
+        <CardContent className="pt-6">
+
+          {/* 2. HEADERS (Company & Supplier) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+              <label className={microLabelClass}>Empresa de Origen</label>
               <SmartSearch
                 placeholder="Buscar empresa por RIF o nombre"
                 onSelect={handleCompanySelect}
                 fetchFunction={searchCompanies}
                 displayValue={companyName}
+                className="bg-gray-50/50 border-gray-200 focus:bg-white"
               />
-              {companyName && <p className="text-sm text-muted-foreground mt-1 break-words">Empresa seleccionada: {companyName}</p>}
             </div>
-            <div className="md:col-span-1">
-              <Label htmlFor="supplier">Proveedor</Label>
+            <div>
+              <label className={microLabelClass}>Proveedor</label>
               <div className="flex gap-2">
                 <SmartSearch
                   placeholder="Buscar proveedor por RIF o nombre"
                   onSelect={handleSupplierSelect}
                   fetchFunction={searchSuppliers}
                   displayValue={supplierName}
+                  className="bg-gray-50/50 border-gray-200 focus:bg-white"
                 />
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
+                  className="shrink-0 border-dashed border-gray-300 hover:border-procarni-primary hover:text-procarni-primary"
                   title="Añadir nuevo proveedor"
                 >
                   <PlusCircle className="h-4 w-4" />
                 </Button>
               </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
 
+          {/* 3. DETAILS FORM */}
           <PurchaseOrderDetailsForm
             companyId={companyId}
             companyName={companyName}
@@ -470,6 +458,7 @@ const GeneratePurchaseOrder = () => {
             onObservationsChange={setObservations}
           />
 
+          {/* 4. ITEMS TABLE */}
           <PurchaseOrderItemsTable
             items={items}
             supplierId={supplierId}
@@ -481,43 +470,63 @@ const GeneratePurchaseOrder = () => {
             onMaterialSelect={handleMaterialSelect}
           />
 
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{currency} {totals.baseImponible.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {currency} {totals.montoDescuento.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {currency} {totals.montoVenta.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>+ {currency} {totals.montoIVA.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{currency} {totals.total.toFixed(2)}</span>
-            </div>
-            {totalInUSD && currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
+          {/* 5. TOTALS SECTION ("TICKET DE CAJA") */}
+          <div className="mt-8 flex justify-end">
+            <div className="w-full max-w-sm bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
+
+
+
+              {/* 2. Discount */}
+              {totals.montoDescuento > 0 && (
+                <div className="flex justify-between items-center text-sm text-red-600">
+                  <span className="font-medium">Descuento</span>
+                  <span className="font-mono">- {currency} {totals.montoDescuento.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* 3. Base Imponible (Taxable Amount) */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Base Imponible</span>
+                <span className="font-mono text-gray-700">{currency} {totals.baseImponible.toFixed(2)}</span>
               </div>
-            )}
+
+
+
+              {/* 5. Sales Percentage / Margin (montoVenta) */}
+              {totals.montoVenta > 0 && (
+                <div className="flex justify-between items-center text-sm text-blue-600">
+                  <span className="font-medium">% de Venta</span>
+                  <span className="font-mono">+ {currency} {totals.montoVenta.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* 6. IVA */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Monto IVA (16%)</span>
+                <span className="font-mono text-gray-700">+ {currency} {totals.montoIVA.toFixed(2)}</span>
+              </div>
+
+              <div className="h-px bg-gray-200 my-2" />
+
+              {/* 6. Total Final */}
+              <div className="flex justify-between items-center text-lg">
+                <span className="font-bold text-procarni-dark">Total Final</span>
+                <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
+              </div>
+
+              {totalInUSD && currency === 'VES' && (
+                <div className="flex justify-end pt-1">
+                  <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                    Ref. USD {totalInUSD}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex justify-end gap-2 mt-6">
-
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Compra'}
-            </Button>
-          </div>
         </CardContent>
       </Card>
+
       <MadeWithDyad />
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}

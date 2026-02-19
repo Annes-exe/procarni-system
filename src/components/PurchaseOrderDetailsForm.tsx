@@ -1,5 +1,4 @@
 import React from 'react';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -9,11 +8,10 @@ import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import SmartSearch from '@/components/SmartSearch';
-import { searchCompanies, getSupplierDetails } from '@/integrations/supabase/data';
+import { getSupplierDetails } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import ExchangeRateInput from './ExchangeRateInput'; // NEW IMPORT
+import ExchangeRateInput from './ExchangeRateInput';
 
 interface Company {
   id: string;
@@ -24,8 +22,8 @@ interface Company {
 interface PurchaseOrderDetailsFormProps {
   companyId: string;
   companyName: string;
-  supplierId: string; // Still needed for fetching details
-  supplierName: string; // Still needed for fetching details
+  supplierId: string;
+  supplierName: string;
   currency: 'USD' | 'VES';
   exchangeRate?: number;
   deliveryDate?: Date;
@@ -34,7 +32,6 @@ interface PurchaseOrderDetailsFormProps {
   creditDays: number;
   observations: string;
   onCompanySelect: (company: Company) => void;
-  // REMOVED: onSupplierSelect: (supplier: { id: string; name: string }) => void;
   onCurrencyChange: (checked: boolean) => void;
   onExchangeRateChange: (value: number | undefined) => void;
   onDeliveryDateChange: (date: Date | undefined) => void;
@@ -45,10 +42,7 @@ interface PurchaseOrderDetailsFormProps {
 }
 
 const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
-  companyId,
-  companyName,
   supplierId,
-  supplierName,
   currency,
   exchangeRate,
   deliveryDate,
@@ -56,7 +50,6 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   customPaymentTerms,
   creditDays,
   observations,
-  onCompanySelect,
   onCurrencyChange,
   onExchangeRateChange,
   onDeliveryDateChange,
@@ -87,23 +80,28 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
     }
   }, [supplierDetails]);
 
+  // Shared Styles
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1.5 block";
+  const flatInputClass = "bg-gray-50/50 border-gray-200 text-procarni-dark font-medium text-sm focus-visible:ring-procarni-primary/20 transition-all";
+
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Empresa de Origen field removed - handled by parent component */}
-        <div className="md:col-span-1">
-          <Label htmlFor="deliveryDate">Fecha de Entrega</Label>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+        {/* Fecha de Entrega - 3 Cols */}
+        <div className="md:col-span-3">
+          <label className={microLabelClass}>Fecha de Entrega</label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant={"outline"}
                 className={cn(
-                  "w-full justify-start text-left font-normal",
+                  "w-full justify-start text-left font-normal h-10",
+                  flatInputClass,
                   !deliveryDate && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {deliveryDate ? format(deliveryDate, "PPP") : <span>Selecciona una fecha</span>}
+                <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
+                {deliveryDate ? format(deliveryDate, "PPP") : <span>Seleccionar</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
@@ -116,26 +114,37 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex items-center space-x-2">
-          <Label htmlFor="currency">Moneda (USD/VES)</Label>
-          <Switch
-            id="currency"
-            checked={currency === 'VES'}
-            onCheckedChange={onCurrencyChange}
-          />
-          <span>{currency}</span>
+
+        {/* Moneda - 3 Cols */}
+        <div className="md:col-span-3">
+          <label className={microLabelClass}>Moneda (USD/VES)</label>
+          <div className={cn("flex items-center justify-between h-10 px-3 rounded-md border", flatInputClass)}>
+            <span className="text-sm text-gray-600">{currency}</span>
+            <Switch
+              id="currency"
+              checked={currency === 'VES'}
+              onCheckedChange={onCurrencyChange}
+              className="data-[state=checked]:bg-procarni-primary scale-90"
+            />
+          </div>
         </div>
+
+        {/* Tasa de Cambio - 2 Cols (Condicional) */}
         {currency === 'VES' && (
-          <ExchangeRateInput
-            currency={currency}
-            exchangeRate={exchangeRate}
-            onExchangeRateChange={onExchangeRateChange}
-          />
+          <div className="md:col-span-2">
+            <ExchangeRateInput
+              currency={currency}
+              exchangeRate={exchangeRate}
+              onExchangeRateChange={onExchangeRateChange}
+            />
+          </div>
         )}
-        <div>
-          <Label htmlFor="paymentTerms">Condición de Pago</Label>
+
+        {/* Condición de Pago - 4 Cols (Adjusted if no Exchange Rate) */}
+        <div className={currency === 'VES' ? "md:col-span-4" : "md:col-span-6"}>
+          <label className={microLabelClass}>Condición de Pago</label>
           <Select value={paymentTerms} onValueChange={onPaymentTermsChange}>
-            <SelectTrigger id="paymentTerms">
+            <SelectTrigger className={cn("h-10", flatInputClass)}>
               <SelectValue placeholder="Seleccione condición" />
             </SelectTrigger>
             <SelectContent>
@@ -145,9 +154,11 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
             </SelectContent>
           </Select>
         </div>
+
+        {/* Días de Crédito - Full Width Row if Active */}
         {paymentTerms === 'Crédito' && (
-          <div>
-            <Label htmlFor="creditDays">Días de Crédito</Label>
+          <div className="md:col-span-12">
+            <label className={microLabelClass}>Días de Crédito</label>
             <Input
               id="creditDays"
               type="number"
@@ -155,32 +166,38 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
               onChange={(e) => onCreditDaysChange(parseInt(e.target.value) || 0)}
               min="0"
               placeholder="Ej: 30"
+              className={cn("max-w-xs h-10", flatInputClass)}
             />
           </div>
         )}
+
+        {/* Términos Personalizados - Full Width Row if Active */}
         {paymentTerms === 'Otro' && (
-          <div className="md:col-span-2">
-            <Label htmlFor="customPaymentTerms">Términos de Pago Personalizados</Label>
+          <div className="md:col-span-12">
+            <label className={microLabelClass}>Términos de Pago Personalizados</label>
             <Input
               id="customPaymentTerms"
               type="text"
               value={customPaymentTerms}
               onChange={(e) => onCustomPaymentTermsChange(e.target.value)}
               placeholder="Describa los términos de pago"
+              className={cn("h-10", flatInputClass)}
             />
           </div>
         )}
-      </div>
 
-      <div className="mb-6">
-        <Label htmlFor="observations">Observaciones</Label>
-        <Textarea
-          id="observations"
-          value={observations}
-          onChange={(e) => onObservationsChange(e.target.value)}
-          placeholder="Añade cualquier observación relevante para esta orden de compra."
-          rows={3}
-        />
+        {/* Observaciones - Full Width */}
+        <div className="md:col-span-12">
+          <label className={microLabelClass}>Observaciones</label>
+          <Textarea
+            id="observations"
+            value={observations}
+            onChange={(e) => onObservationsChange(e.target.value)}
+            placeholder="Añade cualquier observación relevante para esta orden de compra."
+            rows={2}
+            className={cn("resize-none min-h-[60px]", flatInputClass)}
+          />
+        </div>
       </div>
     </>
   );
