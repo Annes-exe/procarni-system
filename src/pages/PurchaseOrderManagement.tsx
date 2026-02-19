@@ -373,7 +373,7 @@ const PurchaseOrderManagement = () => {
     <div className="container mx-auto p-4 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Órdenes de Compra</h1>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Órdenes de Compra</h1>
           <p className="text-muted-foreground text-sm">Administra tus órdenes de compra generadas.</p>
         </div>
 

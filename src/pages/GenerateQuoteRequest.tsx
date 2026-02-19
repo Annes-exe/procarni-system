@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Target } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
@@ -200,17 +200,14 @@ const GenerateQuoteRequest = () => {
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
       {/* PHASE 1: STICKY HEADER & ACTIONS */}
-      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-4 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className='flex flex-col'>
-            <h1 className="text-xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
-              <Target className="h-5 w-5 text-gray-400" />
-              Nueva Solicitud (SC)
-            </h1>
-            <p className="text-xs text-gray-500">Crea una solicitud para recibir precios de proveedores</p>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Solicitud</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Cotización</p>
           </div>
         </div>
 
@@ -245,7 +242,6 @@ const GenerateQuoteRequest = () => {
                   displayValue={companyName}
                   className="bg-white"
                 />
-                {companyName && <p className="text-xs text-green-600 font-medium">✓ {companyName}</p>}
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -268,7 +264,6 @@ const GenerateQuoteRequest = () => {
                     className="bg-white flex-1"
                   />
                 </div>
-                {supplierName && <p className="text-xs text-green-600 font-medium">✓ {supplierName}</p>}
               </div>
             </div>
           </CardContent>
@@ -280,9 +275,19 @@ const GenerateQuoteRequest = () => {
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
               <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
             </CardTitle>
-            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
-              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setIsAddMaterialDialogOpen(true)}
+                variant="secondary"
+                size="sm"
+                disabled={!supplierId}
+              >
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+              </Button>
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <QuoteRequestItemsTable

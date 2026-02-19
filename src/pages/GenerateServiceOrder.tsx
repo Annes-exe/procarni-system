@@ -380,15 +380,15 @@ const GenerateServiceOrder = () => {
   return (
     <div className="container mx-auto p-4">
       {/* Action Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4 border-b mb-6 -mx-4 px-4 flex justify-between items-center shadow-sm">
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-xl font-bold text-procarni-dark flex items-center">
-            <Wrench className="mr-2 h-6 w-6 text-procarni-primary" />
-            Nueva Orden de Servicio
-          </h1>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Orden de Servicio</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Servicio</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleSubmit} disabled={isSubmitting || !companyId || !supplierId} className="bg-procarni-secondary hover:bg-green-700 shadow-sm">

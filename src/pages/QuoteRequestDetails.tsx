@@ -5,7 +5,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Download, ShoppingCart, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, Users, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2 } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -237,289 +237,267 @@ const QuoteRequestDetails = () => {
     }
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'Draft': return 'secondary';
-      case 'Sent': return 'default';
-      case 'Approved': return 'outline';
-      case 'Rejected': return 'destructive';
-      case 'Archived': return 'outline';
-      default: return 'secondary';
-    }
-  };
-
   const getStatusColorClass = (status: string) => {
     switch (status) {
-      case 'Draft': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'Sent': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Approved': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Rejected': return 'bg-red-100 text-red-800 border-red-200';
-      case 'Archived': return 'bg-gray-100 text-gray-600 border-gray-200';
-      default: return 'bg-gray-100 text-gray-600';
+      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
+      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
+      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
+      default: return 'bg-gray-50 text-gray-500';
     }
   };
 
-  const ActionButtons = () => (
-    <>
-      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-        <DialogTrigger asChild>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-            <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-          </DropdownMenuItem>
-        </DialogTrigger>
-        <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Previsualización de Solicitud de Cotización</DialogTitle>
-          </DialogHeader>
-          <QuoteRequestPreviewModal
-            requestId={request.id}
-            onClose={() => setIsModalOpen(false)}
-            fileName={generateFileName()}
-            ref={qrViewerRef}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <DropdownMenuItem asChild>
-        <PDFDownloadButton
-          requestId={request.id}
-          fileNameGenerator={generateFileName}
-          endpoint="generate-qr-pdf"
-          label="Descargar PDF"
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsEmailModalOpen(true); }} disabled={
-        // @ts-ignore 
-        !request.suppliers?.email
-      } className="cursor-pointer">
-        <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-      </DropdownMenuItem>
-
-      <DropdownMenuItem asChild>
-        <WhatsAppSenderButton
-          // @ts-ignore
-          recipientPhone={request.suppliers?.phone}
-          documentType="Solicitud de Cotización"
-          documentId={request.id}
-          documentNumber={request.id.substring(0, 8)}
-          // @ts-ignore
-          companyName={request.companies?.name || ''}
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsApproveConfirmOpen(true); }} disabled={isApproving} className="cursor-pointer text-green-600 focus:text-green-700 font-medium">
-          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar Solicitud
-        </DropdownMenuItem>
-      )}
-
-      {isEditable ? (
-        <DropdownMenuItem onSelect={() => navigate(`/quote-requests/edit/${request.id}`)} className="cursor-pointer">
-          <Edit className="mr-2 h-4 w-4" /> Editar Solicitud
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem disabled>
-          <Edit className="mr-2 h-4 w-4" /> Editar (No disponible)
-        </DropdownMenuItem>
-      )}
-
-      <DropdownMenuSeparator />
-
-      <DropdownMenuItem onSelect={handleConvertToPurchaseOrder} className="cursor-pointer text-procarni-secondary focus:text-green-700 font-medium">
-        <ShoppingCart className="mr-2 h-4 w-4" /> Convertir a OC
-      </DropdownMenuItem>
-    </>
-  );
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1 block";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500";
+  const valueClass = "text-procarni-dark font-medium text-sm";
 
   return (
-    <div className="container mx-auto p-4 pb-20">
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
-      {/* PHASE 1: STICKY HEADER */}
-      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-4 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/quote-request-management')} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className='flex flex-col'>
-            <h1 className="text-xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-10 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+
+        {/* Title & Status */}
+        <div className="flex flex-col gap-1 w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/quote-request-management')} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
               <span className="text-gray-400 font-light">#</span>{request.id.substring(0, 8)}
-              <Badge variant="outline" className={cn("ml-2 text-[10px] px-2 py-0.5", getStatusColorClass(request.status))}>
-                {STATUS_TRANSLATIONS[request.status] || request.status}
-              </Badge>
             </h1>
-            <p className="text-xs text-gray-500 flex items-center gap-2">
-              {/* @ts-ignore */}
-              <span>{request.suppliers?.name}</span>
-              <span className="text-gray-300">•</span>
-              <span>{format(new Date(request.created_at), 'PPP', { locale: es })}</span>
-            </p>
+            <Badge className={cn("ml-2 pointer-events-none rounded-md px-2.5 py-0.5 text-xs font-semibold shadow-none border", getStatusColorClass(request.status))} variant="outline">
+              {STATUS_TRANSLATIONS[request.status] || request.status}
+            </Badge>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          {isEditable && (
-            <Button variant="outline" size="sm" onClick={() => navigate(`/quote-requests/edit/${request.id}`)} className="hidden md:flex">
-              <Edit className="mr-2 h-3.5 w-3.5" /> Editar
-            </Button>
-          )}
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
 
-          {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
-            <Button size="sm" onClick={() => setIsApproveConfirmOpen(true)} className="bg-green-600 hover:bg-green-700 text-white hidden md:flex">
-              <CheckCircle className="mr-2 h-3.5 w-3.5" /> Aprobar
-            </Button>
-          )}
+          {/* Action Buttons (Desktop & Mobile optimized) */}
+          <div className="flex items-center gap-2 ml-auto md:ml-0">
+            {/* PDF Preview */}
+            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="hidden md:flex gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden lg:inline">Previsualizar</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
+                <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <DialogTitle>Previsualización de Documento</DialogTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setIsModalOpen(false)}>Cerrar</Button>
+                </div>
+                <div className="flex-1 overflow-hidden bg-gray-100">
+                  <QuoteRequestPreviewModal
+                    requestId={request.id}
+                    onClose={() => setIsModalOpen(false)}
+                    fileName={generateFileName()}
+                    ref={qrViewerRef}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="sm" className="ml-auto md:ml-0">
-                <MoreVertical className="h-4 w-4 mr-0 md:mr-2" />
-                <span className="hidden md:inline">Acciones</span>
+            {/* Download PDF */}
+            <PDFDownloadButton
+              requestId={request.id}
+              fileNameGenerator={generateFileName}
+              endpoint="generate-qr-pdf"
+              label="PDF"
+              variant="outline"
+              size="sm"
+              className="hidden md:flex"
+            />
+
+            {/* Send Email */}
+            <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)} disabled={
+              // @ts-ignore 
+              !request.suppliers?.email
+            } className="hidden md:flex gap-2">
+              <Mail className="h-4 w-4" />
+            </Button>
+
+            {/* Mobile Actions Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <PDFDownloadButton
+                    requestId={request.id}
+                    fileNameGenerator={generateFileName}
+                    endpoint="generate-qr-pdf"
+                    label="Descargar PDF"
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={
+                  // @ts-ignore 
+                  !request.suppliers?.email
+                }>
+                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <WhatsAppSenderButton
+                    // @ts-ignore
+                    recipientPhone={request.suppliers?.phone}
+                    documentType="Solicitud de Cotización"
+                    documentId={request.id}
+                    documentNumber={request.id.substring(0, 8)}
+                    // @ts-ignore
+                    companyName={request.companies?.name || ''}
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
+                    label="Enviar por WhatsApp"
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Approve Button */}
+            {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
+              <Button
+                onClick={() => setIsApproveConfirmOpen(true)}
+                disabled={isApproving}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
+                size="sm"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Aprobar Solicitud</span>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Opciones</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <ActionButtons />
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+
+            {/* Edit Button */}
+            {isEditable && (
+              <Button onClick={() => navigate(`/quote-requests/edit/${request.id}`)} variant="outline" size="sm" className="gap-2">
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+            )}
+
+            {/* Convert to PO Button */}
+            <Button onClick={handleConvertToPurchaseOrder} className="bg-procarni-secondary hover:bg-green-700 text-white gap-2 shadow-sm" size="sm">
+              <ShoppingCart className="h-4 w-4" />
+              <span className="hidden sm:inline">Convertir a OC</span>
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-6">
+      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
         {/* PHASE 2: INFO GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="border-gray-200 shadow-sm col-span-1 md:col-span-2">
-            <CardHeader className="bg-gray-50/50 pb-4">
-              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-                <Building2 className="h-4 w-4 mr-2" /> Información General
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-              <div>
-                <Label className="text-xs text-gray-500 block mb-1">Empresa Solicitante</Label>
-                {/* @ts-ignore */}
-                <p className="font-medium text-gray-900">{request.companies?.name || '---'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-gray-500 block mb-1">Proveedor</Label>
-                {/* @ts-ignore */}
-                <p className="font-medium text-gray-900">{request.suppliers?.name || '---'}</p>
-                {/* @ts-ignore */}
-                {(request.suppliers?.email || request.suppliers?.phone) && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {/* @ts-ignore */}
-                    {request.suppliers?.email} • {request.suppliers?.phone}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label className="text-xs text-gray-500 block mb-1">Moneda</Label>
-                <p className="font-medium text-gray-900">{request.currency}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-gray-500 block mb-1">Elaborado Por</Label>
-                {/* @ts-ignore */}
-                <p className="font-medium text-gray-900">{request.created_by || '---'}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader className="bg-gray-50/50 pb-4">
-              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-                <Clock className="h-4 w-4 mr-2" /> Estado
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 flex flex-col justify-center items-center text-center h-[calc(100%-60px)]">
-              <Badge className={cn("text-sm px-4 py-1 mb-2", getStatusColorClass(request.status))} variant="outline">
-                {STATUS_TRANSLATIONS[request.status] || request.status}
-              </Badge>
-              <p className="text-xs text-gray-500">
-                Última actualización: {format(new Date(request.created_at), 'PPP', { locale: es })}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* PHASE 3: ITEMS TABLE */}
-        <Card className="border-gray-200 shadow-sm overflow-hidden min-h-[400px]">
-          <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-              <ShoppingCart className="h-4 w-4 mr-2" /> Ítems Solicitados
-            </CardTitle>
-            <Badge variant="secondary" className="font-mono">
-              {/* @ts-ignore */}
-              {request.quote_request_items?.length || 0} Ítems
-            </Badge>
-          </CardHeader>
-          <CardContent className="p-0">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1">
+          {/* Company */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Empresa</span>
             {/* @ts-ignore */}
-            {request.quote_request_items && request.quote_request_items.length > 0 ? (
-              isMobile ? (
-                <div className="grid gap-0 divide-y divide-gray-100">
+            <p className={valueClass}>{request.companies?.name || 'N/A'}</p>
+            {/* @ts-ignore */}
+            <p className="text-xs text-gray-500">{request.companies?.rif}</p>
+          </div>
+
+          {/* Supplier */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Proveedor</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{request.suppliers?.name || 'N/A'}</p>
+            {/* @ts-ignore */}
+            {(request.suppliers?.email || request.suppliers?.phone) && (
+              <p className="text-xs text-gray-500">
+                {/* @ts-ignore */}
+                {request.suppliers?.email}
+              </p>
+            )}
+          </div>
+
+          {/* Date */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Solicitud</span>
+            <p className={valueClass}>
+              {format(new Date(request.created_at), 'PPP', { locale: es })}
+            </p>
+          </div>
+
+          {/* Created By */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Elaborado Por</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{request.created_by || '---'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* PHASE 3: ITEMS TABLE */}
+      <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
+        <CardContent className="p-0">
+          {/* @ts-ignore */}
+          {request.quote_request_items && request.quote_request_items.length > 0 ? (
+            isMobile ? (
+              <div className="grid gap-0 divide-y divide-gray-100">
+                {/* @ts-ignore */}
+                {request.quote_request_items.map((item) => (
+                  <div key={item.id} className="p-4 bg-white hover:bg-gray-50">
+                    <div className="flex justify-between items-start mb-1">
+                      {/* @ts-ignore */}
+                      <p className="font-semibold text-procarni-primary text-sm">{item.materials?.name || item.material_name}</p>
+                      <Badge variant="outline" className="ml-2 font-mono text-[10px]">{item.quantity} {item.unit}</Badge>
+                    </div>
+                    {item.description && (
+                      <p className="text-xs text-gray-500 line-clamp-2">{item.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="bg-gray-50/80">
+                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
+                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6 w-[40%]"}>Material / Descripción</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>Cantidad</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>Unidad</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {/* @ts-ignore */}
                   {request.quote_request_items.map((item) => (
-                    <div key={item.id} className="p-4 bg-white hover:bg-gray-50">
-                      <div className="flex justify-between items-start mb-1">
-                        {/* @ts-ignore */}
-                        <p className="font-semibold text-procarni-primary text-sm">{item.materials?.name || item.material_name}</p>
-                        <Badge variant="outline" className="ml-2 font-mono text-[10px]">{item.quantity} {item.unit}</Badge>
-                      </div>
-                      {item.description && (
-                        <p className="text-xs text-gray-500 line-clamp-2">{item.description}</p>
-                      )}
-                    </div>
+                    <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                      <TableCell className="pl-6 py-4">
+                        <span className="font-medium text-procarni-dark text-sm block">
+                          {/* @ts-ignore */}
+                          {item.materials?.name || item.material_name}
+                        </span>
+                        {item.description && (
+                          <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center font-mono text-sm text-gray-600">{item.quantity}</TableCell>
+                      <TableCell className="text-center text-xs text-gray-500">{item.unit || '---'}</TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-gray-50/30">
-                      <TableRow>
-                        <TableHead className="w-[40%] text-xs uppercase tracking-wider text-gray-500 font-semibold pl-6">Material / Descripción</TableHead>
-                        <TableHead className="text-center text-xs uppercase tracking-wider text-gray-500 font-semibold">Cantidad</TableHead>
-                        <TableHead className="text-center text-xs uppercase tracking-wider text-gray-500 font-semibold">Unidad</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {/* @ts-ignore */}
-                      {request.quote_request_items.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-gray-50/50">
-                          <TableCell className="pl-6 py-4">
-                            <div className="flex flex-col">
-                              {/* @ts-ignore */}
-                              <span className="font-medium text-gray-900">{item.materials?.name || item.material_name}</span>
-                              {item.description && (
-                                <span className="text-xs text-gray-500 mt-1 max-w-lg truncate">{item.description}</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center font-mono text-gray-700">{item.quantity}</TableCell>
-                          <TableCell className="text-center text-xs text-gray-500">{item.unit || '---'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-400 bg-white">
-                <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
-                <p className="text-sm">No hay ítems registrados.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </TableBody>
+              </Table>
+            )
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems registrados.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <MadeWithDyad />
 

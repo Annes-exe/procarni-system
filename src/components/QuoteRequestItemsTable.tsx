@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, Search, StickyNote, Hash } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterialsBySupplier } from '@/integrations/supabase/data';
-import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Separator } from '@/components/ui/separator';
@@ -54,7 +53,6 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     onItemChange,
     onMaterialSelect,
 }) => {
-    const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
     const isMobile = useIsMobile();
 
     const searchSupplierMaterials = React.useCallback(async (query: string) => {
@@ -230,15 +228,6 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
-                    Ítems de la Solicitud
-                </h3>
-                <Button variant="outline" size="sm" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="text-xs">
-                    <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-                </Button>
-            </div>
-
             {isMobile ? (
                 <div className="space-y-4">
                     {items.map(renderMobileItem)}
@@ -251,27 +240,8 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
                         {items.map(renderDesktopAccordionItem)}
                     </Accordion>
-
-                    <Button
-                        variant="outline"
-                        onClick={onAddItem}
-                        className="w-full py-8 border-dashed border-gray-300 text-gray-500 hover:text-procarni-primary hover:border-procarni-primary/50 hover:bg-procarni-primary/5 transition-all mt-4 group"
-                    >
-                        <div className="flex flex-col items-center gap-1">
-                            <PlusCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
-                            <span className="text-sm font-medium">Añadir nueva línea</span>
-                        </div>
-                    </Button>
                 </>
             )}
-
-            <MaterialCreationDialog
-                isOpen={isAddMaterialDialogOpen}
-                onClose={() => setIsAddMaterialDialogOpen(false)}
-                onMaterialCreated={handleMaterialAdded}
-                supplierId={supplierId}
-                supplierName={supplierName}
-            />
         </div>
     );
 };
