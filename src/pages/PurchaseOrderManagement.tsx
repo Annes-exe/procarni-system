@@ -238,17 +238,17 @@ const PurchaseOrderManagement = () => {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'Draft':
-        return 'bg-amber-50 text-procarni-alert border border-procarni-alert/20';
+        return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'Sent':
-        return 'bg-amber-50 text-procarni-alert border border-procarni-alert/20';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Approved':
-        return 'bg-green-50 text-procarni-secondary border border-procarni-secondary/20';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'Rejected':
-        return 'bg-red-50 text-procarni-primary border border-procarni-primary/20';
+        return 'bg-red-100 text-red-800 border-red-200';
       case 'Archived':
-        return 'bg-gray-100 text-gray-500 border border-gray-200';
+        return 'bg-gray-100 text-gray-600 border-gray-200';
       default:
-        return 'bg-gray-100 text-gray-500 border border-gray-200';
+        return 'bg-gray-100 text-gray-600';
     }
   };
 
@@ -307,7 +307,7 @@ const PurchaseOrderManagement = () => {
           )}
           <CardTitle className="text-lg truncate font-mono text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
         </div>
-        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0", getStatusBadgeClass(order.status))}>
+        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0 border", getStatusBadgeClass(order.status))}>
           {STATUS_TRANSLATIONS[order.status] || order.status}
         </span>
       </div>
@@ -370,99 +370,96 @@ const PurchaseOrderManagement = () => {
   );
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="history-mode"
-            checked={showHistory}
-            onCheckedChange={(checked) => {
-              setShowHistory(checked);
-              setActiveTab(checked ? 'archived' : 'active');
-            }}
-          />
-          <Label htmlFor="history-mode" className="text-sm font-medium text-gray-700">
-            {showHistory ? 'Modo Histórico (Archivadas/Rechazadas)' : 'Modo Activo (Activas/Aprobadas)'}
-          </Label>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Órdenes de Compra</h1>
+          <p className="text-muted-foreground text-sm">Administra tus órdenes de compra generadas.</p>
         </div>
-      </div>
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-procarni-primary">Gestión de Órdenes de Compra</CardTitle>
-            <CardDescription>Administra tus órdenes de compra generadas.</CardDescription>
-          </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            variant={showHistory ? "secondary" : "outline"}
+            onClick={() => {
+              const newMode = !showHistory;
+              setShowHistory(newMode);
+              setActiveTab(newMode ? 'archived' : 'active');
+            }}
+            className="gap-2"
+            size="sm"
+          >
+            {showHistory ? <CheckCircle className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+            {showHistory ? 'Ver Activos' : 'Historial'}
+          </Button>
           <Button
             asChild
-            className={cn(
-              "bg-procarni-primary hover:bg-procarni-primary/90 text-white shadow-sm",
-              isMobileView && "w-10 h-10 p-0" // Adaptación móvil
-            )}
+            className="bg-procarni-secondary hover:bg-green-700 text-white gap-2"
+            size="sm"
           >
             <Link to="/generate-po">
-              <PlusCircle className={cn("h-4 w-4", !isMobileView && "mr-2")} />
-              {!isMobileView && 'Nueva Orden'}
+              <PlusCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Nueva Orden</span>
             </Link>
           </Button>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-gray-50/50 p-1">
-              {!showHistory ? (
-                <>
-                  <TabsTrigger value="active">Activas</TabsTrigger>
-                  <TabsTrigger value="approved">Aprobadas</TabsTrigger>
-                </>
-              ) : (
-                <>
-                  <TabsTrigger value="archived">Archivadas</TabsTrigger>
-                  <TabsTrigger value="rejected">Rechazadas</TabsTrigger>
-                </>
-              )}
-            </TabsList>
+        </div>
+      </div>
 
-            <TabsContent value={activeTab} className="mt-4">
-              <div className="relative mb-4">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+              <TabsList className="grid w-full md:w-auto grid-cols-2 md:flex h-9">
+                {!showHistory ? (
+                  <>
+                    <TabsTrigger value="active" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
+                  </>
+                ) : (
+                  <>
+                    <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
+                    <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
+                  </>
+                )}
+              </TabsList>
+
+              <div className="relative w-full md:w-72">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Buscar por N°, proveedor, empresa o moneda..."
-                  className="w-full appearance-none bg-gray-50/50 pl-8 border-gray-200 shadow-none focus-visible:ring-procarni-primary/20"
+                  placeholder="Buscar orden..."
+                  className="w-full appearance-none bg-background pl-8 h-9 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+            </div>
+
+            <TabsContent value={activeTab} className="mt-0">
 
               {/* Bulk Actions Bar */}
               {selectedIds.size > 0 && (
-                <div className={cn("bg-muted p-2 rounded-md mb-4 flex items-center justify-between", isMobileView && "flex-col items-stretch gap-3")}>
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-sm font-medium ml-1">{selectedIds.size} seleccionados</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedIds(new Set())}
-                      className="h-7 px-3 text-xs border-gray-300 text-gray-600 hover:bg-white bg-transparent"
-                    >
+                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2 rounded-md mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} seleccionados</span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 text-xs hover:bg-white/50">
                       Cancelar
                     </Button>
-                  </div>
-                  <div className={cn("flex gap-2", isMobileView && "grid grid-cols-2 w-full")}>
-                    {activeTab === 'active' && (
+                    {!showHistory && (
                       <>
                         <Button
-                          className="bg-procarni-secondary hover:bg-green-700 text-white"
+                          className="bg-procarni-secondary hover:bg-green-700 text-white h-8 text-xs"
                           size="sm"
                           onClick={() => setIsBulkApproveDialogOpen(true)}
                         >
-                          <CheckCircle className={cn("h-4 w-4", !isMobileView && "mr-2")} /> {!isMobileView ? "Aprobar" : "Aprobar"}
+                          <CheckCircle className="mr-1 h-3.5 w-3.5" /> Aprobar
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => setIsBulkArchiveDialogOpen(true)}
+                          className="h-8 text-xs"
                         >
-                          <Archive className={cn("h-4 w-4", !isMobileView && "mr-2")} /> {!isMobileView ? "Archivar" : "Archivar"}
+                          <Archive className="mr-1 h-3.5 w-3.5" /> Archivar
                         </Button>
                       </>
                     )}
@@ -471,53 +468,56 @@ const PurchaseOrderManagement = () => {
               )}
 
               {isLoading ? (
-                <div className="text-center text-muted-foreground p-8">Cargando órdenes...</div>
+                <div className="text-center text-muted-foreground p-12 flex flex-col items-center">
+                  <div className="h-8 w-8 border-4 border-procarni-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p>Cargando órdenes...</p>
+                </div>
               ) : filteredPurchaseOrders.length > 0 ? (
                 isMobileView ? (
-                  <div className="grid gap-4">
+                  <div className="grid gap-3">
                     {filteredPurchaseOrders.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="rounded-md border border-gray-100 overflow-hidden">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="bg-gray-50/50">
                         <TableRow>
-                          <TableHead className="w-[50px]">
+                          <TableHead className="w-[40px] pl-4">
                             <Checkbox
                               checked={filteredPurchaseOrders.length > 0 && selectedIds.size === filteredPurchaseOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">N° Orden</TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Proveedor</TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Empresa</TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Moneda</TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Tasa</TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Estado</TableHead>
-                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Fecha Creación</TableHead>
-                          <TableHead className="text-right text-[10px] uppercase tracking-wider font-semibold text-gray-500">Acciones</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">N° Orden</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Proveedor</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Empresa</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Moneda</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Calculada en</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Estado</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Fecha</TableHead>
+                          <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredPurchaseOrders.map((order) => (
-                          <TableRow key={order.id} className="hover:bg-gray-50/50 border-b border-gray-100 transition-colors">
-                            <TableCell>
+                          <TableRow key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                            <TableCell className="pl-4 py-3">
                               <Checkbox
                                 checked={selectedIds.has(order.id)}
                                 onCheckedChange={() => toggleSelection(order.id)}
                               />
                             </TableCell>
-                            <TableCell className="font-mono text-sm font-medium text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
-                            <TableCell className="text-procarni-dark font-medium">{order.suppliers.name}</TableCell>
-                            <TableCell className="text-procarni-dark font-medium">{order.companies.name}</TableCell>
-                            <TableCell>{order.currency}</TableCell>
-                            <TableCell className="font-mono text-sm">{order.exchange_rate ? order.exchange_rate.toFixed(2) : 'N/A'}</TableCell>
-                            <TableCell>
-                              <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(order.status))}>
+                            <TableCell className="py-3 font-mono text-xs font-medium text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
+                            <TableCell className="py-3 font-medium text-procarni-dark">{order.suppliers.name}</TableCell>
+                            <TableCell className="py-3 text-gray-600">{order.companies.name}</TableCell>
+                            <TableCell className="py-3">{order.currency}</TableCell>
+                            <TableCell className="py-3 font-mono text-xs">{order.exchange_rate ? `Ref: ${order.exchange_rate.toFixed(2)}` : 'N/A'}</TableCell>
+                            <TableCell className="py-3">
+                              <span className={cn("px-2 py-0.5 text-xs font-medium rounded-md border", getStatusBadgeClass(order.status))}>
                                 {STATUS_TRANSLATIONS[order.status] || order.status}
                               </span>
                             </TableCell>
-                            <TableCell>{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
+                            <TableCell className="py-3 text-gray-500 text-sm">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
                             {renderActions(order)}
                           </TableRow>
                         ))}
@@ -526,8 +526,21 @@ const PurchaseOrderManagement = () => {
                   </div>
                 )
               ) : (
-                <div className="text-center text-muted-foreground p-8">
-                  No hay órdenes de compra en este estado o no se encontraron resultados para tu búsqueda.
+                <div className="text-center p-12 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
+                  <div className="bg-white p-3 rounded-full w-fit mx-auto shadow-sm mb-3">
+                    <Search className="h-6 w-6 text-gray-300" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">No se encontraron órdenes</h3>
+                  <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                    {searchTerm
+                      ? `No hay resultados para "${searchTerm}" en esta vista.`
+                      : "No tienes órdenes de compra en esta categoría."}
+                  </p>
+                  {!searchTerm && !showHistory && (
+                    <Button variant="outline" className="mt-4" asChild>
+                      <Link to="/generate-po">Crear nueva orden</Link>
+                    </Button>
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -596,7 +609,7 @@ const PurchaseOrderManagement = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeBulkApprove} className="bg-procarni-secondary hover:bg-green-700 text-white">
-              Aprobar {selectedIds.size} Órdenes
+              Aprobar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -614,7 +627,7 @@ const PurchaseOrderManagement = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeBulkArchive} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Archivar {selectedIds.size} Órdenes
+              Archivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
