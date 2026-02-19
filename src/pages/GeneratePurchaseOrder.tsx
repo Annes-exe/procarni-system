@@ -376,7 +376,7 @@ const GeneratePurchaseOrder = () => {
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
       {/* 1. STICKY ACTION BAR */}
-      <div className="sticky top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
             <ArrowLeft className="h-4 w-4" />
