@@ -21,18 +21,20 @@ export const purchaseOrderService = {
     /**
      * Fetch all Purchase Orders filtered by status
      */
-    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
+    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
         let query = supabase
             .from('purchase_orders')
             .select('*, suppliers(name), companies(name)')
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
-            query = query.in('status', ['Draft', 'Sent', 'Rejected']);
+            query = query.in('status', ['Draft', 'Sent']);
         } else if (statusFilter === 'Approved') {
             query = query.eq('status', 'Approved');
         } else if (statusFilter === 'Archived') {
             query = query.eq('status', 'Archived');
+        } else if (statusFilter === 'Rejected') {
+            query = query.eq('status', 'Rejected');
         }
 
         const { data, error } = await query;
