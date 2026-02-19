@@ -14,8 +14,10 @@ interface PDFDownloadButtonProps {
   endpoint: string; // e.g., 'generate-qr-pdf' or 'generate-po-pdf'
   label?: string;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
+  size?: 'default' | 'sm' | 'lg' | 'icon' | null | undefined;
   disabled?: boolean; // Added disabled prop
   asChild?: boolean; // NEW: Added asChild prop
+  className?: string;
 }
 
 const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonProps>(({
@@ -26,8 +28,10 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
   endpoint,
   label = 'Descargar PDF',
   variant = 'outline',
+  size = 'default',
   disabled = false,
   asChild = false, // Default to false
+  className,
 }, ref) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -111,10 +115,11 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
       onClick={handleDownload}
       disabled={isDownloading || disabled}
       variant={variant}
+      size={size}
       asChild={asChild}
       // When asChild is true, the parent (DropdownMenuItem) handles the layout, 
       // but we keep the class here for when it's used as a standalone button (asChild=false)
-      className={cn("flex items-center gap-2", asChild ? "w-full justify-start" : "")}
+      className={cn("flex items-center gap-2", asChild ? "w-full justify-start" : "", className)}
       ref={ref} // Forward the ref to the Button component
     >
       {/* Wrap content in a single span element to ensure it's a single child element, 

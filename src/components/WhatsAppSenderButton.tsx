@@ -12,6 +12,8 @@ interface WhatsAppSenderButtonProps {
   companyName: string;
   asChild?: boolean; // NEW: Added asChild prop
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined; // NEW: Added variant prop
+  className?: string; // NEW: Added className prop
+  label?: string; // NEW: Added label prop
 }
 
 const WhatsAppSenderButton = React.forwardRef<HTMLButtonElement, WhatsAppSenderButtonProps>(({
@@ -22,6 +24,8 @@ const WhatsAppSenderButton = React.forwardRef<HTMLButtonElement, WhatsAppSenderB
   companyName,
   asChild = false,
   variant = 'default',
+  className,
+  label = 'Enviar por WhatsApp',
 }, ref) => {
   const handleSendWhatsApp = () => {
     if (!recipientPhone) {
@@ -45,12 +49,12 @@ const WhatsAppSenderButton = React.forwardRef<HTMLButtonElement, WhatsAppSenderB
       disabled={!recipientPhone}
       variant={variant}
       asChild={asChild}
-      className={cn("flex items-center gap-2", !asChild ? "bg-green-600 hover:bg-green-700" : "w-full justify-start")} // Apply custom color only if not rendering as child (i.e., not inside dropdown)
+      className={cn("flex items-center gap-2", !asChild ? "bg-green-600 hover:bg-green-700" : "w-full justify-start", className)} // Apply custom color only if not rendering as child (i.e., not inside dropdown)
       ref={ref} // Forward the ref to the Button component
     >
       {/* Wrap content in a single span element to ensure it's a single child element */}
       <span className="flex items-center gap-2">
-        <MessageSquare className="mr-2 h-4 w-4" /> Enviar por WhatsApp
+        <MessageSquare className="mr-2 h-4 w-4" /> {label}
       </span>
     </Button>
   );

@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Download, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, ListOrdered } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 interface PurchaseOrderItem {
   id: string;
@@ -113,8 +114,6 @@ const PurchaseOrderDetails = () => {
 
   // Helper function to correctly parse date strings (YYYY-MM-DD) for display
   const parseDateForDisplay = (dateString: string): Date => {
-    // Appending T12:00:00 ensures the date object is created at noon local time,
-    // preventing timezone offsets from shifting the date back a day.
     return new Date(dateString + 'T12:00:00');
   };
 
@@ -124,8 +123,6 @@ const PurchaseOrderDetails = () => {
       if (!id) throw new Error('Purchase Order ID is missing.');
       const details = await purchaseOrderService.getById(id);
       if (!details) throw new Error('Purchase Order not found.');
-      // The service returns the data with joins, so we cast it to the local interface
-      // compatible with the view.
       return details as unknown as PurchaseOrderDetailsData;
     },
     enabled: !!id,
@@ -199,8 +196,9 @@ const PurchaseOrderDetails = () => {
       } else {
         throw new Error('Fallo al actualizar el estado.');
       }
-    } catch (error: any) {
-      showError(error.message || 'Error al aprobar la orden.');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al aprobar la orden.';
+      showError(errorMessage);
     } finally {
       dismissToast(toastId);
       setIsApproving(false);
@@ -213,7 +211,6 @@ const PurchaseOrderDetails = () => {
     const toastId = showLoading('Generando PDF y enviando correo...');
 
     try {
-      // 1. Generate PDF
       const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-po-pdf`, {
         method: 'POST',
         headers: {
@@ -231,7 +228,6 @@ const PurchaseOrderDetails = () => {
       const pdfBlob = await pdfResponse.blob();
       const pdfBase64 = await blobToBase64(pdfBlob);
 
-      // 2. Send Email
       const emailBody = `
         <h2>Orden de Compra #${formatSequenceNumber(order.sequence_number, order.created_at)}</h2>
         <p><strong>Empresa:</strong> ${order.companies?.name}</p>
@@ -262,7 +258,6 @@ const PurchaseOrderDetails = () => {
         throw new Error(errorData.error || 'Error al enviar el correo.');
       }
 
-      // 3. Send WhatsApp (if requested)
       if (sendWhatsApp && phone) {
         const formattedPhone = phone.replace(/\D/g, '');
         const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
@@ -275,17 +270,18 @@ const PurchaseOrderDetails = () => {
       showSuccess('Correo enviado exitosamente.');
       setIsEmailModalOpen(false);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('[PurchaseOrderDetails] Error sending email:', error);
       dismissToast(toastId);
-      showError(error.message || 'Error al enviar el correo.');
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al enviar el correo.';
+      showError(errorMessage);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando detalles de la orden de compra...
+      <div className="container mx-auto p-4 text-center text-muted-foreground animate-pulse mt-10">
+        Cargando documento...
       </div>
     );
   }
@@ -322,272 +318,346 @@ const PurchaseOrderDetails = () => {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'Draft':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'Sent':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'Approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      case 'Archived':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-600';
+      case 'Draft': return 'default'; // gray/yellow handled by styling
+      case 'Sent': return 'secondary';
+      case 'Approved': return 'secondary'; // using custom class for colors
+      case 'Rejected': return 'destructive';
+      case 'Archived': return 'outline';
+      default: return 'outline';
     }
   };
 
-  const ActionButtons = () => (
-    <>
-      {/* 1. Previsualizar PDF */}
-      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-        <DialogTrigger asChild>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-            <span className="flex items-center">
-              <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-            </span>
-          </DropdownMenuItem>
-        </DialogTrigger>
-        <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Previsualización de Orden de Compra</DialogTitle>
-          </DialogHeader>
-          <PurchaseOrderPDFViewer
-            orderId={order.id}
-            onClose={() => setIsModalOpen(false)}
-            fileName={generateFileName()}
-            ref={pdfViewerRef}
-          />
-        </DialogContent>
-      </Dialog>
+  const getStatusColorClass = (status: string) => {
+    switch (status) {
+      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
+      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
+      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
+      default: return 'bg-gray-50 text-gray-500';
+    }
+  };
 
-      {/* 2. Descargar PDF */}
-      <DropdownMenuItem asChild>
-        <PDFDownloadButton
-          orderId={order.id}
-          fileNameGenerator={generateFileName}
-          endpoint="generate-po-pdf"
-          label="Descargar PDF"
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {/* 3. Enviar por Correo */}
-      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsEmailModalOpen(true); }} disabled={!order.suppliers?.email} className="cursor-pointer">
-        <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-      </DropdownMenuItem>
-
-      {/* 4. Enviar por WhatsApp */}
-      <DropdownMenuItem asChild>
-        <WhatsAppSenderButton
-          recipientPhone={order.suppliers?.phone}
-          documentType="Orden de Compra"
-          documentId={order.id}
-          documentNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
-          companyName={order.companies?.name || ''}
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {/* 5. Aprobar Orden */}
-      {isEditable && order.status !== 'Approved' && (
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsApproveConfirmOpen(true); }} disabled={isApproving} className="cursor-pointer text-green-600 focus:text-green-700">
-          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar Orden
-        </DropdownMenuItem>
-      )}
-
-      {/* 6. Editar Orden */}
-      {isEditable ? (
-        <DropdownMenuItem onSelect={() => navigate(`/purchase-orders/edit/${order.id}`)} className="cursor-pointer">
-          <Edit className="mr-2 h-4 w-4" /> Editar Orden
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem disabled>
-          <Edit className="mr-2 h-4 w-4" /> Editar Orden (No editable)
-        </DropdownMenuItem>
-      )}
-    </>
-  );
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1 block";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500";
+  const valueClass = "text-procarni-dark font-medium text-sm";
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-2 -mt-2 flex-wrap gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary">
-              <MoreVertical className="h-4 w-4" />
-              <span className="ml-2">Acciones</span>
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-8 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+
+        {/* Title & Status */}
+        <div className="flex flex-col gap-1 w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>Opciones de Orden</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <ActionButtons />
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight">
+              {formatSequenceNumber(order.sequence_number, order.created_at)}
+            </h1>
+            <Badge className={cn("ml-2 pointer-events-none rounded-md px-2.5 py-0.5 text-xs font-semibold shadow-none border", getStatusColorClass(order.status))} variant="outline">
+              {STATUS_TRANSLATIONS[order.status] || order.status}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+
+          {/* Action Buttons (Desktop & Mobile optimized) */}
+          <div className="flex items-center gap-2 ml-auto md:ml-0">
+            {/* PDF Preview */}
+            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="hidden md:flex gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden lg:inline">Previsualizar</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
+                <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <DialogTitle>Previsualización de Documento</DialogTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setIsModalOpen(false)}>Cerrar</Button>
+                </div>
+                <div className="flex-1 overflow-hidden bg-gray-100">
+                  <PurchaseOrderPDFViewer
+                    orderId={order.id}
+                    onClose={() => setIsModalOpen(false)}
+                    fileName={generateFileName()}
+                    ref={pdfViewerRef}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Download PDF */}
+            <PDFDownloadButton
+              orderId={order.id}
+              fileNameGenerator={generateFileName}
+              endpoint="generate-po-pdf"
+              label="PDF"
+              variant="outline"
+              size="sm"
+              className="hidden md:flex"
+            />
+
+            {/* Send Email */}
+            <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email} className="hidden md:flex gap-2">
+              <Mail className="h-4 w-4" />
+            </Button>
+
+            {/* Mobile Actions Dropdown (if needed for space, otherwise keep icons) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <PDFDownloadButton
+                    orderId={order.id}
+                    fileNameGenerator={generateFileName}
+                    endpoint="generate-po-pdf"
+                    label="Descargar PDF"
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
+                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <WhatsAppSenderButton
+                    recipientPhone={order.suppliers?.phone}
+                    documentType="Orden de Compra"
+                    documentId={order.id}
+                    documentNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+                    companyName={order.companies?.name || ''}
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
+                    label="Enviar por WhatsApp"
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Approve Button */}
+            {isEditable && order.status !== 'Approved' && (
+              <Button
+                onClick={() => setIsApproveConfirmOpen(true)}
+                disabled={isApproving}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
+                size="sm"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Aprobar Orden</span>
+              </Button>
+            )}
+
+            {/* Edit Button */}
+            {isEditable && (
+              <Button onClick={() => navigate(`/purchase-orders/edit/${order.id}`)} variant="outline" size="sm" className="gap-2">
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Orden de Compra {formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
-          <CardDescription>Detalles completos de la orden de compra.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6 p-4 border rounded-lg bg-muted/50">
-            <p className="flex items-center">
-              <ListOrdered className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>N° Orden:</strong> {formatSequenceNumber(order.sequence_number, order.created_at)}
-            </p>
-            <p className="flex items-center">
-              <Building2 className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Empresa:</strong> {order.companies?.name || 'N/A'}
-            </p>
-            <p className="flex items-center">
-              <Tag className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Proveedor:</strong> {order.suppliers?.name || 'N/A'}
-            </p>
-            <p className="flex items-center">
-              <DollarSign className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Moneda:</strong> {order.currency}
-            </p>
-            {order.exchange_rate && <p className="flex items-center">
-              <DollarSign className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Tasa de Cambio:</strong> {order.exchange_rate.toFixed(2)}
-            </p>}
-            <p className="flex items-center">
-              <Clock className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Fecha de Entrega:</strong> {order.delivery_date ? format(parseDateForDisplay(order.delivery_date), 'PPP', { locale: es }) : 'N/A'}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Condición de Pago:</strong> {displayPaymentTerms()}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Estado:</strong>
-              <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(order.status))}>
-                {STATUS_TRANSLATIONS[order.status] || order.status}
-              </span>
+      {/* PHASE 2: GENERAL INFORMATION GRID */}
+      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1">
+          {/* Company */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Empresa</span>
+            <p className={valueClass}>{order.companies?.name || 'N/A'}</p>
+            <p className="text-xs text-gray-500">{order.companies?.rif}</p>
+          </div>
+
+          {/* Supplier */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Proveedor</span>
+            <p className={valueClass}>{order.suppliers?.name || 'N/A'}</p>
+            <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
+          </div>
+
+          {/* Delivery Date */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha de Entrega</span>
+            <p className={valueClass}>
+              {order.delivery_date ? format(parseDateForDisplay(order.delivery_date), 'PPP', { locale: es }) : 'N/A'}
             </p>
           </div>
 
-          {order.observations && (
-            <div className="mb-6 p-3 border rounded-md bg-muted/50">
-              <p className="font-semibold text-sm mb-1 text-procarni-primary">Observaciones:</p>
-              <p className="text-sm whitespace-pre-wrap">{order.observations}</p>
-            </div>
-          )}
+          {/* Payment Conditions */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Condición de Pago</span>
+            <p className={valueClass}>{displayPaymentTerms()}</p>
+          </div>
+        </div>
 
-          <h3 className="text-lg font-semibold mt-8 mb-4 text-procarni-primary">Ítems de la Orden</h3>
-          {order.purchase_order_items && order.purchase_order_items.length > 0 ? (
-            isMobile ? (
-              <div className="space-y-3">
-                {order.purchase_order_items.map((item) => {
+        {/* Observations (if any) - Styled as a subtle note */}
+        {order.observations && (
+          <div className="mt-6 p-4 bg-gray-50 border border-gray-100 rounded-md flex gap-3 text-sm text-gray-600 max-w-4xl">
+            <Paperclip className="h-4 w-4 flex-shrink-0 mt-0.5 text-gray-400" />
+            <div>
+              <span className="font-semibold text-gray-700 block mb-1">Observaciones:</span>
+              <p className="whitespace-pre-wrap">{order.observations}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PHASE 3: ITEMS TABLE (READ-ONLY) */}
+      <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
+        <CardContent className="p-0">
+          {isMobile ? (
+            /* Mobile Card View (optimized) */
+            <div className="divide-y divide-gray-100">
+              {order.purchase_order_items?.map((item) => {
+                const subtotal = item.quantity * item.unit_price;
+                return (
+                  <div key={item.id} className="p-4 bg-white">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-procarni-dark">{item.material_name}</span>
+                      <span className="font-mono text-sm font-semibold">{order.currency} {totals.total.toFixed(2)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
+                      <div>
+                        <span className="text-[10px] uppercase text-gray-400 block">Cant.</span>
+                        {item.quantity} {item.unit}
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase text-gray-400 block">P. Unit</span>
+                        {item.unit_price.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* Desktop Table View */
+            <Table>
+              <TableHeader className="bg-gray-50/80">
+                <TableRow className="border-b border-gray-100 hover:bg-transparent">
+                  <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Ítem / Descripción</TableHead>
+                  <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Cant.</TableHead>
+                  <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Precio ({order.currency})</TableHead>
+                  <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>IVA</TableHead>
+                  <TableHead className={tableHeaderClass + " h-9 py-2 text-right pr-6"}>Total ({order.currency})</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {order.purchase_order_items?.map((item) => {
                   const subtotal = item.quantity * item.unit_price;
-                  const itemIva = item.is_exempt ? 0 : subtotal * item.tax_rate;
+                  // const itemIva = item.is_exempt ? 0 : subtotal * item.tax_rate; // Not strictly needed for the row if we just show unit price and subtotal
+
                   return (
-                    <Card key={item.id} className="p-3 shadow-sm">
-                      <p className="font-semibold text-procarni-primary">{item.material_name}</p>
-                      <div className="text-sm mt-1 grid grid-cols-2 gap-2">
-                        <p><strong>Cód. Prov:</strong> {item.supplier_code || 'N/A'}</p>
-                        <p><strong>Cantidad:</strong> {item.quantity} {item.unit || 'N/A'}</p>
-                        <p><strong>P. Unitario:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
-                        <p><strong>Subtotal:</strong> {order.currency} {subtotal.toFixed(2)}</p>
-                        <p><strong>IVA:</strong> {order.currency} {itemIva.toFixed(2)}</p>
-                        <p><strong>Exento:</strong> {item.is_exempt ? 'Sí' : 'No'}</p>
-                        {item.description && <p className="col-span-2"><strong>Descripción:</strong> {item.description}</p>}
-                      </div>
-                      <div className="mt-2 pt-2 border-t flex justify-between font-bold text-sm">
-                        <span>Total Ítem:</span>
-                        <span>{order.currency} {(subtotal + itemIva).toFixed(2)}</span>
-                      </div>
-                    </Card>
+                    <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                      <TableCell className="pl-6 py-4">
+                        <span className="font-medium text-procarni-dark text-sm block">{item.material_name}</span>
+                        {item.description && (
+                          <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
+                        )}
+                        <span className="text-[10px] text-gray-400 mt-1 block">Cód: {item.supplier_code || 'N/A'}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm text-gray-600">
+                        {item.quantity} <span className="text-[10px] text-gray-400 ml-0.5">{item.unit}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm text-gray-600">
+                        {item.unit_price.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {item.is_exempt ? (
+                          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Exento</span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">{(item.tax_rate * 100).toFixed(0)}%</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm font-medium text-procarni-dark pr-6">
+                        {subtotal.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Material</TableHead>
-                      <TableHead>Cód. Prov.</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>P. Unitario ({order.currency})</TableHead>
-                      <TableHead>Subtotal ({order.currency})</TableHead>
-                      <TableHead>IVA ({order.currency})</TableHead>
-                      <TableHead>Exento</TableHead>
-                      <TableHead>Descripción</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {order.purchase_order_items.map((item) => {
-                      const subtotal = item.quantity * item.unit_price;
-                      const itemIva = item.is_exempt ? 0 : subtotal * item.tax_rate;
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.material_name}</TableCell>
-                          <TableCell>{item.supplier_code || 'N/A'}</TableCell>
-                          <TableCell>{item.quantity} {item.unit || 'N/A'}</TableCell>
-                          <TableCell>{item.unit_price.toFixed(2)}</TableCell>
-                          <TableCell>{subtotal.toFixed(2)}</TableCell>
-                          <TableCell>{itemIva.toFixed(2)}</TableCell>
-                          <TableCell>{item.is_exempt ? 'Sí' : 'No'}</TableCell>
-                          <TableCell className="text-xs max-w-[150px] truncate">{item.description || 'N/A'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )
-          ) : (
-            <p className="text-muted-foreground">Esta orden no tiene ítems registrados.</p>
+              </TableBody>
+            </Table>
           )}
-
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{order.currency} {totals.baseImponible.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {order.currency} {totals.montoDescuento.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {order.currency} {totals.montoVenta.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>{order.currency} {totals.montoIVA.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{order.currency} {totals.total.toFixed(2)}</span>
-            </div>
-            {totalInUSD && order.currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
-              </div>
-            )}
-            <p className="text-sm italic mt-2 text-right">({amountInWords})</p>
-          </div>
         </CardContent>
       </Card>
+
+      {/* PHASE 4: TOTALS ("TICKET DE CAJA") - Reused Design */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
+        {/* Left Side: Amount in Words */}
+        <div className="w-full md:w-1/2 text-xs text-gray-400 italic px-2">
+          Importe en letras: {amountInWords}
+        </div>
+
+        {/* Right Side: Calculation Block */}
+        <div className="w-full md:w-auto min-w-[300px] bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
+          {/* Base Imponible */}
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-gray-500 font-medium">Base Imponible</span>
+            <span className="font-mono text-gray-700">{order.currency} {totals.baseImponible.toFixed(2)}</span>
+          </div>
+
+          {/* Discount */}
+          {totals.montoDescuento > 0 && (
+            <div className="flex justify-between items-center text-sm text-red-600">
+              <span className="font-medium">Descuento</span>
+              <span className="font-mono">- {order.currency} {totals.montoDescuento.toFixed(2)}</span>
+            </div>
+          )}
+
+          {/* Margin / Sale % */}
+          {totals.montoVenta > 0 && (
+            <div className="flex justify-between items-center text-sm text-blue-600">
+              <span className="font-medium">% de Venta</span>
+              <span className="font-mono">+ {order.currency} {totals.montoVenta.toFixed(2)}</span>
+            </div>
+          )}
+
+          {/* IVA */}
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-gray-500 font-medium">Monto IVA</span>
+            <span className="font-mono text-gray-700">+ {order.currency} {totals.montoIVA.toFixed(2)}</span>
+          </div>
+
+          {/* Separator */}
+          <div className="h-px border-b border-dashed border-gray-300 my-2" />
+
+          {/* Total */}
+          <div className="flex justify-between items-center text-lg">
+            <span className="font-bold text-procarni-dark">Total Final</span>
+            <span className="font-mono font-bold text-procarni-secondary text-xl">{order.currency} {totals.total.toFixed(2)}</span>
+          </div>
+
+          {/* USD Reference for VES orders */}
+          {totalInUSD && order.currency === 'VES' && (
+            <div className="flex justify-end pt-1">
+              <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                Ref. USD {totalInUSD} (@ {order.exchange_rate?.toFixed(2)})
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <MadeWithDyad />
 
+      {/* Modals & Dialogs */}
       <EmailSenderModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
