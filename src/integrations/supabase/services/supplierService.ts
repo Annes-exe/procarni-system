@@ -5,7 +5,7 @@ import { showError } from '@/utils/toast';
 import { Supplier, SupplierMaterialPayload } from '../types';
 import { logAudit } from './auditLogService';
 import { bulkArchiveQuoteRequestsBySupplier } from './quoteRequestService'; // Import bulk archive QR
-import { bulkArchivePurchaseOrdersBySupplier } from './purchaseOrderService'; // Import bulk archive PO
+import { purchaseOrderService } from '@/services/purchaseOrderService'; // Import new service
 
 const SupplierService = {
   getAll: async (): Promise<Supplier[]> => {
@@ -44,11 +44,11 @@ const SupplierService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('CREATE_SUPPLIER', { 
+    logAudit('CREATE_SUPPLIER', {
       table: 'suppliers',
-      record_id: newSupplier.id, 
+      record_id: newSupplier.id,
       description: `Creación de proveedor ${newSupplier.name} (${newSupplier.code})`,
-      name: newSupplier.name, 
+      name: newSupplier.name,
       rif: newSupplier.rif,
       materials_count: materials.length
     });
@@ -102,25 +102,25 @@ const SupplierService = {
     // --- CONDITIONAL ARCHIVE LOGIC ---
     if (updates.status === 'Inactive') {
       const archivedQRs = await bulkArchiveQuoteRequestsBySupplier(id);
-      const archivedPOs = await bulkArchivePurchaseOrdersBySupplier(id);
-      
+      const archivedPOs = await purchaseOrderService.bulkArchiveBySupplier(id);
+
       if (archivedQRs > 0) {
-        logAudit('BULK_ARCHIVE_QUOTE_REQUESTS', { 
+        logAudit('BULK_ARCHIVE_QUOTE_REQUESTS', {
           table: 'quote_requests',
           description: `Archivado masivo de ${archivedQRs} SCs por inactividad de proveedor`,
-          supplier_id: id, 
-          count: archivedQRs 
+          supplier_id: id,
+          count: archivedQRs
         });
       }
       if (archivedPOs > 0) {
-        logAudit('BULK_ARCHIVE_PURCHASE_ORDERS', { 
+        logAudit('BULK_ARCHIVE_PURCHASE_ORDERS', {
           table: 'purchase_orders',
           description: `Archivado masivo de ${archivedPOs} OCs por inactividad de proveedor`,
-          supplier_id: id, 
-          count: archivedPOs 
+          supplier_id: id,
+          count: archivedPOs
         });
       }
-      
+
       if (archivedQRs > 0 || archivedPOs > 0) {
         console.log(`[SupplierService.update] Archived ${archivedQRs} QRs and ${archivedPOs} POs for inactive supplier ${id}.`);
         showError(`Advertencia: Se archivaron ${archivedQRs} Solicitudes de Cotización y ${archivedPOs} Órdenes de Compra activas para este proveedor.`);
@@ -129,9 +129,9 @@ const SupplierService = {
     // ---------------------------------
 
     // --- AUDIT LOG ---
-    logAudit('UPDATE_SUPPLIER', { 
+    logAudit('UPDATE_SUPPLIER', {
       table: 'suppliers',
-      record_id: id, 
+      record_id: id,
       description: 'Actualización de proveedor',
       updates: updates,
       materials_count: materials.length
@@ -219,13 +219,13 @@ const SupplierService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('DELETE_SUPPLIER', { 
+    logAudit('DELETE_SUPPLIER', {
       table: 'suppliers',
       record_id: id,
       description: 'Eliminación de proveedor'
     });
     // -----------------
-    
+
     return true;
   },
 

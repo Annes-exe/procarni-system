@@ -4,9 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Trash2, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, ListOrdered } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getAllPurchaseOrders, deletePurchaseOrder, archivePurchaseOrder, unarchivePurchaseOrder, updatePurchaseOrderStatus } from '@/integrations/supabase/data';
+import { purchaseOrderService, PurchaseOrderWithRelations } from '@/services/purchaseOrderService';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -16,21 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 
-interface PurchaseOrder {
-  id: string;
-  sequence_number?: number;
-  supplier_id: string;
-  suppliers: { name: string };
-  company_id: string;
-  companies: { name: string };
-  currency: string;
-  exchange_rate?: number | null;
-  status: string;
-  created_at: string;
-  created_by?: string;
-  user_id: string;
-}
-
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
   'Sent': 'Enviada',
@@ -39,7 +24,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Archived': 'Archivada',
 };
 
-const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
+const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
   if (!sequence) return 'N/A';
 
   const date = dateString ? new Date(dateString) : new Date();
@@ -67,23 +52,23 @@ const PurchaseOrderManagement = () => {
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
 
   // Fetch active orders
-  const { data: activePurchaseOrders, isLoading: isLoadingActive, error: activeError } = useQuery<PurchaseOrder[]>({
+  const { data: activePurchaseOrders, isLoading: isLoadingActive, error: activeError } = useQuery<PurchaseOrderWithRelations[]>({
     queryKey: ['purchaseOrders', 'Active'],
-    queryFn: async () => (await getAllPurchaseOrders('Active')) as unknown as PurchaseOrder[],
+    queryFn: async () => await purchaseOrderService.getAll('Active'),
     enabled: !!session && activeTab === 'active',
   });
 
   // Fetch approved orders
-  const { data: approvedPurchaseOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<PurchaseOrder[]>({
+  const { data: approvedPurchaseOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<PurchaseOrderWithRelations[]>({
     queryKey: ['purchaseOrders', 'Approved'],
-    queryFn: async () => (await getAllPurchaseOrders('Approved')) as unknown as PurchaseOrder[],
+    queryFn: async () => await purchaseOrderService.getAll('Approved'),
     enabled: !!session && activeTab === 'approved',
   });
 
   // Fetch archived orders
-  const { data: archivedPurchaseOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<PurchaseOrder[]>({
+  const { data: archivedPurchaseOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<PurchaseOrderWithRelations[]>({
     queryKey: ['purchaseOrders', 'Archived'],
-    queryFn: async () => (await getAllPurchaseOrders('Archived')) as unknown as PurchaseOrder[],
+    queryFn: async () => await purchaseOrderService.getAll('Archived'),
     enabled: !!session && activeTab === 'archived',
   });
 
@@ -106,11 +91,9 @@ const PurchaseOrderManagement = () => {
   }, [currentOrders, searchTerm]);
 
   const archiveMutation = useMutation({
-    mutationFn: archivePurchaseOrder,
+    mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Archived'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Active'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Approved'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Archived'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       showSuccess('Orden de compra archivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -123,11 +106,9 @@ const PurchaseOrderManagement = () => {
   });
 
   const unarchiveMutation = useMutation({
-    mutationFn: unarchivePurchaseOrder,
+    mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Draft'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Active'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Approved'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Archived'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       showSuccess('Orden de compra desarchivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -175,7 +156,7 @@ const PurchaseOrderManagement = () => {
 
   const executeBulkApprove = async () => {
     try {
-      await Promise.all(Array.from(selectedIds).map(id => updatePurchaseOrderStatus(id, 'Approved')));
+      await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Approved')));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       showSuccess(`${selectedIds.size} órdenes aprobadas exitosamente.`);
       setSelectedIds(new Set());
@@ -188,7 +169,7 @@ const PurchaseOrderManagement = () => {
 
   const executeBulkArchive = async () => {
     try {
-      await Promise.all(Array.from(selectedIds).map(id => archivePurchaseOrder(id)));
+      await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Archived')));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       showSuccess(`${selectedIds.size} órdenes archivadas exitosamente.`);
       setSelectedIds(new Set());
@@ -233,7 +214,7 @@ const PurchaseOrderManagement = () => {
     );
   }
 
-  const renderActions = (order: PurchaseOrder) => {
+  const renderActions = (order: PurchaseOrderWithRelations) => {
     const isEditable = order.status === 'Draft';
     const isArchived = order.status === 'Archived';
 
@@ -267,7 +248,7 @@ const PurchaseOrderManagement = () => {
     );
   };
 
-  const renderMobileCard = (order: PurchaseOrder) => (
+  const renderMobileCard = (order: PurchaseOrderWithRelations) => (
     <Card key={order.id} className={cn("p-4 shadow-md", selectedIds.has(order.id) && "border-procarni-secondary border-2")}>
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
@@ -287,7 +268,7 @@ const PurchaseOrderManagement = () => {
       <div className="text-sm space-y-1">
         <p><strong>Empresa:</strong> {order.companies.name}</p>
         <p><strong>Moneda:</strong> {order.currency}</p>
-        <p><strong>Fecha:</strong> {new Date(order.created_at).toLocaleDateString('es-VE')}</p>
+        <p><strong>Fecha:</strong> {order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</p>
       </div>
       <div className="flex justify-end gap-2 mt-4 border-t pt-3">
         <Button variant="outline" size="sm" onClick={() => handleViewDetails(order.id)}>
@@ -315,9 +296,7 @@ const PurchaseOrderManagement = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+        {/* Removed redundant Back button as this is an Index page */}
       </div>
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -435,7 +414,7 @@ const PurchaseOrderManagement = () => {
                                 {STATUS_TRANSLATIONS[order.status] || order.status}
                               </span>
                             </TableCell>
-                            <TableCell>{new Date(order.created_at).toLocaleDateString('es-VE')}</TableCell>
+                            <TableCell>{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
                             {renderActions(order)}
                           </TableRow>
                         ))}

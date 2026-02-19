@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton'; // Importar el botón de descarga
-import { getPurchaseOrderDetails } from '@/integrations/supabase/data'; // Importar servicio para obtener detalles
+import { purchaseOrderService } from '@/services/purchaseOrderService'; // Importar servicio para obtener detalles
 import { calculateTotals } from '@/utils/calculations'; // Import calculateTotals
 
 interface PurchaseOrderPDFViewerProps {
@@ -26,7 +26,7 @@ const PurchaseOrderPDFViewer = React.forwardRef<PurchaseOrderPDFViewerRef, Purch
 
   const fetchOrderDetails = async () => {
     try {
-      const details = await getPurchaseOrderDetails(orderId);
+      const details = await purchaseOrderService.getById(orderId);
       setOrderData(details);
     } catch (e) {
       console.error("Error fetching order details for viewer:", e);

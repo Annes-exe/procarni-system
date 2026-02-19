@@ -25,14 +25,14 @@ import {
   archiveQuoteRequest, // Exported
   unarchiveQuoteRequest, // Exported
   updateQuoteRequestStatus, // NEW
-  getAllPurchaseOrders,
-  createPurchaseOrder,
-  updatePurchaseOrder,
-  deletePurchaseOrder,
-  getPurchaseOrderDetails,
-  archivePurchaseOrder,
-  unarchivePurchaseOrder,
-  updatePurchaseOrderStatus, // NEW
+  // getAllPurchaseOrders, // Removed
+  // createPurchaseOrder, // Removed
+  // updatePurchaseOrder, // Removed
+  // deletePurchaseOrder, // Removed
+  // getPurchaseOrderDetails, // Removed
+  // archivePurchaseOrder, // Removed
+  // unarchivePurchaseOrder, // Removed
+  // updatePurchaseOrderStatus, // NEW - Removed
   createSupplierMaterialRelation,
   uploadFichaTecnica,
   getAllFichasTecnicas,
@@ -267,14 +267,14 @@ export {
   archiveQuoteRequest,
   unarchiveQuoteRequest,
   updateQuoteRequestStatus,
-  getAllPurchaseOrders,
-  createPurchaseOrder,
-  updatePurchaseOrder,
-  deletePurchaseOrder,
-  getPurchaseOrderDetails,
-  archivePurchaseOrder,
-  unarchivePurchaseOrder,
-  updatePurchaseOrderStatus,
+  // getAllPurchaseOrders,
+  // createPurchaseOrder,
+  // updatePurchaseOrder,
+  // deletePurchaseOrder,
+  // getPurchaseOrderDetails,
+  // archivePurchaseOrder,
+  // unarchivePurchaseOrder,
+  // updatePurchaseOrderStatus,
   createSupplierMaterialRelation,
   uploadFichaTecnica,
   getAllFichasTecnicas,

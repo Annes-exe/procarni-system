@@ -175,8 +175,8 @@ const GenerateQuoteRequest = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
+      <div className="flex items-center mb-2 -mt-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
       </div>

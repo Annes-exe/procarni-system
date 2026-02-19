@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, FileText, Download, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, ListOrdered } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getPurchaseOrderDetails, updatePurchaseOrderStatus } from '@/integrations/supabase/data';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -14,7 +14,7 @@ import PDFDownloadButton from '@/components/PDFDownloadButton';
 import WhatsAppSenderButton from '@/components/WhatsAppSenderButton';
 import { calculateTotals, numberToWords } from '@/utils/calculations';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Importar la localización en español
+import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -122,8 +122,10 @@ const PurchaseOrderDetails = () => {
     queryKey: ['purchaseOrderDetails', id],
     queryFn: async () => {
       if (!id) throw new Error('Purchase Order ID is missing.');
-      const details = await getPurchaseOrderDetails(id);
+      const details = await purchaseOrderService.getById(id);
       if (!details) throw new Error('Purchase Order not found.');
+      // The service returns the data with joins, so we cast it to the local interface
+      // compatible with the view.
       return details as unknown as PurchaseOrderDetailsData;
     },
     enabled: !!id,
@@ -188,7 +190,7 @@ const PurchaseOrderDetails = () => {
     const toastId = showLoading('Aprobando orden...');
 
     try {
-      const success = await updatePurchaseOrderStatus(order.id, 'Approved');
+      const success = await purchaseOrderService.updateStatus(order.id, 'Approved');
       if (success) {
         showSuccess('Orden de Compra aprobada exitosamente.');
         queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
@@ -417,8 +419,8 @@ const PurchaseOrderDetails = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-        <Button variant="outline" onClick={() => navigate(-1)}>
+      <div className="flex justify-between items-center mb-2 -mt-2 flex-wrap gap-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
 

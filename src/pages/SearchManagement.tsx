@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'; // Import Button
 import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2 } from 'lucide-react'; // Import new icons
 import { useQuery } from '@tanstack/react-query';
-import { getAllPurchaseOrders, getAllSuppliers } from '@/integrations/supabase/data';
+import { getAllSuppliers } from '@/integrations/supabase/data';
 import { PurchaseOrder, Supplier } from '@/integrations/supabase/types';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import SearchSuppliersWidget from '@/components/SearchSuppliersWidget';
 
@@ -14,7 +15,7 @@ const SearchManagement = () => {
   // 1. Fetch Purchase Orders for Pending Count
   const { data: purchaseOrders, isLoading: isLoadingOrders } = useQuery<PurchaseOrder[]>({
     queryKey: ['purchaseOrders', 'Active'],
-    queryFn: () => getAllPurchaseOrders('Active'),
+    queryFn: async () => await purchaseOrderService.getAll('Active'),
   });
 
   // Calculate Pending Orders (Draft or Sent)

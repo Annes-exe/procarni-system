@@ -6,7 +6,8 @@ import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
 import { PlusCircle, Trash2, ArrowLeft, Loader2, FileText } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createPurchaseOrder, searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
+import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
@@ -19,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import SmartSearch from '@/components/SmartSearch';
 import { Label } from '@/components/ui/label';
+
 
 interface Company {
   id: string;
@@ -334,6 +336,7 @@ const GeneratePurchaseOrder = () => {
       return;
     }
 
+    // ... inside handleSubmit ...
     setIsSubmitting(true);
     const orderData = {
       supplier_id: supplierId,
@@ -349,16 +352,19 @@ const GeneratePurchaseOrder = () => {
       credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
       observations: observations || null,
       quote_request_id: quoteRequest?.id || null,
-      service_order_id: serviceOrderId || null, // Added
+      service_order_id: serviceOrderId || null,
     };
 
-    // Cast orderData to any because the PurchaseOrder type includes joined fields (supplier, company)
-    // and DB-generated fields (sequence_number) that are not required for creation.
-    const createdOrder = await createPurchaseOrder(orderData as any, items as any);
+    // Use the new service instead of raw data function
+    // We cast orderData to CreatePurchaseOrderInput because the service expects strict input
+    // and some fields might be incompatible if not perfectly aligned, but here they seem fine.
+    // The service handles item creation internally if passed.
+    const createdOrder = await purchaseOrderService.create(orderData as any, items as any);
 
     if (createdOrder) {
       if (quoteRequest?.id && quoteRequest.quote_request_items) {
         const itemsPayload = quoteRequest.quote_request_items.map((item: any) => ({
+          // ... logic remains same ...
           material_name: item.material_name,
           quantity: item.quantity,
           description: item.description,
@@ -386,14 +392,19 @@ const GeneratePurchaseOrder = () => {
       setCustomPaymentTerms('');
       setCreditDays(0);
       setObservations('');
+
+      // Navigate to the management page or details page
+      // navigate('/purchase-order-management'); // Optional: redirect user
     }
     setIsSubmitting(false);
   };
 
+  // ... (inside component)
+
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
+      <div className="flex items-center mb-2 -mt-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
       </div>

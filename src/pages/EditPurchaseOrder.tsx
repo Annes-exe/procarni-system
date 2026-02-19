@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { getPurchaseOrderDetails, searchMaterialsBySupplier, updatePurchaseOrder, searchSuppliers, searchCompanies } from '@/integrations/supabase/data';
+import { searchMaterialsBySupplier, searchSuppliers, searchCompanies } from '@/integrations/supabase/data'; // Removed updatePurchaseOrder, getPurchaseOrderDetails
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { calculateTotals } from '@/utils/calculations';
@@ -82,7 +83,10 @@ const EditPurchaseOrder = () => {
 
   const { data: initialOrder, isLoading: isLoadingOrder, error: orderError } = useQuery({
     queryKey: ['purchaseOrderDetails', id],
-    queryFn: () => getPurchaseOrderDetails(id!),
+    queryFn: async () => {
+      const res = await purchaseOrderService.getById(id!);
+      return res as any; // Cast because local component expects specific structure (joins)
+    },
     enabled: !!id && !!session && !isLoadingSession,
   });
 
@@ -255,7 +259,7 @@ const EditPurchaseOrder = () => {
       observations: observations || null,
     };
 
-    const updatedOrder = await updatePurchaseOrder(id!, orderData, items);
+    const updatedOrder = await purchaseOrderService.update(id!, orderData, items as any);
 
     if (updatedOrder) {
       showSuccess('Orden de compra actualizada exitosamente.');
@@ -297,8 +301,8 @@ const EditPurchaseOrder = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
+      <div className="flex items-center mb-2 -mt-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
       </div>
