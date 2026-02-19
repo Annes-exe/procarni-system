@@ -470,17 +470,7 @@ const EditServiceOrder = () => {
                 <CardContent>
 
                     {/* Reuse similar structure to GenerateServiceOrder */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="md:col-span-1">
-                            <Label>Proveedor</Label>
-                            <SmartSearch
-                                placeholder="Buscar proveedor..."
-                                onSelect={handleSupplierSelect}
-                                fetchFunction={searchSuppliers}
-                                displayValue={supplierName}
-                            />
-                        </div>
-                    </div>
+                    {/* Reuse similar structure to GenerateServiceOrder */}
 
                     <ServiceOrderDetailsForm
                         companyId={companyId}
@@ -504,6 +494,9 @@ const EditServiceOrder = () => {
                         onDetailedServiceDescriptionChange={setDetailedServiceDescription}
                         onDestinationAddressChange={setDestinationAddress}
                         onObservationsChange={setObservations}
+                        supplierId={supplierId}
+                        supplierName={supplierName}
+                        onSupplierSelect={handleSupplierSelect}
                     />
 
                     <ServiceOrderItemsTable

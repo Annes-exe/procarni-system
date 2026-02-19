@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
-import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
 import { searchSuppliers } from '@/integrations/supabase/data';
@@ -398,36 +398,19 @@ const GenerateServiceOrder = () => {
       </div>
 
       <div className="space-y-6">
-        <Card className="shadow-sm border-gray-100">
-          <CardHeader className="bg-gray-50/50 pb-4">
-            <CardTitle className="text-procarni-primary text-lg">Información General</CardTitle>
-            <CardDescription>Detalles del proveedor y del servicio.</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="md:col-span-1">
-                <Label htmlFor="supplier" className="mb-2 block">Proveedor Principal *</Label>
-                <div className="flex gap-2">
-                  <SmartSearch
-                    key={`main-supplier-${supplierListVersion}`}
-                    placeholder="Buscar proveedor por RIF o nombre"
-                    onSelect={handleSupplierSelect}
-                    fetchFunction={searchSuppliers}
-                    displayValue={supplierName}
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsAddSupplierDialogOpen(true)}
-                    className="shrink-0"
-                    title="Añadir nuevo proveedor"
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                  </Button>
-                </div>
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                Información General
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Detalles de la orden</span>
               </div>
             </div>
-
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
             <ServiceOrderDetailsForm
               companyId={companyId}
               companyName={companyName}
@@ -450,17 +433,26 @@ const GenerateServiceOrder = () => {
               onDetailedServiceDescriptionChange={setDetailedServiceDescription}
               onDestinationAddressChange={setDestinationAddress}
               onObservationsChange={setObservations}
+              supplierId={supplierId}
+              supplierName={supplierName}
+              onSupplierSelect={handleSupplierSelect}
+              onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
             />
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-gray-100">
-          <CardHeader className="bg-gray-50/50 pb-4">
-            <CardTitle className="text-procarni-primary text-lg flex items-center">
-              <Wrench className="mr-2 h-5 w-5" /> Servicios
-            </CardTitle>
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                <Wrench className="mr-2 h-4 w-4" /> Servicios
+              </CardTitle>
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Servicio
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="p-0">
             <ServiceOrderItemsTable
               items={items}
               currency={currency}
@@ -468,18 +460,41 @@ const GenerateServiceOrder = () => {
               onRemoveItem={handleRemoveItem}
               onItemChange={handleItemChange}
             />
+            {items.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+                <Wrench className="h-10 w-10 mb-3 text-gray-200" />
+                <p className="text-sm">No hay servicios agregados a la orden.</p>
+                <Button variant="link" onClick={handleAddItem} className="text-procarni-secondary">Añadir el primero</Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-gray-100">
-          <CardHeader className="bg-gray-50/50 pb-4">
-            <CardTitle className="text-procarni-primary text-lg flex items-center">
-              <Package className="mr-2 h-5 w-5" /> Repuestos y Adicionales (Opcional)
-            </CardTitle>
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                <Package className="mr-2 h-4 w-4" /> Repuestos y Adicionales
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Materiales adicionales</span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="p-6">
             <div className="mb-6 max-w-md">
-              <Label className="mb-2 block">Añadir Proveedor de Repuestos</Label>
+              <div className="flex justify-between items-center">
+                <Label className="mb-2 block">Añadir Proveedor de Repuestos</Label>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setIsSparePartsSupplierDialogOpen(true)}
+                  className="h-auto p-0 text-xs text-procarni-primary mb-2"
+                >
+                  + Nuevo Proveedor
+                </Button>
+              </div>
               <div className="flex gap-2">
                 <SmartSearch
                   key={`spare-parts-supplier-${supplierListVersion}`}
@@ -489,15 +504,6 @@ const GenerateServiceOrder = () => {
                   displayValue={sparePartsSupplierName}
                   className="w-full"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsSparePartsSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor de repuestos"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
               </div>
             </div>
 
@@ -508,8 +514,10 @@ const GenerateServiceOrder = () => {
             />
 
             {sparePartsGroups.length === 0 ? (
-              <div className="text-center p-8 border-2 border-dashed rounded-lg text-muted-foreground bg-gray-50/50">
-                No se han agregado proveedores de repuestos.
+              <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+                <Package className="h-10 w-10 mb-3 text-gray-200" />
+                <p className="text-sm">No hay repuestos agregados a la orden.</p>
+                <Button variant="link" onClick={() => setIsSparePartsSupplierDialogOpen(true)} className="text-procarni-secondary">Añadir el primero</Button>
               </div>
             ) : (
               <Accordion type="multiple" className="w-full space-y-4" defaultValue={sparePartsGroups.map(g => g.internalId)}>
@@ -541,7 +549,18 @@ const GenerateServiceOrder = () => {
                         onRemoveItem={(itemIndex) => handleRemoveSparePartItem(groupIndex, itemIndex)}
                         onItemChange={(itemIndex, field, value) => handleSparePartItemChange(groupIndex, itemIndex, field as any, value)}
                         onMaterialSelect={(itemIndex, material) => handleSparePartMaterialSelect(groupIndex, itemIndex, material)}
+                        hideHeader={true}
                       />
+                      <div className="px-5 mt-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAddSparePartItem(groupIndex)}
+                          className="w-full border-dashed border-gray-300 text-gray-500 hover:text-procarni-primary hover:bg-procarni-primary/5"
+                        >
+                          <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Repuesto
+                        </Button>
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 ))}
