@@ -109,20 +109,14 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
                 </div>
               )}
             </div>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                <Search className="h-5 w-5" />
-              </span>
-              <div className="pl-10">
-                <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={onSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                  className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400"
-                />
-              </div>
-            </div>
+            <SmartSearch
+              placeholder="Buscar proveedor por RIF o nombre"
+              onSelect={onSupplierSelect}
+              fetchFunction={searchSuppliers}
+              displayValue={supplierName}
+              className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
+              icon={<Search className="h-4 w-4 text-gray-400" />}
+            />
           </div>
 
           {/* Empresa de Origen */}
@@ -130,20 +124,14 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
             <Label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
               Empresa de Origen <span className="text-red-500">*</span>
             </Label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 z-10">
-                <Building2 className="h-5 w-5" />
-              </span>
-              <div className="pl-10 relative">
-                <SmartSearch
-                  placeholder="Buscar empresa por RIF o nombre"
-                  onSelect={onCompanySelect}
-                  fetchFunction={searchCompanies}
-                  displayValue={companyName}
-                  className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none"
-                />
-              </div>
-            </div>
+            <SmartSearch
+              placeholder="Buscar empresa por RIF o nombre"
+              onSelect={onCompanySelect}
+              fetchFunction={searchCompanies}
+              displayValue={companyName}
+              className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
+              icon={<Building2 className="h-4 w-4 text-gray-400" />}
+            />
           </div>
 
           {/* Equipo o Maquinaria */}
