@@ -1,11 +1,13 @@
+// src/pages/ServiceOrderDetails.tsx
+
 import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Download, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, Wrench, ListOrdered, Package } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, Wrench, Package, ListOrdered, Calendar, User, MapPin } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getServiceOrderDetails, updateServiceOrderStatus } from '@/integrations/supabase/data';
+import { serviceOrderService } from '@/services/serviceOrderService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -15,7 +17,7 @@ import WhatsAppSenderButton from '@/components/WhatsAppSenderButton';
 import { calculateTotals, numberToWords } from '@/utils/calculations';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import EmailSenderModal from '@/components/EmailSenderModal'; // Reusable component
+import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -28,33 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
-
-interface ServiceOrderItemDetails extends ServiceOrderItem {
-  // No additional joins needed for items
-}
-
-interface SupplierDetails {
-  id: string;
-  name: string;
-  rif: string;
-  email?: string;
-  phone?: string;
-  payment_terms?: string;
-  credit_days?: number;
-}
-
-interface CompanyDetails {
-  id: string;
-  name: string;
-  rif: string;
-}
-
-interface ServiceOrderDetailsData extends ServiceOrder {
-  suppliers: SupplierDetails;
-  companies: CompanyDetails;
-  service_order_items: ServiceOrderItemDetails[];
-}
+import { Badge } from '@/components/ui/badge';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -66,12 +42,10 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-
   return `OS-${year}-${month}-${seq}`;
 };
 
@@ -88,66 +62,56 @@ const ServiceOrderDetails = () => {
 
   const pdfViewerRef = React.useRef<ServiceOrderPDFViewerRef>(null);
 
-  // Helper function to correctly parse date strings (YYYY-MM-DD) for display
   const parseDateForDisplay = (dateString: string): Date => {
     return new Date(dateString + 'T12:00:00');
   };
 
-  const { data: order, isLoading, error } = useQuery<ServiceOrderDetailsData | null>({
+  const { data: order, isLoading, error } = useQuery({
     queryKey: ['serviceOrderDetails', id],
     queryFn: async () => {
       if (!id) throw new Error('Service Order ID is missing.');
-      const details = await getServiceOrderDetails(id);
+      const details = await serviceOrderService.getById(id);
       if (!details) throw new Error('Service Order not found.');
-      return details as ServiceOrderDetailsData;
+      return details;
     },
     enabled: !!id,
   });
 
-  const itemsForCalculation = [
-    ...(order?.service_order_items?.map(item => ({
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_rate: item.tax_rate,
-      is_exempt: item.is_exempt,
-      sales_percentage: item.sales_percentage,
-      discount_percentage: item.discount_percentage,
-    })) || []),
-    ...(order?.service_order_materials?.map(item => ({
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_rate: item.tax_rate,
-      is_exempt: item.is_exempt,
-      sales_percentage: item.sales_percentage,
-      discount_percentage: item.discount_percentage,
-    })) || [])
-  ];
+  const { itemsForCalculation, groupedMaterials } = useMemo(() => {
+    if (!order) return { itemsForCalculation: [], groupedMaterials: {} };
 
-  const groupedMaterials = useMemo(() => {
-    if (!order?.service_order_materials) return {};
+    const items = [
+      ...(order.service_order_items?.map(item => ({
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        tax_rate: item.tax_rate,
+        is_exempt: item.is_exempt,
+        sales_percentage: item.sales_percentage,
+        discount_percentage: item.discount_percentage,
+      })) || []),
+      ...(order.service_order_materials?.map(item => ({
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        tax_rate: item.tax_rate,
+        is_exempt: item.is_exempt,
+        sales_percentage: item.sales_percentage,
+        discount_percentage: item.discount_percentage,
+      })) || [])
+    ];
 
     const groups: Record<string, { name: string; items: any[] }> = {};
-
-    order.service_order_materials.forEach(item => {
+    order.service_order_materials?.forEach(item => {
       const supplierId = item.supplier_id;
-      // @ts-ignore - Backend join provides this
+      // @ts-ignore
       const supplierName = item.suppliers?.name || "Proveedor desconocido";
-
       if (!groups[supplierId]) {
-        groups[supplierId] = {
-          name: supplierName,
-          items: []
-        };
+        groups[supplierId] = { name: supplierName, items: [] };
       }
       groups[supplierId].items.push(item);
     });
 
-    return groups;
-  }, [order?.service_order_materials]);
-
-
-
-
+    return { itemsForCalculation: items, groupedMaterials: groups };
+  }, [order]);
 
   const totals = calculateTotals(itemsForCalculation);
   const amountInWords = order ? numberToWords(totals.total, order.currency) : '';
@@ -162,6 +126,7 @@ const ServiceOrderDetails = () => {
   const generateFileName = () => {
     if (!order) return '';
     const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+    // @ts-ignore
     const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
     return `${sequence}-${supplierName}.pdf`;
   };
@@ -174,7 +139,7 @@ const ServiceOrderDetails = () => {
     const toastId = showLoading('Aprobando orden de servicio...');
 
     try {
-      const success = await updateServiceOrderStatus(order.id, 'Approved');
+      const success = await serviceOrderService.updateStatus(order.id, 'Approved');
       if (success) {
         showSuccess('Orden de Servicio aprobada exitosamente.');
         queryClient.invalidateQueries({ queryKey: ['serviceOrderDetails', id] });
@@ -207,80 +172,95 @@ const ServiceOrderDetails = () => {
     });
   };
 
-  const displayPaymentTerms = () => {
-    // Payment terms come from supplier for Service Orders
-    if (order?.suppliers?.payment_terms === 'Crédito' && order.suppliers.credit_days) {
-      return `Crédito (${order.suppliers.credit_days} días)`;
-    }
-    return order?.suppliers?.payment_terms || 'Contado';
-  };
-
   const handleSendEmail = async (customMessage: string, sendWhatsApp: boolean, phone?: string) => {
     if (!session?.user?.email || !order) return;
 
-    // 1. Generate PDF
-    const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-so-pdf`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ orderId: order.id }),
-    });
+    const toastId = showLoading('Generando PDF y enviando correo...');
 
-    if (!pdfResponse.ok) {
-      const errorData = await pdfResponse.json();
-      throw new Error(errorData.error || 'Error al generar el PDF.');
-    }
+    try {
+      const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-so-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      });
 
-    const pdfBlob = await pdfResponse.blob();
-    const pdfBase64 = await blobToBase64(pdfBlob);
+      if (!pdfResponse.ok) {
+        const errorData = await pdfResponse.json();
+        throw new Error(errorData.error || 'Error al generar el PDF.');
+      }
 
-    // 2. Send Email
-    const emailBody = `
+      const pdfBlob = await pdfResponse.blob();
+      const pdfBase64 = await blobToBase64(pdfBlob);
+
+      const emailBody = `
         <h2>Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)}</h2>
-        <p><strong>Empresa:</strong> ${order.companies?.name}</p>
-        <p><strong>Proveedor:</strong> ${order.suppliers?.name}</p>
+        <p><strong>Empresa:</strong> ${
+        // @ts-ignore
+        order.companies?.name
+        }</p>
+        <p><strong>Proveedor:</strong> ${
+        // @ts-ignore
+        order.suppliers?.name
+        }</p>
         <p><strong>Fecha de Servicio:</strong> ${order.service_date ? format(parseDateForDisplay(order.service_date), 'PPP', { locale: es }) : 'N/A'}</p>
-        <p><strong>Condición de Pago:</strong> ${displayPaymentTerms()}</p>
+        <p><strong>Condición de Pago:</strong> ${
+        // @ts-ignore
+        order.suppliers?.payment_terms || 'Contado'
+        }</p>
         ${customMessage ? `<p><strong>Mensaje:</strong><br>${customMessage.replace(/\n/g, '<br>')}</p>` : ''}
         <p>Se adjunta el PDF con los detalles de la orden de servicio.</p>
       `;
 
-    const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: order.suppliers?.email,
-        subject: `Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} - ${order.companies?.name}`,
-        body: emailBody,
-        attachmentBase64: pdfBase64,
-        attachmentFilename: generateFileName(),
-      }),
-    });
+      const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          // @ts-ignore
+          to: order.suppliers?.email,
+          // @ts-ignore
+          subject: `Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} - ${order.companies?.name}`,
+          body: emailBody,
+          attachmentBase64: pdfBase64,
+          attachmentFilename: generateFileName(),
+        }),
+      });
 
-    if (!emailResponse.ok) {
-      const errorData = await emailResponse.json();
-      throw new Error(errorData.error || 'Error al enviar el correo.');
-    }
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        throw new Error(errorData.error || 'Error al enviar el correo.');
+      }
 
-    // 3. Send WhatsApp (if requested)
-    if (sendWhatsApp && phone) {
-      const formattedPhone = phone.replace(/\D/g, '');
-      const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-      const whatsappMessage = `Hola, te he enviado por correo la Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
-      const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-      window.open(whatsappUrl, '_blank');
+      if (sendWhatsApp && phone) {
+        const formattedPhone = phone.replace(/\D/g, '');
+        const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
+        // @ts-ignore
+        const whatsappMessage = `Hola, te he enviado por correo la Orden de Servicio #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
+        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+
+      showSuccess('Correo enviado exitosamente.');
+      setIsEmailModalOpen(false);
+
+    } catch (error: unknown) {
+      console.error('[ServiceOrderDetails] Error sending email:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al enviar el correo.';
+      showError(errorMessage);
+    } finally {
+      dismissToast(toastId);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando detalles de la orden de servicio...
+      <div className="container mx-auto p-4 text-center text-muted-foreground animate-pulse mt-10">
+        Cargando documento...
       </div>
     );
   }
@@ -317,400 +297,445 @@ const ServiceOrderDetails = () => {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusColorClass = (status: string) => {
     switch (status) {
-      case 'Draft':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'Sent':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'Approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      case 'Archived':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-600';
+      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
+      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
+      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
+      default: return 'bg-gray-50 text-gray-500';
     }
   };
 
-  const ActionButtons = () => (
-    <>
-      {/* 1. Previsualizar PDF */}
-      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-        <DialogTrigger asChild>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-            <span className="flex items-center">
-              <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-            </span>
-          </DropdownMenuItem>
-        </DialogTrigger>
-        <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Previsualización de Orden de Servicio</DialogTitle>
-          </DialogHeader>
-          <ServiceOrderPDFViewer
-            orderId={order.id}
-            onClose={() => setIsModalOpen(false)}
-            fileName={generateFileName()}
-            ref={pdfViewerRef}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* 2. Descargar PDF */}
-      <DropdownMenuItem asChild>
-        <PDFDownloadButton
-          orderId={order.id}
-          fileNameGenerator={generateFileName}
-          endpoint="generate-so-pdf"
-          label="Descargar PDF"
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {/* 3. Enviar por Correo */}
-      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsEmailModalOpen(true); }} disabled={!order.suppliers?.email} className="cursor-pointer">
-        <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-      </DropdownMenuItem>
-
-      {/* 4. Enviar por WhatsApp */}
-      <DropdownMenuItem asChild>
-        <WhatsAppSenderButton
-          recipientPhone={order.suppliers?.phone}
-          documentType="Orden de Servicio"
-          documentId={order.id}
-          documentNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
-          companyName={order.companies?.name || ''}
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {/* 5. Aprobar Orden */}
-      {isEditable && order.status !== 'Approved' && (
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsApproveConfirmOpen(true); }} disabled={isApproving} className="cursor-pointer text-green-600 focus:text-green-700">
-          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar Orden
-        </DropdownMenuItem>
-      )}
-
-      {/* 6. Editar Orden */}
-      {isEditable ? (
-        <DropdownMenuItem onSelect={() => navigate(`/service-orders/edit/${order.id}`)} className="cursor-pointer">
-          <Edit className="mr-2 h-4 w-4" /> Editar Orden
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem disabled>
-          <Edit className="mr-2 h-4 w-4" /> Editar Orden (No editable)
-        </DropdownMenuItem>
-      )}
-    </>
-  );
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1 block";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500";
+  const valueClass = "text-procarni-dark font-medium text-sm";
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-2 -mt-2 flex-wrap gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary">
-              <MoreVertical className="h-4 w-4" />
-              <span className="ml-2">Acciones</span>
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-8 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+
+        {/* Title & Status */}
+        <div className="flex flex-col gap-1 w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>Opciones de Orden de Servicio</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <ActionButtons />
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight">
+              {formatSequenceNumber(order.sequence_number, order.created_at)}
+            </h1>
+            <Badge className={cn("ml-2 pointer-events-none rounded-md px-2.5 py-0.5 text-xs font-semibold shadow-none border", getStatusColorClass(order.status))} variant="outline">
+              {STATUS_TRANSLATIONS[order.status] || order.status}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <div className="flex items-center gap-2 ml-auto md:ml-0">
+            {/* PDF Preview */}
+            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="hidden md:flex gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden lg:inline">Previsualizar</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
+                <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <DialogTitle>Previsualización de Documento</DialogTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setIsModalOpen(false)}>Cerrar</Button>
+                </div>
+                <div className="flex-1 overflow-hidden bg-gray-100">
+                  <ServiceOrderPDFViewer
+                    orderId={order.id}
+                    onClose={() => setIsModalOpen(false)}
+                    fileName={generateFileName()}
+                    ref={pdfViewerRef}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <PDFDownloadButton
+              orderId={order.id}
+              fileNameGenerator={generateFileName}
+              endpoint="generate-so-pdf"
+              label="PDF"
+              variant="outline"
+              size="sm"
+              className="hidden md:flex"
+            />
+
+            <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)} disabled={
+              // @ts-ignore
+              !order.suppliers?.email
+            } className="hidden md:flex gap-2">
+              <Mail className="h-4 w-4" />
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="md:hidden">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <PDFDownloadButton
+                    orderId={order.id}
+                    fileNameGenerator={generateFileName}
+                    endpoint="generate-so-pdf"
+                    label="Descargar PDF"
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={
+                  // @ts-ignore
+                  !order.suppliers?.email
+                }>
+                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <WhatsAppSenderButton
+                    // @ts-ignore
+                    recipientPhone={order.suppliers?.phone}
+                    documentType="Orden de Servicio"
+                    documentId={order.id}
+                    documentNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+                    // @ts-ignore
+                    companyName={order.companies?.name || ''}
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
+                    label="Enviar por WhatsApp"
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {isEditable && order.status !== 'Approved' && (
+              <Button
+                onClick={() => setIsApproveConfirmOpen(true)}
+                disabled={isApproving}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
+                size="sm"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Aprobar Orden</span>
+              </Button>
+            )}
+
+            {isEditable && (
+              <Button onClick={() => navigate(`/service-orders/edit/${order.id}`)} variant="outline" size="sm" className="gap-2">
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary flex items-center">
-            <Wrench className="mr-2 h-6 w-6" /> Orden de Servicio {formatSequenceNumber(order.sequence_number, order.created_at)}
-          </CardTitle>
-          <CardDescription>Detalles completos de la orden de servicio.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6 p-4 border rounded-lg bg-muted/50">
-            <p className="flex items-center">
-              <ListOrdered className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>N° Orden:</strong> {formatSequenceNumber(order.sequence_number, order.created_at)}
-            </p>
-            <p className="flex items-center">
-              <Building2 className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Empresa:</strong> {order.companies?.name || 'N/A'}
-            </p>
-            <p className="flex items-center">
-              <Tag className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Proveedor:</strong> {order.suppliers?.name || 'N/A'}
-            </p>
-            <p className="flex items-center">
-              <Clock className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Fecha Emisión:</strong> {format(parseDateForDisplay(order.issue_date), 'PPP', { locale: es })}
-            </p>
-            <p className="flex items-center">
-              <Clock className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Fecha Servicio:</strong> {format(parseDateForDisplay(order.service_date), 'PPP', { locale: es })}
-            </p>
-            <p className="flex items-center">
-              <Wrench className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Equipo:</strong> {order.equipment_name}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Tipo de Servicio:</strong> {order.service_type}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Detalle del Servicio:</strong> {order.detailed_service_description || 'N/A'}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Dirección Destino:</strong> {order.destination_address}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Estado:</strong>
-              <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(order.status))}>
-                {STATUS_TRANSLATIONS[order.status] || order.status}
-              </span>
+      {/* PHASE 2: GENERAL INFORMATION GRID */}
+      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1 text-sm">
+          {/* Company */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Empresa</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{order.companies?.name || 'N/A'}</p>
+            {/* @ts-ignore */}
+            <p className="text-xs text-gray-500">{order.companies?.rif}</p>
+          </div>
+
+          {/* Supplier */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Proveedor</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{order.suppliers?.name || 'N/A'}</p>
+            {/* @ts-ignore */}
+            <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
+          </div>
+
+          {/* Service Date */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha de Servicio</span>
+            <p className={valueClass}>
+              {order.service_date ? format(parseDateForDisplay(order.service_date), 'PPP', { locale: es }) : 'N/A'}
             </p>
           </div>
+
+          {/* Equipment */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Equipo / Maquinaria</span>
+            <p className={valueClass}>{order.equipment_name || 'N/A'}</p>
+          </div>
+
+          {/* Service Type */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Tipo de Servicio</span>
+            <p className={valueClass}>{order.service_type || 'N/A'}</p>
+          </div>
+
+          {/* Destination */}
+          <div className="space-y-1 md:col-span-2">
+            <span className={microLabelClass}>Dirección Destino</span>
+            <p className={valueClass}>{order.destination_address || 'N/A'}</p>
+          </div>
+
+        </div>
+
+        {/* Details & Observations */}
+        <div className="mt-6 space-y-4">
+          {order.detailed_service_description && (
+            <div className="p-4 bg-gray-50 border border-gray-100 rounded-md">
+              <span className={microLabelClass}>Detalle del Servicio</span>
+              <p className="whitespace-pre-wrap text-gray-700">{order.detailed_service_description}</p>
+            </div>
+          )}
 
           {order.observations && (
-            <div className="mb-6 p-3 border rounded-md bg-muted/50">
-              <p className="font-semibold text-sm mb-1 text-procarni-primary">Observaciones:</p>
-              <p className="text-sm whitespace-pre-wrap">{order.observations}</p>
+            <div className="p-4 bg-gray-50 border border-gray-100 rounded-md flex gap-3 text-sm text-gray-600 max-w-4xl">
+              <Paperclip className="h-4 w-4 flex-shrink-0 mt-0.5 text-gray-400" />
+              <div>
+                <span className="font-semibold text-gray-700 block mb-1">Observaciones:</span>
+                <p className="whitespace-pre-wrap">{order.observations}</p>
+              </div>
             </div>
           )}
+        </div>
+      </div>
 
-          <h3 className="text-lg font-semibold mt-8 mb-4 text-procarni-primary">Ítems de Costo/Servicio</h3>
-          {order.service_order_items && order.service_order_items.length > 0 ? (
-            isMobile ? (
-              <div className="space-y-3">
-                {order.service_order_items.map((item) => {
-                  const itemTotals = calculateTotals([{
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                    tax_rate: item.tax_rate,
-                    is_exempt: item.is_exempt,
-                    sales_percentage: item.sales_percentage,
-                    discount_percentage: item.discount_percentage,
-                  }]);
-                  return (
-                    <Card key={item.id} className="p-3 shadow-sm">
-                      <p className="font-semibold text-procarni-primary">{item.description}</p>
-                      <div className="text-sm mt-1 grid grid-cols-2 gap-2">
-                        <p><strong>Cantidad:</strong> {item.quantity}</p>
-                        <p><strong>P. Unitario:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
-                        <p><strong>Subtotal:</strong> {order.currency} {itemTotals.baseImponible.toFixed(2)}</p>
-                        <p><strong>IVA:</strong> {order.currency} {itemTotals.montoIVA.toFixed(2)}</p>
-                        <p><strong>Exento:</strong> {item.is_exempt ? 'Sí' : 'No'}</p>
+      {/* PHASE 3: SERVICES LIST (READ-ONLY) */}
+      {order.service_order_items && order.service_order_items.length > 0 && (
+        <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-100">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+              <Wrench className="h-3 w-3 mr-2" /> Servicios
+            </h3>
+          </div>
+          <CardContent className="p-0">
+            {isMobile ? (
+              <div className="divide-y divide-gray-100">
+                {order.service_order_items.map((item) => (
+                  <div key={item.id} className="p-4 bg-white">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-procarni-dark">{item.description}</span>
+                      <span className="font-mono text-sm font-semibold">{order.currency} {(item.quantity * item.unit_price).toFixed(2)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
+                      <div>
+                        <span className="text-[10px] uppercase text-gray-400 block">Cant.</span>
+                        {item.quantity}
                       </div>
-                      <div className="mt-2 pt-2 border-t flex justify-between font-bold text-sm">
-                        <span>Total Ítem:</span>
-                        <span>{order.currency} {itemTotals.total.toFixed(2)}</span>
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase text-gray-400 block">Precio Unitarios</span>
+                        {item.unit_price.toFixed(2)}
                       </div>
-                    </Card>
-                  );
-                })}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>P. Unitario ({order.currency})</TableHead>
-                      <TableHead>Desc. (%)</TableHead>
-                      <TableHead>Venta (%)</TableHead>
-                      <TableHead>Base Imponible ({order.currency})</TableHead>
-                      <TableHead>IVA ({order.currency})</TableHead>
-                      <TableHead>Exento</TableHead>
-                      <TableHead className="text-right">Total ({order.currency})</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {order.service_order_items.map((item) => {
-                      const itemTotals = calculateTotals([{
-                        quantity: item.quantity,
-                        unit_price: item.unit_price,
-                        tax_rate: item.tax_rate,
-                        is_exempt: item.is_exempt,
-                        sales_percentage: item.sales_percentage,
-                        discount_percentage: item.discount_percentage,
-                      }]);
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium max-w-[200px] truncate">{item.description}</TableCell>
-                          <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{item.unit_price.toFixed(2)}</TableCell>
-                          <TableCell>{(item.discount_percentage || 0).toFixed(2)}%</TableCell>
-                          <TableCell>{(item.sales_percentage || 0).toFixed(2)}%</TableCell>
-                          <TableCell>{itemTotals.baseImponible.toFixed(2)}</TableCell>
-                          <TableCell>{itemTotals.montoIVA.toFixed(2)}</TableCell>
-                          <TableCell>{item.is_exempt ? 'Sí' : 'No'}</TableCell>
-                          <TableCell className="text-right font-bold">{itemTotals.total.toFixed(2)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )
-          ) : (
-            <p className="text-muted-foreground">Esta orden de servicio no tiene ítems registrados.</p>
-          )}
-
-          {Object.keys(groupedMaterials).length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4 text-procarni-primary flex items-center">
-                <Package className="mr-2 h-5 w-5" /> Repuestos y Adicionales
-              </h3>
-
-              {Object.entries(groupedMaterials).map(([supplierId, group]) => (
-                <div key={supplierId} className="mb-6 border rounded-lg overflow-hidden">
-                  <div className="bg-muted px-4 py-2 font-medium border-b flex justify-between items-center flex-wrap gap-2">
-                    <span>{group.name}</span>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="bg-procarni-secondary hover:bg-green-700 text-white"
-                      onClick={() => {
-                        navigate('/generate-po', {
-                          state: {
-                            serviceOrder: order,
-                            serviceOrderItems: group.items,
-                            supplier: { id: supplierId, name: group.name }
-                          }
-                        });
-                      }}
-                    >
-                      <Package className="mr-2 h-4 w-4" />
-                      Generar Orden de Compra
-                    </Button>
-                  </div>
-
-                  {isMobile ? (
-                    <div className="p-3 space-y-3">
-                      {group.items.map((item: any) => {
-                        const itemTotals = calculateTotals([{
-                          quantity: item.quantity,
-                          unit_price: item.unit_price,
-                          tax_rate: item.tax_rate,
-                          is_exempt: item.is_exempt,
-                          sales_percentage: item.sales_percentage,
-                          discount_percentage: item.discount_percentage,
-                        }]);
-                        return (
-                          <Card key={item.id} className="p-3 shadow-sm bg-gray-50/50">
-                            <div className="mb-1">
-                              <p className="font-semibold text-sm text-procarni-primary">{item.materials?.name || 'Material sin nombre'}</p>
-                              {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
-                            </div>
-                            <div className="text-xs mt-1 grid grid-cols-2 gap-2 text-muted-foreground">
-                              <p><strong>Cant:</strong> {item.quantity}</p>
-                              <p><strong>Precio:</strong> {order.currency} {item.unit_price.toFixed(2)}</p>
-                              <p><strong>Total:</strong> {order.currency} {itemTotals.total.toFixed(2)}</p>
-                            </div>
-                          </Card>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-gray-50/50">
-                            <TableHead className="w-[40%]">Material / Descripción</TableHead>
-                            <TableHead className="text-center">Cant.</TableHead>
-                            <TableHead className="text-right">Precio</TableHead>
-                            <TableHead className="text-right">Desc.%</TableHead>
-                            <TableHead className="text-right">Venta%</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {group.items.map((item: any) => {
-                            const itemTotals = calculateTotals([{
-                              quantity: item.quantity,
-                              unit_price: item.unit_price,
-                              tax_rate: item.tax_rate,
-                              is_exempt: item.is_exempt,
-                              sales_percentage: item.sales_percentage,
-                              discount_percentage: item.discount_percentage,
-                            }]);
-                            return (
-                              <TableRow key={item.id}>
-                                <TableCell className="font-medium">
-                                  <div className="flex flex-col">
-                                    <span className="font-semibold">{item.materials?.name || 'Material sin nombre'}</span>
-                                    {item.description && <span className="text-xs text-muted-foreground">{item.description}</span>}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-center">{item.quantity}</TableCell>
-                                <TableCell className="text-right">{item.unit_price.toFixed(2)}</TableCell>
-                                <TableCell className="text-right">{(item.discount_percentage || 0).toFixed(2)}</TableCell>
-                                <TableCell className="text-right">{(item.sales_percentage || 0).toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold">{itemTotals.total.toFixed(2)}</TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{order.currency} {totals.baseImponible.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {order.currency} {totals.montoDescuento.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {order.currency} {totals.montoVenta.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>+ {order.currency} {totals.montoIVA.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{order.currency} {totals.total.toFixed(2)}</span>
-            </div>
-            {totalInUSD && order.currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
+                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Descripción</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Cant.</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Precio ({order.currency})</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>IVA</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-right pr-6"}>Subtotal ({order.currency})</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {order.service_order_items.map((item) => {
+                    const subtotal = item.quantity * item.unit_price;
+                    return (
+                      <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                        <TableCell className="pl-6 py-4 font-medium text-procarni-dark text-sm">{item.description}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-gray-600">{item.quantity}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-gray-600">{item.unit_price.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">
+                          {item.is_exempt ? (
+                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Exento</span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">{(item.tax_rate * 100).toFixed(0)}%</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm font-medium text-procarni-dark pr-6">{subtotal.toFixed(2)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
-            <p className="text-sm italic mt-2 text-right">({amountInWords})</p>
+          </CardContent>
+        </Card>
+      )}
+
+
+      {/* PHASE 4: SPARE PARTS (READ-ONLY) */}
+      {Object.keys(groupedMaterials).length > 0 && (
+        <div className="mb-8 space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="h-4 w-4 text-procarni-primary" />
+            <h3 className="font-semibold text-procarni-primary">Repuestos y Adicionales</h3>
           </div>
-        </CardContent>
-      </Card>
+
+          {Object.entries(groupedMaterials).map(([supplierId, group]) => (
+            <Card key={supplierId} className="border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-100 flex justify-between items-center">
+                <span className="text-sm font-semibold text-gray-700">{group.name}</span>
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 text-xs bg-procarni-secondary hover:bg-green-700 text-white"
+                  onClick={() => {
+                    navigate('/generate-po', {
+                      state: {
+                        serviceOrder: order,
+                        serviceOrderItems: group.items,
+                        supplier: { id: supplierId, name: group.name }
+                      }
+                    });
+                  }}
+                >
+                  Generar OC
+                </Button>
+              </div>
+              <CardContent className="p-0">
+                {isMobile ? (
+                  <div className="divide-y divide-gray-100">
+                    {group.items.map((item: any) => (
+                      <div key={item.id} className="p-4 bg-white">
+                        <div className="flex justify-between items-start mb-2">
+                          {/* @ts-ignore */}
+                          <span className="font-medium text-procarni-dark">{item.materials?.name || 'Material'}</span>
+                          <span className="font-mono text-sm font-semibold">{order.currency} {(item.quantity * item.unit_price).toFixed(2)}</span>
+                        </div>
+                        {item.description && <p className="text-xs text-gray-500 mb-2">{item.description}</p>}
+                        <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
+                          <div>
+                            <span className="text-[10px] uppercase text-gray-400 block">Cant.</span>
+                            {item.quantity}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] uppercase text-gray-400 block">Precio</span>
+                            {item.unit_price.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-gray-100 hover:bg-transparent">
+                        <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Material / Descripción</TableHead>
+                        <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Cant.</TableHead>
+                        <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Precio ({order.currency})</TableHead>
+                        <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>IVA</TableHead>
+                        <TableHead className={tableHeaderClass + " h-9 py-2 text-right pr-6"}>Subtotal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {group.items.map((item: any) => {
+                        const subtotal = item.quantity * item.unit_price;
+                        return (
+                          <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                            <TableCell className="pl-6 py-4 text-sm">
+                              {/* @ts-ignore */}
+                              <span className="font-medium text-procarni-dark block">{item.materials?.name || 'Material'}</span>
+                              {item.description && <span className="text-xs text-gray-500 block mt-0.5">{item.description}</span>}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm text-gray-600">{item.quantity}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-gray-600">{item.unit_price.toFixed(2)}</TableCell>
+                            <TableCell className="text-center">
+                              {item.is_exempt ? (
+                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Exento</span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400">{(item.tax_rate * 100).toFixed(0)}%</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm font-medium text-procarni-dark pr-6">{subtotal.toFixed(2)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* PHASE 5: TOTALS ("TICKET DE CAJA") */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
+        <div className="w-full md:w-1/2 text-xs text-gray-400 italic px-2">
+          Importe en letras: {amountInWords}
+        </div>
+
+        <div className="w-full md:w-auto min-w-[300px] bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-gray-500 font-medium">Base Imponible</span>
+            <span className="font-mono text-gray-700">{order.currency} {totals.baseImponible.toFixed(2)}</span>
+          </div>
+
+          {totals.montoDescuento > 0 && (
+            <div className="flex justify-between items-center text-sm text-red-600">
+              <span className="font-medium">Descuento</span>
+              <span className="font-mono">- {order.currency} {totals.montoDescuento.toFixed(2)}</span>
+            </div>
+          )}
+
+          {totals.montoVenta > 0 && (
+            <div className="flex justify-between items-center text-sm text-blue-600">
+              <span className="font-medium">Margen Comercial</span>
+              <span className="font-mono">+ {order.currency} {totals.montoVenta.toFixed(2)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-gray-500 font-medium">Monto IVA</span>
+            <span className="font-mono text-gray-700">+ {order.currency} {totals.montoIVA.toFixed(2)}</span>
+          </div>
+
+          <div className="h-px border-b border-dashed border-gray-300 my-2" />
+
+          <div className="flex justify-between items-center text-lg">
+            <span className="font-bold text-procarni-dark">Total Final</span>
+            <span className="font-mono font-bold text-procarni-secondary text-xl">{order.currency} {totals.total.toFixed(2)}</span>
+          </div>
+
+          {totalInUSD && order.currency === 'VES' && (
+            <div className="flex justify-end pt-1">
+              <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                Ref. USD {totalInUSD} (@ {order.exchange_rate?.toFixed(2)})
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <MadeWithDyad />
 
       <EmailSenderModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
+        // @ts-ignore
         onSend={(message, sendWhatsApp) => handleSendEmail(message, sendWhatsApp, order.suppliers?.phone)}
+        // @ts-ignore
         recipientEmail={order.suppliers?.email || ''}
+        // @ts-ignore
         recipientPhone={order.suppliers?.phone}
         documentType="Orden de Servicio"
         documentId={order.id}

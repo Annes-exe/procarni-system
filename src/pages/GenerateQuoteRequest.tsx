@@ -1,11 +1,14 @@
+// src/pages/GenerateQuoteRequest.tsx
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Target } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createQuoteRequest, searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
+import { quoteRequestService } from '@/services/quoteRequestService';
+import { searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -75,15 +78,11 @@ const GenerateQuoteRequest = () => {
         quantity: 0,
         description: materialData.specification || '',
         unit: materialData.unit || MATERIAL_UNITS[0],
+        // @ts-ignore
+        material_id: materialData.id,
       }]);
     }
   }, [materialData]);
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const searchSupplierMaterials = React.useCallback(async (query: string) => {
-    if (!supplierId) return [];
-    return searchMaterialsBySupplier(supplierId, query);
-  }, [supplierId]);
 
   const handleAddItem = () => {
     setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0], material_id: undefined }]);
@@ -125,7 +124,8 @@ const GenerateQuoteRequest = () => {
   };
 
   const handleMaterialAdded = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
-    // Material created logic
+    // Optionally trigger a refresh or select the new material
+    // For now, simpler to just let them search it or if we knew which row triggered it, auto-fill.
   };
 
   const handleSubmit = async () => {
@@ -149,94 +149,162 @@ const GenerateQuoteRequest = () => {
     }
 
     setIsSubmitting(true);
-    const requestData = {
-      supplier_id: supplierId,
-      company_id: companyId,
-      currency: 'USD' as const,
-      exchange_rate: null,
-      created_by: userEmail || 'unknown',
-      user_id: userId,
-      status: 'Draft' // Fixed from 'pending'
-    };
 
-    // @ts-ignore - The createQuoteRequest type definition might be missing status in Omit but it's required by DB
-    const createdRequest = await createQuoteRequest(requestData, items);
+    try {
+      const orderData = {
+        supplier_id: supplierId,
+        company_id: companyId,
+        currency: 'USD' as const, // Default to USD for now, strictly typed
+        issue_date: new Date().toISOString(),
+        deadline_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // +7 days default
+        status: 'Draft' as const,
+      };
 
-    if (createdRequest) {
+      const formattedItems = items.map(item => ({
+        material_id: item.material_id || '', // Should ideally reject if no ID, but for flexible generic items might be empty? NO, we enforced strict materials.
+        // If strict materials are Enforced, we need material_id.
+        // If the user typed a name that isn't in DB, they should create it.
+        // For now, let's assume if they used SmartSearch they have an ID.
+        // If they just typed, we might fail or create a "Generic"?
+        // The service expects material_id.
+        // Let's check if we have IDs.
+        quantity: item.quantity,
+        unit: item.unit,
+        description: item.description,
+      }));
+
+      // Validation:
+      if (formattedItems.some(i => !i.material_id)) {
+        // If we allow ad-hoc items, we might need a "Generic Material" ID or handle it.
+        // But the system seems to want strict tracking.
+        // Let's warn the user if they didn't select a material from the list.
+        showError("Todos los ítems deben estar asociados a un material registrado. Por favor selecciona materiales de la lista.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      await quoteRequestService.create(orderData, formattedItems as any);
+
       showSuccess('Solicitud de cotización creada exitosamente.');
-      setCompanyId('');
-      setCompanyName('');
-      setSupplierId('');
-      setSupplierName('');
-      setItems([]);
+      navigate('/quote-requests');
+
+    } catch (error: any) {
+      console.error('Error creating quote request:', error);
+      showError(error.message || 'Error al crear la solicitud.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex items-center mb-2 -mt-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-4 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className='flex flex-col'>
+            <h1 className="text-xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
+              <Target className="h-5 w-5 text-gray-400" />
+              Nueva Solicitud (SC)
+            </h1>
+            <p className="text-xs text-gray-500">Crea una solicitud para recibir precios de proveedores</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
+          >
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Guardar Solicitud
+          </Button>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Generar Solicitud de Cotización (SC)</CardTitle>
-          <CardDescription>Crea una nueva solicitud de cotización para tus proveedores.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
-            <div>
-              <Label htmlFor="company">Empresa de Origen *</Label>
-              <SmartSearch
-                placeholder="Buscar empresa por RIF o nombre"
-                onSelect={handleCompanySelect}
-                fetchFunction={searchCompanies}
-                displayValue={companyName}
-              />
-              {companyName && <p className="text-sm text-muted-foreground mt-1 break-words">Empresa seleccionada: {companyName}</p>}
-            </div>
-            <div>
-              <Label htmlFor="supplier">Proveedor *</Label>
-              <div className="flex gap-2">
+
+      <div className="grid gap-6">
+        {/* PHASE 2: GENERAL INFO CARD */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+              Información General
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label htmlFor="company" className="text-sm font-medium text-gray-700">Empresa de Origen <span className="text-red-500">*</span></Label>
                 <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
+                  placeholder="Buscar empresa (RIF o Nombre)..."
+                  onSelect={handleCompanySelect}
+                  fetchFunction={searchCompanies}
+                  displayValue={companyName}
+                  className="bg-white"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
+                {companyName && <p className="text-xs text-green-600 font-medium">✓ {companyName}</p>}
               </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="supplier" className="text-sm font-medium text-gray-700">Proveedor <span className="text-red-500">*</span></Label>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => setIsAddSupplierDialogOpen(true)}
+                    className="h-auto p-0 text-xs text-procarni-primary"
+                  >
+                    + Nuevo Proveedor
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <SmartSearch
+                    placeholder="Buscar proveedor (RIF o Nombre)..."
+                    onSelect={handleSupplierSelect}
+                    fetchFunction={searchSuppliers}
+                    displayValue={supplierName}
+                    className="bg-white flex-1"
+                  />
+                </div>
+                {supplierName && <p className="text-xs text-green-600 font-medium">✓ {supplierName}</p>}
+              </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <QuoteRequestItemsTable
-            items={items}
-            supplierId={supplierId}
-            supplierName={supplierName}
-            onAddItem={handleAddItem}
-            onRemoveItem={handleRemoveItem}
-            onItemChange={handleItemChange}
-            onMaterialSelect={handleMaterialSelect}
-          />
-
-          <div className="flex justify-end gap-2 mt-6">
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Solicitud de Cotización'}
+        {/* PHASE 3: ITEMS TABLE */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden min-h-[400px]">
+          <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+              <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
+            </CardTitle>
+            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="p-0">
+            <QuoteRequestItemsTable
+              items={items}
+              supplierId={supplierId}
+              supplierName={supplierName}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
+              onItemChange={handleItemChange}
+              onMaterialSelect={handleMaterialSelect}
+            />
+          </CardContent>
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems agregados a la solicitud.</p>
+              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
+            </div>
+          )}
+        </Card>
+      </div>
+
       <MadeWithDyad />
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}

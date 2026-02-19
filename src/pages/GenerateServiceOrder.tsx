@@ -1,14 +1,14 @@
 // src/pages/GenerateServiceOrder.tsx
 
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
-import { ArrowLeft, Loader2, FileText, Wrench, PlusCircle, Package } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createServiceOrder, searchSuppliers } from '@/integrations/supabase/data';
+import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
+import { searchSuppliers } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -23,8 +23,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable'; // Reuse existing component
-
+import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 
 interface Company {
   id: string;
@@ -48,7 +47,6 @@ interface ServiceOrderItemForm {
   discount_percentage: number | null;
 }
 
-// Reuse the PurchaseOrderItemForm for spare parts, but adapted if needed
 interface SparePartItem {
   id?: string;
   material_id?: string;
@@ -100,11 +98,11 @@ const GenerateServiceOrder = () => {
 
   const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
 
-  // NEW STATE: Spare Parts Groups
+  // Spare Parts Groups
   const [sparePartsGroups, setSparePartsGroups] = useState<SparePartsGroup[]>([]);
-  const [sparePartsSupplierId, setSparePartsSupplierId] = useState<string>(''); // For the new section search
-  const [sparePartsSupplierName, setSparePartsSupplierName] = useState<string>(''); // For the new section search
-  const [supplierListVersion, setSupplierListVersion] = useState(0); // To force refresh of SmartSearch
+  const [sparePartsSupplierId, setSparePartsSupplierId] = useState<string>('');
+  const [sparePartsSupplierName, setSparePartsSupplierName] = useState<string>('');
+  const [supplierListVersion, setSupplierListVersion] = useState(0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
@@ -147,13 +145,11 @@ const GenerateServiceOrder = () => {
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
-    setSupplierListVersion(v => v + 1); // Refresh lists
+    setSupplierListVersion(v => v + 1);
   };
 
   // --- SPARE PARTS LOGIC ---
-
   const handleAddSparePartsSupplier = (supplier: { id: string; name: string }) => {
-    // Check if supplier is already added
     if (sparePartsGroups.some(g => g.supplierId === supplier.id)) {
       showError('Este proveedor ya ha sido agregado a la lista de repuestos.');
       setSparePartsSupplierId('');
@@ -170,10 +166,9 @@ const GenerateServiceOrder = () => {
         items: []
       }
     ]);
-    // Clear search
     setSparePartsSupplierId('');
     setSparePartsSupplierName('');
-    setSupplierListVersion(v => v + 1); // Refresh lists
+    setSupplierListVersion(v => v + 1);
   };
 
   const handleAddSparePartItem = (groupIndex: number) => {
@@ -222,24 +217,23 @@ const GenerateServiceOrder = () => {
         ...newGroups[groupIndex].items[itemIndex],
         material_id: material.id,
         material_name: material.name,
-        supplier_code: material.specification || '', // Assuming specification maps to code/ref
+        supplier_code: material.specification || '',
         unit: material.unit || 'UND',
         is_exempt: material.is_exempt || false,
-        unit_price: 0 // Reset price or fetch from history if implemented
+        unit_price: 0
       };
       return newGroups;
     });
   };
 
   // --- TOTALS CALCULATION ---
-
   const calculateGrandTotals = () => {
     const serviceTotals = calculateTotals(items);
 
     // Flatten all spare parts items to calculate their totals
     const allSpareParts = sparePartsGroups.flatMap(g => g.items);
-    // Be careful with type compatibility. calculateTotals expects basic fields which both match
-    const materialsTotals = calculateTotals(allSpareParts as any); // Cast as any or match interface
+    // Cast as any because calculateTotals expects specific fields, which match SparePartItem structurally
+    const materialsTotals = calculateTotals(allSpareParts as any);
 
     return {
       baseImponible: serviceTotals.baseImponible + materialsTotals.baseImponible,
@@ -289,10 +283,8 @@ const GenerateServiceOrder = () => {
       return;
     }
 
-    const invalidItem = items.find(item =>
-      !item.description ||
-      item.quantity <= 0 ||
-      item.unit_price <= 0
+    const invalidServiceItem = items.find(item =>
+      !item.description || item.quantity <= 0 || item.unit_price <= 0
     );
 
     if (items.length === 0 && sparePartsGroups.every(g => g.items.length === 0)) {
@@ -300,13 +292,12 @@ const GenerateServiceOrder = () => {
       return;
     }
 
-    // Validate services if any
-    if (items.length > 0 && invalidItem) {
+    if (items.length > 0 && invalidServiceItem) {
       showError('Por favor, revisa los ítems de servicio: descripción, cantidad y precio obligatorios.');
       return;
     }
 
-    // Validate spare parts if any
+    // Validate spare parts
     for (const group of sparePartsGroups) {
       const invalidPart = group.items.find(item =>
         !item.material_name || item.quantity <= 0 || item.unit_price <= 0
@@ -318,7 +309,8 @@ const GenerateServiceOrder = () => {
     }
 
     setIsSubmitting(true);
-    const orderData = {
+
+    const orderData: CreateServiceOrderInput = {
       issue_date: format(issueDate, 'yyyy-MM-dd'),
       service_date: format(serviceDate, 'yyyy-MM-dd'),
       supplier_id: supplierId,
@@ -329,13 +321,22 @@ const GenerateServiceOrder = () => {
       destination_address: destinationAddress,
       observations: observations || null,
       currency,
-      exchange_rate: currency === 'VES' ? exchangeRate : null,
-      status: 'Draft' as const,
+      exchange_rate: currency === 'VES' ? exchangeRate || null : null,
+      status: 'Draft',
       user_id: userId,
     };
 
-    // Flatten spare parts for backend
-    const materialsToSave = sparePartsGroups.flatMap(group =>
+    const serviceItems: CreateServiceOrderItemInput[] = items.map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      tax_rate: item.tax_rate,
+      is_exempt: item.is_exempt,
+      sales_percentage: item.sales_percentage,
+      discount_percentage: item.discount_percentage,
+    }));
+
+    const materialsToSave: CreateServiceOrderMaterialInput[] = sparePartsGroups.flatMap(group =>
       group.items.map(item => ({
         supplier_id: group.supplierId,
         material_id: item.material_id || null,
@@ -351,11 +352,11 @@ const GenerateServiceOrder = () => {
       }))
     );
 
-    const createdOrder = await createServiceOrder(orderData, items, materialsToSave);
+    const createdOrder = await serviceOrderService.create(orderData, serviceItems, materialsToSave);
 
     if (createdOrder) {
       showSuccess('Orden de Servicio creada exitosamente.');
-      // Reset form fields
+      // Reset form
       setCompanyId('');
       setCompanyName('');
       setSupplierId('');
@@ -368,11 +369,9 @@ const GenerateServiceOrder = () => {
       setDetailedServiceDescription('');
       setDestinationAddress(DESTINATION_ADDRESSES[0]);
       setObservations('');
-      setObservations('');
       setItems([]);
       setSparePartsGroups([]);
       setSparePartsSupplierId('');
-      setSparePartsSupplierName('');
       setSparePartsSupplierName('');
     }
     setIsSubmitting(false);
@@ -380,87 +379,110 @@ const GenerateServiceOrder = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex items-center mb-2 -mt-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+      {/* Action Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4 border-b mb-6 -mx-4 px-4 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+          </Button>
+          <h1 className="text-xl font-bold text-procarni-dark flex items-center">
+            <Wrench className="mr-2 h-6 w-6 text-procarni-primary" />
+            Nueva Orden de Servicio
+          </h1>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleSubmit} disabled={isSubmitting || !companyId || !supplierId} className="bg-procarni-secondary hover:bg-green-700 shadow-sm">
+            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="mr-2 h-4 w-4" /> Guardar Orden</>}
+          </Button>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary flex items-center">
-            <Wrench className="mr-2 h-6 w-6" /> Generar Orden de Servicio (OS)
-          </CardTitle>
-          <CardDescription>Crea una nueva orden de servicio para tus proveedores.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="md:col-span-1">
-              <Label htmlFor="supplier">Proveedor *</Label>
+
+      <div className="space-y-6">
+        <Card className="shadow-sm border-gray-100">
+          <CardHeader className="bg-gray-50/50 pb-4">
+            <CardTitle className="text-procarni-primary text-lg">Información General</CardTitle>
+            <CardDescription>Detalles del proveedor y del servicio.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="md:col-span-1">
+                <Label htmlFor="supplier" className="mb-2 block">Proveedor Principal *</Label>
+                <div className="flex gap-2">
+                  <SmartSearch
+                    key={`main-supplier-${supplierListVersion}`}
+                    placeholder="Buscar proveedor por RIF o nombre"
+                    onSelect={handleSupplierSelect}
+                    fetchFunction={searchSuppliers}
+                    displayValue={supplierName}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsAddSupplierDialogOpen(true)}
+                    className="shrink-0"
+                    title="Añadir nuevo proveedor"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <ServiceOrderDetailsForm
+              companyId={companyId}
+              companyName={companyName}
+              currency={currency}
+              exchangeRate={exchangeRate}
+              issueDate={issueDate}
+              serviceDate={serviceDate}
+              equipmentName={equipmentName}
+              serviceType={serviceType}
+              detailedServiceDescription={detailedServiceDescription}
+              destinationAddress={destinationAddress}
+              observations={observations}
+              onCompanySelect={handleCompanySelect}
+              onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
+              onExchangeRateChange={setExchangeRate}
+              onIssueDateChange={setIssueDate}
+              onServiceDateChange={setServiceDate}
+              onEquipmentNameChange={setEquipmentName}
+              onServiceTypeChange={setServiceType}
+              onDetailedServiceDescriptionChange={setDetailedServiceDescription}
+              onDestinationAddressChange={setDestinationAddress}
+              onObservationsChange={setObservations}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-gray-100">
+          <CardHeader className="bg-gray-50/50 pb-4">
+            <CardTitle className="text-procarni-primary text-lg flex items-center">
+              <Wrench className="mr-2 h-5 w-5" /> Servicios
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <ServiceOrderItemsTable
+              items={items}
+              currency={currency}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
+              onItemChange={handleItemChange}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-gray-100">
+          <CardHeader className="bg-gray-50/50 pb-4">
+            <CardTitle className="text-procarni-primary text-lg flex items-center">
+              <Package className="mr-2 h-5 w-5" /> Repuestos y Adicionales (Opcional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="mb-6 max-w-md">
+              <Label className="mb-2 block">Añadir Proveedor de Repuestos</Label>
               <div className="flex gap-2">
                 <SmartSearch
-                  key={`main-supplier-${supplierListVersion}`} // Force refresh
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
-              </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
-            </div>
-          </div>
-
-          <ServiceOrderDetailsForm
-            companyId={companyId}
-            companyName={companyName}
-            currency={currency}
-            exchangeRate={exchangeRate}
-            issueDate={issueDate}
-            serviceDate={serviceDate}
-            equipmentName={equipmentName}
-            serviceType={serviceType}
-            detailedServiceDescription={detailedServiceDescription}
-            destinationAddress={destinationAddress}
-            observations={observations}
-            onCompanySelect={handleCompanySelect}
-            onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
-            onExchangeRateChange={setExchangeRate}
-            onIssueDateChange={setIssueDate}
-            onServiceDateChange={setServiceDate}
-            onEquipmentNameChange={setEquipmentName}
-            onServiceTypeChange={setServiceType}
-            onDetailedServiceDescriptionChange={setDetailedServiceDescription}
-            onDestinationAddressChange={setDestinationAddress}
-            onObservationsChange={setObservations}
-          />
-
-          <ServiceOrderItemsTable
-            items={items}
-            currency={currency}
-            onAddItem={handleAddItem}
-            onRemoveItem={handleRemoveItem}
-            onItemChange={handleItemChange}
-          />
-
-          {/* --- SECCIÓN DE REPUESTOS Y ADICIONALES --- */}
-          <div className="mt-8 mb-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2 text-procarni-primary border-b pb-2 mb-4">
-              <Package className="h-5 w-5" /> Repuestos y Adicionales (Opcional)
-            </h3>
-
-            <div className="mb-4 max-w-md">
-              <Label>Añadir Proveedor de Repuestos</Label>
-              <div className="flex gap-2 mt-1">
-                <SmartSearch
-                  key={`spare-parts-supplier-${supplierListVersion}`} // Force refresh
+                  key={`spare-parts-supplier-${supplierListVersion}`}
                   placeholder="Buscar proveedor (ej. Ferretería...)"
                   onSelect={handleAddSparePartsSupplier}
                   fetchFunction={searchSuppliers}
@@ -486,32 +508,32 @@ const GenerateServiceOrder = () => {
             />
 
             {sparePartsGroups.length === 0 ? (
-              <div className="text-center p-6 border-2 border-dashed rounded-lg text-muted-foreground bg-gray-50">
+              <div className="text-center p-8 border-2 border-dashed rounded-lg text-muted-foreground bg-gray-50/50">
                 No se han agregado proveedores de repuestos.
               </div>
             ) : (
               <Accordion type="multiple" className="w-full space-y-4" defaultValue={sparePartsGroups.map(g => g.internalId)}>
                 {sparePartsGroups.map((group, groupIndex) => (
                   <AccordionItem key={group.internalId} value={group.internalId} className="border rounded-lg bg-white shadow-sm px-4">
-                    <AccordionTrigger className="hover:no-underline">
+                    <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex justify-between items-center w-full pr-4">
                         <span className="font-bold text-gray-700">{group.supplierName}</span>
-                        <div
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 flex items-center justify-center rounded-md cursor-pointer transition-colors px-3 py-1 font-medium text-sm"
-                          role="button"
-                          tabIndex={0}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveSparePartsGroup(groupIndex);
                           }}
                         >
                           Quitar Grupo
-                        </div>
+                        </Button>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="pt-2 pb-4">
+                    <AccordionContent className="pt-2 pb-6">
                       <PurchaseOrderItemsTable
-                        items={group.items as any} // Cast compatible type
+                        items={group.items as any}
                         supplierId={group.supplierId}
                         supplierName={group.supplierName}
                         currency={currency}
@@ -525,46 +547,46 @@ const GenerateServiceOrder = () => {
                 ))}
               </Accordion>
             )}
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{currency} {totals.baseImponible.toFixed(2)}</span>
+        {/* Totals Section - Redesigned */}
+        <div className="bg-gray-50 p-6 rounded-lg border border-gray-100 shadow-inner">
+          <div className="flex flex-col gap-3 max-w-sm ml-auto">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">Base Imponible:</span>
+              <span className="font-mono">{currency} {totals.baseImponible.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {currency} {totals.montoDescuento.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">Descuento:</span>
+              <span className="font-mono text-procarni-alert">- {currency} {totals.montoDescuento.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {currency} {totals.montoVenta.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">Margen Comercial:</span>
+              <span className="font-mono text-procarni-secondary">+ {currency} {totals.montoVenta.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>+ {currency} {totals.montoIVA.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">IVA (16%):</span>
+              <span className="font-mono">+ {currency} {totals.montoIVA.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{currency} {totals.total.toFixed(2)}</span>
+            <div className="border-t border-gray-300 pt-3 mt-1">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-lg text-procarni-dark">TOTAL:</span>
+                <span className="font-bold text-xl text-procarni-dark font-mono">{currency} {totals.total.toFixed(2)}</span>
+              </div>
             </div>
             {totalInUSD && currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
+              <div className="flex justify-end pt-1">
+                <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  Ref. USD: {totalInUSD}
+                </span>
               </div>
             )}
           </div>
+        </div>
 
-          <div className="flex justify-end gap-2 mt-6">
+      </div>
 
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !supplierId || !serviceDate || (items.length === 0 && sparePartsGroups.every(g => g.items.length === 0))} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Servicio'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <MadeWithDyad />
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}

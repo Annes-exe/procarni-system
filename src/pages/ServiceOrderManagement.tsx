@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Trash2, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, Wrench } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, Archive, RotateCcw, Wrench, XCircle, Trash2 } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getAllServiceOrders, archiveServiceOrder, unarchiveServiceOrder, deleteServiceOrder, updateServiceOrderStatus } from '@/integrations/supabase/data';
+import { serviceOrderService, ServiceOrderWithRelations } from '@/services/serviceOrderService';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -16,15 +16,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { ServiceOrder } from '@/integrations/supabase/types';
-import { format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CheckCircle } from 'lucide-react';
-
-interface ServiceOrderWithDetails extends ServiceOrder {
-  suppliers: { name: string };
-  companies: { name: string };
-}
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { format } from 'date-fns';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -36,12 +31,10 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-
   return `OS-${year}-${month}-${seq}`;
 };
 
@@ -54,39 +47,56 @@ const ServiceOrderManagement = () => {
   const isMobileView = isMobile || isTablet;
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved' | 'rejected'>('active');
+  const [showHistory, setShowHistory] = useState(false);
+
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' | 'delete' } | null>(null);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
-  const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [orderToReject, setOrderToReject] = useState<string | null>(null);
 
   // Fetch active orders
-  const { data: activeServiceOrders, isLoading: isLoadingActive, error: activeError } = useQuery<ServiceOrderWithDetails[]>({
+  const { data: activeServiceOrders, isLoading: isLoadingActive, error: activeError } = useQuery<ServiceOrderWithRelations[]>({
     queryKey: ['serviceOrders', 'Active'],
-    queryFn: () => getAllServiceOrders('Active') as Promise<ServiceOrderWithDetails[]>,
+    queryFn: async () => await serviceOrderService.getAll('Active'),
     enabled: !!session && activeTab === 'active',
   });
 
   // Fetch approved orders
-  const { data: approvedServiceOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<ServiceOrderWithDetails[]>({
+  const { data: approvedServiceOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<ServiceOrderWithRelations[]>({
     queryKey: ['serviceOrders', 'Approved'],
-    queryFn: () => getAllServiceOrders('Approved') as Promise<ServiceOrderWithDetails[]>,
+    queryFn: async () => await serviceOrderService.getAll('Approved'),
     enabled: !!session && activeTab === 'approved',
   });
 
   // Fetch archived orders
-  const { data: archivedServiceOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<ServiceOrderWithDetails[]>({
+  const { data: archivedServiceOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<ServiceOrderWithRelations[]>({
     queryKey: ['serviceOrders', 'Archived'],
-    queryFn: () => getAllServiceOrders('Archived') as Promise<ServiceOrderWithDetails[]>,
+    queryFn: async () => await serviceOrderService.getAll('Archived'),
     enabled: !!session && activeTab === 'archived',
   });
 
-  const currentOrders = activeTab === 'active' ? activeServiceOrders : (activeTab === 'approved' ? approvedServiceOrders : archivedServiceOrders);
-  const isLoading = activeTab === 'active' ? isLoadingActive : (activeTab === 'approved' ? isLoadingApproved : isLoadingArchived);
-  const error = activeTab === 'active' ? activeError : (activeTab === 'approved' ? approvedError : archivedError);
+  // Fetch rejected orders
+  const { data: rejectedServiceOrders, isLoading: isLoadingRejected, error: rejectedError } = useQuery<ServiceOrderWithRelations[]>({
+    queryKey: ['serviceOrders', 'Rejected'],
+    queryFn: async () => await serviceOrderService.getAll('Rejected'),
+    enabled: !!session && activeTab === 'rejected',
+  });
+
+  const currentOrders = useMemo(() => {
+    switch (activeTab) {
+      case 'active': return activeServiceOrders;
+      case 'approved': return approvedServiceOrders;
+      case 'archived': return archivedServiceOrders;
+      case 'rejected': return rejectedServiceOrders;
+      default: return [];
+    }
+  }, [activeTab, activeServiceOrders, approvedServiceOrders, archivedServiceOrders, rejectedServiceOrders]);
+
+  const isLoading = activeTab === 'active' ? isLoadingActive : (activeTab === 'approved' ? isLoadingApproved : (activeTab === 'rejected' ? isLoadingRejected : isLoadingArchived));
+  const error = activeTab === 'active' ? activeError : (activeTab === 'approved' ? approvedError : (activeTab === 'rejected' ? rejectedError : archivedError));
 
   const filteredServiceOrders = useMemo(() => {
     if (!currentOrders) return [];
@@ -103,11 +113,9 @@ const ServiceOrderManagement = () => {
   }, [currentOrders, searchTerm]);
 
   const archiveMutation = useMutation({
-    mutationFn: archiveServiceOrder,
+    mutationFn: (id: string) => serviceOrderService.updateStatus(id, 'Archived'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Active'] });
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Approved'] });
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Archived'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
       showSuccess('Orden de servicio archivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -120,11 +128,9 @@ const ServiceOrderManagement = () => {
   });
 
   const unarchiveMutation = useMutation({
-    mutationFn: unarchiveServiceOrder,
+    mutationFn: (id: string) => serviceOrderService.updateStatus(id, 'Draft'), // or 'Sent' depending on logic, usually Draft if restoring
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Active'] });
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Approved'] });
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Archived'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
       showSuccess('Orden de servicio desarchivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -137,9 +143,9 @@ const ServiceOrderManagement = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteServiceOrder,
+    mutationFn: serviceOrderService.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Archived'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
       showSuccess('Orden de servicio eliminada permanentemente.');
       setIsDeleteDialogOpen(false);
       setOrderToModify(null);
@@ -150,6 +156,32 @@ const ServiceOrderManagement = () => {
       setOrderToModify(null);
     },
   });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => serviceOrderService.updateStatus(id, 'Rejected'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      showSuccess('Orden de servicio rechazada exitosamente.');
+      setIsRejectDialogOpen(false);
+      setOrderToReject(null);
+    },
+    onError: (err) => {
+      showError(`Error al rechazar orden: ${err.message}`);
+      setIsRejectDialogOpen(false);
+      setOrderToReject(null);
+    },
+  });
+
+  const handleRejectClick = (id: string) => {
+    setOrderToReject(id);
+    setIsRejectDialogOpen(true);
+  };
+
+  const confirmReject = async () => {
+    if (orderToReject) {
+      await rejectMutation.mutateAsync(orderToReject);
+    }
+  };
 
   const confirmAction = (id: string, action: 'archive' | 'unarchive') => {
     setOrderToModify({ id, action });
@@ -173,50 +205,6 @@ const ServiceOrderManagement = () => {
     }
   }
 
-  const toggleSelection = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
-
-  const toggleAll = () => {
-    if (selectedIds.size === filteredServiceOrders.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredServiceOrders.map(o => o.id)));
-    }
-  };
-
-  const executeBulkApprove = async () => {
-    try {
-      await Promise.all(Array.from(selectedIds).map(id => updateServiceOrderStatus(id, 'Approved')));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
-      showSuccess(`${selectedIds.size} órdenes de servicio aprobadas exitosamente.`);
-      setSelectedIds(new Set());
-      setIsBulkApproveDialogOpen(false);
-    } catch (error) {
-      console.error('Error approving orders:', error);
-      showError('Error al aprobar las órdenes de servicio seleccionadas.');
-    }
-  };
-
-  const executeBulkArchive = async () => {
-    try {
-      await Promise.all(Array.from(selectedIds).map(id => archiveServiceOrder(id)));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
-      showSuccess(`${selectedIds.size} órdenes de servicio archivadas exitosamente.`);
-      setSelectedIds(new Set());
-      setIsBulkArchiveDialogOpen(false);
-    } catch (error) {
-      console.error('Error archiving orders:', error);
-      showError('Error al archivar las órdenes de servicio seleccionadas.');
-    }
-  };
-
   const handleViewDetails = (orderId: string) => {
     navigate(`/service-orders/${orderId}`);
   };
@@ -228,17 +216,17 @@ const ServiceOrderManagement = () => {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'Draft':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+        return 'bg-amber-50 text-procarni-alert border border-procarni-alert/20';
       case 'Sent':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+        return 'bg-blue-50 text-blue-700 border border-blue-200';
       case 'Approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+        return 'bg-green-50 text-procarni-secondary border border-procarni-secondary/20';
       case 'Rejected':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+        return 'bg-red-50 text-procarni-primary border-procarni-primary/20';
       case 'Archived':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        return 'bg-gray-100 text-gray-500 border border-gray-200';
       default:
-        return 'bg-gray-100 text-gray-600';
+        return 'bg-gray-100 text-gray-500 border border-gray-200';
     }
   };
 
@@ -251,84 +239,74 @@ const ServiceOrderManagement = () => {
     );
   }
 
-  const renderActions = (order: ServiceOrderWithDetails) => {
-    const isEditable = order.status !== 'Approved' && order.status !== 'Archived';
-    const isArchived = order.status === 'Archived';
-
-    return (
-      <TableCell className="text-right whitespace-nowrap">
-        <Button variant="ghost" size="icon" onClick={() => handleViewDetails(order.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
-        {isEditable && (
-          <Button variant="ghost" size="icon" onClick={() => handleEditOrder(order.id)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-        )}
-        {order.status === 'Sent' && (
-          <Button variant="ghost" size="icon" onClick={() => handleViewDetails(order.id)} title="Reenviar">
-            <Wrench className="h-4 w-4 text-blue-600" />
-          </Button>
-        )}
-        {!isArchived && (
-          <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'archive')} title="Archivar">
-            <Archive className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        )}
-        {isArchived && (
-          <>
-            <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'unarchive')} title="Desarchivar">
-              <RotateCcw className="h-4 w-4 text-procarni-secondary" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => confirmDelete(order.id)} title="Eliminar Permanentemente">
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </>
-        )}
-      </TableCell>
-    );
-  };
-
-  const renderMobileCard = (order: ServiceOrderWithDetails) => (
-    <Card key={order.id} className={cn("p-4 shadow-md", selectedIds.has(order.id) && "border-procarni-secondary border-2")}>
+  const renderMobileCard = (order: ServiceOrderWithRelations) => (
+    <Card key={order.id} className="p-4 shadow-md bg-white">
       <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2">
-          {activeTab !== 'archived' && (
-            <Checkbox
-              checked={selectedIds.has(order.id)}
-              onCheckedChange={() => toggleSelection(order.id)}
-            />
-          )}
-          <CardTitle className="text-lg truncate">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
+        <div className="flex items-center gap-2 min-w-0">
+          <CardTitle className="text-lg truncate font-mono text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
         </div>
-        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(order.status))}>
+        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0", getStatusBadgeClass(order.status))}>
           {STATUS_TRANSLATIONS[order.status] || order.status}
         </span>
       </div>
-      <CardDescription className="mb-2">Proveedor: {order.suppliers.name}</CardDescription>
-      <div className="text-sm space-y-1">
-        <p><strong>Equipo:</strong> {order.equipment_name}</p>
-        <p><strong>Servicio:</strong> {order.service_type}</p>
-        <p><strong>Fecha Servicio:</strong> {format(new Date(order.service_date), 'dd/MM/yyyy')}</p>
+      <div className="min-w-0 mb-2">
+        <p className="text-sm font-medium text-gray-500">Proveedor</p>
+        <p className="text-base font-medium text-procarni-dark truncate">{order.suppliers.name}</p>
       </div>
-      <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-        <Button variant="outline" size="sm" onClick={() => handleViewDetails(order.id)}>
-          <Eye className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Ver"}
+      <div className="text-sm space-y-1 mb-4">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="min-w-0">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Empresa</p>
+            <p className="font-medium text-procarni-dark truncate" title={order.companies.name}>{order.companies.name}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Equipo</p>
+            <p className="font-medium truncate" title={order.equipment_name}>{order.equipment_name}</p>
+          </div>
+        </div>
+        <div className="pt-1">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Fecha Servicio</p>
+          <p className="font-medium">{format(new Date(order.service_date), 'dd/MM/yyyy')}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+        <Button variant="outline" className="w-full justify-center" onClick={() => handleViewDetails(order.id)}>
+          <Eye className="h-4 w-4 mr-2" /> Ver
         </Button>
-        {order.status !== 'Approved' && order.status !== 'Archived' && (
-          <Button variant="outline" size="sm" onClick={() => handleEditOrder(order.id)}>
-            <Edit className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Editar"}
+
+        {order.status === 'Draft' && (
+          <Button variant="outline" className="w-full justify-center" onClick={() => handleEditOrder(order.id)}>
+            <Edit className="h-4 w-4 mr-2" /> Editar
           </Button>
         )}
+
+        {order.status === 'Sent' && (
+          <>
+            <Button variant="outline" className="w-full justify-center text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => handleViewDetails(order.id)}>
+              <Wrench className="h-4 w-4 mr-2" /> Reenviar
+            </Button>
+            <Button variant="outline" className="w-full justify-center text-procarni-primary border-procarni-primary/20 hover:bg-red-50" onClick={() => handleRejectClick(order.id)}>
+              <XCircle className="h-4 w-4 mr-2" /> Rechazar
+            </Button>
+          </>
+        )}
+
         {order.status !== 'Archived' && (
-          <Button variant="outline" size="sm" onClick={() => confirmAction(order.id, 'archive')}>
-            <Archive className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Archivar"}
+          <Button variant="ghost" className="w-full justify-center text-muted-foreground" onClick={() => confirmAction(order.id, 'archive')}>
+            <Archive className="h-4 w-4 mr-2" /> Archivar
           </Button>
         )}
+
         {order.status === 'Archived' && (
-          <Button variant="outline" size="sm" onClick={() => confirmAction(order.id, 'unarchive')}>
-            <RotateCcw className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Desarchivar"}
-          </Button>
+          <>
+            <Button variant="ghost" className="w-full justify-center text-procarni-secondary" onClick={() => confirmAction(order.id, 'unarchive')}>
+              <RotateCcw className="h-4 w-4 mr-2" /> Rest.
+            </Button>
+            <Button variant="ghost" className="w-full justify-center text-destructive" onClick={() => confirmDelete(order.id)}>
+              <Trash2 className="h-4 w-4 mr-2" /> Elim.
+            </Button>
+          </>
         )}
       </div>
     </Card>
@@ -337,9 +315,19 @@ const ServiceOrderManagement = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="history-mode"
+            checked={showHistory}
+            onCheckedChange={(checked) => {
+              setShowHistory(checked);
+              setActiveTab(checked ? 'archived' : 'active');
+            }}
+          />
+          <Label htmlFor="history-mode" className="text-sm font-medium text-gray-700">
+            {showHistory ? 'Modo Histórico (Archivadas/Rechazadas)' : 'Modo Activo (Activas/Aprobadas)'}
+          </Label>
+        </div>
       </div>
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -363,11 +351,19 @@ const ServiceOrderManagement = () => {
           </Button>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'active' | 'archived' | 'approved')} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="active">Activas</TabsTrigger>
-              <TabsTrigger value="approved">Aprobadas</TabsTrigger>
-              <TabsTrigger value="archived">Archivadas</TabsTrigger>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-50/50 p-1">
+              {!showHistory ? (
+                <>
+                  <TabsTrigger value="active">Activas</TabsTrigger>
+                  <TabsTrigger value="approved">Aprobadas</TabsTrigger>
+                </>
+              ) : (
+                <>
+                  <TabsTrigger value="archived">Archivadas</TabsTrigger>
+                  <TabsTrigger value="rejected">Rechazadas</TabsTrigger>
+                </>
+              )}
             </TabsList>
 
             <TabsContent value={activeTab} className="mt-4">
@@ -382,36 +378,6 @@ const ServiceOrderManagement = () => {
                 />
               </div>
 
-              {/* Bulk Actions Bar */}
-              {selectedIds.size > 0 && (
-                <div className="bg-muted p-2 rounded-md mb-4 flex items-center justify-between">
-                  <span className="text-sm font-medium">{selectedIds.size} seleccionados</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-                      Cancelar
-                    </Button>
-                    {activeTab === 'active' && (
-                      <>
-                        <Button
-                          className="bg-procarni-secondary hover:bg-green-700 text-white"
-                          size="sm"
-                          onClick={() => setIsBulkApproveDialogOpen(true)}
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setIsBulkArchiveDialogOpen(true)}
-                        >
-                          <Archive className="mr-2 h-4 w-4" /> Archivar
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-8">Cargando órdenes...</div>
               ) : filteredServiceOrders.length > 0 ? (
@@ -424,32 +390,20 @@ const ServiceOrderManagement = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[50px]">
-                            <Checkbox
-                              checked={filteredServiceOrders.length > 0 && selectedIds.size === filteredServiceOrders.length}
-                              onCheckedChange={toggleAll}
-                            />
-                          </TableHead>
-                          <TableHead>N° Orden</TableHead>
-                          <TableHead>Proveedor</TableHead>
-                          <TableHead>Equipo</TableHead>
-                          <TableHead>Tipo Servicio</TableHead>
-                          <TableHead>Fecha Servicio</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead className="text-right">Acciones</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">N° Orden</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Proveedor</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Equipo</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Tipo Servicio</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Fecha Servicio</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Estado</TableHead>
+                          <TableHead className="text-right text-[10px] uppercase tracking-wider font-semibold text-gray-500">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredServiceOrders.map((order) => (
-                          <TableRow key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedIds.has(order.id)}
-                                onCheckedChange={() => toggleSelection(order.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="font-medium">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
-                            <TableCell>{order.suppliers.name}</TableCell>
+                          <TableRow key={order.id} className="hover:bg-gray-50/50 border-b border-gray-100 transition-colors">
+                            <TableCell className="font-mono text-sm font-medium text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
+                            <TableCell className="text-procarni-dark font-medium">{order.suppliers.name}</TableCell>
                             <TableCell>{order.equipment_name}</TableCell>
                             <TableCell>{order.service_type}</TableCell>
                             <TableCell>{format(new Date(order.service_date), 'dd/MM/yyyy')}</TableCell>
@@ -458,7 +412,38 @@ const ServiceOrderManagement = () => {
                                 {STATUS_TRANSLATIONS[order.status] || order.status}
                               </span>
                             </TableCell>
-                            {renderActions(order)}
+                            <TableCell className="text-right whitespace-nowrap">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(order.id)} title="Ver detalles">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {(order.status === 'Draft') && (
+                                  <Button variant="ghost" size="icon" onClick={() => handleEditOrder(order.id)} title="Editar">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {(order.status === 'Sent' || order.status === 'Draft') && (
+                                  <Button variant="ghost" size="icon" onClick={() => handleRejectClick(order.id)} title="Rechazar">
+                                    <XCircle className="h-4 w-4 text-procarni-primary" />
+                                  </Button>
+                                )}
+                                {order.status !== 'Archived' && (
+                                  <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'archive')} title="Archivar">
+                                    <Archive className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                )}
+                                {order.status === 'Archived' && (
+                                  <>
+                                    <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'unarchive')} title="Desarchivar">
+                                      <RotateCcw className="h-4 w-4 text-procarni-secondary" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => confirmDelete(order.id)} title="Eliminar Permanentemente">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -475,6 +460,28 @@ const ServiceOrderManagement = () => {
         </CardContent>
       </Card>
       <MadeWithDyad />
+
+      {/* Reject Confirmation Dialog */}
+      <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Rechazo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas rechazar esta orden de servicio?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rejectMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmReject}
+              disabled={rejectMutation.isPending}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+            >
+              Rechazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* AlertDialog for archive/unarchive confirmation */}
       <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
@@ -519,42 +526,6 @@ const ServiceOrderManagement = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar Permanentemente'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk Approve Confirmation Dialog */}
-      <AlertDialog open={isBulkApproveDialogOpen} onOpenChange={setIsBulkApproveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Aprobación Masiva</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas aprobar las {selectedIds.size} órdenes de servicio seleccionadas?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={executeBulkApprove} className="bg-procarni-secondary hover:bg-green-700 text-white">
-              Aprobar {selectedIds.size} Órdenes
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk Archive Confirmation Dialog */}
-      <AlertDialog open={isBulkArchiveDialogOpen} onOpenChange={setIsBulkArchiveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Archivado Masivo</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas archivar las {selectedIds.size} órdenes de servicio seleccionadas?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={executeBulkArchive} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Archivar {selectedIds.size} Órdenes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
