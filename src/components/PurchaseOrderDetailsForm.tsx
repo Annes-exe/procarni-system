@@ -226,7 +226,10 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
           </div>
 
           {/* Moneda Toggle (Moved Here & Aligned) */}
-          <div className="mt-8"> {/* Added Check: mt-8 to align with input of Company in Col 1 */}
+          <div>
+            <Label className="block text-sm font-semibold text-transparent mb-2 select-none">
+              Moneda
+            </Label>
             <div className="flex items-center space-x-3 bg-gray-50 border border-gray-200 rounded-lg p-3 w-fit">
               <span className="text-sm font-semibold text-gray-700">Moneda (USD/VES)</span>
               <div className="flex items-center">
