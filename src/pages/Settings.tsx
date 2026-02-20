@@ -72,20 +72,16 @@ const Settings = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Configuración del Sistema</h1>
+          <p className="text-muted-foreground text-sm">Configura los parámetros generales del sistema.</p>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Configuración del Sistema</CardTitle>
-          <CardDescription>
-            Configura los parámetros generales del sistema
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
           <div className="space-y-6">
             {/* Purchase Order Sequence */}
             <div className="border p-4 rounded-lg">
@@ -105,6 +101,7 @@ const Settings = () => {
                     value={startingNumber}
                     onChange={(e) => setStartingNumber(parseInt(e.target.value) || 1)}
                     placeholder="1 para reiniciar, o un número mayor para iniciar desde allí"
+                    className="mt-1"
                   />
                 </div>
               </div>
@@ -137,6 +134,7 @@ const Settings = () => {
                     value={soStartingNumber}
                     onChange={(e) => setSoStartingNumber(parseInt(e.target.value) || 1)}
                     placeholder="1 para reiniciar, o un número mayor para iniciar desde allí"
+                    className="mt-1"
                   />
                 </div>
               </div>

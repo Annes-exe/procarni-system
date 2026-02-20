@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Filter, ArrowLeft, Tag } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
@@ -91,7 +91,7 @@ const MaterialManagement = () => {
 
   const createMutation = useMutation({
     mutationFn: (newMaterial: Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>) =>
-      createMaterial({ ...newMaterial, user_id: userId! }),
+      createMaterial({ ...newMaterial, user_id: userId! } as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       setIsFormOpen(false);
@@ -182,62 +182,62 @@ const MaterialManagement = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Materiales</h1>
+          <p className="text-muted-foreground text-sm">Administra la información de tus materiales.</p>
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <DialogTrigger asChild>
+              <Button
+                onClick={handleAddMaterial}
+                className={cn(
+                  "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
+                  isMobile && "w-10 h-10 p-0"
+                )}
+                size={isMobile ? "default" : "sm"}
+              >
+                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
+                {!isMobile && 'Añadir Material'}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingMaterial ? 'Editar Material' : 'Añadir Nuevo Material'}</DialogTitle>
+                <DialogDescription>
+                  {editingMaterial ? 'Edita los detalles del material existente.' : 'Completa los campos para añadir un nuevo material.'}
+                </DialogDescription>
+              </DialogHeader>
+              <MaterialForm
+                initialData={editingMaterial || undefined}
+                onSubmit={handleSubmitForm}
+                onCancel={() => setIsFormOpen(false)}
+                isSubmitting={createMutation.isPending || updateMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-procarni-primary">Gestión de Materiales</CardTitle>
-            <CardDescription>Administra la información de tus materiales.</CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  onClick={handleAddMaterial}
-                  className={cn(
-                    "bg-procarni-secondary hover:bg-green-700",
-                    isMobile && "w-10 h-10 p-0" // Hacer el botón cuadrado y sin padding en móvil
-                  )}
-                >
-                  <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-                  {!isMobile && 'Añadir Material'}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]" description={editingMaterial ? 'Edita los detalles del material existente.' : 'Completa los campos para añadir un nuevo material.'}>
-                <DialogHeader>
-                  <DialogTitle>{editingMaterial ? 'Editar Material' : 'Añadir Nuevo Material'}</DialogTitle>
-                </DialogHeader>
-                <MaterialForm
-                  initialData={editingMaterial || undefined}
-                  onSubmit={handleSubmitForm}
-                  onCancel={() => setIsFormOpen(false)}
-                  isSubmitting={createMutation.isPending || updateMutation.isPending}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="relative flex-1">
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+            <div className="relative w-full md:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Buscar material por código o nombre..."
-                className="w-full appearance-none bg-background pl-8 shadow-none"
+                className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="relative md:w-1/3">
+            <div className="relative w-full md:w-72">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full pl-8">
+                <SelectTrigger className="w-full pl-8 h-9 text-sm">
                   <SelectValue placeholder="Filtrar por categoría" />
                 </SelectTrigger>
                 <SelectContent>
@@ -292,34 +292,34 @@ const MaterialManagement = () => {
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead>Unidad</TableHead>
-                      <TableHead>Exento IVA</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Código</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Categoría</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Unidad</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Exento IVA</TableHead>
+                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredMaterials.map((material) => (
-                      <TableRow key={material.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <TableCell>{material.code}</TableCell>
-                        <TableCell className="flex items-center font-medium">
+                      <TableRow key={material.id} className="hover:bg-gray-50/50 transition-colors">
+                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
+                        <TableCell className="flex items-center font-medium py-3 text-procarni-dark">
                           {material.name}
                           {material.is_exempt && (
-                            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-procarni-primary text-white rounded-full">
+                            <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
                               EXENTO
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>{material.category || 'N/A'}</TableCell>
-                        <TableCell>{material.unit || 'N/A'}</TableCell>
-                        <TableCell>{material.is_exempt ? 'Sí' : 'No'}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="py-3 text-gray-600">{material.category || 'N/A'}</TableCell>
+                        <TableCell className="py-3 text-gray-600">{material.unit || 'N/A'}</TableCell>
+                        <TableCell className="py-3 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
+                        <TableCell className="text-right pr-4 py-3">
                           <Button
                             variant="ghost"
                             size="icon"

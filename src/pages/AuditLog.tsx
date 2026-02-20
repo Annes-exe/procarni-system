@@ -77,24 +77,22 @@ const AuditLog = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Historial de Auditoría</h1>
+          <p className="text-muted-foreground text-sm">Registro de todas las acciones importantes realizadas en el sistema.</p>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Historial de Auditoría</CardTitle>
-          <CardDescription>Registro de todas las acciones importantes realizadas en el sistema.</CardDescription>
-        </CardHeader>
-        <CardContent>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Buscar por acción, email, tabla o descripción..."
-              className="w-full appearance-none bg-background pl-8 shadow-none"
+              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -123,27 +121,27 @@ const AuditLog = () => {
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead className="w-[150px]">Fecha</TableHead>
-                      <TableHead className="w-[150px]">Usuario</TableHead>
-                      <TableHead className="w-[150px]">Acción</TableHead>
-                      <TableHead className="w-[100px]">Tabla</TableHead>
-                      <TableHead className="w-[100px]">ID Registro</TableHead>
-                      <TableHead>Descripción</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[150px]">Fecha</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3 w-[150px]">Usuario</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3 w-[150px]">Acción</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3 w-[100px]">Tabla</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3 w-[100px]">ID Registro</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Descripción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-xs">{formatTimestamp(log.timestamp)}</TableCell>
-                        <TableCell className="text-sm">{log.user_email || 'N/A'}</TableCell>
-                        <TableCell className="font-medium">{log.action}</TableCell>
-                        <TableCell>{log.table || 'N/A'}</TableCell>
-                        <TableCell>{log.record_id ? log.record_id.substring(0, 8) : 'N/A'}</TableCell>
-                        <TableCell>{log.description || renderLogDetails(log.raw_details)}</TableCell>
+                      <TableRow key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                        <TableCell className="pl-4 py-3 text-xs text-gray-600">{formatTimestamp(log.timestamp)}</TableCell>
+                        <TableCell className="py-3 text-sm text-gray-600">{log.user_email || 'N/A'}</TableCell>
+                        <TableCell className="py-3 font-medium text-procarni-dark">{log.action}</TableCell>
+                        <TableCell className="py-3 text-sm text-gray-600">{log.table || 'N/A'}</TableCell>
+                        <TableCell className="py-3 text-sm text-gray-600">{log.record_id ? log.record_id.substring(0, 8) : 'N/A'}</TableCell>
+                        <TableCell className="pr-4 py-3 text-sm text-gray-600">{log.description || renderLogDetails(log.raw_details)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

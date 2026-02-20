@@ -319,13 +319,16 @@ const BulkUpload = () => {
   );
 
   return (
-    <div className="container mx-auto p-4">
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Carga Masiva de Datos</CardTitle>
-          <CardDescription>Sube tus proveedores, materiales y sus relaciones desde archivos Excel.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Carga Masiva de Datos</h1>
+          <p className="text-muted-foreground text-sm">Sube tus proveedores, materiales y sus relaciones desde archivos Excel.</p>
+        </div>
+      </div>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
           <Tabs defaultValue="suppliers" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="suppliers">Proveedores</TabsTrigger>
@@ -345,83 +348,85 @@ const BulkUpload = () => {
         </CardContent>
       </Card>
 
-      <Card className="mb-6 border-destructive card-alert-border">
-        <CardHeader>
-          <CardTitle className="text-destructive">Gestión Avanzada de Datos</CardTitle>
-          <CardDescription>Opciones para respaldar, eliminar o reiniciar datos existentes. Requiere PIN de seguridad.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Suppliers */}
-          <div className="flex flex-col gap-2 p-4 border rounded-md">
-            <h4 className="font-semibold">Proveedores</h4>
-            <Button
-              variant="outline"
-              onClick={() => openPinDialogForBackup('supplier')}
-              disabled={downloadingTemplate}
-            >
-              <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => openPinDialogForDelete('supplier')}
-              disabled={isConfirmingPin}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
-            </Button>
-          </div>
+      <div className="grid grid-cols-1 gap-6 mt-8">
+        <Card className="border-destructive shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-destructive">Gestión Avanzada de Datos</CardTitle>
+            <CardDescription>Opciones para respaldar o eliminar datos existentes. Requiere PIN de seguridad.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Suppliers */}
+            <div className="flex flex-col gap-2 p-4 border rounded-md">
+              <h4 className="font-semibold">Proveedores</h4>
+              <Button
+                variant="outline"
+                onClick={() => openPinDialogForBackup('supplier')}
+                disabled={downloadingTemplate}
+              >
+                <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => openPinDialogForDelete('supplier')}
+                disabled={isConfirmingPin}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
+              </Button>
+            </div>
 
-          {/* Materials */}
-          <div className="flex flex-col gap-2 p-4 border rounded-md">
-            <h4 className="font-semibold">Materiales</h4>
-            <Button
-              variant="outline"
-              onClick={() => openPinDialogForBackup('material')}
-              disabled={downloadingTemplate}
-            >
-              <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => openPinDialogForDelete('material')}
-              disabled={isConfirmingPin}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
-            </Button>
-          </div>
+            {/* Materials */}
+            <div className="flex flex-col gap-2 p-4 border rounded-md">
+              <h4 className="font-semibold">Materiales</h4>
+              <Button
+                variant="outline"
+                onClick={() => openPinDialogForBackup('material')}
+                disabled={downloadingTemplate}
+              >
+                <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => openPinDialogForDelete('material')}
+                disabled={isConfirmingPin}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
+              </Button>
+            </div>
 
-          {/* Relations */}
-          <div className="flex flex-col gap-2 p-4 border rounded-md">
-            <h4 className="font-semibold">Relaciones P-M</h4>
-            <Button
-              variant="outline"
-              onClick={() => openPinDialogForBackup('supplier_material_relation')}
-              disabled={downloadingTemplate}
-            >
-              <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => openPinDialogForDelete('supplier_material_relation')}
-              disabled={isConfirmingPin}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            {/* Relations */}
+            <div className="flex flex-col gap-2 p-4 border rounded-md">
+              <h4 className="font-semibold">Relaciones P-M</h4>
+              <Button
+                variant="outline"
+                onClick={() => openPinDialogForBackup('supplier_material_relation')}
+                disabled={downloadingTemplate}
+              >
+                <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => openPinDialogForDelete('supplier_material_relation')}
+                disabled={isConfirmingPin}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card className="mb-6 border-destructive card-alert-border">
-        <CardHeader>
-          <CardTitle className="text-destructive">Reinicio Completo de Datos</CardTitle>
-          <CardDescription>
-            <strong>¡ADVERTENCIA!</strong> Esto eliminará TODOS tus proveedores, materiales y relaciones,
-            y reiniciará los correlativos de los códigos a P001 y MT001.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResetDataButton />
-        </CardContent>
-      </Card>
+        <Card className="border-destructive shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-destructive">Reinicio Completo de Datos</CardTitle>
+            <CardDescription>
+              <strong>¡ADVERTENCIA!</strong> Esto eliminará TODOS tus proveedores, materiales y relaciones,
+              y reiniciará los correlativos de los códigos a P001 y MT001.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResetDataButton />
+          </CardContent>
+        </Card>
+      </div>
 
       <MadeWithDyad />
 

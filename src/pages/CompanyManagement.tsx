@@ -175,26 +175,22 @@ const CompanyManagement = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
-      </div>
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-procarni-primary">Gestión de Empresas</CardTitle>
-            <CardDescription>Administra la información de tus empresas.</CardDescription>
-          </div>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Empresas</h1>
+          <p className="text-muted-foreground text-sm">Administra la información de tus empresas.</p>
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
               <Button
                 onClick={handleAddCompany}
                 className={cn(
-                  "bg-procarni-secondary hover:bg-green-700",
+                  "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
                   isMobile && "w-10 h-10 p-0"
                 )}
+                size={isMobile ? "default" : "sm"}
               >
                 <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
                 {!isMobile && "Añadir Empresa"}
@@ -215,14 +211,17 @@ const CompanyManagement = () => {
               />
             </DialogContent>
           </Dialog>
-        </CardHeader>
-        <CardContent>
+        </div>
+      </div>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Buscar empresa por RIF, nombre, dirección o email..."
-              className="w-full appearance-none bg-background pl-8 shadow-none"
+              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -279,27 +278,27 @@ const CompanyManagement = () => {
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>RIF</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Teléfono</TableHead>
-                      <TableHead>Dirección</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Nombre</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">RIF</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Email</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Teléfono</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Dirección</TableHead>
+                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredCompanies.map((company) => (
-                      <TableRow key={company.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <TableCell className="font-medium max-w-[200px] truncate" title={company.name}>{company.name}</TableCell>
-                        <TableCell className="whitespace-nowrap">{company.rif}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={company.email}>{company.email || 'N/A'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{company.phone || 'N/A'}</TableCell>
-                        <TableCell className="max-w-[250px] truncate" title={company.address}>{company.address || 'N/A'}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
+                      <TableRow key={company.id} className="hover:bg-gray-50/50 transition-colors">
+                        <TableCell className="pl-4 py-3 font-medium text-procarni-dark max-w-[200px] truncate" title={company.name}>{company.name}</TableCell>
+                        <TableCell className="py-3 whitespace-nowrap">{company.rif}</TableCell>
+                        <TableCell className="py-3 text-gray-600 max-w-[200px] truncate" title={company.email}>{company.email || 'N/A'}</TableCell>
+                        <TableCell className="py-3 text-gray-600 whitespace-nowrap">{company.phone || 'N/A'}</TableCell>
+                        <TableCell className="py-3 text-gray-600 max-w-[250px] truncate" title={company.address}>{company.address || 'N/A'}</TableCell>
+                        <TableCell className="text-right pr-4 py-3 whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="icon"

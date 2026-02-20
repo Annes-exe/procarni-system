@@ -47,9 +47,9 @@ const FichaTecnicaUpload = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [fichaToDelete, setFichaToDelete] = useState<FichaTecnica | null>(null);
+  const [fichaToDelete, setFichaToDelete] = useState<any | null>(null);
 
-  const { data: fichas, isLoading: isLoadingFichas, refetch } = useQuery<FichaTecnica[]>({
+  const { data: fichas, isLoading: isLoadingFichas, refetch } = useQuery<any[]>({
     queryKey: ['fichasTecnicas'],
     queryFn: getAllFichasTecnicas,
     enabled: !!session,
@@ -159,7 +159,7 @@ const FichaTecnicaUpload = () => {
         // Clear file input manually
         const fileInput = document.getElementById('pdfFile') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
-        
+
         // Force refetch the list
         queryClient.invalidateQueries({ queryKey: ['fichasTecnicas'] });
       }
@@ -176,7 +176,7 @@ const FichaTecnicaUpload = () => {
     setIsViewerOpen(true);
   };
 
-  const confirmDelete = (ficha: FichaTecnica) => {
+  const confirmDelete = (ficha: any) => {
     setFichaToDelete(ficha);
     setIsDeleteDialogOpen(true);
   };
@@ -218,23 +218,23 @@ const FichaTecnicaUpload = () => {
     }
 
     return (
-      <div className="overflow-x-auto">
+      <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-gray-50/50">
             <TableRow>
-              <TableHead>Producto</TableHead>
-              <TableHead>Proveedor</TableHead>
-              <TableHead>Fecha Subida</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
+              <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Producto</TableHead>
+              <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
+              <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Fecha Subida</TableHead>
+              <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredFichas.map((ficha) => (
-              <TableRow key={ficha.id}>
-                <TableCell className="font-medium">{ficha.nombre_producto}</TableCell>
-                <TableCell>{ficha.suppliers?.name || 'N/A'}</TableCell>
-                <TableCell>{new Date(ficha.created_at).toLocaleDateString()}</TableCell>
-                <TableCell className="text-right">
+              <TableRow key={ficha.id} className="hover:bg-gray-50/50 transition-colors">
+                <TableCell className="pl-4 py-3 font-medium text-procarni-dark">{ficha.nombre_producto}</TableCell>
+                <TableCell className="py-3 text-gray-600">{ficha.suppliers?.name || 'N/A'}</TableCell>
+                <TableCell className="py-3 text-gray-600">{new Date(ficha.created_at).toLocaleDateString()}</TableCell>
+                <TableCell className="text-right pr-4 py-3">
                   <Button variant="ghost" size="icon" onClick={() => handleViewFicha(ficha.storage_url)}>
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -251,19 +251,20 @@ const FichaTecnicaUpload = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Fichas Técnicas</h1>
+          <p className="text-muted-foreground text-sm">Gestiona los documentos técnicos asociados a proveedores y productos.</p>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Subir Ficha Técnica (PDF)</CardTitle>
-          <CardDescription>Asocia un documento PDF (ficha técnica) a un proveedor y producto.</CardDescription>
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg text-procarni-primary">Subir Nueva Ficha</CardTitle>
+          <CardDescription>Asocia un documento PDF a un proveedor y producto.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-6 pt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <Label htmlFor="supplier">Proveedor *</Label>
@@ -312,14 +313,14 @@ const FichaTecnicaUpload = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Fichas Técnicas Registradas</CardTitle>
+      <Card className="border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Documentos Registrados</CardTitle>
           <CardDescription>Lista de documentos subidos.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <CardContent className="p-0 md:p-6 pt-0">
+          <div className="relative mb-4 px-4 md:px-0 mt-4 md:mt-0">
+            <Search className="absolute left-6 md:left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Buscar por producto o proveedor..."
