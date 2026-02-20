@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '@/components/SessionContextProvider';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { UserCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 
 const UserDropdown = () => {
@@ -32,16 +30,27 @@ const UserDropdown = () => {
     return null; // No mostrar si no hay usuario logueado
   }
 
+  const email = session.user.email || 'usuario@procarni.com';
+  // Use email prefix as name or "Usuario"
+  const name = email.split('@')[0];
+  const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+  const initials = displayName.substring(0, 2).toUpperCase();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="w-full justify-start text-sidebar-foreground hover:text-procarni-primary h-9 px-3">
-          <UserCircle className="mr-2 h-4 w-4" />
-          <span className="truncate text-sm">{session.user.email || 'Usuario'}</span>
-        </Button>
+        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity group">
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-medium text-foreground group-hover:text-procarni-primary transition-colors">{displayName}</p>
+            <p className="text-xs text-muted-foreground">{email}</p>
+          </div>
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-procarni-primary to-procarni-secondary flex items-center justify-center text-white font-bold shadow-md ring-2 ring-transparent group-hover:ring-procarni-primary/20 transition-all text-xs">
+            {initials}
+          </div>
+        </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end">
-        <DropdownMenuLabel className="truncate">{session.user.email}</DropdownMenuLabel>
+        <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
           Cerrar Sesión

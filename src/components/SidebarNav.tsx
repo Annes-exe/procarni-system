@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Search, ShoppingCart, FileText, Factory, Users, Box, Upload, ClipboardList, Building2, ListOrdered, Settings, Cog, FileUp, DollarSign, ScrollText, Scale, Wrench, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
+import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
 
 const navItems = [
   {
@@ -24,80 +23,72 @@ const navItems = [
     category: 'Reportes',
     items: [
       { to: '/reports', icon: <BarChart3 className="h-5 w-5" />, label: 'Centro de Reportes' },
-      { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gestión de Comparaciones' },
+      { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
     ]
   },
   {
-    category: 'Maestros de Datos',
+    category: 'Maestros',
     items: [
-      { to: '/supplier-management', icon: <Users className="h-5 w-5" />, label: 'Gestión de Proveedores' },
-      { to: '/material-management', icon: <Box className="h-5 w-5" />, label: 'Gestión de Materiales' },
-      { to: '/company-management', icon: <Building2 className="h-5 w-5" />, label: 'Gestión de Empresas' },
+      { to: '/supplier-management', icon: <Users className="h-5 w-5" />, label: 'Proveedores' },
+      { to: '/material-management', icon: <Box className="h-5 w-5" />, label: 'Materiales' },
+      { to: '/company-management', icon: <Building2 className="h-5 w-5" />, label: 'Empresas' },
     ]
   },
   {
-    category: 'Administración',
+    category: 'Admin',
     items: [
       { to: '/bulk-upload', icon: <Upload className="h-5 w-5" />, label: 'Carga Masiva' },
-      { to: '/ficha-tecnica-upload', icon: <FileUp className="h-5 w-5" />, label: 'Subir Ficha Técnica' },
+      { to: '/ficha-tecnica-upload', icon: <FileUp className="h-5 w-5" />, label: 'Fichas Técnicas' },
       { to: '/settings', icon: <Cog className="h-5 w-5" />, label: 'Secuencias' },
-      { to: '/audit-log', icon: <ScrollText className="h-5 w-5" />, label: 'Historial de Auditoría' },
+      { to: '/audit-log', icon: <ScrollText className="h-5 w-5" />, label: 'Auditoría' },
     ]
   }
 ];
 
-const SidebarNav = () => {
-  const [openItems, setOpenItems] = useState<string[]>(['Inicio', 'Operaciones', 'Reportes', 'Maestros de Datos', 'Administración']);
+interface SidebarNavProps {
+  forceExpanded?: boolean;
+}
 
-  const handleValueChange = (value: string[]) => {
-    setOpenItems(value);
-  };
+const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
 
   return (
-    <Accordion
-      type="multiple"
-      value={openItems}
-      onValueChange={handleValueChange}
-      className="w-full"
-    >
+    <nav className="mt-4 flex flex-col gap-4 px-2">
       {navItems.map((category) => (
-        <AccordionItem key={category.category} value={category.category} className="border-b border-sidebar-border">
-          <AccordionTrigger className="px-4 py-2 text-sm font-semibold text-sidebar-foreground hover:bg-muted/50 rounded-md">
+        <div key={category.category} className="flex flex-col gap-1">
+          <p className={`transition-opacity duration-200 text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-3 mb-1 whitespace-nowrap overflow-hidden ${forceExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 delay-100'}`}>
             {category.category}
-          </AccordionTrigger>
-          <AccordionContent className="pb-2">
-            <nav className="grid items-start px-2 text-sm font-medium">
-              {category.items.map((item) => {
-                const isOrdersCategory = category.category === 'Operaciones';
+          </p>
+          {category.items.map((item) => {
+            const isOrdersCategory = category.category === 'Operaciones';
 
-                // Determine classes based on category
-                const activeClasses = isOrdersCategory
-                  ? 'bg-procarni-secondary text-white'
-                  : 'bg-procarni-primary text-white';
+            const activeClasses = isOrdersCategory
+              ? 'bg-procarni-secondary/10 dark:bg-rose-900/20 text-procarni-secondary'
+              : 'bg-procarni-primary/10 dark:bg-red-900/20 text-procarni-primary';
 
-                const hoverClasses = isOrdersCategory
-                  ? 'text-sidebar-foreground hover:bg-procarni-secondary/10 hover:text-procarni-secondary'
-                  : 'text-sidebar-foreground hover:bg-procarni-primary/10 hover:text-procarni-primary';
+            const hoverClasses = 'text-muted-foreground hover:bg-muted dark:hover:bg-slate-800 hover:text-foreground';
 
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-lg px-3 py-2 transition-all 
-                      ${isActive ? activeClasses : hoverClasses}`
-                    }
-                  >
-                    {item.icon}
-                    {item.label}
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </AccordionContent>
-        </AccordionItem>
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex flex-nowrap items-center p-3 rounded-lg transition-colors duration-200 overflow-hidden ${isActive ? activeClasses : hoverClasses
+                  } justify-start`
+                }
+                title={!forceExpanded ? item.label : undefined}
+              >
+                <div className="flex-shrink-0 flex items-center justify-center">
+                  {item.icon}
+                </div>
+                <span className={`transition-opacity duration-200 whitespace-nowrap ml-4 text-sm font-medium ${forceExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-hover:delay-100'}`}>
+                  {item.label}
+                </span>
+              </NavLink>
+            );
+          })}
+        </div>
       ))}
-    </Accordion>
+    </nav>
   );
 };
 
