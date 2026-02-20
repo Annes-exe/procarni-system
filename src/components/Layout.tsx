@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { MadeWithDyad } from './made-with-dyad';
 import { useIsMobile } from '@/hooks/use-mobile';
 import UserDropdown from './UserDropdown';
@@ -50,12 +50,14 @@ const Layout = () => {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col w-72 bg-background p-0">
-          <div className="h-16 flex items-center px-4 border-b border-border">
-            <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-transparent">
-              <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-full h-full object-contain" />
-            </div>
-            <span className="ml-3 font-bold text-lg text-procarni-primary tracking-tight">Procarni</span>
-          </div>
+          <SheetClose asChild>
+            <NavLink to="/" className="h-16 flex items-center px-4 border-b border-border hover:bg-muted/50 transition-colors">
+              <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-transparent">
+                <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-full h-full object-contain" />
+              </div>
+              <span className="ml-3 font-bold text-lg text-procarni-primary tracking-tight">Procarni</span>
+            </NavLink>
+          </SheetClose>
           <div className="flex-1 overflow-y-auto">
             {/* For mobile, we force the nav to look expanded */}
             <div className="group">

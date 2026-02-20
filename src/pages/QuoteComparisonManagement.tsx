@@ -170,20 +170,20 @@ const QuoteComparisonManagement = () => {
     }
 
     return (
-      <TableRow key={comparison.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-        <TableCell>
+      <TableRow key={comparison.id} className="hover:bg-gray-50/50 transition-colors">
+        <TableCell className="pl-4 py-3">
           <Checkbox
             checked={selectedIds.has(comparison.id)}
             onCheckedChange={() => toggleSelection(comparison.id)}
           />
         </TableCell>
-        <TableCell className="font-medium">{comparison.name}</TableCell>
-        <TableCell className="text-xs">{comparison.id.substring(0, 8)}</TableCell>
-        <TableCell>{comparison.base_currency}</TableCell>
-        <TableCell>{exchangeRateDisplay}</TableCell>
-        <TableCell>{materialCount}</TableCell>
-        <TableCell>{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
-        <TableCell className="text-right">
+        <TableCell className="py-3 font-medium text-procarni-dark">{comparison.name}</TableCell>
+        <TableCell className="py-3 text-xs text-gray-500">{comparison.id.substring(0, 8)}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600 font-mono">{comparison.base_currency}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600 font-mono">{exchangeRateDisplay}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600">{materialCount}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600">{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
+        <TableCell className="text-right pr-4 py-3">
           <Button
             variant="ghost"
             size="icon"
@@ -208,40 +208,33 @@ const QuoteComparisonManagement = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Comparaciones</h1>
+          <p className="text-muted-foreground text-sm flex items-center gap-2">
+            Carga, edita o elimina comparaciones guardadas.
+          </p>
+        </div>
+        <Button
+          onClick={() => navigate('/quote-comparison')}
+          className={cn(
+            "bg-procarni-secondary hover:bg-green-700 w-full md:w-auto",
+          )}
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nueva Comparación
         </Button>
       </div>
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-procarni-primary flex items-center">
-              <Scale className="mr-2 h-6 w-6" /> Gestión de Comparaciones Guardadas
-            </CardTitle>
-            <CardDescription>
-              Carga, edita o elimina comparaciones de cotizaciones guardadas previamente.
-            </CardDescription>
-          </div>
-          <Button
-            onClick={() => navigate('/quote-comparison')}
-            className={cn(
-              "bg-procarni-secondary hover:bg-green-700",
-              isMobile && "w-10 h-10 p-0"
-            )}
-          >
-            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-            {!isMobile && 'Nueva Comparación'}
-          </Button>
-        </CardHeader>
-        <CardContent>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Buscar por nombre o ID..."
-              className="w-full appearance-none bg-background pl-8 shadow-none"
+              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -253,23 +246,23 @@ const QuoteComparisonManagement = () => {
                 {filteredComparisons.map(renderComparisonRow)}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead className="w-[50px]">
+                      <TableHead className="w-[50px] pl-4 py-3">
                         <Checkbox
                           checked={filteredComparisons.length > 0 && selectedIds.size === filteredComparisons.length}
                           onCheckedChange={toggleAll}
                         />
                       </TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Moneda Base</TableHead>
-                      <TableHead>Tasa Global</TableHead>
-                      <TableHead>Materiales</TableHead>
-                      <TableHead>Fecha Guardado</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">ID</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Moneda Base</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Tasa Global</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Materiales</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Fecha Guardado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
