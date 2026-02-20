@@ -95,7 +95,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   const handleSupplierChange = (materialId: string, quoteIndex: number, supplierId: string) => {
     const selectedSupplier = associatedSuppliers?.find(s => s.id === supplierId);
     const supplierName = selectedSupplier?.name || '';
-    
+
     // Pass both ID and Name back to the parent
     onQuoteChange(materialId, quoteIndex, 'supplierId', supplierId, supplierName);
   };
@@ -129,16 +129,16 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                 const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
 
                 return (
-                  <TableRow 
-                    key={index} 
+                  <TableRow
+                    key={index}
                     className={cn(
                       isBestPrice && "bg-green-50/50 dark:bg-green-900/20 border-l-4 border-procarni-secondary",
                       !quote.isValid && "bg-red-50/50 dark:bg-red-900/20 text-muted-foreground"
                     )}
                   >
                     <TableCell>
-                      <Select 
-                        value={quote.supplierId} 
+                      <Select
+                        value={quote.supplierId}
                         onValueChange={(value) => handleSupplierChange(material.id, index, value)}
                         disabled={isLoadingSuppliers}
                       >
@@ -148,6 +148,11 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         <SelectContent>
                           <SelectItem value="__placeholder__" disabled>Selecciona proveedor</SelectItem>
                           {supplierOptions}
+                          {quote.supplierId && !associatedSuppliers?.some(s => s.id === quote.supplierId) && (
+                            <SelectItem value={quote.supplierId}>
+                              {quote.supplierName || 'Proveedor Importado'}
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -161,8 +166,8 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       />
                     </TableCell>
                     <TableCell>
-                      <Select 
-                        value={quote.currency} 
+                      <Select
+                        value={quote.currency}
                         onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
                       >
                         <SelectTrigger className="h-9">
@@ -204,9 +209,9 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
           </Table>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => onAddQuoteEntry(material.id)}
           >
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Cotización

@@ -116,6 +116,10 @@ export type QuoteRequestItem = {
   unit: string | null;
   is_exempt: boolean | null;
   material_id: string | null; // Added
+  materials?: { // Added
+    code: string | null;
+    name: string;
+  };
 };
 
 export type PriceHistory = {

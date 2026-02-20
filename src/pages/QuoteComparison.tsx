@@ -16,7 +16,8 @@ import QuoteComparisonPDFButton from '@/components/QuoteComparisonPDFButton';
 import { Separator } from '@/components/ui/separator';
 import SaveComparisonDialog from '@/components/SaveComparisonDialog';
 import { useSession } from '@/components/SessionContextProvider';
-import { QuoteComparison as QuoteComparisonType } from '@/integrations/supabase/types';
+import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem } from '@/integrations/supabase/types';
+import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
 
 interface MaterialSearchResult {
   id: string;
@@ -59,6 +60,7 @@ const QuoteComparison = () => {
   const [selectedMaterialToAdd, setSelectedMaterialToAdd] = useState<MaterialSearchResult | null>(null);
 
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // --- Data Loading from URL ---
   const comparisonIdFromUrl = searchParams.get('loadId');
@@ -206,6 +208,82 @@ const QuoteComparison = () => {
       }
       return m;
     }));
+  };
+
+  const handleImportQuoteRequests = (importedRequests: QuoteRequest[]) => {
+    // 1. Collect all unique materials from all imported requests
+    const uniqueMaterialsMap = new Map<string, MaterialSearchResult>();
+
+    importedRequests.forEach(req => {
+      // @ts-ignore: quote_request_items populated via join in service
+      const items = req.quote_request_items as QuoteRequestItem[];
+
+      if (items) {
+        items.forEach(item => {
+          const matId = item.material_id || item.id;
+          const matName = item.materials?.name || item.material_name || 'Desconocido';
+
+          if (!uniqueMaterialsMap.has(matId)) {
+            uniqueMaterialsMap.set(matId, {
+              id: matId,
+              name: matName,
+              code: item.materials?.code || (item.material_id ? 'N/A' : 'Sin Código (Legado)')
+            });
+          }
+        });
+      }
+    });
+
+    const newMaterialsToAdd = Array.from(uniqueMaterialsMap.values());
+
+    setMaterialsToCompare(prevMaterials => {
+      let updatedMaterials = [...prevMaterials];
+
+      // 2. Add any new materials that we don't already have in the comparison
+      newMaterialsToAdd.forEach(newMat => {
+        if (!updatedMaterials.some(m => m.material.id === newMat.id)) {
+          updatedMaterials.push({ material: newMat, quotes: [] });
+        }
+      });
+
+      // 3. For every imported request, add a quote row for its supplier against all its materials
+      importedRequests.forEach(req => {
+        // @ts-ignore
+        const items = req.quote_request_items as QuoteRequestItem[];
+        if (!items) return;
+
+        items.forEach(item => {
+          const matId = item.material_id || item.id;
+
+          updatedMaterials = updatedMaterials.map(matComp => {
+            if (matComp.material.id === matId) {
+              // Check if this supplier already has a quote entry for this material
+              const hasSupplierAlready = matComp.quotes.some(q => q.supplierId === req.supplier_id);
+
+              if (!hasSupplierAlready) {
+                return {
+                  ...matComp,
+                  quotes: [...matComp.quotes, {
+                    supplierId: req.supplier_id,
+                    // @ts-ignore
+                    supplierName: req.suppliers?.name || 'Desconocido',
+                    unitPrice: 0, // Prepopulate with 0, user will fill it
+                    currency: globalInputCurrency,
+                    exchangeRate: globalInputCurrency === 'VES' ? exchangeRate : undefined
+                  }]
+                };
+              }
+            }
+            return matComp;
+          });
+        });
+      });
+
+      return updatedMaterials;
+    });
+
+    setIsImportModalOpen(false);
+    showSuccess(`${importedRequests.length} SC(s) importadas exitosamente.`);
   };
 
   const handleQuoteChange = (materialId: string, quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => {
@@ -467,9 +545,19 @@ const QuoteComparison = () => {
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
           <div className="mb-6 p-4 border border-gray-100 rounded-lg bg-gray-50/50">
-            <h3 className="text-sm font-semibold mb-3 flex items-center text-gray-700 uppercase tracking-wider">
-              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Materiales
-            </h3>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold flex items-center text-gray-700 uppercase tracking-wider">
+                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Materiales
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsImportModalOpen(true)}
+                className="bg-white"
+              >
+                Importar SC
+              </Button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div className="md:col-span-2">
                 <Label htmlFor="material-search">Buscar Material</Label>
@@ -543,6 +631,12 @@ const QuoteComparison = () => {
         onSave={handleSaveComparison}
         isSaving={saveMutation.isPending}
         initialName={comparisonName}
+      />
+
+      <ImportQuoteRequestDialog
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportQuoteRequests}
       />
     </div>
   );

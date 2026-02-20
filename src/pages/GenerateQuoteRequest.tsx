@@ -186,7 +186,7 @@ const GenerateQuoteRequest = () => {
       await quoteRequestService.create(orderData, formattedItems as any);
 
       showSuccess('Solicitud de cotización creada exitosamente.');
-      navigate('/quote-requests');
+      navigate('/quote-request-management');
 
     } catch (error: any) {
       console.error('Error creating quote request:', error);
