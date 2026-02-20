@@ -16,16 +16,14 @@ const Layout = () => {
   const mainContentRef = useRef<HTMLElement>(null); // Ref para el contenido principal
 
   const SidebarHeader = () => (
-    <div className="h-16 flex items-center px-4 justify-start border-b border-border transition-all overflow-hidden">
-      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-procarni-primary/10">
-        <svg className="w-5 h-5 text-procarni-primary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z"></path>
-        </svg>
+    <NavLink to="/" className="h-16 flex items-center px-4 justify-start border-b border-border transition-all overflow-hidden hover:bg-muted/50">
+      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-transparent">
+        <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-full h-full object-contain" />
       </div>
       <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap ml-3 font-bold text-lg text-procarni-primary tracking-tight">
         Procarni
       </span>
-    </div>
+    </NavLink>
   );
 
   const DesktopSidebar = () => (
@@ -53,9 +51,9 @@ const Layout = () => {
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col w-72 bg-background p-0">
           <div className="h-16 flex items-center px-4 border-b border-border">
-            <svg className="w-6 h-6 text-procarni-primary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z"></path>
-            </svg>
+            <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-transparent">
+              <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-full h-full object-contain" />
+            </div>
             <span className="ml-3 font-bold text-lg text-procarni-primary tracking-tight">Procarni</span>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -71,7 +69,13 @@ const Layout = () => {
       </Sheet>
       <div className="w-full flex-1 flex items-center justify-between">
         <span className="font-bold text-lg text-procarni-primary tracking-tight md:hidden">Procarni</span>
-        <UserDropdown />
+        <div className="flex items-center gap-2">
+          <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-muted-foreground transition-colors mr-2">
+            <Bell className="h-5 w-5" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-procarni-primary rounded-full ring-2 ring-white dark:ring-slate-900"></span>
+          </button>
+          <UserDropdown />
+        </div>
       </div>
     </header>
   );
