@@ -38,7 +38,6 @@ const navItems = [
     category: 'Admin',
     items: [
       { to: '/bulk-upload', icon: <Upload className="h-5 w-5" />, label: 'Carga Masiva' },
-      { to: '/ficha-tecnica-upload', icon: <FileUp className="h-5 w-5" />, label: 'Fichas Técnicas' },
       { to: '/settings', icon: <Cog className="h-5 w-5" />, label: 'Secuencias' },
       { to: '/audit-log', icon: <ScrollText className="h-5 w-5" />, label: 'Auditoría' },
     ]

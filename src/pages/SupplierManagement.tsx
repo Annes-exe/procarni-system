@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -111,7 +111,7 @@ const SupplierManagement = () => {
   }, [suppliers, searchTerm, selectedStatus]);
 
   const createMutation = useMutation({
-    mutationFn: ({ supplierData, materials }: { supplierData: Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>; materials: Array<{ material_id: string; specification?: string }> }) =>
+    mutationFn: ({ supplierData, materials }: { supplierData: any; materials: any }) =>
       createSupplier(supplierData, materials),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
@@ -124,7 +124,7 @@ const SupplierManagement = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: Array<{ material_id: string; specification?: string }> }) =>
+    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: any; materials: any }) =>
       updateSupplier(id, supplierData, materials),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
@@ -189,14 +189,14 @@ const SupplierManagement = () => {
     }
   };
 
-  const handleSubmitForm = async (data: SupplierFormValues) => {
+  const handleSubmitForm = async (data: any) => {
     if (!userId) {
       showError('Usuario no autenticado. No se puede realizar la operación.');
       return;
     }
 
     const { materials, ...supplierData } = data;
-    const materialsPayload = materials?.map(mat => ({
+    const materialsPayload = materials?.map((mat: any) => ({
       material_id: mat.material_id,
       specification: mat.specification,
     })) || [];
@@ -204,7 +204,7 @@ const SupplierManagement = () => {
     if (editingSupplier) {
       await updateMutation.mutateAsync({ id: editingSupplier.id, supplierData, materials: materialsPayload });
     } else {
-      await createMutation.mutateAsync({ supplierData, materials: materialsPayload });
+      await createMutation.mutateAsync({ supplierData: { ...supplierData, user_id: userId }, materials: materialsPayload });
     }
   };
 
@@ -249,38 +249,52 @@ const SupplierManagement = () => {
             <CardTitle className="text-procarni-primary">Gestión de Proveedores</CardTitle>
             <CardDescription>Administra la información de tus proveedores.</CardDescription>
           </div>
-          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={handleAddSupplier}
-                className={cn(
-                  "bg-procarni-secondary hover:bg-green-700",
-                  isMobile && "w-10 h-10 p-0" // Hacer el botón cuadrado y sin padding en móvil
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/ficha-tecnica-upload')}
+              className={cn(isMobile && "w-10 h-10 p-0", "text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10 hover:text-procarni-secondary")}
+              title="Fichas Técnicas"
+            >
+              <FileUp className={cn("h-4 w-4", !isMobile && "mr-2")} />
+              {!isMobile && 'Fichas Técnicas'}
+            </Button>
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={handleAddSupplier}
+                  className={cn(
+                    "bg-procarni-secondary hover:bg-green-700",
+                    isMobile && "w-10 h-10 p-0" // Hacer el botón cuadrado y sin padding en móvil
+                  )}
+                >
+                  <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
+                  {!isMobile && 'Añadir Proveedor'}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>
+                  <DialogDescription>
+                    {editingSupplier ? 'Edita los detalles del proveedor existente.' : 'Completa los campos para añadir un nuevo proveedor.'}
+                  </DialogDescription>
+                </DialogHeader>
+                {isLoadingEditData ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
+                    <span className="ml-2 text-muted-foreground">Cargando datos del proveedor...</span>
+                  </div>
+                ) : (
+                  <SupplierForm
+                    initialData={(editingSupplier as any) || undefined}
+                    onSubmit={handleSubmitForm}
+                    onCancel={() => setIsFormOpen(false)}
+                    isSubmitting={createMutation.isPending || updateMutation.isPending}
+                  />
                 )}
-              >
-                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-                {!isMobile && 'Añadir Proveedor'}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto" description={editingSupplier ? 'Edita los detalles del proveedor existente.' : 'Completa los campos para añadir un nuevo proveedor.'}>
-              <DialogHeader>
-                <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>
-              </DialogHeader>
-              {isLoadingEditData ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
-                  <span className="ml-2 text-muted-foreground">Cargando datos del proveedor...</span>
-                </div>
-              ) : (
-                <SupplierForm
-                  initialData={editingSupplier || undefined}
-                  onSubmit={handleSubmitForm}
-                  onCancel={() => setIsFormOpen(false)}
-                  isSubmitting={createMutation.isPending || updateMutation.isPending}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent className={cn(isMobile ? "px-2 py-4" : "p-6")}>
           <div className="flex flex-col md:flex-row gap-4 mb-4">

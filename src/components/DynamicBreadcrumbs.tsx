@@ -16,7 +16,7 @@ const routeMap: Record<string, { label: string; parent?: string }> = {
     '/material-management': { label: 'Materiales' },
     '/company-management': { label: 'Empresas' },
     '/bulk-upload': { label: 'Carga Masiva' },
-    '/ficha-tecnica-upload': { label: 'Subir Ficha Técnica' },
+    '/ficha-tecnica-upload': { label: 'Subir Ficha Técnica', parent: '/supplier-management' },
     '/settings': { label: 'Configuración' },
     '/audit-log': { label: 'Auditoría' },
     '/price-history': { label: 'Historial de Precios' },
