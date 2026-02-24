@@ -24,7 +24,6 @@ import { format } from 'date-fns';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
-  'Sent': 'Enviada',
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
@@ -305,8 +304,6 @@ const ServiceOrderManagement = () => {
     switch (status) {
       case 'Draft':
         return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'Sent':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Approved':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'Rejected':
@@ -385,16 +382,6 @@ const ServiceOrderManagement = () => {
               </Tooltip>
             )}
 
-            {order.status === 'Sent' && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleViewDetails(order.id)}>
-                    <Wrench className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ver Detalles</TooltipContent>
-              </Tooltip>
-            )}
 
             {order.status !== 'Archived' ? (
               <Tooltip>

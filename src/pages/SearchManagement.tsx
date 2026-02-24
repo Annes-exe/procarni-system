@@ -18,9 +18,9 @@ const SearchManagement = () => {
     queryFn: async () => await purchaseOrderService.getAll('Active'),
   });
 
-  // Calculate Pending Orders (Draft or Sent)
+  // Calculate Pending Orders (Draft)
   const pendingOrdersCount = purchaseOrders?.filter(
-    (order) => order.status === 'Draft' || order.status === 'Sent'
+    (order) => order.status === 'Draft'
   ).length || 0;
 
   // 2. Fetch Total Suppliers
@@ -36,7 +36,7 @@ const SearchManagement = () => {
       title: "Órdenes Pendientes",
       value: isLoadingOrders ? "Cargando..." : pendingOrdersCount,
       icon: Clock,
-      description: "Órdenes en estado Borrador o Enviado.",
+      description: "Órdenes en estado Borrador.",
       path: "/purchase-order-management"
     },
     {

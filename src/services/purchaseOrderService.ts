@@ -28,7 +28,7 @@ export const purchaseOrderService = {
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
-            query = query.in('status', ['Draft', 'Sent']);
+            query = query.in('status', ['Draft']);
         } else if (statusFilter === 'Approved') {
             query = query.eq('status', 'Approved');
         } else if (statusFilter === 'Archived') {

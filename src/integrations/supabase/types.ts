@@ -221,7 +221,7 @@ export type ServiceOrder = {
   observations: string | null;
   currency: 'USD' | 'VES';
   exchange_rate: number | null;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
   user_id: string;
   created_at: string | null;
   supplier?: Supplier;

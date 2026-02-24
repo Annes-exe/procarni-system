@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -67,7 +67,7 @@ interface PurchaseOrderDetailsData {
   companies: CompanyDetails;
   currency: 'USD' | 'VES';
   exchange_rate?: number | null;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
   created_at: string;
   created_by?: string;
   user_id: string;
@@ -81,7 +81,6 @@ interface PurchaseOrderDetailsData {
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
-  'Sent': 'Enviada',
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
@@ -108,6 +107,8 @@ const PurchaseOrderDetails = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const pdfViewerRef = React.useRef<PurchaseOrderPDFViewerRef>(null);
 
@@ -201,6 +202,61 @@ const PurchaseOrderDetails = () => {
     } finally {
       dismissToast(toastId);
       setIsApproving(false);
+    }
+  };
+
+  const handleRejectOrder = async () => {
+    if (!order || order.status === 'Rejected') return;
+
+    setIsRejectConfirmOpen(false);
+    setIsRejecting(true);
+    const toastId = showLoading('Rechazando orden...');
+
+    try {
+      const success = await purchaseOrderService.updateStatus(order.id, 'Rejected');
+      if (success) {
+        showSuccess('Orden de Compra rechazada exitosamente.');
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      } else {
+        throw new Error('Fallo al actualizar el estado.');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al rechazar la orden.';
+      showError(errorMessage);
+    } finally {
+      dismissToast(toastId);
+      setIsRejecting(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!order || order.status === newStatus) return;
+
+    if (newStatus === 'Approved') {
+      setIsApproveConfirmOpen(true);
+      return;
+    }
+
+    if (newStatus === 'Rejected') {
+      setIsRejectConfirmOpen(true);
+      return;
+    }
+
+    const toastId = showLoading(`Cambiando estado a ${STATUS_TRANSLATIONS[newStatus] || newStatus}...`);
+    try {
+      const success = await purchaseOrderService.updateStatus(order.id, newStatus as any);
+      if (success) {
+        showSuccess(`Estado cambiado a ${STATUS_TRANSLATIONS[newStatus] || newStatus} exitosamente.`);
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      } else {
+        throw new Error('Error al actualizar el estado.');
+      }
+    } catch (error: any) {
+      showError(error.message || 'Error al cambiar el estado.');
+    } finally {
+      dismissToast(toastId);
     }
   };
 
@@ -316,7 +372,6 @@ const PurchaseOrderDetails = () => {
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'Draft': return 'default'; // gray/yellow handled by styling
-      case 'Sent': return 'secondary';
       case 'Approved': return 'secondary'; // using custom class for colors
       case 'Rejected': return 'destructive';
       case 'Archived': return 'outline';
@@ -327,7 +382,6 @@ const PurchaseOrderDetails = () => {
   const getStatusColorClass = (status: string) => {
     switch (status) {
       case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
-      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
@@ -354,24 +408,115 @@ const PurchaseOrderDetails = () => {
             <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight">
               {formatSequenceNumber(order.sequence_number, order.created_at)}
             </h1>
-            <Badge className={cn("ml-2 pointer-events-none rounded-md px-2.5 py-0.5 text-xs font-semibold shadow-none border", getStatusColorClass(order.status))} variant="outline">
-              {STATUS_TRANSLATIONS[order.status] || order.status}
-            </Badge>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
+                    getStatusColorClass(order.status)
+                  )}
+                >
+                  {STATUS_TRANSLATIONS[order.status] || order.status}
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => (
+                  <DropdownMenuItem
+                    key={status}
+                    onSelect={() => handleStatusChange(status)}
+                    className={cn(status === order.status && "bg-gray-100 font-medium")}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         {/* Action Toolbar */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Primary Actions: Approve and Edit */}
+            {isEditable && order.status !== 'Approved' && (
+              <Button
+                onClick={() => setIsApproveConfirmOpen(true)}
+                disabled={isApproving}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                size="sm"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Aprobar Orden</span>
+              </Button>
+            )}
 
-          {/* Action Buttons (Desktop & Mobile optimized) */}
-          <div className="flex items-center gap-2 ml-auto md:ml-0">
-            {/* PDF Preview */}
-            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden md:flex" title="Previsualizar">
-                  <FileText className="h-4 w-4" />
+            {isEditable && (
+              <Button onClick={() => navigate(`/purchase-orders/edit/${order.id}`)} variant="outline" size="sm" className="gap-2 order-1 md:order-2">
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+            )}
+
+            {/* Secondary Actions: Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 order-3">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="hidden sm:inline">Acciones</span>
                 </Button>
-              </DialogTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                </DropdownMenuItem>
+
+                <DropdownMenuItem asChild>
+                  <PDFDownloadButton
+                    orderId={order.id}
+                    fileNameGenerator={generateFileName}
+                    endpoint="generate-po-pdf"
+                    label="Descargar PDF"
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
+                  />
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
+                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
+
+                {order.status !== 'Approved' && order.status !== 'Archived' && order.status !== 'Rejected' && (
+                  <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
+                    <Clock className="mr-2 h-4 w-4" /> Rechazar Orden
+                  </DropdownMenuItem>
+                )}
+
+                {order.status !== 'Archived' ? (
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Archived')}>
+                    <Archive className="mr-2 h-4 w-4" /> Archivar
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Draft')}>
+                    <RotateCcw className="mr-2 h-4 w-4" /> Desarchivar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Preview Dialog remains (triggered from dropdown) */}
+            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
               <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                   <DialogTitle>Previsualización de Documento</DialogTitle>
@@ -387,72 +532,6 @@ const PurchaseOrderDetails = () => {
                 </div>
               </DialogContent>
             </Dialog>
-
-            {/* Download PDF */}
-            <PDFDownloadButton
-              orderId={order.id}
-              fileNameGenerator={generateFileName}
-              endpoint="generate-po-pdf"
-              label="PDF"
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-            />
-
-            {/* Send Email */}
-            <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email} className="hidden md:flex gap-2">
-              <Mail className="h-4 w-4" />
-            </Button>
-
-            {/* Mobile Actions Dropdown (if needed for space, otherwise keep icons) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="md:hidden">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <PDFDownloadButton
-                    orderId={order.id}
-                    fileNameGenerator={generateFileName}
-                    endpoint="generate-po-pdf"
-                    label="Descargar PDF"
-                    variant="ghost"
-                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
-                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Approve Button */}
-            {isEditable && order.status !== 'Approved' && (
-              <Button
-                onClick={() => setIsApproveConfirmOpen(true)}
-                disabled={isApproving}
-                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
-                size="sm"
-              >
-                <CheckCircle className="h-4 w-4" />
-                <span className="hidden sm:inline">Aprobar Orden</span>
-              </Button>
-            )}
-
-            {/* Edit Button */}
-            {isEditable && (
-              <Button onClick={() => navigate(`/purchase-orders/edit/${order.id}`)} variant="outline" size="sm" className="gap-2">
-                <Edit className="h-4 w-4" />
-                <span className="hidden sm:inline">Editar</span>
-              </Button>
-            )}
           </div>
         </div>
       </div>
@@ -661,6 +740,23 @@ const PurchaseOrderDetails = () => {
             <AlertDialogCancel disabled={isApproving}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleApproveOrder} disabled={isApproving} className="bg-green-600 hover:bg-green-700">
               {isApproving ? 'Aprobando...' : 'Aprobar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isRejectConfirmOpen} onOpenChange={setIsRejectConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Rechazo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas rechazar esta Orden de Compra?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRejecting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRejectOrder} disabled={isRejecting} className="bg-red-600 hover:bg-red-700">
+              {isRejecting ? 'Rechazando...' : 'Rechazar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -5,7 +5,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2, ChevronDown, Archive, Trash2, RotateCcw } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -106,6 +106,32 @@ const QuoteRequestDetails = () => {
       showError(error.message || 'Error al rechazar la solicitud.');
     } finally {
       setIsRejecting(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!request || request.status === newStatus) return;
+
+    if (newStatus === 'Approved') {
+      setIsApproveConfirmOpen(true);
+      return;
+    }
+
+    if (newStatus === 'Rejected') {
+      setIsRejectConfirmOpen(true);
+      return;
+    }
+
+    const toastId = showLoading(`Cambiando estado a ${STATUS_TRANSLATIONS[newStatus] || newStatus}...`);
+    try {
+      await quoteRequestService.updateStatus(request.id, newStatus as any);
+      showSuccess(`Estado cambiado a ${STATUS_TRANSLATIONS[newStatus] || newStatus} exitosamente.`);
+      queryClient.invalidateQueries({ queryKey: ['quoteRequestDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+    } catch (error: any) {
+      showError(error.message || 'Error al cambiar el estado.');
+    } finally {
+      dismissToast(toastId);
     }
   };
 
@@ -275,24 +301,128 @@ const QuoteRequestDetails = () => {
             <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
               <span className="text-gray-400 font-light">#</span>{request.id.substring(0, 8)}
             </h1>
-            <Badge className={cn("ml-2 pointer-events-none rounded-md px-2.5 py-0.5 text-xs font-semibold shadow-none border", getStatusColorClass(request.status))} variant="outline">
-              {STATUS_TRANSLATIONS[request.status] || request.status}
-            </Badge>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
+                    getStatusColorClass(request.status)
+                  )}
+                >
+                  {STATUS_TRANSLATIONS[request.status] || request.status}
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => (
+                  <DropdownMenuItem
+                    key={status}
+                    onSelect={() => handleStatusChange(status)}
+                    className={cn(status === request.status && "bg-gray-100 font-medium")}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         {/* Action Toolbar */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Primary Actions: Approve and Edit */}
+            {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
+              <Button
+                onClick={() => setIsApproveConfirmOpen(true)}
+                disabled={isApproving || isRejecting}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                size="sm"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Aprobar Solicitud</span>
+              </Button>
+            )}
 
-          {/* Action Buttons (Desktop & Mobile optimized) */}
-          <div className="flex items-center gap-2 ml-auto md:ml-0">
-            {/* PDF Preview */}
-            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden md:flex" title="Previsualizar">
-                  <FileText className="h-4 w-4" />
+            {isEditable && (
+              <Button
+                onClick={() => navigate(`/quote-requests/edit/${request.id}`)}
+                variant="outline"
+                size="sm"
+                className="gap-2 order-1 md:order-2"
+              >
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+            )}
+
+            {/* Secondary Actions: Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 order-3">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="hidden sm:inline">Acciones</span>
                 </Button>
-              </DialogTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                </DropdownMenuItem>
+
+                <DropdownMenuItem asChild>
+                  <PDFDownloadButton
+                    requestId={request.id}
+                    fileNameGenerator={generateFileName}
+                    endpoint="generate-qr-pdf"
+                    label="Descargar PDF"
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
+                  />
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onSelect={() => setIsEmailModalOpen(true)}
+                  // @ts-ignore
+                  disabled={!request.suppliers?.email}
+                >
+                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Flujo de Trabajo</DropdownMenuLabel>
+
+                <DropdownMenuItem onSelect={handleConvertToPurchaseOrder}>
+                  <ShoppingCart className="mr-2 h-4 w-4" /> Convertir a OC
+                </DropdownMenuItem>
+
+                {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
+                  <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
+                    <Clock className="mr-2 h-4 w-4" /> Rechazar Solicitud
+                  </DropdownMenuItem>
+                )}
+
+                {request.status !== 'Archived' ? (
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Archived')}>
+                    <Archive className="mr-2 h-4 w-4" /> Archivar
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Draft')}>
+                    <RotateCcw className="mr-2 h-4 w-4" /> Desarchivar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Preview Dialog remains the same, but it's now triggered from dropdown */}
+            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
               <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                   <DialogTitle>Previsualización de Documento</DialogTitle>
@@ -308,96 +438,6 @@ const QuoteRequestDetails = () => {
                 </div>
               </DialogContent>
             </Dialog>
-
-            {/* Download PDF */}
-            <PDFDownloadButton
-              requestId={request.id}
-              fileNameGenerator={generateFileName}
-              endpoint="generate-qr-pdf"
-              label="PDF"
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-            />
-
-            {/* Send Email */}
-            <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)} disabled={
-              // @ts-ignore 
-              !request.suppliers?.email
-            } className="hidden md:flex gap-2">
-              <Mail className="h-4 w-4" />
-            </Button>
-
-            {/* Mobile Actions Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="md:hidden">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <PDFDownloadButton
-                    requestId={request.id}
-                    fileNameGenerator={generateFileName}
-                    endpoint="generate-qr-pdf"
-                    label="Descargar PDF"
-                    variant="ghost"
-                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={
-                  // @ts-ignore 
-                  !request.suppliers?.email
-                }>
-                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Approve Button */}
-            {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setIsRejectConfirmOpen(true)}
-                  disabled={isRejecting || isApproving}
-                  variant="outline"
-                  className="text-red-600 border-red-200 hover:bg-red-50 gap-2"
-                  size="sm"
-                >
-                  <Clock className="h-4 w-4" />
-                  <span className="hidden sm:inline">Rechazar</span>
-                </Button>
-                <Button
-                  onClick={() => setIsApproveConfirmOpen(true)}
-                  disabled={isApproving || isRejecting}
-                  className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
-                  size="sm"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="hidden sm:inline">Aprobar Solicitud</span>
-                </Button>
-              </div>
-            )}
-
-            {/* Edit Button */}
-            {isEditable && (
-              <Button onClick={() => navigate(`/quote-requests/edit/${request.id}`)} variant="outline" size="sm" className="gap-2">
-                <Edit className="h-4 w-4" />
-                <span className="hidden sm:inline">Editar</span>
-              </Button>
-            )}
-
-            {/* Convert to PO Button */}
-            <Button onClick={handleConvertToPurchaseOrder} className="bg-procarni-secondary hover:bg-green-700 text-white gap-2 shadow-sm" size="sm">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="hidden sm:inline">Convertir a OC</span>
-            </Button>
           </div>
         </div>
       </div>
