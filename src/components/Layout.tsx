@@ -9,7 +9,8 @@ import UserDropdown from './UserDropdown';
 import SidebarNav from './SidebarNav';
 import ScrollToTopButton from './ScrollToTopButton';
 import { DynamicBreadcrumbs } from './DynamicBreadcrumbs';
-import { Menu, Search, Bell } from 'lucide-react';
+import NotificationBell from './NotificationBell';
+import { Menu, Search } from 'lucide-react';
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -72,10 +73,7 @@ const Layout = () => {
       <div className="w-full flex-1 flex items-center justify-between">
         <span className="font-bold text-lg text-procarni-primary tracking-tight md:hidden">Procarni</span>
         <div className="flex items-center gap-2">
-          <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-muted-foreground transition-colors mr-2">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-procarni-primary rounded-full ring-2 ring-white dark:ring-slate-900"></span>
-          </button>
+          <NotificationBell />
           <UserDropdown />
         </div>
       </div>
@@ -110,10 +108,7 @@ const Layout = () => {
               </span>
               <Input className="pl-9 pr-4 py-2 h-9 text-sm rounded-full bg-gray-100 dark:bg-slate-800 border-transparent focus:border-procarni-primary focus:ring-procarni-primary w-64 transition-all duration-200" placeholder="Buscar..." type="text" />
             </div>
-            <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-muted-foreground transition-colors mr-2">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-procarni-primary rounded-full ring-2 ring-white dark:ring-slate-900"></span>
-            </button>
+            <NotificationBell />
             <div className="h-8 w-px bg-border/60 mx-1"></div>
             <UserDropdown />
           </div>

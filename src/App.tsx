@@ -35,6 +35,7 @@ import ServiceOrderDetails from "./pages/ServiceOrderDetails"; // NEW IMPORT
 import EditServiceOrder from "./pages/EditServiceOrder";
 import ReportsAnalytics from "./pages/ReportsAnalytics"; // NEW IMPORT
 import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
                 <Route path="/audit-log" element={<AuditLog />} />
                 <Route path="/quote-comparison" element={<QuoteComparison />} />
                 <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
+                <Route path="/notifications" element={<Notifications />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
