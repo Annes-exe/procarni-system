@@ -90,7 +90,8 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      // Delay revocation to ensure the browser has finished writing the file to disk
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 
       dismissToast(toastId);
       showSuccess('PDF descargado exitosamente.');

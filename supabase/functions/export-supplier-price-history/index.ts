@@ -5,6 +5,7 @@ import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
 serve(async (req) => {
@@ -36,10 +37,10 @@ serve(async (req) => {
     console.log(`[export-supplier-price-history] Export request for supplier ID: ${supplierId} by user: ${user.email}`);
 
     if (!supplierId) {
-        return new Response(JSON.stringify({ error: 'Supplier ID es requerido.' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      return new Response(JSON.stringify({ error: 'Supplier ID es requerido.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Fetch price history data for the supplier, joining material details
@@ -58,24 +59,24 @@ serve(async (req) => {
     }
 
     const dataToExport = history.map(entry => {
-        return {
-            'ID Transacción': entry.id.substring(0, 8),
-            'Material': entry.materials?.name || 'N/A',
-            'Cód. Material': entry.materials?.code || 'N/A',
-            'Unidad': entry.materials?.unit || 'N/A',
-            'Precio Unitario': entry.unit_price,
-            'Moneda': entry.currency,
-            'Tasa de Cambio (USD/VES)': entry.exchange_rate || 'N/A',
-            'Fecha Registro': new Date(entry.recorded_at).toLocaleString('es-VE'),
-            'ID Orden de Compra': entry.purchase_order_id ? entry.purchase_order_id.substring(0, 8) : 'N/A',
-        };
+      return {
+        'ID Transacción': entry.id.substring(0, 8),
+        'Material': entry.materials?.name || 'N/A',
+        'Cód. Material': entry.materials?.code || 'N/A',
+        'Unidad': entry.materials?.unit || 'N/A',
+        'Precio Unitario': entry.unit_price,
+        'Moneda': entry.currency,
+        'Tasa de Cambio (USD/VES)': entry.exchange_rate || 'N/A',
+        'Fecha Registro': new Date(entry.recorded_at).toLocaleString('es-VE'),
+        'ID Orden de Compra': entry.purchase_order_id ? entry.purchase_order_id.substring(0, 8) : 'N/A',
+      };
     });
 
     const headers = [
-        'ID Transacción', 'Material', 'Cód. Material', 'Unidad', 'Precio Unitario', 
-        'Moneda', 'Tasa de Cambio (USD/VES)', 'Fecha Registro', 'ID Orden de Compra'
+      'ID Transacción', 'Material', 'Cód. Material', 'Unidad', 'Precio Unitario',
+      'Moneda', 'Tasa de Cambio (USD/VES)', 'Fecha Registro', 'ID Orden de Compra'
     ];
-    
+
     const safeSupplierName = (supplierName || 'Proveedor').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
     const fileName = `Historial_Precios_Proveedor_${safeSupplierName}.xlsx`;
 

@@ -5,6 +5,7 @@ import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
 // Define colores corporativos y de borde
@@ -74,17 +75,17 @@ serve(async (req) => {
 
     // --- Generación de PDF con pdf-lib ---
     const pdfDoc = await PDFDocument.create();
-    let page = pdfDoc.addPage(); 
+    let page = pdfDoc.addPage();
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     const { width, height } = page.getSize();
-    const margin = 30; 
+    const margin = 30;
     let y = height - margin;
     const fontSize = 10;
     const lineHeight = fontSize * 1.2;
-    
+
     // Helper para dibujar texto
     const drawText = (text: string, x: number, yPos: number, options: any = {}) => {
       page.drawText(text, {
@@ -106,7 +107,7 @@ serve(async (req) => {
     // Function to draw table headers (Red text, thin gray bottom border)
     const drawTableHeader = () => {
       let currentX = tableX;
-      
+
       // Draw thin gray line below header row
       page.drawLine({
         start: { x: tableX, y: y - lineHeight },
@@ -124,7 +125,7 @@ serve(async (req) => {
 
     // Function to check for page breaks and add new page if necessary
     const checkPageBreak = (requiredSpace: number) => {
-      if (y - requiredSpace < margin) { 
+      if (y - requiredSpace < margin) {
         page = pdfDoc.addPage();
         y = height - margin;
         drawTableHeader(); // Redraw headers on new page
@@ -178,7 +179,7 @@ serve(async (req) => {
       drawText(request.companies?.name || 'N/A', margin, y, { font: boldFont, size: companyNameFontSize, color: PROC_RED });
       y -= lineHeight * 2;
     }
-    
+
     // Separator line (Red, 2pt)
     page.drawLine({
       start: { x: margin, y: y },
@@ -218,16 +219,16 @@ serve(async (req) => {
       color: LIGHT_GRAY,
     });
     y -= lineHeight;
-    
+
     drawTableHeader(); // Draw table header (already includes bottom border)
 
     // Dibujar filas de ítems
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      checkPageBreak(lineHeight); 
+      checkPageBreak(lineHeight);
 
       let currentX = tableX;
-      
+
       // Draw thin gray line above the row content (to separate rows)
       page.drawLine({
         start: { x: tableX, y: y },
@@ -254,7 +255,7 @@ serve(async (req) => {
 
       y -= lineHeight;
     }
-    
+
     // Draw final bottom border for the table
     page.drawLine({
       start: { x: tableX, y: y },
@@ -262,11 +263,11 @@ serve(async (req) => {
       thickness: 1,
       color: LIGHT_GRAY,
     });
-    
-    y -= lineHeight * 2; 
+
+    y -= lineHeight * 2;
 
     // --- Footer ---
-    const footerY = margin; 
+    const footerY = margin;
     drawText(`Generado por: ${request.created_by || user.email}`, margin, footerY + lineHeight * 2);
 
     const pdfBytes = await pdfDoc.save();

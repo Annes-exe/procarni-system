@@ -5,6 +5,7 @@ import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
 serve(async (req) => {

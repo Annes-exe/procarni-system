@@ -5,6 +5,7 @@ import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://esm.s
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
 // --- CONSTANTS ---
