@@ -11,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import PurchaseOrderPDFViewer, { PurchaseOrderPDFViewerRef } from '@/components/PurchaseOrderPDFViewer';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
-import WhatsAppSenderButton from '@/components/WhatsAppSenderButton';
 import { calculateTotals, numberToWords } from '@/utils/calculations';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -205,7 +204,7 @@ const PurchaseOrderDetails = () => {
     }
   };
 
-  const handleSendEmail = async (customMessage: string, sendWhatsApp: boolean, phone?: string) => {
+  const handleSendEmail = async (customMessage: string) => {
     if (!session?.user?.email || !order) return;
 
     const toastId = showLoading('Generando PDF y enviando correo...');
@@ -258,12 +257,8 @@ const PurchaseOrderDetails = () => {
         throw new Error(errorData.error || 'Error al enviar el correo.');
       }
 
-      if (sendWhatsApp && phone) {
-        const formattedPhone = phone.replace(/\D/g, '');
-        const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-        const whatsappMessage = `Hola, te he enviado por correo la Orden de Compra #${formatSequenceNumber(order.sequence_number, order.created_at)} de ${order.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
-        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-        window.open(whatsappUrl, '_blank');
+      if (false) {
+        // WhatsApp notification removed (incomplete)
       }
 
       dismissToast(toastId);
@@ -434,18 +429,6 @@ const PurchaseOrderDetails = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <WhatsAppSenderButton
-                    recipientPhone={order.suppliers?.phone}
-                    documentType="Orden de Compra"
-                    documentId={order.id}
-                    documentNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
-                    companyName={order.companies?.name || ''}
-                    variant="ghost"
-                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
-                    label="Enviar por WhatsApp"
-                  />
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -660,9 +643,8 @@ const PurchaseOrderDetails = () => {
       <EmailSenderModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
-        onSend={(message, sendWhatsApp) => handleSendEmail(message, sendWhatsApp, order.suppliers?.phone)}
+        onSend={(message) => handleSendEmail(message)}
         recipientEmail={order.suppliers?.email || ''}
-        recipientPhone={order.suppliers?.phone}
         documentType="Orden de Compra"
         documentId={order.id}
       />

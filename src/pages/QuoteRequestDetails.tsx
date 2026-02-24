@@ -13,7 +13,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import QuoteRequestPreviewModal, { QuoteRequestPreviewModalRef } from '@/components/QuoteRequestPreviewModal';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
-import WhatsAppSenderButton from '@/components/WhatsAppSenderButton';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
@@ -133,7 +132,7 @@ const QuoteRequestDetails = () => {
     });
   };
 
-  const handleSendEmail = async (customMessage: string, sendWhatsApp: boolean, phone?: string) => {
+  const handleSendEmail = async (customMessage: string) => {
     if (!session?.user?.email || !request) return;
 
     const toastId = showLoading('Generando PDF y enviando correo...');
@@ -193,15 +192,7 @@ const QuoteRequestDetails = () => {
         throw new Error(errorData.error || 'Error al enviar el correo.');
       }
 
-      // 3. Send WhatsApp (if requested)
-      if (sendWhatsApp && phone) {
-        const formattedPhone = phone.replace(/\D/g, '');
-        const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-        // @ts-ignore
-        const whatsappMessage = `Hola, te he enviado por correo la Solicitud de Cotización #${request.id.substring(0, 8)} de ${request.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
-        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-        window.open(whatsappUrl, '_blank');
-      }
+      // 3. Send WhatsApp removed as it is incomplete
 
       dismissToast(toastId);
       showSuccess('Correo enviado exitosamente.');
@@ -366,20 +357,6 @@ const QuoteRequestDetails = () => {
                 }>
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <WhatsAppSenderButton
-                    // @ts-ignore
-                    recipientPhone={request.suppliers?.phone}
-                    documentType="Solicitud de Cotización"
-                    documentId={request.id}
-                    documentNumber={request.id.substring(0, 8)}
-                    // @ts-ignore
-                    companyName={request.companies?.name || ''}
-                    variant="ghost"
-                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal"
-                    label="Enviar por WhatsApp"
-                  />
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -533,11 +510,9 @@ const QuoteRequestDetails = () => {
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
         // @ts-ignore
-        onSend={(message, sendWhatsApp) => handleSendEmail(message, sendWhatsApp, request.suppliers?.phone)}
+        onSend={(message) => handleSendEmail(message)}
         // @ts-ignore
         recipientEmail={request.suppliers?.email || ''}
-        // @ts-ignore
-        recipientPhone={request.suppliers?.phone}
         documentType="Solicitud de Cotización"
         documentId={request.id}
       />
