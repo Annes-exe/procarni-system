@@ -20,6 +20,10 @@ const LOGO_SIZE = 50;
 
 // --- UTILITY FUNCTIONS (Kept outside serve) ---
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 const calculateTotals = (items: Array<{
   quantity: number | null | undefined;
   unit_price: number | null | undefined;
@@ -803,7 +807,7 @@ serve(async (req: Request) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 

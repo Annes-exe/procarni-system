@@ -4,6 +4,11 @@ import { Download } from 'lucide-react';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+
+const sanitizeFilename = (filename: string): string => {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+};
 
 interface QuoteEntry {
   supplierId: string;
@@ -59,10 +64,18 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
     const toastId = showLoading('Generando PDF de comparación...');
 
     try {
+      // Fetch fresh session to ensure we have the latest token
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        showError('No hay sesión activa para descargar el PDF.');
+        return;
+      }
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quote-comparison-pdf`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -86,7 +99,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = sanitizeFilename(fileName);
       document.body.appendChild(a);
       a.click();
       a.remove();

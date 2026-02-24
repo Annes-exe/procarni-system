@@ -8,6 +8,10 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -77,8 +81,7 @@ serve(async (req) => {
       'Moneda', 'Tasa de Cambio (USD/VES)', 'Fecha Registro', 'ID Orden de Compra'
     ];
 
-    const safeSupplierName = (supplierName || 'Proveedor').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-    const fileName = `Historial_Precios_Proveedor_${safeSupplierName}.xlsx`;
+    const fileName = `Historial_Precios_Proveedor_${supplierName || 'Proveedor'}.xlsx`;
 
     const ws = XLSX.utils.json_to_sheet(dataToExport, { header: headers });
     const wb = XLSX.utils.book_new();
@@ -92,7 +95,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(fileName)}"`,
       },
     });
 

@@ -8,6 +8,10 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -81,7 +85,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(fileName)}"`,
       },
     });
 

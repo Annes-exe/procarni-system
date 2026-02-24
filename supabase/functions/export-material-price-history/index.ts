@@ -8,6 +8,10 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 // Helper function to convert price to the base currency
 const convertPriceToBase = (entry: any, base: 'USD' | 'VES'): number | null => {
   const price = entry.unit_price;
@@ -107,8 +111,7 @@ serve(async (req) => {
       'Fecha Registro', 'ID Orden de Compra'
     ];
 
-    const safeMaterialName = (materialName || 'Material').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-    const fileName = `Historial_Precios_${safeMaterialName}_${baseCurrency}.xlsx`;
+    const fileName = `Historial_Precios_${materialName || 'Material'}_${baseCurrency}.xlsx`;
 
     const ws = XLSX.utils.json_to_sheet(dataToExport, { header: headers });
     const wb = XLSX.utils.book_new();
@@ -122,7 +125,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(fileName)}"`,
       },
     });
 

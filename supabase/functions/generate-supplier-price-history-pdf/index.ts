@@ -8,6 +8,10 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 // --- CONSTANTS ---
 const PROC_RED = rgb(0.533, 0.039, 0.039); // #880a0a
 const LIGHT_GRAY = rgb(0.9, 0.9, 0.9);
@@ -362,7 +366,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 

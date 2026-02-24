@@ -8,6 +8,10 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 // Define colores corporativos y de borde
 const PROC_RED = rgb(0.533, 0.039, 0.039); // #880a0a
 const LIGHT_GRAY = rgb(0.9, 0.9, 0.9); // Borde de tabla muy fino
@@ -275,8 +279,7 @@ serve(async (req) => {
     // Format filename as: SC, "NOMBRE DEL PROVEEDOR" "FECHA ACTUAL"
     const supplierName = request.suppliers?.name || 'Proveedor';
     const currentDate = new Date().toLocaleDateString('es-VE').replace(/\//g, '-');
-    const safeSupplierName = supplierName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-    const filename = `SC_${safeSupplierName}_${currentDate}.pdf`;
+    const filename = `SC_${supplierName}_${currentDate}.pdf`;
 
     console.log(`[generate-qr-pdf] Generated PDF with filename: ${filename}`);
 
@@ -284,7 +287,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 

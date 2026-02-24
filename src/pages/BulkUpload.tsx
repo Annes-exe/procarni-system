@@ -10,6 +10,11 @@ import { useSession } from '@/components/SessionContextProvider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PinInputDialog from '@/components/PinInputDialog';
 import ResetDataButton from '@/components/ResetDataButton'; // Import the new ResetDataButton component
+import { supabase } from '@/integrations/supabase/client';
+
+const sanitizeFilename = (filename: string): string => {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+};
 
 interface UploadResult {
   successCount: number;
@@ -117,13 +122,21 @@ const BulkUpload = () => {
     const loadingToastId = showLoading(`Generando ${mode === 'template' ? 'plantilla' : 'respaldo'} de ${type === 'supplier' ? 'proveedores' : (type === 'material' ? 'materiales' : 'relaciones proveedor-material')}...`);
 
     try {
+      // Fetch fresh session to ensure we have the latest token
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        showError('No hay sesión activa. Por favor, inicia sesión para descargar.');
+        return;
+      }
+
       const functionName = mode === 'template' ? 'generate-template' : 'export-data';
       const body = mode === 'template' ? JSON.stringify({ type }) : JSON.stringify({ type, pin });
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
@@ -143,7 +156,7 @@ const BulkUpload = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = sanitizeFilename(fileName);
       document.body.appendChild(a);
       a.click();
       a.remove();

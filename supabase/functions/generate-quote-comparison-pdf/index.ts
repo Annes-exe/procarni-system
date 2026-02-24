@@ -18,6 +18,10 @@ const LINE_HEIGHT = FONT_SIZE * 1.2;
 
 // --- UTILITY FUNCTIONS ---
 
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
+
 function wrapText(text: string, maxCharsPerLine: number): string[] {
   if (!text) return [];
   const words = text.split(/\s+/);
@@ -299,7 +303,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 
