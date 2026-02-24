@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { quoteRequestService } from '@/services/quoteRequestService';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -49,6 +50,8 @@ const QuoteRequestManagement = () => {
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
   const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
+  const [isBulkRestoreDialogOpen, setIsBulkRestoreDialogOpen] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [requestToReject, setRequestToReject] = useState<string | null>(null);
 
@@ -238,6 +241,32 @@ const QuoteRequestManagement = () => {
     }
   };
 
+  const executeBulkRestore = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => quoteRequestService.updateStatus(id, 'Draft')));
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+      showSuccess(`${selectedIds.size} solicitudes restauradas a borrador.`);
+      setSelectedIds(new Set());
+      setIsBulkRestoreDialogOpen(false);
+    } catch (error) {
+      console.error('Error restoring requests:', error);
+      showError('Error al restaurar las solicitudes seleccionadas.');
+    }
+  };
+
+  const executeBulkDelete = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => quoteRequestService.delete(id)));
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+      showSuccess(`${selectedIds.size} solicitudes eliminadas permanentemente.`);
+      setSelectedIds(new Set());
+      setIsBulkDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Error deleting requests:', error);
+      showError('Error al eliminar las solicitudes seleccionadas.');
+    }
+  };
+
   const handleViewDetails = (requestId: string) => {
     navigate(`/quote-requests/${requestId}`);
   };
@@ -280,78 +309,116 @@ const QuoteRequestManagement = () => {
     const isArchived = request.status === 'Archived';
 
     return (
-      <TableCell className="text-right whitespace-nowrap">
-        <Button variant="ghost" size="icon" onClick={() => handleViewDetails(request.id)}>
-          <Eye className="h-4 w-4" />
-        </Button>
-        {isEditable && (
-          <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request.id)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-        )}
-        {!isArchived && (
-          <Button variant="ghost" size="icon" onClick={() => handleRejectClick(request.id)} title="Rechazar">
-            <XCircle className="h-4 w-4 text-red-500" />
-          </Button>
-        )}
-        {!isArchived && (
-          <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'archive')} title="Archivar">
-            <Archive className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        )}
-        {isArchived && (
-          <>
-            <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'unarchive')} title="Desarchivar">
-              <RotateCcw className="h-4 w-4 text-procarni-secondary" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'delete')} title="Eliminar Permanentemente">
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </>
-        )}
+      <TableCell className="text-right pr-4 py-3">
+        <TooltipProvider delayDuration={0}>
+          <div className="flex justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(request.id)} className="h-8 w-8">
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver Detalles</TooltipContent>
+            </Tooltip>
+
+            {request.status === 'Draft' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request.id)} className="h-8 w-8 text-blue-600">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Editar</TooltipContent>
+              </Tooltip>
+            )}
+
+            {request.status === 'Draft' ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'archive')} className="h-8 w-8 text-gray-500">
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Archivar</TooltipContent>
+              </Tooltip>
+            ) : request.status === 'Archived' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'unarchive')} className="h-8 w-8 text-gray-500">
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Desarchivar</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TooltipProvider>
       </TableCell>
     );
   };
 
   const renderMobileCard = (request: any) => (
-    <Card key={request.id} className={cn("p-4 shadow-md", selectedIds.has(request.id) && "border-procarni-secondary border-2")}>
+    <Card key={request.id} className={cn("p-4 shadow-md bg-white", selectedIds.has(request.id) && "border-procarni-secondary border-2")}>
       <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Checkbox
             checked={selectedIds.has(request.id)}
             onCheckedChange={() => toggleSelection(request.id)}
           />
-          <CardTitle className="text-sm font-bold truncate text-procarni-dark">{request.suppliers?.name || 'Proveedor Desconocido'}</CardTitle>
+          <CardTitle className="text-lg truncate font-mono text-procarni-dark">{request.id.substring(0, 8)}</CardTitle>
         </div>
-        <Badge variant="outline" className={cn("text-[10px]", getStatusColorClass(request.status))}>
+        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0 border", getStatusColorClass(request.status))}>
           {STATUS_TRANSLATIONS[request.status] || request.status}
-        </Badge>
+        </span>
       </div>
-      <CardDescription className="mb-2 text-xs">
-        <span className='font-semibold'>Empresa:</span> {request.companies?.name || 'Desconocida'}
-      </CardDescription>
-      <div className="text-xs space-y-1 text-gray-600">
-        <p><strong>ID:</strong> {request.id.substring(0, 8)}</p>
+      <div className="text-sm space-y-1 mt-2">
+        <p><strong>Proveedor:</strong> {request.suppliers?.name || 'Varios'}</p>
         <p><strong>Fecha:</strong> {new Date(request.created_at).toLocaleDateString('es-VE')}</p>
       </div>
       <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-        <Button variant="outline" size="sm" onClick={() => handleViewDetails(request.id)} className="h-8 text-xs">
-          <Eye className="h-3.5 w-3.5 mr-1" /> Ver
-        </Button>
-        {request.status === 'Draft' && (
-          <Button variant="outline" size="sm" onClick={() => handleEditRequest(request.id)} className="h-8 text-xs">
-            <Edit className="h-3.5 w-3.5 mr-1" /> Editar
-          </Button>
-        )}
-        {request.status === 'Archived' ? (
-          <Button variant="ghost" size="sm" onClick={() => confirmAction(request.id, 'unarchive')} className="h-8 text-xs text-blue-600">
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Restaurar
-          </Button>
-        ) : (
-          <Button variant="ghost" size="sm" onClick={() => confirmAction(request.id, 'archive')} className="h-8 text-xs text-gray-500">
-            <Archive className="h-3.5 w-3.5 mr-1" /> Archivar
-          </Button>
-        )}
+        <TooltipProvider delayDuration={0}>
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleViewDetails(request.id)}>
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ver Detalles</TooltipContent>
+            </Tooltip>
+
+            {request.status === 'Draft' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleEditRequest(request.id)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Editar</TooltipContent>
+              </Tooltip>
+            )}
+
+            {request.status === 'Draft' ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(request.id, 'archive')}>
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Archivar</TooltipContent>
+              </Tooltip>
+            ) : request.status === 'Archived' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(request.id, 'unarchive')}>
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Desarchivar</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TooltipProvider>
       </div>
     </Card>
   );
@@ -426,38 +493,90 @@ const QuoteRequestManagement = () => {
               {/* Bulk Actions Bar */}
               {selectedIds.size > 0 && (
                 <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2 rounded-md mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} seleccionados</span>
+                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
                   <div className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 text-xs hover:bg-white/50">
                       Cancelar
                     </Button>
-                    {!isHistoryMode && (
-                      <>
-                        <Button
-                          className="bg-procarni-secondary hover:bg-green-700 text-white h-8 text-xs"
-                          size="sm"
-                          onClick={() => setIsBulkApproveDialogOpen(true)}
-                        >
-                          <CheckCircle className="mr-1 h-3.5 w-3.5" /> Aprobar
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => setIsBulkRejectDialogOpen(true)}
-                          className="h-8 text-xs"
-                        >
-                          <XCircle className="mr-1 h-3.5 w-3.5" /> Rechazar
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setIsBulkArchiveDialogOpen(true)}
-                          className="h-8 text-xs"
-                        >
-                          <Archive className="mr-1 h-3.5 w-3.5" /> Archivar
-                        </Button>
-                      </>
-                    )}
+                    <TooltipProvider delayDuration={0}>
+                      <div className="flex gap-1.5">
+                        {!isHistoryMode ? (
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                  onClick={() => setIsBulkApproveDialogOpen(true)}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Aprobar Seleccionados</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
+                                  onClick={() => setIsBulkRejectDialogOpen(true)}
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Rechazar Seleccionados</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 text-gray-500 border-gray-200 hover:bg-gray-500 hover:text-white"
+                                  onClick={() => setIsBulkArchiveDialogOpen(true)}
+                                >
+                                  <Archive className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Archivar Seleccionados</TooltipContent>
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                  onClick={() => setIsBulkRestoreDialogOpen(true)}
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Restaurar Seleccionados</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                                  onClick={() => setIsBulkDeleteDialogOpen(true)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Eliminar Permanentemente</TooltipContent>
+                            </Tooltip>
+                          </>
+                        )}
+                      </div>
+                    </TooltipProvider>
                   </div>
                 </div>
               )}
@@ -659,6 +778,43 @@ const QuoteRequestManagement = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeBulkReject} className="bg-red-600 hover:bg-red-700 text-white border-red-600">
               Rechazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isBulkRestoreDialogOpen} onOpenChange={setIsBulkRestoreDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Restauración Masiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas restaurar las {selectedIds.size} solicitudes seleccionadas a Borrador?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkRestore} className="bg-procarni-secondary hover:bg-green-700 text-white">
+              Restaurar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Eliminación Masiva Permanente</AlertDialogTitle>
+            <AlertDialogDescription className="text-red-500 font-medium">
+              Esta acción es irreversible y afectará a {selectedIds.size} solicitudes.
+            </AlertDialogDescription>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar permanentemente todas las solicitudes seleccionadas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar Permanentemente
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

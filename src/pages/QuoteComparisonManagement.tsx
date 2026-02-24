@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Search, Scale, Eye, Trash2, PlusCircle } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { getAllQuoteComparisons, deleteQuoteComparison } from '@/integrations/supabase/data';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { showError, showSuccess } from '@/utils/toast';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
@@ -148,22 +149,39 @@ const QuoteComparisonManagement = () => {
             <p><strong>Guardado:</strong> {format(new Date(comparison.created_at), 'dd/MM/yyyy')}</p>
           </div>
           <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleLoadComparison(comparison.id)}
-              disabled={deleteMutation.isPending}
-            >
-              <Eye className="h-4 w-4 mr-2" /> Cargar
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => confirmDeleteComparison(comparison.id)}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <TooltipProvider delayDuration={0}>
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => handleLoadComparison(comparison.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Cargar y Editar</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                      onClick={() => confirmDeleteComparison(comparison.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Eliminar</TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
           </div>
         </Card>
       );
@@ -184,24 +202,39 @@ const QuoteComparisonManagement = () => {
         <TableCell className="py-3 text-sm text-gray-600">{materialCount}</TableCell>
         <TableCell className="py-3 text-sm text-gray-600">{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
         <TableCell className="text-right pr-4 py-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleLoadComparison(comparison.id)}
-            disabled={deleteMutation.isPending}
-            title="Cargar y Editar"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => confirmDeleteComparison(comparison.id)}
-            disabled={deleteMutation.isPending}
-            title="Eliminar"
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <TooltipProvider delayDuration={0}>
+            <div className="flex justify-end gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleLoadComparison(comparison.id)}
+                    disabled={deleteMutation.isPending}
+                    className="h-8 w-8"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Cargar y Editar</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => confirmDeleteComparison(comparison.id)}
+                    disabled={deleteMutation.isPending}
+                    className="h-8 w-8"
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Eliminar</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </TableCell>
       </TableRow>
     );
@@ -279,6 +312,34 @@ const QuoteComparisonManagement = () => {
         </CardContent>
       </Card>
       <MadeWithDyad />
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-procarni-primary/20 p-2 pl-4 pr-2 rounded-full shadow-lg flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
+          <span className="text-sm font-medium text-procarni-primary">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
+          <div className="h-6 w-px bg-gray-200"></div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 rounded-full text-xs hover:bg-gray-100">
+              Cancelar
+            </Button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                    onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Eliminar Seleccionadas</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+      )}
 
       {/* AlertDialog for delete confirmation */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
