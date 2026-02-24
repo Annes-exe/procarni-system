@@ -92,7 +92,8 @@ serve(async (req) => {
 
     // Helper para dibujar texto
     const drawText = (text: string, x: number, yPos: number, options: any = {}) => {
-      page.drawText(text, {
+      const safeText = String(text || 'N/A');
+      page.drawText(safeText, {
         x,
         y: yPos,
         font: font,
@@ -242,11 +243,11 @@ serve(async (req) => {
       });
 
       // Draw item data
-      drawText(item.material_name, currentX + 5, y - lineHeight + (lineHeight - fontSize) / 2);
+      drawText(item.material_name || 'N/A', currentX + 5, y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[0];
 
       // Right-align numeric values
-      const quantityText = item.quantity.toString();
+      const quantityText = (item.quantity || 0).toString();
       drawText(quantityText, currentX + colWidths[1] - 5 - font.widthOfTextAtSize(quantityText, fontSize), y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[1];
 
