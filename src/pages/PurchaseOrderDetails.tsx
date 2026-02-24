@@ -373,9 +373,8 @@ const PurchaseOrderDetails = () => {
             {/* PDF Preview */}
             <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden md:flex gap-2">
+                <Button variant="outline" size="sm" className="hidden md:flex" title="Previsualizar">
                   <FileText className="h-4 w-4" />
-                  <span className="hidden lg:inline">Previsualizar</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
