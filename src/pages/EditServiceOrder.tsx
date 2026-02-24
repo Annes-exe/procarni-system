@@ -520,16 +520,22 @@ const EditServiceOrder = () => {
                                         <AccordionTrigger className="px-4 py-2 hover:no-underline">
                                             <div className="flex justify-between items-center w-full pr-4">
                                                 <span className="font-semibold text-gray-700">{group.supplierName}</span>
-                                                <div
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0 flex items-center justify-center rounded-md cursor-pointer transition-colors"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleRemoveSparePartsSupplier(group.supplierId);
-                                                    }}
-                                                    title="Eliminar proveedor y sus ítems"
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    asChild
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0 cursor-pointer"
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </div>
+                                                    <span
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleRemoveSparePartsSupplier(group.supplierId);
+                                                        }}
+                                                        title="Eliminar proveedor y sus ítems"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </span>
+                                                </Button>
                                             </div>
                                         </AccordionTrigger>
                                         <AccordionContent className="px-4 pb-4">

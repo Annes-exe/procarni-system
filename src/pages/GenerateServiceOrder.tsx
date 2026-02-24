@@ -529,13 +529,17 @@ const GenerateServiceOrder = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveSparePartsGroup(groupIndex);
-                          }}
+                          asChild
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 cursor-pointer"
                         >
-                          Quitar Grupo
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSparePartsGroup(groupIndex);
+                            }}
+                          >
+                            Quitar Grupo
+                          </span>
                         </Button>
                       </div>
                     </AccordionTrigger>
