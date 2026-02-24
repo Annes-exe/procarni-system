@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { showError, showSuccess } from '@/utils/toast';
@@ -22,7 +22,6 @@ import { Badge } from '@/components/ui/badge';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
-  'Sent': 'Enviada',
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
@@ -49,6 +48,25 @@ const QuoteRequestManagement = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
+  const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [requestToReject, setRequestToReject] = useState<string | null>(null);
+
+  // Rejection mutation
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => quoteRequestService.updateStatus(id, 'Rejected'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+      showSuccess('Solicitud rechazada exitosamente.');
+      setIsRejectDialogOpen(false);
+      setRequestToReject(null);
+    },
+    onError: (err: any) => {
+      showError(`Error al rechazar solicitud: ${err.message}`);
+      setIsRejectDialogOpen(false);
+      setRequestToReject(null);
+    },
+  });
 
   // Fetch Requests based on Mode
   const { data: quoteRequests, isLoading, error } = useQuery({
@@ -131,6 +149,17 @@ const QuoteRequestManagement = () => {
     },
   });
 
+  const handleRejectClick = (id: string) => {
+    setRequestToReject(id);
+    setIsRejectDialogOpen(true);
+  };
+
+  const confirmReject = async () => {
+    if (requestToReject) {
+      await rejectMutation.mutateAsync(requestToReject);
+    }
+  };
+
   const confirmAction = (id: string, action: 'archive' | 'unarchive' | 'delete') => {
     setRequestToModify({ id, action });
     if (action === 'delete') {
@@ -183,6 +212,19 @@ const QuoteRequestManagement = () => {
     }
   };
 
+  const executeBulkReject = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => quoteRequestService.updateStatus(id, 'Rejected')));
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+      showSuccess(`${selectedIds.size} solicitudes rechazadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkRejectDialogOpen(false);
+    } catch (error) {
+      console.error('Error rejecting requests:', error);
+      showError('Error al rechazar las solicitudes seleccionadas.');
+    }
+  };
+
   const executeBulkArchive = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => quoteRequestService.updateStatus(id, 'Archived')));
@@ -207,7 +249,6 @@ const QuoteRequestManagement = () => {
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'Draft': return 'secondary'; // Yellow-ish usually handled by class, but badge variant 'secondary' is grey.
-      case 'Sent': return 'default'; // Blue usually
       case 'Approved': return 'outline'; // Green usually
       case 'Rejected': return 'destructive';
       case 'Archived': return 'outline';
@@ -218,7 +259,6 @@ const QuoteRequestManagement = () => {
   const getStatusColorClass = (status: string) => {
     switch (status) {
       case 'Draft': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'Sent': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Approved': return 'bg-green-100 text-green-800 border-green-200';
       case 'Rejected': return 'bg-red-100 text-red-800 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-600 border-gray-200';
@@ -247,6 +287,11 @@ const QuoteRequestManagement = () => {
         {isEditable && (
           <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request.id)}>
             <Edit className="h-4 w-4" />
+          </Button>
+        )}
+        {!isArchived && (
+          <Button variant="ghost" size="icon" onClick={() => handleRejectClick(request.id)} title="Rechazar">
+            <XCircle className="h-4 w-4 text-red-500" />
           </Button>
         )}
         {!isArchived && (
@@ -360,7 +405,6 @@ const QuoteRequestManagement = () => {
                 ) : (
                   <>
                     <TabsTrigger value="Draft" className="text-xs md:text-sm">Borradores</TabsTrigger>
-                    <TabsTrigger value="Sent" className="text-xs md:text-sm">Enviadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -395,6 +439,14 @@ const QuoteRequestManagement = () => {
                           onClick={() => setIsBulkApproveDialogOpen(true)}
                         >
                           <CheckCircle className="mr-1 h-3.5 w-3.5" /> Aprobar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setIsBulkRejectDialogOpen(true)}
+                          className="h-8 text-xs"
+                        >
+                          <XCircle className="mr-1 h-3.5 w-3.5" /> Rechazar
                         </Button>
                         <Button
                           variant="secondary"
@@ -500,7 +552,7 @@ const QuoteRequestManagement = () => {
             <AlertDialogDescription>
               {requestToModify?.action === 'archive'
                 ? '¿Estás seguro de que deseas archivar esta solicitud? Pasará al historial.'
-                : '¿Estás seguro de que deseas restaurar esta solicitud? Volverá a estar activa.'}
+                : '¿Estás seguro de que deseas restaurar esta solicitud a Borrador?'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -540,6 +592,27 @@ const QuoteRequestManagement = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Rechazo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas rechazar esta solicitud de cotización? Esta acción es definitiva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rejectMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmReject}
+              disabled={rejectMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {rejectMutation.isPending ? 'Rechazando...' : 'Rechazar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={isBulkApproveDialogOpen} onOpenChange={setIsBulkApproveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -569,6 +642,23 @@ const QuoteRequestManagement = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeBulkArchive} className="bg-gray-800 text-white">
               Archivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isBulkRejectDialogOpen} onOpenChange={setIsBulkRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Rechazo Masivo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas rechazar las {selectedIds.size} solicitudes seleccionadas?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkReject} className="bg-red-600 hover:bg-red-700 text-white border-red-600">
+              Rechazar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

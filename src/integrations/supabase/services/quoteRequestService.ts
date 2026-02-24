@@ -6,21 +6,18 @@ import { QuoteRequest, QuoteRequestItem } from '../types';
 import { logAudit } from './auditLogService';
 
 const QuoteRequestService = {
-  getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' = 'Active'): Promise<QuoteRequest[]> => {
+  getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'): Promise<QuoteRequest[]> => {
     let query = supabase
       .from('quote_requests')
       .select('*, suppliers(name), companies(name)')
       .order('created_at', { ascending: false });
 
     if (statusFilter === 'Active') {
-      // Incluir 'Draft' y 'Sent'
-      query = query.in('status', ['Draft', 'Sent']);
-    } else if (statusFilter === 'Approved') {
-      // Solo incluir 'Approved'
-      query = query.eq('status', 'Approved');
-    } else if (statusFilter === 'Archived') {
-      // Solo incluir 'Archived'
-      query = query.eq('status', 'Archived');
+      // Incluir 'Draft'
+      query = query.in('status', ['Draft']);
+    } else if (statusFilter === 'Rejected') {
+      // Solo incluir 'Rejected'
+      query = query.eq('status', 'Rejected');
     }
     // Si statusFilter es algo más (ej. 'All'), no se aplica filtro de estado.
 
@@ -145,7 +142,7 @@ const QuoteRequestService = {
     return updatedRequest;
   },
 
-  updateStatus: async (id: string, newStatus: 'Draft' | 'Sent' | 'Archived' | 'Approved'): Promise<boolean> => {
+  updateStatus: async (id: string, newStatus: 'Draft' | 'Archived' | 'Approved' | 'Rejected'): Promise<boolean> => {
     const { error } = await supabase
       .from('quote_requests')
       .update({ status: newStatus })
@@ -183,7 +180,7 @@ const QuoteRequestService = {
       .from('quote_requests')
       .update({ status: 'Archived' })
       .eq('supplier_id', supplierId)
-      .not('status', 'in', '("Archived", "Approved")')
+      .not('status', 'in', '("Archived","Approved","Rejected")')
       .select('id');
 
     if (error) {

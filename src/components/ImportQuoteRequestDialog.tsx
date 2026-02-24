@@ -159,7 +159,7 @@ const ImportQuoteRequestDialog: React.FC<ImportQuoteRequestDialogProps> = ({ isO
                                             {req.created_at ? new Date(req.created_at).toLocaleDateString() : '---'}
                                         </TableCell>
                                         <TableCell className="text-xs">
-                                            {req.status === 'Approved' ? 'Aprobada' : req.status === 'Sent' ? 'Enviada' : 'Borrador'}
+                                            {req.status === 'Approved' ? 'Aprobada' : 'Borrador'}
                                         </TableCell>
                                     </TableRow>
                                 ))}

@@ -6,7 +6,7 @@ import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
+import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 
@@ -82,14 +82,15 @@ const GeneratePurchaseOrder = () => {
         const supplierIdForSearch = quoteRequest.supplier_id;
 
         for (const item of quoteRequest.quote_request_items) {
-          let materialId: string | undefined = undefined;
+          const materialName = item.materials?.name || item.material_name || item.description || 'Material sin nombre';
+          let materialId: string | undefined = item.material_id || undefined;
           let supplierCode: string = '';
-          let isExempt: boolean = false;
+          let isExempt: boolean = item.is_exempt || false;
 
           if (supplierIdForSearch) {
             try {
-              const associatedMaterials = await searchMaterialsBySupplier(supplierIdForSearch, item.material_name);
-              const exactMatch = associatedMaterials.find(m => m.name.toLowerCase() === item.material_name.toLowerCase());
+              const associatedMaterials = await searchMaterialsBySupplier(supplierIdForSearch, materialName);
+              const exactMatch = associatedMaterials.find(m => m.name.toLowerCase() === materialName.toLowerCase());
 
               if (exactMatch) {
                 materialId = exactMatch.id;
@@ -103,7 +104,7 @@ const GeneratePurchaseOrder = () => {
 
           addItem({
             material_id: materialId,
-            material_name: item.material_name,
+            material_name: materialName,
             supplier_code: supplierCode,
             quantity: item.quantity,
             unit_price: 0,
@@ -342,20 +343,13 @@ const GeneratePurchaseOrder = () => {
     const createdOrder = await purchaseOrderService.create(orderData as any, items as any);
 
     if (createdOrder) {
-      if (quoteRequest?.id && quoteRequest.quote_request_items) {
-        const itemsPayload = quoteRequest.quote_request_items.map((item: any) => ({
-          material_name: item.material_name,
-          quantity: item.quantity,
-          description: item.description,
-          unit: item.unit,
-        }));
-
-        const updatedQR = await updateQuoteRequest(quoteRequest.id, { status: 'Archived' }, itemsPayload);
+      if (quoteRequest?.id) {
+        const updatedQR = await updateQuoteRequestStatus(quoteRequest.id, 'Approved');
 
         if (updatedQR) {
-          console.log(`Quote Request ${quoteRequest.id} archived successfully.`);
+          console.log(`Quote Request ${quoteRequest.id} approved successfully.`);
         } else {
-          showError('Advertencia: No se pudo archivar la Solicitud de Cotización de origen.');
+          showError('Advertencia: No se pudo actualizar el estado de la Solicitud de Cotización de origen.');
         }
       }
 
@@ -452,6 +446,9 @@ const GeneratePurchaseOrder = () => {
             <ShoppingCart className="h-4 w-4 mr-2" /> Ítems de la Orden
           </CardTitle>
           <div className="flex gap-2">
+            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+            </Button>
             <Button
               onClick={() => setIsAddMaterialDialogOpen(true)}
               variant="secondary"
@@ -459,9 +456,6 @@ const GeneratePurchaseOrder = () => {
               disabled={!supplierId}
             >
               <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-            </Button>
-            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
-              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
             </Button>
           </div>
         </CardHeader>

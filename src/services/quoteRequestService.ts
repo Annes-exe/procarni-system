@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { QuoteRequest, QuoteRequestItem } from "@/integrations/supabase/types";
 
 export interface CreateQuoteRequestInput {
-    status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
+    status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
     company_id: string;
     supplier_id: string;
     issue_date: string;
@@ -13,7 +13,7 @@ export interface CreateQuoteRequestInput {
 }
 
 export interface UpdateQuoteRequestInput {
-    status?: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
+    status?: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
     company_id?: string;
     issue_date?: string;
     deadline_date?: string;
@@ -30,7 +30,7 @@ export interface CreateQuoteRequestItemInput {
 
 export const quoteRequestService = {
 
-    async getAll(statusFilter?: 'Active' | 'History' | 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived') {
+    async getAll(statusFilter?: 'Active' | 'History' | 'Draft' | 'Approved' | 'Rejected' | 'Archived') {
         let query = supabase
             .from('quote_requests')
             .select(`
@@ -45,11 +45,13 @@ export const quoteRequestService = {
             // Actually 'Approved' usually moves to PO, but for QR it might stay open? 
             // Let's assume Active = Draft, Sent. Approved/Rejected/Archived = History?
             // Or maybe strictly follow status if provided in UI tabs.
-            // If UI sends 'Active', let's return Draft and Sent.
-            query = query.in('status', ['Draft', 'Sent']);
+            // If UI sends 'Active', let's return Draft.
+            query = query.in('status', ['Draft']);
         } else if (statusFilter === 'History') {
             // All history: Approved, Rejected, Archived
             query = query.in('status', ['Approved', 'Rejected', 'Archived']);
+        } else if (statusFilter === 'Rejected') {
+            query = query.eq('status', 'Rejected');
         } else if (statusFilter) {
             // Specific status
             query = query.eq('status', statusFilter);
@@ -178,7 +180,7 @@ export const quoteRequestService = {
         return true;
     },
 
-    async updateStatus(id: string, status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived') {
+    async updateStatus(id: string, status: 'Draft' | 'Approved' | 'Rejected' | 'Archived') {
         const { error } = await supabase
             .from('quote_requests')
             .update({ status })

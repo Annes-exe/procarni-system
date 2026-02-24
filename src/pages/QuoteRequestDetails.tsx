@@ -34,7 +34,6 @@ import { Label } from '@/components/ui/label';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
-  'Sent': 'Enviada',
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
@@ -49,7 +48,9 @@ const QuoteRequestDetails = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
+  const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const qrViewerRef = React.useRef<QuoteRequestPreviewModalRef>(null);
 
@@ -76,7 +77,6 @@ const QuoteRequestDetails = () => {
 
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
-    // const toastId = showLoading('Aprobando solicitud...');
 
     try {
       await quoteRequestService.updateStatus(request.id, 'Approved');
@@ -87,8 +87,26 @@ const QuoteRequestDetails = () => {
     } catch (error: any) {
       showError(error.message || 'Error al aprobar la solicitud.');
     } finally {
-      // dismissToast(toastId);
       setIsApproving(false);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    if (!request || request.status === 'Rejected') return;
+
+    setIsRejectConfirmOpen(false);
+    setIsRejecting(true);
+
+    try {
+      await quoteRequestService.updateStatus(request.id, 'Rejected');
+      showSuccess('Solicitud de Cotización rechazada exitosamente.');
+      queryClient.invalidateQueries({ queryKey: ['quoteRequestDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+
+    } catch (error: any) {
+      showError(error.message || 'Error al rechazar la solicitud.');
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -240,7 +258,6 @@ const QuoteRequestDetails = () => {
   const getStatusColorClass = (status: string) => {
     switch (status) {
       case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
-      case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
@@ -369,15 +386,27 @@ const QuoteRequestDetails = () => {
 
             {/* Approve Button */}
             {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
-              <Button
-                onClick={() => setIsApproveConfirmOpen(true)}
-                disabled={isApproving}
-                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
-                size="sm"
-              >
-                <CheckCircle className="h-4 w-4" />
-                <span className="hidden sm:inline">Aprobar Solicitud</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setIsRejectConfirmOpen(true)}
+                  disabled={isRejecting || isApproving}
+                  variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50 gap-2"
+                  size="sm"
+                >
+                  <Clock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Rechazar</span>
+                </Button>
+                <Button
+                  onClick={() => setIsApproveConfirmOpen(true)}
+                  disabled={isApproving || isRejecting}
+                  className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
+                  size="sm"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">Aprobar Solicitud</span>
+                </Button>
+              </div>
             )}
 
             {/* Edit Button */}
@@ -526,6 +555,23 @@ const QuoteRequestDetails = () => {
             <AlertDialogCancel disabled={isApproving}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleApproveRequest} disabled={isApproving} className="bg-green-600 hover:bg-green-700 text-white">
               {isApproving ? 'Aprobando...' : 'Aprobar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isRejectConfirmOpen} onOpenChange={setIsRejectConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Rechazo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas rechazar esta Solicitud de Cotización? Esta acción marcará la solicitud como rechazada y no podrá ser editada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRejecting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRejectRequest} disabled={isRejecting} className="bg-red-600 hover:bg-red-700 text-white border-red-600">
+              {isRejecting ? 'Rechazando...' : 'Rechazar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

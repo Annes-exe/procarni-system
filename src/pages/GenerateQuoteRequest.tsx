@@ -289,6 +289,9 @@ const GenerateQuoteRequest = () => {
               <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
             </CardTitle>
             <div className="flex gap-2">
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+              </Button>
               <Button
                 onClick={() => setIsAddMaterialDialogOpen(true)}
                 variant="secondary"
@@ -296,9 +299,6 @@ const GenerateQuoteRequest = () => {
                 disabled={!supplierId}
               >
                 <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-              </Button>
-              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
-                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
               </Button>
             </div>
           </CardHeader>
