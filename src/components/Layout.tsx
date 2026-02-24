@@ -11,10 +11,24 @@ import ScrollToTopButton from './ScrollToTopButton';
 import { DynamicBreadcrumbs } from './DynamicBreadcrumbs';
 import NotificationBell from './NotificationBell';
 import { Menu, Search } from 'lucide-react';
+import GlobalSearch from './GlobalSearch';
+import { useState, useEffect } from 'react';
 
 const Layout = () => {
   const isMobile = useIsMobile();
   const mainContentRef = useRef<HTMLElement>(null); // Ref para el contenido principal
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setIsSearchOpen((open) => !open);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
 
   const SidebarHeader = () => (
     <NavLink to="/" className="h-16 flex items-center px-4 justify-start border-b border-border transition-all overflow-hidden hover:bg-muted/50">
@@ -73,6 +87,15 @@ const Layout = () => {
       <div className="w-full flex-1 flex items-center justify-between">
         <span className="font-bold text-lg text-procarni-primary tracking-tight md:hidden">Procarni</span>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSearchOpen(true)}
+            className="md:hidden"
+          >
+            <Search className="h-5 w-5" />
+          </Button>
           <NotificationBell />
           <UserDropdown />
         </div>
@@ -103,16 +126,24 @@ const Layout = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden md:flex relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                <Search className="h-4 w-4" />
-              </span>
-              <Input className="pl-9 pr-4 py-2 h-9 text-sm rounded-full bg-gray-100 dark:bg-slate-800 border-transparent focus:border-procarni-primary focus:ring-procarni-primary w-64 transition-all duration-200" placeholder="Buscar..." type="text" />
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(true)}
+                className="flex items-center gap-2 pl-3 pr-4 py-2 h-9 text-sm rounded-full bg-gray-100 dark:bg-slate-800 border border-transparent hover:border-procarni-primary/30 hover:bg-gray-200 dark:hover:bg-slate-700 w-64 transition-all duration-200 text-muted-foreground group"
+              >
+                <Search className="h-4 w-4 group-hover:text-procarni-primary transition-colors" />
+                <span>Buscar...</span>
+                <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
+              </button>
             </div>
             <NotificationBell />
             <div className="h-8 w-px bg-border/60 mx-1"></div>
             <UserDropdown />
           </div>
         </header>
+        <GlobalSearch open={isSearchOpen} onOpenChange={setIsSearchOpen} />
         <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 scroll-smooth">
           <Outlet />
         </main>

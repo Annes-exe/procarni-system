@@ -12,3 +12,4 @@ export * from './auditLogService';
 export * from './supplierQuoteService';
 export * from './quoteComparisonService';
 export * from './serviceOrderService';
+export * from './searchService';
