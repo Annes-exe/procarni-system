@@ -112,12 +112,13 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
 
             historyList.forEach((item: any) => {
                 if (item.currency !== currency) return;
-                const d = format(new Date(item.recorded_at), 'yyyy-MM-dd');
-                if (!dateMap[d]) dateMap[d] = { date: d };
-                dateMap[d][matName] = item.unit_price;
+                const ts = item.recorded_at; // Use full timestamp to avoid overwriting same-day changes
+                if (!dateMap[ts]) dateMap[ts] = { date: ts };
+                dateMap[ts][matName] = item.unit_price;
             });
         });
-        return Object.values(dateMap).sort((a: any, b: any) => a.date.localeCompare(b.date));
+        // Sort by ISO timestamp string
+        return Object.values(dateMap).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [priceHistory, currency, materials, selectedMaterialIds]);
 
     // Calculate Variation Data for Table
@@ -243,9 +244,31 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                                    <XAxis
+                                        dataKey="date"
+                                        stroke="#9ca3af"
+                                        fontSize={12}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickFormatter={(str) => {
+                                            try {
+                                                return format(parseISO(str), 'dd/MM/yy', { locale: es });
+                                            } catch (e) {
+                                                return str;
+                                            }
+                                        }}
+                                    />
                                     <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        labelFormatter={(label) => {
+                                            try {
+                                                return format(parseISO(label), 'PPP p', { locale: es });
+                                            } catch (e) {
+                                                return label;
+                                            }
+                                        }}
+                                    />
                                     <Legend />
                                     {selectedMaterialIds.map((id, idx) => {
                                         const m = materials.find((mat: any) => mat.id === id);
@@ -258,6 +281,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                                                 strokeWidth={2}
                                                 dot={{ r: 3 }}
                                                 activeDot={{ r: 6 }}
+                                                connectNulls
                                             />
                                         );
                                     })}
