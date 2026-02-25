@@ -25,8 +25,10 @@ export const searchService = {
                 .or(`name.ilike.${searchTerm},rif.ilike.${searchTerm}`)
                 .limit(5);
 
+            const foundSupplierIds: string[] = [];
             if (suppliers) {
                 suppliers.forEach(s => {
+                    foundSupplierIds.push(s.id);
                     results.push({
                         id: s.id,
                         title: s.name,
@@ -200,6 +202,10 @@ export const searchService = {
             if (isNumeric) {
                 poQuery = poQuery.eq('sequence_number', Number(query));
                 hasPoFilter = true;
+            } else if (foundSupplierIds.length > 0) {
+                // Search POs by found supplier IDs
+                poQuery = poQuery.in('supplier_id', foundSupplierIds);
+                hasPoFilter = true;
             } else if (query.length > 3) {
                 // Search POs by supplier name
                 poQuery = poQuery.ilike('suppliers.name', searchTerm);
@@ -233,6 +239,10 @@ export const searchService = {
             if (isNumeric) {
                 soQuery = soQuery.eq('sequence_number', Number(query));
                 hasSoFilter = true;
+            } else if (foundSupplierIds.length > 0) {
+                // Search SOs by found supplier IDs
+                soQuery = soQuery.in('supplier_id', foundSupplierIds);
+                hasSoFilter = true;
             } else if (query.length > 3) {
                 soQuery = soQuery.or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
                 hasSoFilter = true;
@@ -255,16 +265,25 @@ export const searchService = {
                 }
             }
 
-            // 5. Search Quote Requests (by ID correctly)
-            if (query.length > 3) {
-                // Search by full ID or partial ID using ilike if possible, but IDs are UUIDs or custom strings.
-                // Assuming ID might be searchable.
-                const { data: qrs } = await supabase
-                    .from('quote_requests')
-                    .select('id, suppliers(name)')
-                    .ilike('id', searchTerm)
-                    .limit(5);
+            // 5. Search Quote Requests
+            let qrQuery = supabase
+                .from('quote_requests')
+                .select('id, suppliers(name)')
+                .limit(5);
 
+            let hasQrFilter = false;
+            if (foundSupplierIds.length > 0) {
+                // Search SCs by found supplier IDs
+                qrQuery = qrQuery.in('supplier_id', foundSupplierIds);
+                hasQrFilter = true;
+            } else if (query.length > 3) {
+                // Search SCs by ID or supplier name
+                qrQuery = qrQuery.or(`id.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
+                hasQrFilter = true;
+            }
+
+            if (hasQrFilter) {
+                const { data: qrs } = await qrQuery;
                 if (qrs) {
                     qrs.forEach((qr: any) => {
                         if (!results.some(r => r.id === qr.id)) {
