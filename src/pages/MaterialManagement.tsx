@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial } from '@/integrations/supabase/data';
+import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialForm from '@/components/MaterialForm';
 import { useSession } from '@/components/SessionContextProvider';
@@ -17,6 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import UnitOfMeasureModal from '@/components/UnitOfMeasureModal';
+import MaterialCategoryModal from '@/components/MaterialCategoryModal';
 
 interface Material {
   id: string;
@@ -28,30 +29,6 @@ interface Material {
   user_id: string;
 }
 
-const MATERIAL_CATEGORIES = [
-  'SECA',
-  'FRESCA',
-  'EMPAQUE',
-  'FERRETERIA Y CONSTRUCCION',
-  'AGROPECUARIA',
-  'GASES Y COMBUSTIBLE',
-  'ELECTRICIDAD',
-  'REFRIGERACION',
-  'INSUMOS DE OFICINA',
-  'INSUMOS INDUSTRIALES',
-  'MECANICA Y SELLOS',
-  'NEUMATICA',
-  'INSUMOS DE LIMPIEZA',
-  'FUMICACION',
-  'EQUIPOS DE CARNICERIA',
-  'FARMACIA',
-  'MEDICION Y MANIPULACION',
-  'ENCERADOS',
-  'PUBLICIDAD',
-  'MAQUINARIA',
-  'COMEDOR',
-  'OPERACIONAL',
-];
 
 const MaterialManagement = () => {
   const queryClient = useQueryClient();
@@ -65,11 +42,17 @@ const MaterialManagement = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [materialToDeleteId, setMaterialToDeleteId] = useState<string | null>(null);
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['material_categories'],
+    queryFn: getAllMaterialCategories,
+  });
 
   const { data: materials, isLoading, error } = useQuery<Material[]>({
     queryKey: ['materials'],
@@ -205,6 +188,16 @@ const MaterialManagement = () => {
             <Ruler className="h-4 w-4" />
           </Button>
 
+          <Button
+            variant="outline"
+            onClick={() => setIsCategoriesModalOpen(true)}
+            className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
+            size="icon"
+            title="Gestionar Categorías"
+          >
+            <Tag className="h-4 w-4" />
+          </Button>
+
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
               <Button
@@ -258,8 +251,8 @@ const MaterialManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las Categorías</SelectItem>
-                  {MATERIAL_CATEGORIES.map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  {categories.map(category => (
+                    <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -389,6 +382,11 @@ const MaterialManagement = () => {
       <UnitOfMeasureModal
         open={isUnitsModalOpen}
         onOpenChange={setIsUnitsModalOpen}
+      />
+
+      <MaterialCategoryModal
+        open={isCategoriesModalOpen}
+        onOpenChange={setIsCategoriesModalOpen}
       />
     </div>
   );

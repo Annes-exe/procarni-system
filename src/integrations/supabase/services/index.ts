@@ -14,3 +14,4 @@ export * from './quoteComparisonService';
 export * from './serviceOrderService';
 export * from './searchService';
 export * from './unitService';
+export * from './materialCategoryService';

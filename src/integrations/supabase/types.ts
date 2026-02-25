@@ -39,6 +39,13 @@ export type Material = {
   is_exempt: boolean | null;
 };
 
+export type MaterialCategory = {
+  id: string;
+  name: string;
+  user_id: string | null;
+  created_at: string | null;
+};
+
 export type UnitOfMeasure = {
   id: string;
   name: string;

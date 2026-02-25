@@ -11,39 +11,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Switch } from '@/components/ui/switch';
-import { getAllUnits } from '@/integrations/supabase/data';
+import { getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 
-// Define las opciones de categoría.
-const MATERIAL_CATEGORIES = [
-  'SECA',
-  'FRESCA',
-  'EMPAQUE',
-  'FERRETERIA Y CONSTRUCCION',
-  'AGROPECUARIA',
-  'GASES Y COMBUSTIBLE',
-  'ELECTRICIDAD',
-  'REFRIGERACION',
-  'INSUMOS DE OFICINA',
-  'INSUMOS INDUSTRIALES',
-  'MECANICA Y SELLOS',
-  'NEUMATICA',
-  'INSUMOS DE LIMPIEZA',
-  'FUMICACION',
-  'EQUIPOS DE CARNICERIA',
-  'FARMACIA',
-  'MEDICION Y MANIPULACION',
-  'ENCERADOS',
-  'PUBLICIDAD',
-  'MAQUINARIA',
-  'COMEDOR',
-  'OPERACIONAL',
-];
 
 // Esquema de validación con Zod
 const materialFormSchema = z.object({
   code: z.string().optional(),
   name: z.string().min(1, { message: 'El nombre es requerido.' }),
-  category: z.enum(MATERIAL_CATEGORIES as [string, ...string[]], { message: 'La categoría es requerida y debe ser válida.' }),
+  category: z.string().min(1, { message: 'La categoría es requerida.' }),
   unit: z.string().min(1, { message: 'La unidad es requerida.' }),
   is_exempt: z.boolean().default(false).optional(),
 });
@@ -63,12 +38,17 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
     queryFn: getAllUnits,
   });
 
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['material_categories'],
+    queryFn: getAllMaterialCategories,
+  });
+
   const form = useForm<MaterialFormValues>({
     resolver: zodResolver(materialFormSchema),
     defaultValues: {
       code: '',
       name: '',
-      category: initialData?.category || MATERIAL_CATEGORIES[0],
+      category: initialData?.category || (categories[0]?.name || ''),
       unit: initialData?.unit || '',
       is_exempt: initialData?.is_exempt || (initialData?.category === 'FRESCA' ? true : false),
     },
@@ -87,9 +67,9 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
       form.reset({
         code: '',
         name: '',
-        category: MATERIAL_CATEGORIES[0],
+        category: categories[0]?.name || '',
         unit: '',
-        is_exempt: MATERIAL_CATEGORIES[0] === 'FRESCA',
+        is_exempt: (categories[0]?.name || '') === 'FRESCA',
       });
     }
   }, [initialData, form]);
@@ -141,8 +121,8 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {MATERIAL_CATEGORIES.map(option => (
-                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  {categories.map(category => (
+                    <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

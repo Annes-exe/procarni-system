@@ -4,7 +4,10 @@ import {
   getAllUnits,
   createUnit,
   deleteUnit,
-} from './services/unitService';
+  getAllMaterialCategories,
+  createMaterialCategory,
+  deleteMaterialCategory,
+} from './services';
 import {
   getAllSuppliers,
   createSupplier,
@@ -308,4 +311,7 @@ export {
   getAllUnits,
   createUnit,
   deleteUnit,
+  getAllMaterialCategories,
+  createMaterialCategory,
+  deleteMaterialCategory,
 };
