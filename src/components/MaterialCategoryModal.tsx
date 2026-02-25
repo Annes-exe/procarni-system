@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { getAllMaterialCategories, createMaterialCategory, deleteMaterialCategory } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
@@ -21,6 +22,8 @@ const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onO
     const { session } = useSession();
     const userId = session?.user?.id;
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [categoryToDeleteId, setCategoryToDeleteId] = useState<string | null>(null);
 
     const { data: categories = [], isLoading } = useQuery({
         queryKey: ['material_categories'],
@@ -44,6 +47,8 @@ const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onO
             if (success) {
                 queryClient.invalidateQueries({ queryKey: ['material_categories'] });
                 showSuccess('Categoría eliminada exitosamente.');
+                setIsDeleteDialogOpen(false);
+                setCategoryToDeleteId(null);
             }
         },
     });
@@ -59,6 +64,17 @@ const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onO
         }
 
         await createMutation.mutateAsync(trimmedName);
+    };
+
+    const confirmDeleteCategory = (id: string) => {
+        setCategoryToDeleteId(id);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const executeDeleteCategory = async () => {
+        if (categoryToDeleteId) {
+            await deleteMutation.mutateAsync(categoryToDeleteId);
+        }
     };
 
     return (
@@ -121,11 +137,7 @@ const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onO
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => {
-                                                    if (window.confirm('¿Estás seguro de que deseas eliminar esta categoría?')) {
-                                                        deleteMutation.mutate(category.id);
-                                                    }
-                                                }}
+                                                onClick={() => confirmDeleteCategory(category.id)}
                                                 disabled={deleteMutation.isPending}
                                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                             >
@@ -144,6 +156,28 @@ const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onO
                         Cerrar
                     </Button>
                 </DialogFooter>
+
+                <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                ¿Estás seguro de que deseas eliminar esta categoría? Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={executeDeleteCategory}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                disabled={deleteMutation.isPending}
+                            >
+                                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                                Eliminar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </DialogContent>
         </Dialog>
     );

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { getAllUnits, createUnit, deleteUnit } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
@@ -21,6 +22,8 @@ const UnitOfMeasureModal: React.FC<UnitOfMeasureModalProps> = ({ open, onOpenCha
     const { session } = useSession();
     const userId = session?.user?.id;
     const [newUnitName, setNewUnitName] = useState('');
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [unitToDeleteId, setUnitToDeleteId] = useState<string | null>(null);
 
     const { data: units = [], isLoading } = useQuery({
         queryKey: ['units_of_measure'],
@@ -38,9 +41,13 @@ const UnitOfMeasureModal: React.FC<UnitOfMeasureModalProps> = ({ open, onOpenCha
 
     const deleteMutation = useMutation({
         mutationFn: deleteUnit,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['units_of_measure'] });
-            showSuccess('Unidad de medida eliminada.');
+        onSuccess: (success) => {
+            if (success) {
+                queryClient.invalidateQueries({ queryKey: ['units_of_measure'] });
+                showSuccess('Unidad de medida eliminada.');
+                setIsDeleteDialogOpen(false);
+                setUnitToDeleteId(null);
+            }
         },
     });
 
@@ -48,6 +55,17 @@ const UnitOfMeasureModal: React.FC<UnitOfMeasureModalProps> = ({ open, onOpenCha
         e.preventDefault();
         if (!newUnitName.trim()) return;
         await createMutation.mutateAsync(newUnitName);
+    };
+
+    const confirmDeleteUnit = (id: string) => {
+        setUnitToDeleteId(id);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const executeDeleteUnit = async () => {
+        if (unitToDeleteId) {
+            await deleteMutation.mutateAsync(unitToDeleteId);
+        }
     };
 
     return (
@@ -110,7 +128,7 @@ const UnitOfMeasureModal: React.FC<UnitOfMeasureModalProps> = ({ open, onOpenCha
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => deleteMutation.mutate(unit.id)}
+                                                onClick={() => confirmDeleteUnit(unit.id)}
                                                 disabled={deleteMutation.isPending}
                                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                             >
@@ -129,6 +147,28 @@ const UnitOfMeasureModal: React.FC<UnitOfMeasureModalProps> = ({ open, onOpenCha
                         Cerrar
                     </Button>
                 </DialogFooter>
+
+                <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                ¿Estás seguro de que deseas eliminar esta unidad de medida? Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={executeDeleteUnit}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                disabled={deleteMutation.isPending}
+                            >
+                                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                                Eliminar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </DialogContent>
         </Dialog>
     );
