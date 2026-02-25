@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
-import { ArrowLeft, Loader2, Save, Trash2, PlusCircle, Wrench } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Trash2, PlusCircle, Wrench, Package, Info } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import {
     getServiceOrderDetails,
@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/accordion";
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
-import { Package } from 'lucide-react';
 
 interface ServiceOrderItemForm {
     id?: string;
@@ -127,7 +126,7 @@ const EditServiceOrder = () => {
                 }
 
                 // Check editable status
-                if (order.status !== 'Draft' && order.status !== 'Sent' && order.status !== 'Rejected') {
+                if (order.status !== 'Draft' && order.status !== 'Rejected') {
                     showError('Esta orden no se puede editar en su estado actual.');
                     navigate(`/service-orders/${id}`);
                     return;
@@ -449,104 +448,188 @@ const EditServiceOrder = () => {
 
 
     if (isLoading) {
-        return <div className="p-8 text-center">Cargando la orden...</div>;
+        return (
+            <div className="flex h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-procarni-secondary" />
+                <span className="ml-2 text-gray-500 font-medium">Cargando la orden...</span>
+            </div>
+        );
     }
 
     return (
         <div className="container mx-auto p-4">
-            <div className="flex items-center mb-2 -mt-2">
-                <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground pl-0">
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Cancelar
-                </Button>
+            {/* Action Header - Sticky like GenerateServiceOrder */}
+            <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+                        <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <div>
+                        <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Editar Orden de Servicio</h1>
+                        <p className="text-[11px] text-gray-500 font-medium">{formattedSequence}</p>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <Button onClick={handleSubmit} disabled={isSubmitting || !companyId || !supplierId} className="bg-procarni-secondary hover:bg-green-700 shadow-sm">
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="mr-2 h-4 w-4" /> Guardar Cambios</>}
+                    </Button>
+                </div>
             </div>
 
-            <Card className="mb-6">
-                <CardHeader>
-                    <CardTitle className="text-procarni-primary flex items-center">
-                        <Wrench className="mr-2 h-6 w-6" /> Editando: {formattedSequence}
-                    </CardTitle>
-                    <CardDescription>Modifica los detalles de la orden de servicio existente.</CardDescription>
-                </CardHeader>
-                <CardContent>
+            <div className="space-y-6">
+                {/* General Information Card */}
+                <Card className="border-gray-200 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                                Información General
+                            </CardTitle>
+                            <div className="flex items-center space-x-2 text-sm text-gray-500 font-medium">
+                                <Info className="h-4 w-4" />
+                                <span>Detalles de la orden</span>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-6 md:p-8">
 
-                    {/* Reuse similar structure to GenerateServiceOrder */}
-                    {/* Reuse similar structure to GenerateServiceOrder */}
 
-                    <ServiceOrderDetailsForm
-                        companyId={companyId}
-                        companyName={companyName}
-                        currency={currency}
-                        exchangeRate={exchangeRate}
-                        issueDate={issueDate}
-                        serviceDate={serviceDate}
-                        equipmentName={equipmentName}
-                        serviceType={serviceType}
-                        detailedServiceDescription={detailedServiceDescription}
-                        destinationAddress={destinationAddress}
-                        observations={observations}
-                        onCompanySelect={handleCompanySelect}
-                        onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
-                        onExchangeRateChange={setExchangeRate}
-                        onIssueDateChange={setIssueDate}
-                        onServiceDateChange={setServiceDate}
-                        onEquipmentNameChange={setEquipmentName}
-                        onServiceTypeChange={setServiceType}
-                        onDetailedServiceDescriptionChange={setDetailedServiceDescription}
-                        onDestinationAddressChange={setDestinationAddress}
-                        onObservationsChange={setObservations}
-                        supplierId={supplierId}
-                        supplierName={supplierName}
-                        onSupplierSelect={handleSupplierSelect}
-                    />
+                        <ServiceOrderDetailsForm
+                            companyId={companyId}
+                            companyName={companyName}
+                            currency={currency}
+                            exchangeRate={exchangeRate}
+                            issueDate={issueDate}
+                            serviceDate={serviceDate}
+                            equipmentName={equipmentName}
+                            serviceType={serviceType}
+                            detailedServiceDescription={detailedServiceDescription}
+                            destinationAddress={destinationAddress}
+                            observations={observations}
+                            onCompanySelect={handleCompanySelect}
+                            onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
+                            onExchangeRateChange={setExchangeRate}
+                            onIssueDateChange={setIssueDate}
+                            onServiceDateChange={setServiceDate}
+                            onEquipmentNameChange={setEquipmentName}
+                            onServiceTypeChange={setServiceType}
+                            onDetailedServiceDescriptionChange={setDetailedServiceDescription}
+                            onDestinationAddressChange={setDestinationAddress}
+                            onObservationsChange={setObservations}
+                            supplierId={supplierId}
+                            supplierName={supplierName}
+                        />
+                    </CardContent>
+                </Card>
 
-                    <ServiceOrderItemsTable
-                        items={items}
-                        currency={currency}
-                        onAddItem={handleAddItem}
-                        onRemoveItem={handleRemoveItem}
-                        onItemChange={handleItemChange}
-                    />
+                {/* Services Card */}
+                <Card className="border-gray-200 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                                <Wrench className="mr-2 h-4 w-4" /> Servicios
+                            </CardTitle>
+                            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Servicio
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
 
-                    {/* Spare Parts Section */}
-                    <div className="mt-8 border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-4 text-procarni-primary flex items-center">
-                            <Package className="mr-2 h-5 w-5" /> Repuestos y Adicionales
-                        </h3>
+                        <ServiceOrderItemsTable
+                            items={items}
+                            currency={currency}
+                            onAddItem={handleAddItem}
+                            onRemoveItem={handleRemoveItem}
+                            onItemChange={handleItemChange}
+                        />
+                        {items.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-10 text-gray-400 bg-white">
+                                <Wrench className="h-10 w-10 mb-3 text-gray-200" />
+                                <p className="text-sm">No hay servicios agregados a la orden.</p>
+                                <Button variant="link" onClick={handleAddItem} className="text-procarni-secondary">Añadir el primero</Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
-                        <div className="space-y-4">
-                            {sparePartsGroups.map((group) => (
-                                <Accordion type="single" collapsible key={group.internalId} className="border rounded-lg bg-gray-50/50">
-                                    <AccordionItem value={group.internalId} className="border-0">
-                                        <AccordionTrigger className="px-4 py-2 hover:no-underline">
+                {/* Spare Parts Card */}
+                <Card className="border-gray-200 shadow-sm overflow-hidden">
+                    <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                                <Package className="mr-2 h-4 w-4" /> Repuestos y Adicionales
+                            </CardTitle>
+                            <div className="flex items-center space-x-2 text-sm text-gray-500 font-medium">
+                                <Info className="h-4 w-4" />
+                                <span>Materiales adicionales</span>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                        <div className="mb-6 max-w-md">
+                            <div className="flex justify-between items-center">
+                                <Label className="mb-2 block">Añadir Proveedor de Repuestos</Label>
+                                <Button
+                                    variant="link"
+                                    size="sm"
+                                    onClick={() => setIsSparePartsSupplierDialogOpen(true)}
+                                    className="h-auto p-0 text-xs text-procarni-primary mb-2"
+                                >
+                                    + Nuevo Proveedor
+                                </Button>
+                            </div>
+                            <div className="flex gap-2">
+                                <SmartSearch
+                                    placeholder="Buscar proveedor (ej. Ferretería...)"
+                                    onSelect={handleAddSparePartsSupplier}
+                                    fetchFunction={searchSuppliers}
+                                    displayValue={sparePartsSupplierName}
+                                    className="w-full"
+                                />
+                            </div>
+                        </div>
+
+                        <SupplierCreationDialog
+                            isOpen={isSparePartsSupplierDialogOpen}
+                            onClose={() => setIsSparePartsSupplierDialogOpen(false)}
+                            onSupplierCreated={handleAddSparePartsSupplier}
+                        />
+
+                        {sparePartsGroups.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-gray-400 bg-white border border-dashed rounded-lg">
+                                <Package className="h-10 w-10 mb-3 text-gray-200" />
+                                <p className="text-sm">No hay repuestos agregados a este orden.</p>
+                                <Button variant="link" onClick={() => setIsSparePartsSupplierDialogOpen(true)} className="text-procarni-secondary">Añadir el primero</Button>
+                            </div>
+                        ) : (
+                            <Accordion type="multiple" className="w-full space-y-4" defaultValue={sparePartsGroups.map(g => g.internalId)}>
+                                {sparePartsGroups.map((group) => (
+                                    <AccordionItem key={group.internalId} value={group.internalId} className="border rounded-lg bg-white shadow-sm px-4">
+                                        <AccordionTrigger className="hover:no-underline py-4">
                                             <div className="flex justify-between items-center w-full pr-4">
-                                                <span className="font-semibold text-gray-700">{group.supplierName}</span>
+                                                <span className="font-bold text-gray-700">{group.supplierName}</span>
                                                 <Button
                                                     variant="ghost"
-                                                    size="icon"
+                                                    size="sm"
                                                     asChild
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0 cursor-pointer"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 cursor-pointer"
                                                 >
                                                     <span
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             handleRemoveSparePartsSupplier(group.supplierId);
                                                         }}
-                                                        title="Eliminar proveedor y sus ítems"
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
+                                                        Quitar Grupo
                                                     </span>
                                                 </Button>
                                             </div>
                                         </AccordionTrigger>
-                                        <AccordionContent className="px-4 pb-4">
+                                        <AccordionContent className="pt-2 pb-6">
                                             <PurchaseOrderItemsTable
                                                 items={group.items.map(item => ({
                                                     ...item,
                                                     id: item.id || Math.random().toString(36).substr(2, 9),
-                                                    // Ensure material_name is passed for display if it exists in description or separate field
-                                                    // The table likely uses 'description' for the text input value.
-                                                    // If we want it to look like a selected material, we might need to populate the SmartSearch inside the table? 
-                                                    // Actually PurchaseOrderItemsTable might just use description.
                                                 })) as any}
                                                 currency={currency}
                                                 onAddItem={() => handleAddSparePartItem(group.supplierId)}
@@ -554,83 +637,66 @@ const EditServiceOrder = () => {
                                                 onItemChange={(index, field, value) => handleSparePartItemChange(group.supplierId, index, field as any, value)}
                                                 supplierId={group.supplierId}
                                                 supplierName={group.supplierName}
-                                                // @ts-ignore
                                                 onMaterialSelect={(index, item) => handleSearchResultSelect(group.supplierId, index, item)}
+                                                hideHeader={true}
                                             />
+                                            <div className="px-5 mt-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => handleAddSparePartItem(group.supplierId)}
+                                                    className="w-full border-dashed border-gray-300 text-gray-500 hover:text-procarni-primary hover:bg-procarni-primary/5"
+                                                >
+                                                    <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Repuesto
+                                                </Button>
+                                            </div>
                                         </AccordionContent>
                                     </AccordionItem>
-                                </Accordion>
-                            ))}
+                                ))}
+                            </Accordion>
+                        )}
+                    </CardContent>
+                </Card>
 
-                            <div className="mb-4 max-w-md">
-                                <Label>Añadir Proveedor de Repuestos</Label>
-                                <div className="flex gap-2 mt-1">
-                                    <SmartSearch
-                                        placeholder="Buscar proveedor (ej. Ferretería...)"
-                                        onSelect={handleAddSparePartsSupplier}
-                                        fetchFunction={searchSuppliers}
-                                        displayValue={sparePartsSupplierName}
-                                        className="w-full"
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => setIsSparePartsSupplierDialogOpen(true)}
-                                        className="shrink-0"
-                                        title="Añadir nuevo proveedor de repuestos"
-                                    >
-                                        <PlusCircle className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                {/* Totals Section - Unified styling with GenerateServiceOrder */}
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-100 shadow-inner">
+                    <div className="flex flex-col gap-3 max-w-sm ml-auto text-right">
+                        <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-600">Base Imponible:</span>
+                            <span className="font-mono">{currency} {totals.baseImponible.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-600">Descuento:</span>
+                            <span className="font-mono text-procarni-alert">- {currency} {totals.montoDescuento.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-600">Margen Comercial:</span>
+                            <span className="font-mono text-procarni-secondary cursor-default">+ {currency} {totals.montoVenta.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-600">IVA (16%):</span>
+                            <span className="font-mono">+ {currency} {totals.montoIVA.toFixed(2)}</span>
+                        </div>
+                        <div className="border-t border-gray-300 pt-3 mt-1">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-lg text-procarni-dark">TOTAL:</span>
+                                <span className="font-bold text-xl text-procarni-dark font-mono">{currency} {totals.total.toFixed(2)}</span>
                             </div>
-
-                            <SupplierCreationDialog
-                                isOpen={isSparePartsSupplierDialogOpen}
-                                onClose={() => setIsSparePartsSupplierDialogOpen(false)}
-                                onSupplierCreated={handleAddSparePartsSupplier}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Totals Section */}
-                    <div className="mt-8 border-t pt-4">
-                        <div className="flex justify-end items-center mb-2">
-                            <span className="font-semibold mr-2">Base Imponible:</span>
-                            <span>{currency} {totals.baseImponible.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-end items-center mb-2">
-                            <span className="font-semibold mr-2">Monto Descuento:</span>
-                            <span className="text-red-600">- {currency} {totals.montoDescuento.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-end items-center mb-2">
-                            <span className="font-semibold mr-2">Monto Venta:</span>
-                            <span className="text-blue-600">+ {currency} {totals.montoVenta.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-end items-center mb-2">
-                            <span className="font-semibold mr-2">Monto IVA:</span>
-                            <span>+ {currency} {totals.montoIVA.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-end items-center text-xl font-bold">
-                            <span className="mr-2">TOTAL:</span>
-                            <span>{currency} {totals.total.toFixed(2)}</span>
                         </div>
                         {totalInUSD && currency === 'VES' && (
-                            <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                                <span className="mr-2">TOTAL (USD):</span>
-                                <span>USD {totalInUSD}</span>
+                            <div className="flex justify-end pt-1">
+                                <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                    Ref. USD: {totalInUSD}
+                                </span>
                             </div>
                         )}
                     </div>
+                </div>
 
-                    <div className="flex justify-end gap-2 mt-6">
-                        <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-procarni-secondary hover:bg-green-700">
-                            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="mr-2 h-4 w-4" /> Guardar Cambios</>}
-                        </Button>
-                    </div>
-
-                </CardContent>
-            </Card>
-            <MadeWithDyad />
+                <div className="flex justify-end pt-4 pb-8">
+                    <MadeWithDyad />
+                </div>
+            </div>
         </div>
     );
 };
