@@ -1,6 +1,11 @@
 import { supabase } from './client';
 import { showError } from '@/utils/toast';
 import {
+  getAllUnits,
+  createUnit,
+  deleteUnit,
+} from './services/unitService';
+import {
   getAllSuppliers,
   createSupplier,
   updateSupplier,
@@ -300,4 +305,7 @@ export {
   archiveServiceOrder,
   unarchiveServiceOrder,
   updateServiceOrderStatus,
+  getAllUnits,
+  createUnit,
+  deleteUnit,
 };

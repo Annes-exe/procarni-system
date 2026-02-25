@@ -4,12 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'; // Importar FormDescription
-import { Switch } from '@/components/ui/switch'; // Importar el componente Switch
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Switch } from '@/components/ui/switch';
+import { getAllUnits } from '@/integrations/supabase/data';
 
 // Define las opciones de categoría.
 const MATERIAL_CATEGORIES = [
@@ -31,24 +33,19 @@ const MATERIAL_CATEGORIES = [
   'FARMACIA',
   'MEDICION Y MANIPULACION',
   'ENCERADOS',
-  'PUBLICIDAD', // Nueva categoría
-  'MAQUINARIA', // Nueva categoría
-  'COMEDOR', // Nueva categoría
-  'OPERACIONAL', // Nueva categoría
-];
-
-// Define las unidades de medida.
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR', 'BULTO'
+  'PUBLICIDAD',
+  'MAQUINARIA',
+  'COMEDOR',
+  'OPERACIONAL',
 ];
 
 // Esquema de validación con Zod
 const materialFormSchema = z.object({
-  code: z.string().optional(), // El código es opcional y se autogenera, no se gestiona directamente en el formulario
+  code: z.string().optional(),
   name: z.string().min(1, { message: 'El nombre es requerido.' }),
   category: z.enum(MATERIAL_CATEGORIES as [string, ...string[]], { message: 'La categoría es requerida y debe ser válida.' }),
-  unit: z.enum(MATERIAL_UNITS as [string, ...string[]], { message: 'La unidad es requerida y debe ser válida.' }),
-  is_exempt: z.boolean().default(false).optional(), // Nuevo campo para exención de IVA
+  unit: z.string().min(1, { message: 'La unidad es requerida.' }),
+  is_exempt: z.boolean().default(false).optional(),
 });
 
 type MaterialFormValues = z.infer<typeof materialFormSchema>;
@@ -61,14 +58,19 @@ interface MaterialFormProps {
 }
 
 const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCancel, isSubmitting }) => {
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
+
   const form = useForm<MaterialFormValues>({
     resolver: zodResolver(materialFormSchema),
     defaultValues: {
-      code: '', // Aseguramos que el código esté vacío para que el trigger lo genere
+      code: '',
       name: '',
       category: initialData?.category || MATERIAL_CATEGORIES[0],
-      unit: initialData?.unit || MATERIAL_UNITS[0],
-      is_exempt: initialData?.is_exempt || (initialData?.category === 'FRESCA' ? true : false), // Set initial default based on category
+      unit: initialData?.unit || '',
+      is_exempt: initialData?.is_exempt || (initialData?.category === 'FRESCA' ? true : false),
     },
   });
 
@@ -83,33 +85,36 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
       });
     } else {
       form.reset({
-        code: '', // Aseguramos que el código esté vacío para que el trigger lo genere
+        code: '',
         name: '',
         category: MATERIAL_CATEGORIES[0],
-        unit: MATERIAL_UNITS[0],
+        unit: '',
         is_exempt: MATERIAL_CATEGORIES[0] === 'FRESCA',
       });
     }
   }, [initialData, form]);
+
+  // Set default unit if it's empty and we have units
+  React.useEffect(() => {
+    if (!form.getValues('unit') && units.length > 0 && !initialData) {
+      form.setValue('unit', units[0].name);
+    }
+  }, [units, form, initialData]);
 
   // Effect to enforce is_exempt=true when category is FRESCA
   React.useEffect(() => {
     if (watchedCategory === 'FRESCA' && form.getValues('is_exempt') !== true) {
       form.setValue('is_exempt', true, { shouldDirty: true });
     } else if (watchedCategory !== 'FRESCA' && initialData?.category !== watchedCategory && form.getValues('is_exempt') === true) {
-      // If switching away from FRESCA, reset is_exempt to false only if it was forced true by FRESCA
-      // If they switch away, let them manually control it again, but default to false.
       if (initialData?.category !== 'FRESCA') {
         form.setValue('is_exempt', false, { shouldDirty: true });
       }
     }
   }, [watchedCategory, form, initialData]);
 
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* El campo de código ha sido eliminado ya que se genera automáticamente */}
         <FormField
           control={form.control}
           name="name"
@@ -129,7 +134,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
           render={({ field }) => (
             <FormItem>
               <FormLabel>Categoría</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona una categoría" />
@@ -151,15 +156,15 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
           render={({ field }) => (
             <FormItem>
               <FormLabel>Unidad</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una unidad" />
+                  <SelectTrigger disabled={isLoadingUnits}>
+                    <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona una unidad"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {MATERIAL_UNITS.map(option => (
-                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                  {units.map(unit => (
+                    <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

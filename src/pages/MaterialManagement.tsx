@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Filter, ArrowLeft, Tag } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag } from 'lucide-react';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import UnitOfMeasureModal from '@/components/UnitOfMeasureModal';
 
 interface Material {
   id: string;
@@ -23,7 +24,7 @@ interface Material {
   name: string;
   category?: string;
   unit?: string;
-  is_exempt?: boolean; // Añadido: Campo para exención de IVA
+  is_exempt?: boolean;
   user_id: string;
 }
 
@@ -46,9 +47,10 @@ const MATERIAL_CATEGORIES = [
   'FARMACIA',
   'MEDICION Y MANIPULACION',
   'ENCERADOS',
-  'PUBLICIDAD', // Nueva categoría
-  'MAQUINARIA', // Nueva categoría
-  'COMEDOR', // Nueva categoría
+  'PUBLICIDAD',
+  'MAQUINARIA',
+  'COMEDOR',
+  'OPERACIONAL',
 ];
 
 const MaterialManagement = () => {
@@ -62,6 +64,7 @@ const MaterialManagement = () => {
   const initialSearch = queryParams.get('search') || '';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -192,6 +195,19 @@ const MaterialManagement = () => {
           <p className="text-muted-foreground text-sm">Administra la información de tus materiales.</p>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => setIsUnitsModalOpen(true)}
+            className={cn(
+              "border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 gap-2",
+              isMobile && "w-10 h-10 p-0"
+            )}
+            size={isMobile ? "default" : "sm"}
+          >
+            <Ruler className={cn("h-4 w-4", !isMobile && "mr-2")} />
+            {!isMobile && 'Gestionar Unidades'}
+          </Button>
+
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
               <Button
@@ -372,6 +388,11 @@ const MaterialManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UnitOfMeasureModal
+        open={isUnitsModalOpen}
+        onOpenChange={setIsUnitsModalOpen}
+      />
     </div>
   );
 };
