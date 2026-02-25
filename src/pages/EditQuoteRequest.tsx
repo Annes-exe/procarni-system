@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { ArrowLeft, Loader2, Save, ShoppingCart, Target, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService'; // Updated import
 import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import SmartSearch from '@/components/SmartSearch';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
 
@@ -42,6 +43,7 @@ const EditQuoteRequest = () => {
   const isMobile = useIsMobile();
 
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
+  const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
@@ -91,8 +93,9 @@ const EditQuoteRequest = () => {
 
   if (isLoadingRequest || isLoadingSession) {
     return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground animate-pulse mt-10">
-        Cargando solicitud...
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-procarni-secondary" />
+        <span className="ml-2 text-gray-500 font-medium">Cargando solicitud...</span>
       </div>
     );
   }
@@ -146,6 +149,11 @@ const EditQuoteRequest = () => {
   const handleCompanySelect = (company: Company) => {
     setCompanyId(company.id);
     setCompanyName(company.name);
+  };
+
+  const handleSupplierCreated = (supplier: { id: string; name: string }) => {
+    setSupplierId(supplier.id);
+    setSupplierName(supplier.name);
   };
 
   const handleMaterialAdded = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
@@ -214,18 +222,15 @@ const EditQuoteRequest = () => {
   return (
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
-      {/* PHASE 1: STICKY HEADER & ACTIONS */}
-      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-4 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+      {/* Action Header - Sticky like GenerateQuoteRequest */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className='flex flex-col'>
-            <h1 className="text-xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
-              <Target className="h-5 w-5 text-gray-400" />
-              Editar Solicitud #{id?.substring(0, 8)}
-            </h1>
-            <p className="text-xs text-gray-500">Modifica los detalles de la solicitud</p>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Editar Solicitud</h1>
+            <p className="text-[11px] text-gray-500 font-medium">#{id?.substring(0, 8)}</p>
           </div>
         </div>
 
@@ -236,61 +241,92 @@ const EditQuoteRequest = () => {
             className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
           >
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Guardar Cambios
+            Guardar Solicitud
           </Button>
         </div>
       </div>
 
       <div className="grid gap-6">
-        {/* PHASE 2: GENERAL INFO CARD */}
+        {/* General Information Card */}
         <Card className="border-gray-200 shadow-sm overflow-hidden">
-          <CardHeader className="bg-gray-50/50 pb-4">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-              Información General
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="company" className="text-sm font-medium text-gray-700">Empresa de Origen <span className="text-red-500">*</span></Label>
-                <SmartSearch
-                  placeholder="Buscar empresa (RIF o Nombre)..."
-                  onSelect={handleCompanySelect}
-                  fetchFunction={searchCompanies}
-                  displayValue={companyName}
-                  className="bg-white"
-                />
-                {companyName && <p className="text-xs text-green-600 font-medium">✓ {companyName}</p>}
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                Información General
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Detalles de la solicitud</span>
               </div>
-              <div className="space-y-3">
-                <Label htmlFor="supplier" className="text-sm font-medium text-gray-700">Proveedor <span className="text-red-500">*</span></Label>
-                <div className="flex gap-2">
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label htmlFor="supplier" className="text-sm font-semibold text-gray-700">
+                      Proveedor Principal <span className="text-red-500">*</span>
+                    </Label>
+                    <div
+                      className="text-xs font-semibold text-procarni-primary hover:text-green-700 cursor-pointer flex items-center transition-colors"
+                      onClick={() => setIsAddSupplierDialogOpen(true)}
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" /> Nuevo Proveedor
+                    </div>
+                  </div>
                   <SmartSearch
-                    placeholder="Buscar proveedor (RIF o Nombre)..."
+                    placeholder="Buscar proveedor por RIF o nombre"
                     onSelect={(supplier) => {
                       setSupplierId(supplier.id);
                       setSupplierName(supplier.name);
                     }}
                     fetchFunction={searchSuppliers}
                     displayValue={supplierName}
-                    className="bg-white flex-1"
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
+                    icon={<Search className="h-4 w-4 text-gray-400" />}
                   />
                 </div>
-                {supplierName && <p className="text-xs text-green-600 font-medium">✓ {supplierName}</p>}
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <Label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Empresa de Origen <span className="text-red-500">*</span>
+                  </Label>
+                  <SmartSearch
+                    placeholder="Buscar empresa por RIF o nombre"
+                    onSelect={handleCompanySelect}
+                    fetchFunction={searchCompanies}
+                    displayValue={companyName}
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
+                    icon={<Building2 className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* PHASE 3: ITEMS TABLE */}
-        <Card className="border-gray-200 shadow-sm overflow-hidden min-h-[400px]">
+        {/* Items Card */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
           <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
               <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
             </CardTitle>
-            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
-              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+              </Button>
+              <Button
+                onClick={() => setIsAddMaterialDialogOpen(true)}
+                variant="secondary"
+                size="sm"
+                disabled={!supplierId}
+              >
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <QuoteRequestItemsTable
@@ -304,9 +340,10 @@ const EditQuoteRequest = () => {
             />
           </CardContent>
           {items.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400 bg-white">
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
               <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
-              <p className="text-sm">No hay ítems registrados.</p>
+              <p className="text-sm">No hay ítems agregados a la solicitud.</p>
+              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
             </div>
           )}
         </Card>
@@ -319,6 +356,11 @@ const EditQuoteRequest = () => {
         onMaterialCreated={handleMaterialAdded}
         supplierId={supplierId}
         supplierName={supplierName}
+      />
+      <SupplierCreationDialog
+        isOpen={isAddSupplierDialogOpen}
+        onClose={() => setIsAddSupplierDialogOpen(false)}
+        onSupplierCreated={handleSupplierCreated}
       />
     </div>
   );
