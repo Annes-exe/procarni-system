@@ -39,14 +39,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-// Import services
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
+import SmartSearch from '@/components/SmartSearch';
 import {
     getPurchaseHistoryReport,
     getAllSuppliers,
     getAllMaterials,
-    getPriceHistoryByMaterialId
+    getPriceHistoryByMaterialId,
+    searchMaterialsBySupplier,
+    searchSuppliersByMaterial
 } from '@/integrations/supabase/data';
 
 import { useNavigate } from 'react-router-dom';
@@ -86,9 +88,8 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 };
 
 // Price Variation Component (Complex logic separated)
-const PriceVariationTab = ({ materials, currency, dateRange }: { materials: any[], currency: string, dateRange: any }) => {
+const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>> }) => {
     const navigate = useNavigate();
-    const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
 
     const { data: priceHistory = [] } = useQuery({
         queryKey: ['priceTrends', selectedMaterialIds, currency],
@@ -167,6 +168,20 @@ const PriceVariationTab = ({ materials, currency, dateRange }: { materials: any[
         return variations;
     }, [priceHistory, currency, materials, selectedMaterialIds]);
 
+    const searchMaterialsLocal = async (query: string) => {
+        const q = query.toLowerCase();
+        let base = materials.map((m: any) => ({ id: m.id, name: m.name }));
+
+        if (selectedSupplierId !== 'all') {
+            const supplierMaterials = await searchMaterialsBySupplier(selectedSupplierId, '');
+            const supplierMatIds = new Set(supplierMaterials.map(m => m.id));
+            base = base.filter(m => supplierMatIds.has(m.id));
+        }
+
+        if (!q) return base;
+        return base.filter((m: any) => m.name.toLowerCase().includes(q));
+    };
+
     const COLORS = ['#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#7B1FA2'];
 
     return (
@@ -186,27 +201,21 @@ const PriceVariationTab = ({ materials, currency, dateRange }: { materials: any[
                                     variant="outline"
                                 />
                             )}
-                            <Select
-                                value={selectedMaterialIds.length > 0 ? selectedMaterialIds[0] : ""}
-                                onValueChange={(val) => {
-                                    if (!selectedMaterialIds.includes(val)) {
-                                        if (selectedMaterialIds.length >= 5) {
-                                            setSelectedMaterialIds([...selectedMaterialIds.slice(1), val]);
-                                        } else {
-                                            setSelectedMaterialIds([...selectedMaterialIds, val]);
+                            <div className="w-[250px]">
+                                <SmartSearch
+                                    placeholder="Agregar material al gráfico"
+                                    fetchFunction={searchMaterialsLocal}
+                                    onSelect={(item) => {
+                                        if (!selectedMaterialIds.includes(item.id)) {
+                                            if (selectedMaterialIds.length >= 5) {
+                                                setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
+                                            } else {
+                                                setSelectedMaterialIds([...selectedMaterialIds, item.id]);
+                                            }
                                         }
-                                    }
-                                }}
-                            >
-                                <SelectTrigger className="w-[250px] h-9 text-xs">
-                                    <SelectValue placeholder="Agregar material al gráfico" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {materials.map((m: any) => (
-                                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                    }}
+                                />
+                            </div>
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-2">
@@ -351,11 +360,28 @@ const ReportsAnalytics = () => {
         queryFn: getAllSuppliers,
     });
 
-    // Find selected supplier name for the button
     const selectedSupplierName = useMemo(() => {
-        if (selectedSupplierId === 'all') return '';
+        if (selectedSupplierId === 'all') return 'Todos los proveedores';
         return suppliers.find((s: any) => s.id === selectedSupplierId)?.name || '';
     }, [selectedSupplierId, suppliers]);
+
+    const searchSuppliersLocal = async (query: string) => {
+        const q = query.toLowerCase();
+        let base = suppliers.map((s: any) => ({ id: s.id, name: s.name }));
+
+        if (selectedMaterialsForTrend.length > 0) {
+            let allowedSupplierIds = new Set<string>();
+            for (const matId of selectedMaterialsForTrend) {
+                const sups = await searchSuppliersByMaterial(matId, '');
+                sups.forEach(s => allowedSupplierIds.add(s.id));
+            }
+            base = base.filter(s => allowedSupplierIds.has(s.id));
+        }
+
+        const results = [{ id: 'all', name: 'Todos los proveedores' }, ...base];
+        if (!q) return results;
+        return results.filter((s: any) => s.name.toLowerCase().includes(q));
+    };
 
     // 2. Materials for Trends
     const { data: materials = [] } = useQuery({
@@ -386,8 +412,8 @@ const ReportsAnalytics = () => {
     const kpis = useMemo(() => {
         const totalSpend = filteredData.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
 
-        // Count unique orders
-        const uniqueOrders = new Set(filteredData.map((item: any) => item.purchase_order_id)).size;
+        // Count unique orders using order_id from purchase_order_items
+        const uniqueOrders = new Set(filteredData.map((item: any) => item.order_id)).size;
 
         const avgOrderValue = uniqueOrders > 0 ? totalSpend / uniqueOrders : 0;
 
@@ -496,17 +522,15 @@ const ReportsAnalytics = () => {
 
                     {/* Supplier Select */}
                     <div className="flex items-center gap-2">
-                        <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
-                            <SelectTrigger className="w-[180px] h-9 bg-white text-xs">
-                                <SelectValue placeholder="Proveedor" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todos los proveedores</SelectItem>
-                                {suppliers.map((s: any) => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="w-[200px] md:w-[250px]">
+                            <SmartSearch
+                                placeholder="Buscar proveedor..."
+                                displayValue={selectedSupplierName}
+                                selectedId={selectedSupplierId}
+                                fetchFunction={searchSuppliersLocal}
+                                onSelect={(item) => setSelectedSupplierId(item.id)}
+                            />
+                        </div>
                         {selectedSupplierId !== 'all' && (
                             <SupplierPriceHistoryDownloadButton
                                 supplierId={selectedSupplierId}
@@ -791,7 +815,14 @@ const ReportsAnalytics = () => {
 
                     {/* Tab 2: Price Variation */}
                     <TabsContent value="price-variation" className="space-y-6 animate-in fade-in-50">
-                        <PriceVariationTab materials={materials} currency={currency} dateRange={date} />
+                        <PriceVariationTab
+                            materials={materials}
+                            currency={currency}
+                            dateRange={date}
+                            selectedSupplierId={selectedSupplierId}
+                            selectedMaterialIds={selectedMaterialsForTrend}
+                            setSelectedMaterialIds={setSelectedMaterialsForTrend}
+                        />
                     </TabsContent>
 
                     {/* Tab 3: Top Suppliers */}
