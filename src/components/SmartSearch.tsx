@@ -74,7 +74,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
         // Si la consulta está vacía, cargamos todos los resultados (para el scroll)
         const fetchQuery = query.trim() === '' ? '' : query;
         debouncedFetch(fetchQuery);
-      }, 300) as unknown as number;
+      }, query.trim() === '' ? 0 : 300) as unknown as number;
     } else {
       setResults([]);
     }
@@ -94,7 +94,12 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   };
 
   return (
-    <Popover open={open && !disabled} onOpenChange={setOpen}>
+    <Popover open={open && !disabled} onOpenChange={(newOpen) => {
+      setOpen(newOpen);
+      if (newOpen) {
+        setQuery('');
+      }
+    }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
