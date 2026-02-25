@@ -23,7 +23,8 @@ import {
     ShoppingCart,
     Package,
     ArrowUpRight,
-    ArrowDownRight
+    ArrowDownRight,
+    Search
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -35,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 // Import services
@@ -339,6 +341,7 @@ const ReportsAnalytics = () => {
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
     const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // --- Data Fetching ---
 
@@ -374,7 +377,10 @@ const ReportsAnalytics = () => {
 
     // Filter by currency directly on the data for calculations
     const filteredData = useMemo(() => {
-        return purchaseData.filter((item: any) => item.purchase_orders.currency === currency);
+        return purchaseData.filter((item: any) =>
+            item.purchase_orders.currency === currency &&
+            ['Approved', 'Archived'].includes(item.purchase_orders.status)
+        );
     }, [purchaseData, currency]);
 
     const kpis = useMemo(() => {
@@ -435,6 +441,27 @@ const ReportsAnalytics = () => {
             .map(([name, stats]) => ({ name, ...stats }));
     }, [filteredData]);
 
+    // Tab Search: Filtering and Frequency
+    const searchResults = useMemo(() => {
+        let results = filteredData;
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            results = results.filter((item: any) =>
+                (item.materials?.name || '').toLowerCase().includes(query) ||
+                (item.purchase_orders?.suppliers?.name || '').toLowerCase().includes(query)
+            );
+        }
+        return results;
+    }, [filteredData, searchQuery]);
+
+    const materialFrequencies = useMemo(() => {
+        const freqs: Record<string, number> = {};
+        filteredData.forEach((item: any) => {
+            const name = item.materials?.name || 'Desconocido';
+            freqs[name] = (freqs[name] || 0) + 1;
+        });
+        return freqs;
+    }, [filteredData]);
 
     return (
         <div className="container mx-auto p-4 pb-20">
@@ -571,8 +598,11 @@ const ReportsAnalytics = () => {
                 </div>
 
                 {/* --- Tabs System --- */}
-                <Tabs defaultValue="cashflow" className="space-y-6">
-                    <TabsList className="bg-white border border-gray-200 p-1 h-auto">
+                <Tabs defaultValue="search" className="space-y-6">
+                    <TabsList className="bg-white border border-gray-200 p-1 h-auto flex flex-wrap max-w-full overflow-x-auto">
+                        <TabsTrigger value="search" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
+                            Buscador de Compras
+                        </TabsTrigger>
                         <TabsTrigger value="cashflow" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
                             Flujo de Caja
                         </TabsTrigger>
@@ -583,6 +613,89 @@ const ReportsAnalytics = () => {
                             Top Proveedores
                         </TabsTrigger>
                     </TabsList>
+
+                    {/* Tab: Buscador de Compras */}
+                    <TabsContent value="search" className="space-y-6 animate-in fade-in-50">
+                        <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
+                            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/50">
+                                <div>
+                                    <CardTitle className="text-lg font-semibold text-gray-800">Historial Detallado</CardTitle>
+                                    <CardDescription>
+                                        Encuentra rápidamente qué se compró, cuándo, a quién y por cuánto.
+                                    </CardDescription>
+                                </div>
+                                <div className="relative w-full sm:w-[300px]">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar material o proveedor..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-9 bg-white w-full h-9"
+                                    />
+                                </div>
+                            </CardHeader>
+                            <div className="rounded-md overflow-hidden bg-white max-h-[600px] overflow-y-auto">
+                                <Table>
+                                    <TableHeader className="bg-gray-50/50 sticky top-0 z-10 shadow-sm">
+                                        <TableRow>
+                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[120px]">Fecha</TableHead>
+                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Material</TableHead>
+                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
+                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Cant.</TableHead>
+                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Unit.</TableHead>
+                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Total</TableHead>
+                                            <TableHead className="text-center font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3 w-[80px]">O.C.</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {searchResults.map((item: any) => (
+                                            <TableRow
+                                                key={item.id}
+                                                className="hover:bg-gray-50/80 transition-colors"
+                                            >
+                                                <TableCell className="pl-4 py-3 text-sm text-gray-600">
+                                                    {format(new Date(item.created_at), 'dd/MM/yyyy')}
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-procarni-dark font-medium text-sm">{item.materials?.name}</span>
+                                                        <span className="text-[10px] text-muted-foreground mt-0.5" title="Frecuencia de compra en el periodo">
+                                                            Comprado {materialFrequencies[item.materials?.name || 'Desconocido']} veces
+                                                        </span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-3 text-gray-600 text-sm">{item.purchase_orders.suppliers.name}</TableCell>
+                                                <TableCell className="py-3 text-right text-sm">
+                                                    {item.quantity} <span className="text-xs text-gray-400">{item.materials?.unit || 'Und'}</span>
+                                                </TableCell>
+                                                <TableCell className="py-3 text-right font-mono text-sm">
+                                                    {currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </TableCell>
+                                                <TableCell className="py-3 text-right font-mono font-medium text-sm text-procarni-dark">
+                                                    {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </TableCell>
+                                                <TableCell className="pr-4 py-3 text-center">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-procarni-primary hover:bg-procarni-primary/10" onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)} title={`Ver ${item.purchase_orders.sequence_number || 'Orden'}`}>
+                                                        <ArrowUpRight className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {searchResults.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                                                    {filteredData.length === 0
+                                                        ? "No hay compras registradas en este periodo con los filtros actuales."
+                                                        : "No se encontraron coincidencias para la búsqueda."}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </Card>
+                    </TabsContent>
 
                     {/* Tab 1: Cash Flow */}
                     <TabsContent value="cashflow" className="space-y-6 animate-in fade-in-50">
@@ -628,7 +741,7 @@ const ReportsAnalytics = () => {
 
                         <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
                             <CardHeader className="border-b border-gray-100 bg-gray-50/50 py-4">
-                                <CardTitle className="text-sm font-medium">Detalle de Transacciones</CardTitle>
+                                <CardTitle className="text-sm font-medium">Últimas 10 Transacciones (Desglose)</CardTitle>
                             </CardHeader>
                             <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                                 <Table>
