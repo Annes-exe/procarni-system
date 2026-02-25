@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useSession } from '@/components/SessionContextProvider';
 import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
@@ -52,6 +53,7 @@ const GeneratePurchaseOrder = () => {
   const [observations, setObservations] = React.useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isReminderDialogOpen, setIsReminderDialogOpen] = React.useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = React.useState(false);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = React.useState(false);
 
@@ -324,6 +326,12 @@ const GeneratePurchaseOrder = () => {
       return;
     }
 
+    // Open reminder dialog before proceeding
+    setIsReminderDialogOpen(true);
+  };
+
+  const confirmSubmit = async () => {
+    setIsReminderDialogOpen(false);
     setIsSubmitting(true);
     const orderData = {
       supplier_id: supplierId,
@@ -549,6 +557,26 @@ const GeneratePurchaseOrder = () => {
         supplierId={supplierId}
         supplierName={supplierName}
       />
+
+      <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de compra?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSubmit}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+            >
+              Confirmar y Guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

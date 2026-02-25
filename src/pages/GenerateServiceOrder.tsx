@@ -7,6 +7,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
 import { searchSuppliers } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
@@ -105,6 +106,7 @@ const GenerateServiceOrder = () => {
   const [supplierListVersion, setSupplierListVersion] = useState(0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
   const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
 
@@ -308,6 +310,12 @@ const GenerateServiceOrder = () => {
       }
     }
 
+    // Open reminder dialog before proceeding
+    setIsReminderDialogOpen(true);
+  };
+
+  const confirmSubmit = async () => {
+    setIsReminderDialogOpen(false);
     setIsSubmitting(true);
 
     const orderData: CreateServiceOrderInput = {
@@ -606,6 +614,7 @@ const GenerateServiceOrder = () => {
               </div>
             )}
           </div>
+
         </div>
 
       </div>
@@ -615,6 +624,26 @@ const GenerateServiceOrder = () => {
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
       />
+
+      <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSubmit}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+            >
+              Confirmar y Guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
