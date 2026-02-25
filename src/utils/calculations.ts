@@ -32,11 +32,13 @@ export const calculateTotals = (items: Array<{
 
     const subtotalAfterDiscount = itemValue - discountAmount;
 
+    // Both exempt and non-exempt items contribute to base imponible
+    baseImponible += subtotalAfterDiscount;
+
     if (item.is_exempt) {
       montoExento += subtotalAfterDiscount;
-    } else {
-      baseImponible += subtotalAfterDiscount;
     }
+
 
     // 3. Apply Sales Percentage (Additional Tax)
     const salesRate = (item.sales_percentage ?? 0) / 100;
