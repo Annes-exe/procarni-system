@@ -55,16 +55,48 @@ export const createMaterialCategory = async (name: string, userId: string): Prom
 
 /**
  * Deletes a material category.
+ * Performs a check to ensure no materials are using the category before deleting.
  */
 export const deleteMaterialCategory = async (id: string): Promise<boolean> => {
     try {
-        const { error } = await supabase
+        // 1. Get the category name
+        const { data: category, error: fetchError } = await supabase
+            .from('material_categories')
+            .select('name')
+            .eq('id', id)
+            .single();
+
+        if (fetchError || !category) {
+            console.error('[deleteMaterialCategory] Fetch error:', fetchError);
+            showError('Error al encontrar la categoría.');
+            return false;
+        }
+
+        // 2. Check if any material is using this category
+        const { count, error: countError } = await supabase
+            .from('materials')
+            .select('*', { count: 'exact', head: true })
+            .eq('category', category.name);
+
+        if (countError) {
+            console.error('[deleteMaterialCategory] Count error:', countError);
+            showError('Error al verificar el uso de la categoría.');
+            return false;
+        }
+
+        if (count && count > 0) {
+            showError(`No se puede eliminar: hay ${count} materiales usando esta categoría.`);
+            return false;
+        }
+
+        // 3. Delete the category
+        const { error: deleteError } = await supabase
             .from('material_categories')
             .delete()
             .eq('id', id);
 
-        if (error) {
-            console.error('[deleteMaterialCategory] Error:', error);
+        if (deleteError) {
+            console.error('[deleteMaterialCategory] Delete error:', deleteError);
             showError('Error al eliminar la categoría.');
             return false;
         }
