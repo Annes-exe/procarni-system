@@ -87,19 +87,25 @@ const NotificationBell = () => {
 
         if (notif.resource_type && notif.resource_id) {
             let path = '';
-            switch (notif.resource_type) {
-                case 'quote_request':
-                    path = `/quote-requests/${notif.resource_id}`;
-                    break;
-                case 'purchase_order':
-                    path = `/purchase-orders/${notif.resource_id}`;
-                    break;
-                case 'service_order':
-                    path = `/service-orders/${notif.resource_id}`;
-                    break;
-                case 'material':
-                    path = `/material-management`;
-                    break;
+
+            // Special case for price alerts: they should go to reports/variation
+            if (notif.type === 'price_alert') {
+                path = `/reports?tab=price-variation&materialId=${notif.resource_id}`;
+            } else {
+                switch (notif.resource_type) {
+                    case 'quote_request':
+                        path = `/quote-requests/${notif.resource_id}`;
+                        break;
+                    case 'purchase_order':
+                        path = `/purchase-orders/${notif.resource_id}`;
+                        break;
+                    case 'service_order':
+                        path = `/service-orders/${notif.resource_id}`;
+                        break;
+                    case 'material':
+                        path = `/material-management`;
+                        break;
+                }
             }
             if (path) navigate(path);
         }

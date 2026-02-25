@@ -51,7 +51,7 @@ import {
     searchSuppliersByMaterial
 } from '@/integrations/supabase/data';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // --- Sub-components (Defined before main component) ---
 
@@ -342,6 +342,10 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
 // --- Main Component ---
 const ReportsAnalytics = () => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialTab = searchParams.get('tab') || 'search';
+    const materialIdFromUrl = searchParams.get('materialId');
+
     // --- Global State ---
     const [date, setDate] = useState<{ from: Date | undefined; to: Date | undefined }>({
         from: undefined,
@@ -351,6 +355,30 @@ const ReportsAnalytics = () => {
     const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+    // Effect to handle URL parameters for deep linking
+    React.useEffect(() => {
+        if (materialIdFromUrl && !selectedMaterialsForTrend.includes(materialIdFromUrl)) {
+            setSelectedMaterialsForTrend(prev => {
+                if (prev.includes(materialIdFromUrl)) return prev;
+                // Add to trend if not already there, applying the same limit of 5
+                if (prev.length >= 5) {
+                    return [...prev.slice(1), materialIdFromUrl];
+                }
+                return [...prev, materialIdFromUrl];
+            });
+        }
+    }, [materialIdFromUrl]);
+
+    // Handle tab change and update URL
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        setSearchParams(params => {
+            params.set('tab', value);
+            return params;
+        });
+    };
 
     // --- Data Fetching ---
 
@@ -622,7 +650,7 @@ const ReportsAnalytics = () => {
                 </div>
 
                 {/* --- Tabs System --- */}
-                <Tabs defaultValue="search" className="space-y-6">
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                     <TabsList className="bg-white border border-gray-200 p-1 h-auto flex flex-wrap max-w-full overflow-x-auto">
                         <TabsTrigger value="search" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
                             Buscador de Compras
