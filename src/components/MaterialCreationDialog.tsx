@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { showError, showSuccess } from '@/utils/toast';
-import { createMaterial, createSupplierMaterialRelation, searchMaterials } from '@/integrations/supabase/data';
+import { createMaterial, createSupplierMaterialRelation, searchMaterials, getAllUnits } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
+import { useQuery } from '@tanstack/react-query';
 import { Material } from '@/integrations/supabase/types';
 import { Loader2, Check } from 'lucide-react';
 
@@ -32,9 +33,6 @@ const MATERIAL_CATEGORIES = [
   'OPERACIONAL', // Nueva categoría
 ];
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR', 'BULTO'
-];
 
 const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   isOpen,
@@ -46,9 +44,14 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
+
   const [materialName, setMaterialName] = useState('');
   const [category, setCategory] = useState(MATERIAL_CATEGORIES[0]);
-  const [unit, setUnit] = useState(MATERIAL_UNITS[0]);
+  const [unit, setUnit] = useState('');
   const [isExempt, setIsExempt] = useState(false);
   const [specification, setSpecification] = useState('');
 
@@ -59,7 +62,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const resetForm = () => {
     setMaterialName('');
     setCategory(MATERIAL_CATEGORIES[0]);
-    setUnit(MATERIAL_UNITS[0]);
+    setUnit(units[0]?.name || '');
     setIsExempt(MATERIAL_CATEGORIES[0] === 'FRESCA'); // Default based on initial category
     setSpecification('');
     setSuggestedMaterial(null);
@@ -81,7 +84,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         setIsExempt(false);
       }
     }
-  }, [category, suggestedMaterial]);
+  }, [category, suggestedMaterial, units]);
 
   // Logic to check for existing material as the user types (debounced check)
   useEffect(() => {
@@ -107,7 +110,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             // If the match is exact, pre-fill fields immediately
             if (bestMatch.name.toUpperCase() === trimmedName.toUpperCase()) {
               setCategory(bestMatch.category || MATERIAL_CATEGORIES[0]);
-              setUnit(bestMatch.unit || MATERIAL_UNITS[0]);
+              setUnit(bestMatch.unit || (units[0]?.name || ''));
               // Use existing material's exemption status
               setIsExempt(bestMatch.is_exempt || false);
             } else {
@@ -118,7 +121,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             setSuggestedMaterial(null);
             // Reset fields to default if no match found, respecting FRESCA rule
             setCategory(MATERIAL_CATEGORIES[0]);
-            setUnit(MATERIAL_UNITS[0]);
+            setUnit(units[0]?.name || '');
             setIsExempt(MATERIAL_CATEGORIES[0] === 'FRESCA');
           }
         } catch (e) {
@@ -144,7 +147,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     if (suggestedMaterial) {
       setMaterialName(suggestedMaterial.name);
       setCategory(suggestedMaterial.category || MATERIAL_CATEGORIES[0]);
-      setUnit(suggestedMaterial.unit || MATERIAL_UNITS[0]);
+      setUnit(suggestedMaterial.unit || (units[0]?.name || ''));
       setIsExempt(suggestedMaterial.is_exempt || false); // Use suggested material's exemption status
       setSuggestedMaterial(null); // Clear suggestion after acceptance
     }
@@ -327,13 +330,13 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
             <div className="grid gap-2">
               <Label htmlFor="unit">Unidad</Label>
-              <Select value={unit} onValueChange={setUnit} disabled={isSubmitting || isExactMatch}>
+              <Select value={unit} onValueChange={setUnit} disabled={isSubmitting || isExactMatch || isLoadingUnits}>
                 <SelectTrigger id="unit">
-                  <SelectValue placeholder="Selecciona unidad" />
+                  <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px] overflow-y-auto">
-                  {MATERIAL_UNITS.map(u => (
-                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  {units.map(u => (
+                    <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

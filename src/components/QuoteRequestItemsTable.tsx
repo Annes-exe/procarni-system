@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, Search, StickyNote, Hash } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterialsBySupplier } from '@/integrations/supabase/data';
+import { searchMaterialsBySupplier, getAllUnits } from '@/integrations/supabase/data';
+import { useQuery } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Separator } from '@/components/ui/separator';
@@ -30,9 +31,6 @@ interface MaterialSearchResult {
     specification?: string;
 }
 
-const MATERIAL_UNITS = [
-    'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
 
 interface QuoteRequestItemsTableProps {
     items: QuoteRequestItemForm[];
@@ -54,6 +52,11 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     onMaterialSelect,
 }) => {
     const isMobile = useIsMobile();
+
+    const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+        queryKey: ['units_of_measure'],
+        queryFn: getAllUnits,
+    });
 
     const searchSupplierMaterials = React.useCallback(async (query: string) => {
         if (!supplierId) return [];
@@ -93,8 +96,12 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">Unidad</label>
                         <Select value={item.unit} onValueChange={(v) => onItemChange(index, 'unit', v)}>
-                            <SelectTrigger className="h-9"><SelectValue placeholder="Ud." /></SelectTrigger>
-                            <SelectContent>{MATERIAL_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                            <SelectTrigger className="h-9">
+                                <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {units.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                            </SelectContent>
                         </Select>
                     </div>
                 </div>
@@ -194,8 +201,12 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                         <div className="col-span-2 space-y-1.5">
                             <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</label>
                             <Select value={item.unit} onValueChange={(v) => onItemChange(index, 'unit', v)}>
-                                <SelectTrigger className="h-9 bg-gray-50/50 border-gray-200"><SelectValue placeholder="Ud." /></SelectTrigger>
-                                <SelectContent>{MATERIAL_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                                <SelectTrigger className="h-9 bg-gray-50/50 border-gray-200">
+                                    <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {units.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                                </SelectContent>
                             </Select>
                         </div>
 

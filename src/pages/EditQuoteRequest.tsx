@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { ArrowLeft, Loader2, Save, ShoppingCart, Target, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService'; // Updated import
-import { searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
+import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import SmartSearch from '@/components/SmartSearch';
@@ -33,9 +33,6 @@ interface MaterialSearchResult {
   specification?: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
 
 const EditQuoteRequest = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +49,11 @@ const EditQuoteRequest = () => {
   const [supplierName, setSupplierName] = useState<string>('');
   const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -79,7 +81,7 @@ const EditQuoteRequest = () => {
         material_name: item.materials?.name || 'Material Desconocido',
         quantity: item.quantity,
         description: item.description || '',
-        unit: item.unit || MATERIAL_UNITS[0],
+        unit: item.unit || (units[0]?.name || ''),
         material_id: item.material_id || undefined,
       })) || [];
 
@@ -119,7 +121,7 @@ const EditQuoteRequest = () => {
   }
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0], material_id: undefined }]);
+    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
   };
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
@@ -134,7 +136,7 @@ const EditQuoteRequest = () => {
 
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
-    handleItemChange(index, 'unit', material.unit || MATERIAL_UNITS[0]);
+    handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
     handleItemChange(index, 'material_id', material.id); // Save ID
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);

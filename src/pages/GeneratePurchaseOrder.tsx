@@ -6,7 +6,7 @@ import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus } from '@/integrations/supabase/data';
+import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 
@@ -25,9 +25,6 @@ interface Company {
   rif: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
 
 interface Supplier {
   id: string;
@@ -57,6 +54,11 @@ const GeneratePurchaseOrder = () => {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = React.useState(false);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = React.useState(false);
+
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -110,7 +112,7 @@ const GeneratePurchaseOrder = () => {
             unit_price: 0,
             tax_rate: 0.16,
             is_exempt: isExempt,
-            unit: item.unit || MATERIAL_UNITS[0],
+            unit: item.unit || (units[0]?.name || ''),
             description: item.description || '',
             sales_percentage: 0,
             discount_percentage: 0,
@@ -175,7 +177,7 @@ const GeneratePurchaseOrder = () => {
         unit_price: 0,
         tax_rate: 0.16,
         is_exempt: materialData.is_exempt || false,
-        unit: materialData.unit || MATERIAL_UNITS[0],
+        unit: materialData.unit || (units[0]?.name || ''),
         description: materialData.specification || '',
         sales_percentage: 0,
         discount_percentage: 0,
@@ -206,7 +208,7 @@ const GeneratePurchaseOrder = () => {
     updateItem(index, {
       material_id: material.id,
       material_name: material.name,
-      unit: material.unit || MATERIAL_UNITS[0],
+      unit: material.unit || (units[0]?.name || ''),
       is_exempt: material.is_exempt || false,
       description: material.specification || '',
     });
@@ -221,7 +223,7 @@ const GeneratePurchaseOrder = () => {
       unit_price: 0,
       tax_rate: 0.16,
       is_exempt: false,
-      unit: MATERIAL_UNITS[0],
+      unit: units[0]?.name || '',
       description: '',
       sales_percentage: 0,
       discount_percentage: 0,

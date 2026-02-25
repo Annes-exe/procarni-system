@@ -8,7 +8,8 @@ import { useSession } from '@/components/SessionContextProvider';
 import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
-import { searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
+import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
+import { useQuery } from '@tanstack/react-query';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -38,9 +39,6 @@ interface Supplier {
   name: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
 
 const GenerateQuoteRequest = () => {
   const { session } = useSession();
@@ -57,6 +55,11 @@ const GenerateQuoteRequest = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
+
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -77,7 +80,7 @@ const GenerateQuoteRequest = () => {
         material_name: materialData.name,
         quantity: 0,
         description: materialData.specification || '',
-        unit: materialData.unit || MATERIAL_UNITS[0],
+        unit: materialData.unit || (units[0]?.name || ''),
         // @ts-ignore
         material_id: materialData.id,
       }]);
@@ -85,7 +88,7 @@ const GenerateQuoteRequest = () => {
   }, [materialData]);
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0], material_id: undefined }]);
+    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
   };
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
@@ -100,7 +103,7 @@ const GenerateQuoteRequest = () => {
 
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
-    handleItemChange(index, 'unit', material.unit || MATERIAL_UNITS[0]);
+    handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
     handleItemChange(index, 'material_id', material.id); // Save ID
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);

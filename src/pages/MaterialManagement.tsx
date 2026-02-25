@@ -198,14 +198,11 @@ const MaterialManagement = () => {
           <Button
             variant="outline"
             onClick={() => setIsUnitsModalOpen(true)}
-            className={cn(
-              "border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 gap-2",
-              isMobile && "w-10 h-10 p-0"
-            )}
-            size={isMobile ? "default" : "sm"}
+            className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
+            size="icon"
+            title="Gestionar Unidades"
           >
-            <Ruler className={cn("h-4 w-4", !isMobile && "mr-2")} />
-            {!isMobile && 'Gestionar Unidades'}
+            <Ruler className="h-4 w-4" />
           </Button>
 
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
