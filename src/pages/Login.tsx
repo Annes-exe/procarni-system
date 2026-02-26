@@ -1,11 +1,60 @@
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { MadeWithDyad } from '@/components/made-with-dyad';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
 const Login = () => {
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      let loginEmail = identifier;
+
+      // Si el identificador no tiene '@', asumimos que es un username
+      if (!identifier.includes('@')) {
+        const { data: emailData, error: rpcError } = await supabase
+          .rpc('get_email_by_username', { p_username: identifier });
+
+        if (rpcError) throw new Error('Error al verificar el usuario.');
+        if (!emailData) throw new Error('Usuario no encontrado.');
+
+        loginEmail = emailData;
+      }
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: password,
+      });
+
+      if (signInError) {
+        if (signInError.message === 'Invalid login credentials') {
+           throw new Error('Credenciales inválidas.');
+        }
+        throw signInError;
+      }
+
+      // El usuario se logueó correctamente, la redirección suele manejarla el App.tsx o ProtectedRoute
+      // pero por si acaso forzamos la ida a inicio
+      navigate('/');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex w-full font-inter bg-slate-50">
       {/* 1. Left Panel (Branding and Context) - Hidden on small screens */}
@@ -55,57 +104,57 @@ const Login = () => {
             </p>
           </div>
 
-          <Auth
-            supabaseClient={supabase}
-            providers={[]}
-            appearance={{
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    brand: '#880a0a', // Procarni Primary Red
-                    brandAccent: '#660808',
-                    inputBackground: '#F9FAFB', // gray-50
-                    inputBorder: '#E5E7EB', // gray-200
-                    inputText: '#111827', // gray-900
-                    inputPlaceholder: '#9CA3AF', // gray-400
-                  },
-                  radii: {
-                    borderRadiusButton: '6px',
-                    inputBorderRadius: '6px',
-                  },
-                  space: {
-                    inputPadding: '10px 12px',
-                    buttonPadding: '10px 16px',
-                  }
-                },
-              },
-              className: {
-                container: 'space-y-4',
-                button: 'w-full bg-procarni-primary hover:bg-red-900 text-white font-medium rounded-md py-2.5 shadow-sm transition-all active:scale-[0.98] text-sm tracking-wide',
-                label: 'block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1',
-                input: 'block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors',
-                loader: 'text-procarni-primary animate-spin',
-                anchor: 'text-xs text-gray-500 hover:text-gray-900 font-medium transition-colors underline-offset-4 hover:underline',
-                divider: 'bg-gray-200 my-4',
-                message: 'text-xs text-red-600 bg-red-50 p-3 rounded-md border border-red-100 mt-4',
-              },
-            }}
-            theme="light"
-            redirectTo={window.location.origin}
-            localization={{
-              variables: {
-                sign_in: {
-                  button_label: 'Entrar al Sistema',
-                  email_label: 'Correo Corporativo',
-                  password_label: 'Contraseña',
-                  email_input_placeholder: 'ejemplo@procarni.com',
-                  password_input_placeholder: '••••••••',
-                  loading_button_label: 'Verificando...',
-                },
-              },
-            }}
-          />
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="identifier" className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
+                Usuario o Correo Corporativo
+              </label>
+              <input
+                id="identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="ejemplo@procarni.com o tunombre"
+                required
+                className="block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors"
+                style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
+              />
+            </div>
+            
+            <div className="pt-2">
+              <label htmlFor="password" className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
+                Contraseña
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors"
+                style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
+              />
+            </div>
+
+            {error && (
+              <div className="text-xs text-red-600 bg-red-50 p-3 rounded-md border border-red-100 mt-4 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-procarni-primary hover:bg-red-900 text-white font-medium rounded-md py-2.5 shadow-sm transition-all active:scale-[0.98] text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loading ? 'Verificando...' : 'Entrar al Sistema'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
       <MadeWithDyad />

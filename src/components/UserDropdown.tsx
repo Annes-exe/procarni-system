@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '@/components/SessionContextProvider';
 import {
@@ -14,6 +14,25 @@ import { showError, showSuccess } from '@/utils/toast';
 const UserDropdown = () => {
   const { session, supabase } = useSession();
   const navigate = useNavigate();
+  const [username, setUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (session?.user?.id) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!error && data) {
+          setUsername(data.username);
+        }
+      }
+    };
+
+    fetchProfile();
+  }, [session?.user?.id, supabase]);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -31,9 +50,14 @@ const UserDropdown = () => {
   }
 
   const email = session.user.email || 'usuario@procarni.com';
-  // Use email prefix as name or "Usuario"
-  const name = email.split('@')[0];
-  const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+
+  // Use fetched username, fallback to email prefix if not set
+  let displayName = username;
+  if (!displayName) {
+    const nameFromEmail = email.split('@')[0];
+    displayName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+  }
+
   const initials = displayName.substring(0, 2).toUpperCase();
 
   return (
