@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { showError, showSuccess } from '@/utils/toast';
+import { User } from 'lucide-react';
 
 const UserDropdown = () => {
   const { session, supabase } = useSession();
@@ -68,8 +69,8 @@ const UserDropdown = () => {
             <p className="text-sm font-medium text-foreground group-hover:text-procarni-primary transition-colors">{displayName}</p>
             <p className="text-xs text-muted-foreground">{email}</p>
           </div>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-procarni-primary to-procarni-secondary flex items-center justify-center text-white font-bold shadow-md ring-2 ring-transparent group-hover:ring-procarni-primary/20 transition-all text-xs">
-            {initials}
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-procarni-primary to-procarni-secondary flex items-center justify-center text-white shadow-md ring-2 ring-transparent group-hover:ring-procarni-primary/20 transition-all">
+            <User className="w-[18px] h-[18px]" />
           </div>
         </div>
       </DropdownMenuTrigger>
