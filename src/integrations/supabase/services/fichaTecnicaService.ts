@@ -22,21 +22,15 @@ const FichaTecnicaService = {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-ficha-tecnica`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+      const { data, error } = await supabase.functions.invoke('upload-ficha-tecnica', {
+        body: payload
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error desconocido al subir la ficha técnica.');
+      if (error) {
+        throw new Error(error.message || 'Error desconocido al subir la ficha técnica.');
       }
 
-      const newFicha: FichaTecnica = await response.json();
+      const newFicha: FichaTecnica = data;
 
       // --- AUDIT LOG ---
       logAudit('UPLOAD_FICHA_TECNICA', {
@@ -98,18 +92,12 @@ const FichaTecnicaService = {
 
     try {
       // Llama a la Edge Function para manejar la eliminación del archivo y el registro DB
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-ficha-tecnica`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fichaId, storageUrl }),
+      const { data, error } = await supabase.functions.invoke('delete-ficha-tecnica', {
+        body: { fichaId, storageUrl }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error desconocido al eliminar la ficha técnica.');
+      if (error) {
+        throw new Error(error.message || 'Error desconocido al eliminar la ficha técnica.');
       }
 
       // --- AUDIT LOG ---
