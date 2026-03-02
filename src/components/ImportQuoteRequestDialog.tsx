@@ -24,9 +24,8 @@ const ImportQuoteRequestDialog: React.FC<ImportQuoteRequestDialogProps> = ({ isO
     const { data: quoteRequests, isLoading } = useQuery({
         queryKey: ['quoteRequests', 'ImportModal'],
         queryFn: async () => {
-            const active = await getAllQuoteRequests('Active');
-            const approved = await getAllQuoteRequests('Approved');
-            return [...active, ...approved].sort((a, b) =>
+            const results = await getAllQuoteRequests(['Draft', 'Approved']);
+            return results.sort((a, b) =>
                 new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
             );
         },

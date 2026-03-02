@@ -6,20 +6,23 @@ import { QuoteRequest, QuoteRequestItem } from '../types';
 import { logAudit } from './auditLogService';
 
 const QuoteRequestService = {
-  getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'): Promise<QuoteRequest[]> => {
+  getAll: async (statusFilter?: string | string[]): Promise<QuoteRequest[]> => {
     let query = supabase
       .from('quote_requests')
       .select('*, suppliers(name), companies(name)')
       .order('created_at', { ascending: false });
 
-    if (statusFilter === 'Active') {
-      // Incluir 'Draft'
-      query = query.in('status', ['Draft']);
-    } else if (statusFilter === 'Rejected') {
-      // Solo incluir 'Rejected'
-      query = query.eq('status', 'Rejected');
+    if (statusFilter) {
+      if (Array.isArray(statusFilter)) {
+        query = query.in('status', statusFilter);
+      } else if (statusFilter === 'Active') {
+        // Incluir 'Draft' para compatibilidad con la lógica anterior si es necesario
+        query = query.in('status', ['Draft']);
+      } else {
+        // Filtro por estado específico (Approved, Rejected, Archived, Draft, etc.)
+        query = query.eq('status', statusFilter);
+      }
     }
-    // Si statusFilter es algo más (ej. 'All'), no se aplica filtro de estado.
 
     const { data, error } = await query;
 
