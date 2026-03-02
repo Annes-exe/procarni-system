@@ -117,8 +117,19 @@ export const numberToWords = (amount: number, currency: 'VES' | 'USD'): string =
   if (tempEntero === 1) {
     texto = `UN ${currency === 'VES' ? 'BOLIVAR' : 'DOLAR'}`;
   } else if (tempEntero > 1) {
-    let miles = Math.floor(tempEntero / 1000);
-    let unidades = tempEntero % 1000;
+    let millones = Math.floor(tempEntero / 1000000);
+    let resto = tempEntero % 1000000;
+
+    let miles = Math.floor(resto / 1000);
+    let unidades = resto % 1000;
+
+    if (millones > 0) {
+      if (millones === 1) {
+        texto += 'UN MILLON ';
+      } else {
+        texto += convertirGrupo(millones) + ' MILLONES ';
+      }
+    }
 
     if (miles > 0) {
       if (miles === 1) {
@@ -129,7 +140,11 @@ export const numberToWords = (amount: number, currency: 'VES' | 'USD'): string =
     }
     texto += convertirGrupo(unidades);
 
-    texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    if (millones > 0 && resto === 0) {
+      texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    } else {
+      texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    }
   }
 
   const decimalTexto = decimal.toString().padStart(2, '0');
