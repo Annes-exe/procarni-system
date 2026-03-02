@@ -25,6 +25,7 @@ export type Supplier = {
   instagram: string | null;
   address: string | null;
   code: string | null;
+  city: string | null;
 };
 
 export type Material = {

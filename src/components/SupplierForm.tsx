@@ -17,6 +17,14 @@ import { showError, showSuccess } from '@/utils/toast';
 import { validateRif } from '@/utils/validators'; // Importar el validador de RIF
 import MaterialCreationDialog from '@/components/MaterialCreationDialog'; // NEW IMPORT
 
+const VENEZUELAN_CITIES = [
+  'Caracas', 'Maracaibo', 'Valencia', 'Barquisimeto', 'Maracay',
+  'Ciudad Guayana', 'San Cristóbal', 'Maturín', 'Barinas', 'Barcelona',
+  'Mérida', 'Coro', 'Cumaná', 'Ciudad Bolívar', 'San Felipe',
+  'Guanare', 'San Carlos', 'San Juan de los Morros', 'Tucupita',
+  'Puerto Ayacucho', 'La Asunción', 'La Guaira'
+].sort((a, b) => a.localeCompare(b));
+
 // Esquema de validación - reestructurado para evitar problemas con ctx.parent
 const supplierFormSchema = z.object({
   // El código se autogenera y no se gestiona en el formulario, por lo que se elimina de aquí.
@@ -29,6 +37,7 @@ const supplierFormSchema = z.object({
   phone_2: z.string().optional().or(z.literal('')),
   instagram: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
+  city: z.string().optional().nullable(),
   payment_terms: z.enum(['Contado', 'Crédito', 'Otro'], { message: 'Términos de pago son requeridos y deben ser Contado, Crédito u Otro.' }), // Opciones limitadas
   // Eliminamos las validaciones condicionales que dependen de ctx.parent
   custom_payment_terms: z.string().optional().nullable(),
@@ -57,6 +66,7 @@ interface SupplierFormProps {
     phone_2?: string;
     instagram?: string;
     address?: string;
+    city?: string | null;
     payment_terms: 'Contado' | 'Crédito' | 'Otro';
     custom_payment_terms?: string | null;
     credit_days: number;
@@ -96,6 +106,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       phone_2: '',
       instagram: '',
       address: '',
+      city: '',
       payment_terms: 'Contado',
       custom_payment_terms: '',
       credit_days: 0,
@@ -106,7 +117,24 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
 
   const currentMaterialsInForm = form.watch('materials');
   const currentPaymentTerms = form.watch('payment_terms');
-  
+  const currentAddress = form.watch('address');
+
+  useEffect(() => {
+    if (currentAddress) {
+      const addressLower = currentAddress.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      for (const city of VENEZUELAN_CITIES) {
+        const cityNormalized = city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (addressLower.includes(cityNormalized)) {
+          if (form.getValues('city') !== city) {
+            form.setValue('city', city, { shouldDirty: true });
+          }
+          break;
+        }
+      }
+    }
+  }, [currentAddress, form]);
+
+
   const currentSupplierId = initialData?.id;
 
   useEffect(() => {
@@ -126,6 +154,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         phone_2: initialData.phone_2 || '',
         instagram: initialData.instagram || '',
         address: initialData.address || '',
+        city: initialData.city || '',
         payment_terms: initialData.payment_terms,
         custom_payment_terms: initialData.custom_payment_terms || '',
         credit_days: initialData.credit_days || 0,
@@ -141,6 +170,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         phone_2: '',
         instagram: '',
         address: '',
+        city: '',
         payment_terms: 'Contado',
         custom_payment_terms: '',
         credit_days: 0,
@@ -166,11 +196,11 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
 
     form.setValue('materials', [...materialsArray, newMaterialEntry], { shouldDirty: true });
   };
-  
+
   const handleMaterialCreatedFromDialog = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
     // 1. Add the newly created/associated material to the form state
     const materialsArray = form.getValues('materials') || [];
-    
+
     // Check if it was already added (shouldn't happen if logic is correct, but safety check)
     if (materialsArray.some(m => m.material_id === material.id)) {
       showError('El material ya estaba en la lista.');
@@ -185,7 +215,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     };
 
     form.setValue('materials', [...materialsArray, newMaterialEntry], { shouldDirty: true });
-    
+
     // 2. Since a new material might have been created, invalidate the general materials query
     refetchMaterials();
   };
@@ -233,6 +263,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     const finalData = {
       ...data,
       rif: normalizedRif,
+      city: data.city || null,
       name: data.name.toUpperCase(), // Ensure name is uppercase before submission
       credit_days: data.payment_terms === 'Crédito' ? data.credit_days : 0,
       custom_payment_terms: data.payment_terms === 'Otro' ? data.custom_payment_terms : null,
@@ -245,182 +276,206 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
         {/* El campo de código ha sido eliminado */}
         <FormField
-            control={form.control}
-            name="rif"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>RIF</FormLabel>
-                <FormControl>
-                  <Input placeholder="RIF del proveedor" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nombre</FormLabel>
-                <FormControl>
-                  <Input placeholder="Nombre del proveedor" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input placeholder="Email del proveedor" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Teléfono 1</FormLabel>
-                <FormControl>
-                  <Input placeholder="Teléfono principal" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone_2"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Teléfono 2</FormLabel>
-                <FormControl>
-                  <Input placeholder="Teléfono secundario" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="instagram"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Instagram</FormLabel>
-                <FormControl>
-                  <Input placeholder="@usuario" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="address"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Dirección</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Dirección del proveedor" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="payment_terms"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Términos de Pago</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione términos de pago" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Contado">Contado</SelectItem>
-                    <SelectItem value="Crédito">Crédito</SelectItem>
-                    <SelectItem value="Otro">Otro</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {currentPaymentTerms === 'Crédito' && (
-            <FormField
-              control={form.control}
-              name="credit_days"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Días de Crédito</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Días de crédito"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          control={form.control}
+          name="rif"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>RIF</FormLabel>
+              <FormControl>
+                <Input placeholder="RIF del proveedor" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )}
-          {currentPaymentTerms === 'Otro' && (
-            <FormField
-              control={form.control}
-              name="custom_payment_terms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Términos de Pago Personalizados</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Describa los términos de pago" {...field} value={field.value || ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        />
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Nombre</FormLabel>
+              <FormControl>
+                <Input placeholder="Nombre del proveedor" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )}
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input placeholder="Email del proveedor" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Teléfono 1</FormLabel>
+              <FormControl>
+                <Input placeholder="Teléfono principal" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone_2"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Teléfono 2</FormLabel>
+              <FormControl>
+                <Input placeholder="Teléfono secundario" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="instagram"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Instagram</FormLabel>
+              <FormControl>
+                <Input placeholder="@usuario" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Dirección</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Dirección del proveedor" {...field} value={field.value || ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="city"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Ciudad (Ubicación)</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || undefined}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Autodetectado o seleccione" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="max-h-[250px]">
+                  <SelectItem value="none" disabled className="hidden">Seleccione ciudad</SelectItem>
+                  {VENEZUELAN_CITIES.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">Puede detectarse automáticamente desde la dirección</p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="payment_terms"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Términos de Pago</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione términos de pago" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Contado">Contado</SelectItem>
+                  <SelectItem value="Crédito">Crédito</SelectItem>
+                  <SelectItem value="Otro">Otro</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        {currentPaymentTerms === 'Crédito' && (
           <FormField
             control={form.control}
-            name="status"
+            name="credit_days"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Estado</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione estado" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Active">Activo</SelectItem>
-                    <SelectItem value="Inactive">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormLabel>Días de Crédito</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="Días de crédito"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+        )}
+        {currentPaymentTerms === 'Otro' && (
+          <FormField
+            control={form.control}
+            name="custom_payment_terms"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Términos de Pago Personalizados</FormLabel>
+                <FormControl>
+                  <Input placeholder="Describa los términos de pago" {...field} value={field.value || ''} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Estado</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione estado" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Active">Activo</SelectItem>
+                  <SelectItem value="Inactive">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         {/* Sección de materiales asociados */}
         <div className="mt-6 p-4 border rounded-lg">
           <h3 className="text-lg font-semibold mb-4 flex justify-between items-center">
             Materiales Asociados
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setIsMaterialCreationDialogOpen(true)} // NEW BUTTON
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Crear Material
@@ -522,7 +577,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
           </Button>
         </DialogFooter>
       </form>
-      
+
       {/* NEW DIALOG */}
       <MaterialCreationDialog
         isOpen={isMaterialCreationDialogOpen}

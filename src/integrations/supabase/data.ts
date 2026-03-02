@@ -99,7 +99,8 @@ export const searchSuppliersByMaterial = async (materialId: string, query: strin
         id,
         name,
         rif,
-        code
+        code,
+        city
       ),
       specification
     `)

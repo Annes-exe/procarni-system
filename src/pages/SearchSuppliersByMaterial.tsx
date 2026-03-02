@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from '@/components/ui/badge';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterials, getSuppliersByMaterial } from '@/integrations/supabase/data';
+import { searchMaterials, searchSuppliersByMaterial } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Material {
   id: string;
@@ -34,6 +35,7 @@ interface SupplierResult {
   credit_days: number;
   status: string;
   specification: string;
+  city?: string | null;
 }
 
 const SearchSuppliersByMaterial = () => {
@@ -45,6 +47,7 @@ const SearchSuppliersByMaterial = () => {
   const [suppliers, setSuppliers] = useState<SupplierResult[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
   const [initialQuery, setInitialQuery] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string>('all');
 
   const formatPhoneNumberForWhatsApp = (phone: string) => {
     const digitsOnly = phone.replace(/\D/g, '');
@@ -57,8 +60,9 @@ const SearchSuppliersByMaterial = () => {
   const fetchSuppliers = async (materialId: string) => {
     setIsLoadingSuppliers(true);
     setSuppliers([]);
+    setSelectedCity('all');
     try {
-      const fetchedSuppliers = await getSuppliersByMaterial(materialId);
+      const fetchedSuppliers = await searchSuppliersByMaterial(materialId, '');
       setSuppliers(fetchedSuppliers);
     } catch (error) {
       console.error('Error fetching suppliers by material:', error);
@@ -116,6 +120,9 @@ const SearchSuppliersByMaterial = () => {
 
   const microLabelClass = "text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1 block";
   const valueClass = "text-procarni-dark font-medium text-sm";
+
+  const availableCities = Array.from(new Set(suppliers.map(s => s.city).filter(Boolean))).sort() as string[];
+  const filteredSuppliers = suppliers.filter(s => selectedCity === 'all' || s.city === selectedCity);
 
   return (
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
@@ -200,14 +207,33 @@ const SearchSuppliersByMaterial = () => {
       ) : selectedMaterial ? (
         suppliers.length > 0 ? (
           <div className="space-y-6">
-            <div className="flex items-center justify-between px-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-4">
               <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400">
-                Proveedores Disponibles ({suppliers.length})
+                Proveedores Disponibles ({filteredSuppliers.length})
               </h3>
+
+              {availableCities.length > 0 && (
+                <div className="w-full sm:w-64">
+                  <Select value={selectedCity} onValueChange={setSelectedCity}>
+                    <SelectTrigger className="h-9">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <MapPin className="h-4 w-4" />
+                        <SelectValue placeholder="Filtrar por ciudad" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las ciudades</SelectItem>
+                      {availableCities.map(city => (
+                        <SelectItem key={city} value={city}>{city}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
-              {suppliers.map((supplier) => (
+              {filteredSuppliers.map((supplier) => (
                 <Card
                   key={supplier.id}
                   className="group hover:shadow-lg hover:shadow-gray-200/50 transition-all duration-300 border-gray-100 flex flex-col"
@@ -273,6 +299,12 @@ const SearchSuppliersByMaterial = () => {
                                 <Instagram className="h-3.5 w-3.5 text-gray-300" />
                                 <span className="truncate">{supplier.instagram}</span>
                               </a>
+                            )}
+                            {supplier.city && (
+                              <div className="flex items-center gap-2 text-[13px] text-gray-600 truncate">
+                                <MapPin className="h-3.5 w-3.5 text-procarni-secondary shrink-0" />
+                                <span className="truncate font-medium">{supplier.city}</span>
+                              </div>
                             )}
                           </div>
                         </div>
