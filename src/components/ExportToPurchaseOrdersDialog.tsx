@@ -15,7 +15,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
 interface QuoteEntry {
@@ -241,15 +240,16 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="w-[95vw] sm:max-w-[800px] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50/50">
-                <DialogHeader className="p-4 sm:p-6 pb-4 bg-white border-b border-gray-100 text-left">
-                    <DialogTitle className="text-lg sm:text-xl text-procarni-primary">Generar Órdenes de Compra</DialogTitle>
-                    <DialogDescription className="text-sm">
-                        El sistema ha preseleccionado los precios más bajos. Revisa la distribución y los datos de la orden antes de generarlas en estado Borrador.
+            <DialogContent className="w-[95vw] sm:max-w-[800px] h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col p-0 sm:p-4 overflow-hidden bg-gray-50 rounded-2xl border-none shadow-2xl">
+                <DialogHeader className="text-left bg-white p-4 mx-0 sm:mx-2 mt-0 sm:mt-2 rounded-none sm:rounded-xl shadow-sm border-b sm:border border-gray-100 relative shrink-0">
+                    <div className="hidden sm:block absolute top-0 left-0 w-1 rounded-l-xl h-full bg-procarni-secondary/80"></div>
+                    <DialogTitle className="text-lg sm:text-xl font-bold text-procarni-dark sm:pl-2">Generar Órdenes de Compra</DialogTitle>
+                    <DialogDescription className="text-sm sm:pl-2 mt-1">
+                        El sistema ha preseleccionado los precios más bajos. Revisa la distribución y proporciona los datos de la orden antes de generarlas en estado Borrador.
                     </DialogDescription>
                 </DialogHeader>
 
-                <ScrollArea className="flex-1 px-4 sm:px-6 py-4">
+                <div className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-2 py-4">
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8 bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                         <div className="space-y-2">
@@ -299,13 +299,17 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                         </div>
                     </div>
 
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4 px-1">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4 px-1 flex items-center">
+                        <span className="bg-gray-200 h-px flex-1 mr-4"></span>
                         Materiales asignados por Proveedor
+                        <span className="bg-gray-200 h-px flex-1 ml-4"></span>
                     </h3>
 
                     {supplierGroups.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground bg-white rounded-lg border border-dashed border-gray-200">
-                            No se encontraron precios ganadores válidos en la comparación actual.
+                        <div className="text-center py-12 text-muted-foreground bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+                            <Truck className="h-10 w-10 mx-auto text-gray-300 mb-3" />
+                            <p className="font-medium text-gray-900">No hay precios ganadores</p>
+                            <p className="text-xs mt-1">No se encontraron precios ganadores válidos en la comparación actual.</p>
                         </div>
                     ) : (
                         <div className="space-y-6 pb-2">
@@ -314,7 +318,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
 
                                 return (
                                     <div key={group.supplierId} className={cn(
-                                        "bg-white rounded-lg border shadow-sm overflow-hidden transition-all duration-200",
+                                        "bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-200 group",
                                         hasSelected ? "border-procarni-secondary/30 ring-1 ring-procarni-secondary/10" : "border-gray-200 opacity-60"
                                     )}>
                                         <div className="bg-gray-50/80 px-4 py-3 border-b flex justify-between items-center">
@@ -329,10 +333,10 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                             </Badge>
                                         </div>
                                         <div className="divide-y divide-gray-100">
-                                            {group.items.map(item => (
+                                            {group.items.map((item) => (
                                                 <label
                                                     key={item.material.id}
-                                                    className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                                                    className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer hover:bg-gray-50/80 transition-colors"
                                                 >
                                                     <div className="mt-0.5 shrink-0">
                                                         <Checkbox
@@ -356,7 +360,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                                     {item.quote.currency} {item.quote.unitPrice.toFixed(2)}
                                                                 </p>
                                                                 {item.quote.currency === 'VES' && item.quote.convertedPrice && (
-                                                                    <p className="text-[10px] text-gray-500 mt-0.5">
+                                                                    <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 font-medium">
                                                                         ≈ USD {item.quote.convertedPrice.toFixed(2)}
                                                                     </p>
                                                                 )}
@@ -372,26 +376,26 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                         </div>
                     )}
 
-                </ScrollArea>
+                </div>
 
-                <DialogFooter className="p-4 bg-gray-50 border-t border-gray-100 flex-col sm:flex-row gap-3 sm:gap-0">
-                    <Button variant="outline" onClick={onClose} disabled={isExporting} className="w-full sm:w-auto">
+                <DialogFooter className="p-4 sm:px-6 bg-white sm:bg-transparent border-t border-gray-100 sm:border-none flex-col sm:flex-row gap-3 sm:gap-2 shrink-0">
+                    <Button variant="outline" onClick={onClose} disabled={isExporting} className="w-full sm:w-auto bg-white hover:bg-gray-50 transition-colors">
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleExportClick}
                         disabled={isExporting || totalSelectedItems === 0 || supplierGroups.length === 0}
-                        className="bg-procarni-primary hover:bg-red-800 w-full sm:w-auto shadow-sm"
+                        className="bg-procarni-secondary hover:bg-green-700 w-full sm:w-auto shadow-sm group transition-all"
                     >
                         {isExporting ? (
                             <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generando...</>
                         ) : (
-                            <><ArrowRight className="mr-2 h-4 w-4" /> Generar {totalOrdersToGenerate} Órden{totalOrdersToGenerate !== 1 ? 'es' : ''}</>
+                            <><ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /> Generar {totalOrdersToGenerate} Órden{totalOrdersToGenerate !== 1 ? 'es' : ''}</>
                         )}
                     </Button>
                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </DialogContent >
+        </Dialog >
     );
 };
 

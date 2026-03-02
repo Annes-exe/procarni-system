@@ -486,18 +486,20 @@ const QuoteComparison = () => {
     return (
       <div className="space-y-8">
         {comparisonResults.map(materialComp => (
-          <div key={materialComp.material.id}>
-            <MaterialQuoteComparisonRow
-              comparisonData={materialComp}
-              baseCurrency={comparisonBaseCurrency}
-              globalExchangeRate={exchangeRate}
-              onAddQuoteEntry={handleAddQuoteEntry}
-              onRemoveQuoteEntry={handleRemoveQuoteEntry}
-              onQuoteChange={handleQuoteChange}
-              onRemoveMaterial={handleRemoveMaterial}
-            />
+          <Card key={materialComp.material.id} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 rounded-xl overflow-hidden bg-white">
+            <div className="p-0 sm:p-2">
+              <MaterialQuoteComparisonRow
+                comparisonData={materialComp}
+                baseCurrency={comparisonBaseCurrency}
+                globalExchangeRate={exchangeRate}
+                onAddQuoteEntry={handleAddQuoteEntry}
+                onRemoveQuoteEntry={handleRemoveQuoteEntry}
+                onQuoteChange={handleQuoteChange}
+                onRemoveMaterial={handleRemoveMaterial}
+              />
+            </div>
             {/* Individual PDF Download Button */}
-            <div className="flex justify-end mt-2">
+            <div className="flex justify-end p-4 border-t border-gray-50 bg-gray-50/50">
               <QuoteComparisonPDFButton
                 comparisonResults={[materialComp]}
                 baseCurrency={comparisonBaseCurrency}
@@ -507,7 +509,7 @@ const QuoteComparison = () => {
                 isSingleMaterial={true}
               />
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     );
@@ -522,116 +524,164 @@ const QuoteComparison = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <div className="container mx-auto p-4 md:p-8 max-w-7xl pb-24">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">
-            {comparisonId ? `Editando: ${comparisonName}` : 'Comparación Inmediata de Cotizaciones'}
+          <h1 className="text-3xl font-extrabold text-procarni-dark tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-procarni-primary to-procarni-dark">
+            {comparisonId ? `Edición: ${comparisonName}` : 'Comparación de Cotizaciones'}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            {comparisonId ? 'Modifica y guarda los cambios en esta comparación.' : 'Crea una nueva comparación de precios.'}
+          <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
+            {comparisonId ? 'Modifica y guarda los cambios en esta comparación existente.' : 'Crea una nueva comparación de precios añadiendo materiales y registrando ofertas de proveedores.'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap gap-3 w-full md:w-auto">
           {comparisonId && (
-            <Button variant="outline" onClick={handleNewComparison} className="flex-1 md:flex-none">
-              <PlusCircle className="mr-2 h-4 w-4" /> Nueva
+            <Button variant="outline" onClick={handleNewComparison} className="flex-1 md:flex-none border-dashed hover:border-solid transition-all">
+              <PlusCircle className="mr-2 h-4 w-4 text-procarni-primary" /> Nueva Comparación
             </Button>
           )}
-          <Button variant="outline" onClick={() => navigate('/quote-comparison-management')} className="flex-1 md:flex-none">
+          <Button variant="outline" onClick={() => navigate('/quote-comparison-management')} className="flex-1 md:flex-none shadow-sm hover:shadow-md transition-shadow">
             <ListOrdered className="mr-2 h-4 w-4" /> Ver Guardadas
           </Button>
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
-          <div className="mb-6 p-4 border border-gray-100 rounded-lg bg-gray-50/50">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-semibold flex items-center text-gray-700 uppercase tracking-wider">
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Materiales
-              </h3>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
+
+        {/* Lado Izquierdo: Configuración y Añadir Materiales (1 columna en desktop grande) */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="border-none shadow-md bg-white rounded-2xl overflow-hidden ring-1 ring-black/5">
+            <CardHeader className="bg-gray-50/80 border-b border-gray-100 pb-4">
+              <CardTitle className="text-base font-semibold text-procarni-dark flex items-center">
+                <PlusCircle className="mr-2 h-4 w-4 text-procarni-secondary" />
+                Añadir Materiales
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Busca e incorpora ítems para comparar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
               <Button
                 variant="outline"
-                size="sm"
+                className="w-full bg-slate-50 border-dashed border-2 hover:bg-slate-100 hover:border-slate-300 transition-colors text-slate-600"
                 onClick={() => setIsImportModalOpen(true)}
-                className="bg-white"
               >
-                Importar SC
+                <Download className="mr-2 h-4 w-4" /> Importar Solicitudes (SC)
               </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="md:col-span-2">
-                <Label htmlFor="material-search">Buscar Material</Label>
-                <SmartSearch
-                  placeholder="Buscar material por nombre o código"
-                  onSelect={handleMaterialSelect}
-                  fetchFunction={searchMaterials}
-                  displayValue={newMaterialQuery}
-                  selectedId={selectedMaterialToAdd?.id}
-                />
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-gray-100" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-muted-foreground">O manual</span>
+                </div>
               </div>
-              <Button
-                onClick={handleAddMaterial}
-                disabled={!selectedMaterialToAdd}
-                className="bg-procarni-secondary hover:bg-green-700 h-10"
-              >
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir a la Comparación
-              </Button>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 items-start p-4 border border-gray-100 rounded-lg bg-white shadow-sm">
-            <div>
-              <Label htmlFor="global-input-currency">Moneda Global de Ingreso</Label>
-              <Select value={globalInputCurrency} onValueChange={(value) => setGlobalInputCurrency(value as 'USD' | 'VES')}>
-                <SelectTrigger id="global-input-currency">
-                  <SelectValue placeholder="Selecciona moneda" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD (Dólares)</SelectItem>
-                  <SelectItem value="VES">VES (Bolívares)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">Moneda por defecto para nuevas cotizaciones.</p>
-            </div>
-            <div>
-              <Label htmlFor="exchange-rate">Tasa de Cambio Global (USD/VES)</Label>
-              {renderExchangeRateInput()}
-            </div>
-            <div className="flex flex-col justify-end items-end h-full gap-2">
-              <QuoteComparisonPDFButton
-                comparisonResults={comparisonResults}
-                baseCurrency={comparisonBaseCurrency}
-                globalExchangeRate={exchangeRate}
-                label="Descargar Reporte General"
-                variant="default"
-              />
-              <Button
-                onClick={() => setIsSaveDialogOpen(true)}
-                disabled={materialsToCompare.length === 0 || saveMutation.isPending}
-                variant="outline"
-              >
-                <Save className="mr-2 h-4 w-4" /> {comparisonId ? 'Actualizar' : 'Guardar Comparación'}
-              </Button>
-              <Button
-                onClick={() => setIsExportDialogOpen(true)}
-                disabled={materialsToCompare.length === 0}
-                className="bg-procarni-secondary hover:bg-green-700"
-              >
-                Generar Órdenes de Compra
-              </Button>
-            </div>
-          </div>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="material-search" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar Material</Label>
+                  <div className="mt-1">
+                    <SmartSearch
+                      placeholder="Nombre o código..."
+                      onSelect={handleMaterialSelect}
+                      fetchFunction={searchMaterials}
+                      displayValue={newMaterialQuery}
+                      selectedId={selectedMaterialToAdd?.id}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleAddMaterial}
+                  disabled={!selectedMaterialToAdd}
+                  className="w-full bg-procarni-secondary hover:bg-green-700 shadow-sm transition-all h-10 group"
+                >
+                  <PlusCircle className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" /> Añadir a Comparación
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-          <h3 className="text-sm font-semibold mb-4 flex items-center text-gray-700 uppercase tracking-wider mt-8">
-            <DollarSign className="mr-2 h-5 w-5" />
-            Resultados de la Comparación (Base: USD)
-          </h3>
-          {renderComparisonTable()}
+          <Card className="border-none shadow-md bg-white rounded-2xl overflow-hidden ring-1 ring-black/5">
+            <CardHeader className="bg-gray-50/80 border-b border-gray-100 pb-4">
+              <CardTitle className="text-base font-semibold text-procarni-dark flex items-center">
+                <DollarSign className="mr-2 h-4 w-4 text-blue-500" />
+                Configuración Global
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Moneda base y conversiones.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="global-input-currency" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda de Ingreso</Label>
+                <Select value={globalInputCurrency} onValueChange={(value) => setGlobalInputCurrency(value as 'USD' | 'VES')}>
+                  <SelectTrigger id="global-input-currency" className="bg-gray-50 focus:ring-procarni-primary/20">
+                    <SelectValue placeholder="Selecciona moneda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD (Dólares)</SelectItem>
+                    <SelectItem value="VES">VES (Bolívares)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="exchange-rate" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa Global (USD/VES)</Label>
+                {renderExchangeRateInput()}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        </CardContent>
-      </Card>
+        {/* Lado Derecho: Contenido Principal de Comparación (3 columnas en desktop grande) */}
+        <div className="lg:col-span-3 space-y-6">
+          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden ring-1 ring-black/5">
+            <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <CardTitle className="text-lg font-bold flex items-center text-procarni-dark">
+                  <Scale className="mr-2 h-5 w-5 text-procarni-secondary" />
+                  Matriz de Comparación
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Evalúa precios, proveedores y rentabilidad. (Base: USD)
+                </CardDescription>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <QuoteComparisonPDFButton
+                  comparisonResults={comparisonResults}
+                  baseCurrency={comparisonBaseCurrency}
+                  globalExchangeRate={exchangeRate}
+                  label="Reporte General"
+                  variant="outline"
+                />
+                <Button
+                  onClick={() => setIsSaveDialogOpen(true)}
+                  disabled={materialsToCompare.length === 0 || saveMutation.isPending}
+                  variant="secondary"
+                  className="bg-procarni-primary/10 text-procarni-primary hover:bg-procarni-primary/20 transition-colors"
+                >
+                  <Save className="mr-2 h-4 w-4" /> {comparisonId ? 'Actualizar' : 'Guardar'}
+                </Button>
+                <Button
+                  onClick={() => setIsExportDialogOpen(true)}
+                  disabled={materialsToCompare.length === 0}
+                  className="bg-procarni-secondary hover:bg-green-700 shadow-md hover:shadow-lg transition-all"
+                >
+                  Generar Órdenes
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6 bg-gray-50/30">
+              {renderComparisonTable()}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+
+
+
       <MadeWithDyad />
 
       <SaveComparisonDialog
