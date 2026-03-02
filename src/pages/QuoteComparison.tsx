@@ -647,26 +647,29 @@ const QuoteComparison = () => {
                 </CardDescription>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <QuoteComparisonPDFButton
-                  comparisonResults={comparisonResults}
-                  baseCurrency={comparisonBaseCurrency}
-                  globalExchangeRate={exchangeRate}
-                  label="Reporte General"
-                  variant="outline"
-                />
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-auto flex">
+                  <QuoteComparisonPDFButton
+                    comparisonResults={comparisonResults}
+                    baseCurrency={comparisonBaseCurrency}
+                    globalExchangeRate={exchangeRate}
+                    label="Reporte General"
+                    variant="outline"
+                    className="w-full bg-white hover:bg-gray-50 mb-0"
+                  />
+                </div>
                 <Button
                   onClick={() => setIsSaveDialogOpen(true)}
                   disabled={materialsToCompare.length === 0 || saveMutation.isPending}
                   variant="secondary"
-                  className="bg-procarni-primary/10 text-procarni-primary hover:bg-procarni-primary/20 transition-colors"
+                  className="w-full sm:w-auto bg-procarni-primary/10 text-procarni-primary hover:bg-procarni-primary/20 transition-colors"
                 >
                   <Save className="mr-2 h-4 w-4" /> {comparisonId ? 'Actualizar' : 'Guardar'}
                 </Button>
                 <Button
                   onClick={() => setIsExportDialogOpen(true)}
                   disabled={materialsToCompare.length === 0}
-                  className="bg-procarni-secondary hover:bg-green-700 shadow-md hover:shadow-lg transition-all"
+                  className="w-full sm:w-auto bg-procarni-secondary hover:bg-green-700 shadow-md hover:shadow-lg transition-all"
                 >
                   Generar Órdenes
                 </Button>

@@ -36,6 +36,7 @@ interface QuoteComparisonPDFButtonProps {
   globalExchangeRate?: number;
   label?: string;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
+  className?: string; // Permitir estilos personalizados
   isSingleMaterial?: boolean; // If true, uses a specific filename format
 }
 
@@ -46,6 +47,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
   label = 'Descargar Comparación PDF',
   variant = 'default',
   isSingleMaterial = false,
+  className,
 }) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -121,10 +123,10 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
 
   return (
     <Button
+      variant={variant}
       onClick={handleDownload}
       disabled={isDisabled}
-      variant={variant}
-      className={cn("flex items-center gap-2", variant === 'default' ? 'bg-procarni-secondary hover:bg-green-700' : '')}
+      className={cn("shadow-sm transition-all flex items-center gap-2", variant === 'default' ? 'bg-procarni-secondary hover:bg-green-700' : '', className)}
     >
       <Download className="h-4 w-4" />
       {isDownloading ? 'Generando...' : label}
