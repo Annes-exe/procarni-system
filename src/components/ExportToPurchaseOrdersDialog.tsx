@@ -241,17 +241,17 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50/50">
-                <DialogHeader className="p-6 pb-4 bg-white border-b border-gray-100">
-                    <DialogTitle className="text-xl text-procarni-primary">Generar Órdenes de Compra</DialogTitle>
-                    <DialogDescription>
+            <DialogContent className="w-[95vw] sm:max-w-[800px] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50/50">
+                <DialogHeader className="p-4 sm:p-6 pb-4 bg-white border-b border-gray-100 text-left">
+                    <DialogTitle className="text-lg sm:text-xl text-procarni-primary">Generar Órdenes de Compra</DialogTitle>
+                    <DialogDescription className="text-sm">
                         El sistema ha preseleccionado los precios más bajos. Revisa la distribución y los datos de la orden antes de generarlas en estado Borrador.
                     </DialogDescription>
                 </DialogHeader>
 
-                <ScrollArea className="flex-1 px-6 py-4">
+                <ScrollArea className="flex-1 px-4 sm:px-6 py-4">
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8 bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
                         <div className="space-y-2">
                             <Label htmlFor="company-select" className="text-gray-700 font-semibold flex items-center">
                                 <Building className="h-4 w-4 mr-2 text-procarni-secondary" />
@@ -332,26 +332,26 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                             {group.items.map(item => (
                                                 <label
                                                     key={item.material.id}
-                                                    className="flex items-start gap-3 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                                                    className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
                                                 >
-                                                    <div className="mt-0.5">
+                                                    <div className="mt-0.5 shrink-0">
                                                         <Checkbox
                                                             checked={item.selected}
                                                             onCheckedChange={() => toggleItemSelection(group.supplierId, item.material.id)}
-                                                            className="data-[state=checked]:bg-procarni-secondary data-[state=checked]:border-procarni-secondary"
+                                                            className="data-[state=checked]:bg-procarni-secondary data-[state=checked]:border-procarni-secondary h-4 w-4 sm:h-5 sm:w-5"
                                                         />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="font-medium text-sm text-gray-900 truncate">
+                                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-4">
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-medium text-sm text-gray-900 truncate" title={item.material.name}>
                                                                     {item.material.name}
                                                                 </p>
-                                                                <p className="text-xs text-gray-500 font-mono mt-0.5">
+                                                                <p className="text-xs text-gray-500 font-mono mt-0.5 truncate">
                                                                     Ref: {item.material.code}
                                                                 </p>
                                                             </div>
-                                                            <div className="text-right ml-4 shrink-0">
+                                                            <div className="text-left sm:text-right shrink-0">
                                                                 <p className="font-bold text-sm text-procarni-secondary">
                                                                     {item.quote.currency} {item.quote.unitPrice.toFixed(2)}
                                                                 </p>

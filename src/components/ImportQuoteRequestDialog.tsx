@@ -95,10 +95,10 @@ const ImportQuoteRequestDialog: React.FC<ImportQuoteRequestDialogProps> = ({ isO
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>Importar Solicitudes de Cotización (SC)</DialogTitle>
-                    <DialogDescription>
+            <DialogContent className="w-[95vw] sm:max-w-[700px] max-h-[90vh] flex flex-col p-4 sm:p-6">
+                <DialogHeader className="text-left">
+                    <DialogTitle className="text-lg sm:text-xl">Importar Solicitudes de Cotización (SC)</DialogTitle>
+                    <DialogDescription className="text-sm">
                         Selecciona las solicitudes de compra que deseas importar a la tabla de comparación.
                         Se precargarán los materiales y el proveedor correspondiente.
                     </DialogDescription>
@@ -127,54 +127,56 @@ const ImportQuoteRequestDialog: React.FC<ImportQuoteRequestDialogProps> = ({ isO
                             {searchTerm ? 'No se encontraron solicitudes con esa búsqueda.' : 'No hay solicitudes activas o aprobadas disponibles.'}
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
-                                <TableRow>
-                                    <TableHead className="w-[50px] text-center">
-                                        <Checkbox
-                                            checked={filteredRequests.length > 0 && selectedIds.size === filteredRequests.length}
-                                            onCheckedChange={toggleAll}
-                                        />
-                                    </TableHead>
-                                    <TableHead>ID</TableHead>
-                                    <TableHead>Proveedor</TableHead>
-                                    <TableHead>Fecha</TableHead>
-                                    <TableHead>Estado</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredRequests.map((req) => (
-                                    <TableRow key={req.id} className="cursor-pointer" onClick={() => toggleSelection(req.id)}>
-                                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="overflow-x-auto">
+                            <Table className="min-w-[500px]">
+                                <TableHeader className="bg-gray-50/80 sticky top-0 z-10 shadow-sm">
+                                    <TableRow>
+                                        <TableHead className="w-[50px] text-center">
                                             <Checkbox
-                                                checked={selectedIds.has(req.id)}
-                                                onCheckedChange={() => toggleSelection(req.id)}
+                                                checked={filteredRequests.length > 0 && selectedIds.size === filteredRequests.length}
+                                                onCheckedChange={toggleAll}
                                             />
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs">{req.id.substring(0, 8)}</TableCell>
-                                        {/* @ts-ignore */}
-                                        <TableCell className="font-medium">{req.suppliers?.name || 'Desconocido'}</TableCell>
-                                        <TableCell className="text-sm text-gray-500">
-                                            {req.created_at ? new Date(req.created_at).toLocaleDateString() : '---'}
-                                        </TableCell>
-                                        <TableCell className="text-xs">
-                                            {req.status === 'Approved' ? 'Aprobada' : 'Borrador'}
-                                        </TableCell>
+                                        </TableHead>
+                                        <TableHead>ID</TableHead>
+                                        <TableHead>Proveedor</TableHead>
+                                        <TableHead>Fecha</TableHead>
+                                        <TableHead>Estado</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredRequests.map((req) => (
+                                        <TableRow key={req.id} className="cursor-pointer" onClick={() => toggleSelection(req.id)}>
+                                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                                                <Checkbox
+                                                    checked={selectedIds.has(req.id)}
+                                                    onCheckedChange={() => toggleSelection(req.id)}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">{req.id.substring(0, 8)}</TableCell>
+                                            {/* @ts-ignore */}
+                                            <TableCell className="font-medium">{req.suppliers?.name || 'Desconocido'}</TableCell>
+                                            <TableCell className="text-sm text-gray-500">
+                                                {req.created_at ? new Date(req.created_at).toLocaleDateString() : '---'}
+                                            </TableCell>
+                                            <TableCell className="text-xs">
+                                                {req.status === 'Approved' ? 'Aprobada' : 'Borrador'}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
                 </div>
 
-                <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={onClose} disabled={isImporting}>
+                <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={onClose} disabled={isImporting} className="w-full sm:w-auto">
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleImportClick}
                         disabled={selectedIds.size === 0 || isImporting}
-                        className="bg-procarni-secondary hover:bg-green-700"
+                        className="bg-procarni-secondary hover:bg-green-700 w-full sm:w-auto"
                     >
                         {isImporting ? (
                             <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importando...</>
