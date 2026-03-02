@@ -113,10 +113,12 @@ const SupplierManagement = () => {
   const createMutation = useMutation({
     mutationFn: ({ supplierData, materials }: { supplierData: any; materials: any }) =>
       createSupplier(supplierData, materials),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      setIsFormOpen(false);
-      showSuccess('Proveedor creado exitosamente.');
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+        setIsFormOpen(false);
+        showSuccess('Proveedor creado exitosamente.');
+      }
     },
     onError: (err) => {
       showError(`Error al crear proveedor: ${err.message}`);
@@ -126,11 +128,13 @@ const SupplierManagement = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: any; materials: any }) =>
       updateSupplier(id, supplierData, materials),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      setIsFormOpen(false);
-      setEditingSupplier(null);
-      showSuccess('Proveedor actualizado exitosamente.');
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+        setIsFormOpen(false);
+        setEditingSupplier(null);
+        showSuccess('Proveedor actualizado exitosamente.');
+      }
     },
     onError: (err) => {
       showError(`Error al actualizar proveedor: ${err.message}`);

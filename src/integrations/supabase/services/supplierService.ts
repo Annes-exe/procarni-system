@@ -2,7 +2,8 @@
 
 import { supabase } from '../client';
 import { showError } from '@/utils/toast';
-import { Supplier, SupplierMaterialPayload } from '../types';
+import { Supplier } from '../types';
+import { SupplierMaterialPayload } from '../types/index';
 import { logAudit } from './auditLogService';
 import { bulkArchiveQuoteRequestsBySupplier } from './quoteRequestService'; // Import bulk archive QR
 import { purchaseOrderService } from '@/services/purchaseOrderService'; // Import new service
@@ -39,7 +40,17 @@ const SupplierService = {
 
     if (supplierError) {
       console.error('[SupplierService.create] Error:', supplierError);
-      showError('Error al crear el proveedor.');
+      if (supplierError.code === '23505') { // Unique violation
+        if (supplierError.message.includes('rif')) {
+          showError('Ya existe un proveedor con este RIF.');
+        } else if (supplierError.message.includes('code')) {
+          showError('Ya existe un proveedor con este código interno.');
+        } else {
+          showError('El proveedor ya existe (violación de restricción única).');
+        }
+      } else {
+        showError('Error al crear el proveedor.');
+      }
       return null;
     }
 
