@@ -18,6 +18,7 @@ import SaveComparisonDialog from '@/components/SaveComparisonDialog';
 import { useSession } from '@/components/SessionContextProvider';
 import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem } from '@/integrations/supabase/types';
 import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
+import ExportToPurchaseOrdersDialog from '@/components/ExportToPurchaseOrdersDialog';
 
 interface MaterialSearchResult {
   id: string;
@@ -61,6 +62,7 @@ const QuoteComparison = () => {
 
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // --- Data Loading from URL ---
   const comparisonIdFromUrl = searchParams.get('loadId');
@@ -612,6 +614,13 @@ const QuoteComparison = () => {
               >
                 <Save className="mr-2 h-4 w-4" /> {comparisonId ? 'Actualizar' : 'Guardar Comparación'}
               </Button>
+              <Button
+                onClick={() => setIsExportDialogOpen(true)}
+                disabled={materialsToCompare.length === 0}
+                className="bg-procarni-secondary hover:bg-green-700"
+              >
+                Generar Órdenes de Compra
+              </Button>
             </div>
           </div>
 
@@ -637,6 +646,19 @@ const QuoteComparison = () => {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportQuoteRequests}
+      />
+
+      <ExportToPurchaseOrdersDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        comparisonResults={comparisonResults}
+        baseCurrency={comparisonBaseCurrency}
+        globalExchangeRate={exchangeRate}
+        onExportSuccess={() => {
+          setIsExportDialogOpen(false);
+          // Optional: redirect to PO management or clear the comparison
+          navigate('/purchase-order-management');
+        }}
       />
     </div>
   );
