@@ -177,6 +177,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           step="0.01"
                           value={quote.unitPrice || ''}
                           onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
                           className="h-9 pl-7 bg-white/50 focus:bg-white transition-colors"
                           placeholder="0.00"
                         />
@@ -203,6 +204,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           step="0.01"
                           value={quote.exchangeRate || globalExchangeRate || ''}
                           onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
                           placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
                           className="h-9"
                         />

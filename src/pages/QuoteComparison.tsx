@@ -448,6 +448,7 @@ const QuoteComparison = () => {
               value={exchangeRate || dailyRate || ''}
               placeholder="Tasa del día"
               disabled
+              onWheel={(e) => (e.target as HTMLElement).blur()}
               className="bg-gray-100 dark:bg-gray-700"
             />
             <Button
@@ -469,6 +470,7 @@ const QuoteComparison = () => {
             placeholder="Ingresa tasa personalizada"
             value={exchangeRate || ''}
             onChange={(e) => setExchangeRate(parseFloat(e.target.value) || undefined)}
+            onWheel={(e) => (e.target as HTMLElement).blur()}
           />
         )}
         <p className="text-xs text-muted-foreground mt-1">
