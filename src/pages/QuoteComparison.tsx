@@ -527,7 +527,7 @@ const QuoteComparison = () => {
     <div className="container mx-auto p-4 md:p-8 max-w-7xl pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
-          <h1 className="text-3xl font-extrabold text-procarni-dark tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-procarni-primary to-procarni-dark">
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">
             {comparisonId ? `Edición: ${comparisonName}` : 'Comparación de Cotizaciones'}
           </h1>
           <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
