@@ -125,7 +125,8 @@ const QuoteComparisonManagement = () => {
 
   const renderComparisonRow = (comparison: QuoteComparison) => {
     const exchangeRateDisplay = comparison.global_exchange_rate ? comparison.global_exchange_rate.toFixed(2) : 'N/A';
-    const materialCount = comparison.items?.length || 0;
+    // @ts-ignore - quote_comparison_items is populated by the join in the service
+    const materialCount = comparison.quote_comparison_items?.length || 0;
 
     if (isMobile) {
       return (
