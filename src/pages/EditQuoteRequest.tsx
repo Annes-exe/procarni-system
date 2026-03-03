@@ -38,7 +38,7 @@ interface MaterialSearchResult {
 const EditQuoteRequest = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, isLoadingSession } = useSession();
+  const { session, role, isLoadingSession } = useSession();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isMobile = useIsMobile();
 
@@ -68,6 +68,13 @@ const EditQuoteRequest = () => {
 
   useEffect(() => {
     if (initialRequest) {
+      // @ts-ignore
+      if (initialRequest.status !== 'Draft' && role !== 'admin') {
+        showError('No tienes permisos para editar esta solicitud en su estado actual.');
+        navigate('/quote-requests');
+        return;
+      }
+
       setCompanyId(initialRequest.company_id);
       // @ts-ignore
       setCompanyName(initialRequest.companies?.name || '');

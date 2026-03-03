@@ -100,7 +100,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 const PurchaseOrderDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session } = useSession();
+  const { session, role } = useSession();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -360,7 +360,7 @@ const PurchaseOrderDetails = () => {
     );
   }
 
-  const isEditable = order.status !== 'Approved' && order.status !== 'Archived';
+  const isEditable = (order.status === 'Draft' || role === 'admin') && order.status !== 'Archived';
 
   const handleModalOpenChange = (open: boolean) => {
     setIsModalOpen(open);
@@ -426,15 +426,21 @@ const PurchaseOrderDetails = () => {
               <DropdownMenuContent align="start" className="w-40">
                 <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => (
-                  <DropdownMenuItem
-                    key={status}
-                    onSelect={() => handleStatusChange(status)}
-                    className={cn(status === order.status && "bg-gray-100 font-medium")}
-                  >
-                    {label}
-                  </DropdownMenuItem>
-                ))}
+                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
+                  const isRestrictedState = order.status === 'Approved' || order.status === 'Rejected';
+                  const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
+
+                  return (
+                    <DropdownMenuItem
+                      key={status}
+                      onSelect={() => handleStatusChange(status)}
+                      className={cn(status === order.status && "bg-gray-100 font-medium")}
+                      disabled={isDisabled}
+                    >
+                      {label}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -444,7 +450,7 @@ const PurchaseOrderDetails = () => {
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <div className="flex items-center gap-2 ml-auto">
             {/* Primary Actions: Approve and Edit */}
-            {isEditable && order.status !== 'Approved' && (
+            {(order.status === 'Draft' || role === 'admin') && order.status !== 'Approved' && order.status !== 'Archived' && (
               <Button
                 onClick={() => setIsApproveConfirmOpen(true)}
                 disabled={isApproving}
@@ -497,7 +503,9 @@ const PurchaseOrderDetails = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
 
-                {order.status !== 'Approved' && order.status !== 'Archived' && order.status !== 'Rejected' && (
+                {/* Secondary Actions: Dropdown */}
+                {/* ... existing code above ... */}
+                {(order.status === 'Draft' || role === 'admin') && order.status !== 'Archived' && order.status !== 'Rejected' && (
                   <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
                     <Clock className="mr-2 h-4 w-4" /> Rechazar Orden
                   </DropdownMenuItem>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -11,13 +11,20 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
 const Settings = () => {
-  const { session } = useSession();
+  const { session, role, isLoadingSession } = useSession();
   const navigate = useNavigate();
   const [startingNumber, setStartingNumber] = useState<number>(1);
   const [soStartingNumber, setSoStartingNumber] = useState<number>(1);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [sequenceTypeToUpdate, setSequenceTypeToUpdate] = useState<'PO' | 'SO' | null>(null);
+
+  useEffect(() => {
+    if (!isLoadingSession && role !== 'admin') {
+      navigate('/');
+      showError('No tienes permisos para acceder a esta página.');
+    }
+  }, [role, isLoadingSession, navigate]);
 
   const handleUpdateSequenceClick = (type: 'PO' | 'SO') => {
     if (!session) {

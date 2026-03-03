@@ -30,7 +30,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const QuoteRequestManagement = () => {
   const queryClient = useQueryClient();
-  const { session } = useSession();
+  const { session, role } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -321,7 +321,7 @@ const QuoteRequestManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {request.status === 'Draft' && (
+            {(request.status === 'Draft' || role === 'admin') && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request.id)} className="h-8 w-8 text-blue-600">
@@ -387,7 +387,7 @@ const QuoteRequestManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {request.status === 'Draft' && (
+            {(request.status === 'Draft' || role === 'admin') && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="outline" size="icon" className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleEditRequest(request.id)}>
@@ -502,33 +502,37 @@ const QuoteRequestManagement = () => {
                       <div className="flex gap-1.5">
                         {!isHistoryMode ? (
                           <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                  onClick={() => setIsBulkApproveDialogOpen(true)}
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Aprobar Seleccionados</TooltipContent>
-                            </Tooltip>
+                            {(activeTab === 'Draft' || role === 'admin') && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                      onClick={() => setIsBulkApproveDialogOpen(true)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Aprobar Seleccionados</TooltipContent>
+                                </Tooltip>
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
-                                  onClick={() => setIsBulkRejectDialogOpen(true)}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Rechazar Seleccionados</TooltipContent>
-                            </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
+                                      onClick={() => setIsBulkRejectDialogOpen(true)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Rechazar Seleccionados</TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
 
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -546,33 +550,37 @@ const QuoteRequestManagement = () => {
                           </>
                         ) : (
                           <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                  onClick={() => setIsBulkRestoreDialogOpen(true)}
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Restaurar Seleccionados</TooltipContent>
-                            </Tooltip>
+                            {(activeTab === 'Archived' || role === 'admin') && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                    onClick={() => setIsBulkRestoreDialogOpen(true)}
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Restaurar Seleccionados</TooltipContent>
+                              </Tooltip>
+                            )}
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
-                                  onClick={() => setIsBulkDeleteDialogOpen(true)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Eliminar Permanentemente</TooltipContent>
-                            </Tooltip>
+                            {role === 'admin' && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                                    onClick={() => setIsBulkDeleteDialogOpen(true)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Eliminar Permanentemente</TooltipContent>
+                              </Tooltip>
+                            )}
                           </>
                         )}
                       </div>

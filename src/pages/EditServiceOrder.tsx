@@ -82,7 +82,7 @@ const DESTINATION_ADDRESSES = [
 const EditServiceOrder = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { session } = useSession();
+    const { session, role } = useSession();
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,8 +126,8 @@ const EditServiceOrder = () => {
                 }
 
                 // Check editable status
-                if (order.status !== 'Draft' && order.status !== 'Rejected') {
-                    showError('Esta orden no se puede editar en su estado actual.');
+                if (order.status !== 'Draft' && role !== 'admin') {
+                    showError('No tienes permisos para editar esta orden en su estado actual.');
                     navigate(`/service-orders/${id}`);
                     return;
                 }

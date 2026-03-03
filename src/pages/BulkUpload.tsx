@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import PinInputDialog from '@/components/PinInputDialog';
 import ResetDataButton from '@/components/ResetDataButton'; // Import the new ResetDataButton component
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 const sanitizeFilename = (filename: string): string => {
   return filename.replace(/[/\\?%*:|"<>]/g, '-');
@@ -24,7 +25,8 @@ interface UploadResult {
 }
 
 const BulkUpload = () => {
-  const { session } = useSession();
+  const { session, role, isLoadingSession } = useSession();
+  const navigate = useNavigate();
   const [supplierFile, setSupplierFile] = useState<File | null>(null);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [relationFile, setRelationFile] = useState<File | null>(null);
@@ -37,6 +39,13 @@ const BulkUpload = () => {
   const [pinActionType, setPinActionType] = useState<'backup' | 'delete' | null>(null);
   const [pinDataType, setPinDataType] = useState<'supplier' | 'material' | 'supplier_material_relation' | null>(null);
   const [isConfirmingPin, setIsConfirmingPin] = useState(false);
+
+  useEffect(() => {
+    if (!isLoadingSession && role !== 'admin') {
+      navigate('/');
+      showError('No tienes permisos para acceder a esta página.');
+    }
+  }, [role, isLoadingSession, navigate]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'supplier' | 'material' | 'supplier_material_relation') => {
     if (event.target.files && event.target.files[0]) {

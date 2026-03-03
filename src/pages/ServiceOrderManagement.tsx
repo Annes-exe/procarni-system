@@ -39,7 +39,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 
 const ServiceOrderManagement = () => {
   const queryClient = useQueryClient();
-  const { session } = useSession();
+  const { session, role } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -370,7 +370,7 @@ const ServiceOrderManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {order.status === 'Draft' && (
+            {(order.status === 'Draft' || role === 'admin') && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="outline" size="icon" className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleEditOrder(order.id)}>
@@ -495,33 +495,37 @@ const ServiceOrderManagement = () => {
                       <div className="flex gap-1.5">
                         {!showHistory ? (
                           <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                  onClick={() => setIsBulkApproveDialogOpen(true)}
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Aprobar Seleccionadas</TooltipContent>
-                            </Tooltip>
+                            {(activeTab === 'active' || role === 'admin') && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                      onClick={() => setIsBulkApproveDialogOpen(true)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Aprobar Seleccionadas</TooltipContent>
+                                </Tooltip>
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
-                                  onClick={() => setIsBulkRejectDialogOpen(true)}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Rechazar Seleccionadas</TooltipContent>
-                            </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
+                                      onClick={() => setIsBulkRejectDialogOpen(true)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Rechazar Seleccionadas</TooltipContent>
+                                </Tooltip>
+                              </>
+                            )}
 
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -539,33 +543,37 @@ const ServiceOrderManagement = () => {
                           </>
                         ) : (
                           <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                  onClick={() => setIsBulkRestoreDialogOpen(true)}
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Restaurar Seleccionadas</TooltipContent>
-                            </Tooltip>
+                            {(activeTab === 'archived' || role === 'admin') && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                    onClick={() => setIsBulkRestoreDialogOpen(true)}
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Restaurar Seleccionadas</TooltipContent>
+                              </Tooltip>
+                            )}
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
-                                  onClick={() => setIsBulkDeleteDialogOpen(true)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Eliminar Permanentemente</TooltipContent>
-                            </Tooltip>
+                            {role === 'admin' && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                                    onClick={() => setIsBulkDeleteDialogOpen(true)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Eliminar Permanentemente</TooltipContent>
+                              </Tooltip>
+                            )}
                           </>
                         )}
                       </div>
@@ -634,7 +642,7 @@ const ServiceOrderManagement = () => {
                                     <TooltipContent>Ver Detalles</TooltipContent>
                                   </Tooltip>
 
-                                  {(order.status === 'Draft') && (
+                                  {(order.status === 'Draft' || role === 'admin') && (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <Button variant="ghost" size="icon" onClick={() => handleEditOrder(order.id)} className="h-8 w-8 text-blue-600">

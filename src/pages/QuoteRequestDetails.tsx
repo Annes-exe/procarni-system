@@ -41,7 +41,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 const QuoteRequestDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session } = useSession();
+  const { session, role } = useSession();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -263,7 +263,7 @@ const QuoteRequestDetails = () => {
     );
   }
 
-  const isEditable = request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected';
+  const isEditable = (request.status === 'Draft' || role === 'admin') && request.status !== 'Archived';
 
   const handleModalOpenChange = (open: boolean) => {
     setIsModalOpen(open);
@@ -319,15 +319,21 @@ const QuoteRequestDetails = () => {
               <DropdownMenuContent align="start" className="w-40">
                 <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => (
-                  <DropdownMenuItem
-                    key={status}
-                    onSelect={() => handleStatusChange(status)}
-                    className={cn(status === request.status && "bg-gray-100 font-medium")}
-                  >
-                    {label}
-                  </DropdownMenuItem>
-                ))}
+                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
+                  const isRestrictedState = request.status === 'Approved' || request.status === 'Rejected';
+                  const isDisabled = isRestrictedState && role !== 'admin' && status !== request.status;
+
+                  return (
+                    <DropdownMenuItem
+                      key={status}
+                      onSelect={() => handleStatusChange(status)}
+                      className={cn(status === request.status && "bg-gray-100 font-medium")}
+                      disabled={isDisabled}
+                    >
+                      {label}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -337,7 +343,7 @@ const QuoteRequestDetails = () => {
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <div className="flex items-center gap-2 ml-auto">
             {/* Primary Actions: Approve and Edit */}
-            {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
+            {(request.status === 'Draft' || role === 'admin') && request.status !== 'Approved' && request.status !== 'Archived' && (
               <Button
                 onClick={() => setIsApproveConfirmOpen(true)}
                 disabled={isApproving || isRejecting}
@@ -403,7 +409,7 @@ const QuoteRequestDetails = () => {
                   <ShoppingCart className="mr-2 h-4 w-4" /> Convertir a OC
                 </DropdownMenuItem>
 
-                {request.status !== 'Approved' && request.status !== 'Archived' && request.status !== 'Rejected' && (
+                {(request.status === 'Draft' || role === 'admin') && request.status !== 'Archived' && request.status !== 'Rejected' && (
                   <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
                     <Clock className="mr-2 h-4 w-4" /> Rechazar Solicitud
                   </DropdownMenuItem>

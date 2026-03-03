@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,20 @@ import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AuditLogEntry } from '@/integrations/supabase/services/auditLogService';
+import { useSession } from '@/components/SessionContextProvider';
 
 const AuditLog = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState('');
+  const { role, isLoadingSession } = useSession();
+
+  useEffect(() => {
+    if (!isLoadingSession && role !== 'admin') {
+      navigate('/');
+      showError('No tienes permisos para acceder a esta página.');
+    }
+  }, [role, isLoadingSession, navigate]);
 
   const { data: logs, isLoading, error } = useQuery<AuditLogEntry[]>({
     queryKey: ['auditLogs'],

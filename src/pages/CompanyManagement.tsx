@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,12 +41,19 @@ interface CompanyFormValues {
 
 const CompanyManagement = () => {
   const queryClient = useQueryClient();
-  const { session } = useSession();
+  const { session, role, isLoadingSession } = useSession();
   const userId = session?.user?.id;
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isMobileView = isMobile || isTablet;
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoadingSession && role !== 'admin') {
+      navigate('/');
+      showError('No tienes permisos para acceder a esta página.');
+    }
+  }, [role, isLoadingSession, navigate]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);

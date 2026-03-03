@@ -58,7 +58,7 @@ interface Supplier {
 const EditPurchaseOrder = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, isLoadingSession } = useSession();
+  const { session, role, isLoadingSession } = useSession();
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
@@ -92,6 +92,12 @@ const EditPurchaseOrder = () => {
 
   useEffect(() => {
     if (initialOrder) {
+      if (initialOrder.status !== 'Draft' && role !== 'admin') {
+        showError('No tienes permisos para editar esta orden.');
+        navigate('/purchase-order-management');
+        return;
+      }
+
       setCompanyId(initialOrder.company_id);
       setCompanyName(initialOrder.companies?.name || '');
       setSupplierId(initialOrder.supplier_id);

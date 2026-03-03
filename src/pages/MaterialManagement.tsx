@@ -32,7 +32,7 @@ interface Material {
 
 const MaterialManagement = () => {
   const queryClient = useQueryClient();
-  const { session } = useSession();
+  const { session, role } = useSession();
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -178,25 +178,29 @@ const MaterialManagement = () => {
           <p className="text-muted-foreground text-sm">Administra la información de tus materiales.</p>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <Button
-            variant="outline"
-            onClick={() => setIsUnitsModalOpen(true)}
-            className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
-            size="icon"
-            title="Gestionar Unidades"
-          >
-            <Ruler className="h-4 w-4" />
-          </Button>
+          {role === 'admin' && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsUnitsModalOpen(true)}
+                className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
+                size="icon"
+                title="Gestionar Unidades"
+              >
+                <Ruler className="h-4 w-4" />
+              </Button>
 
-          <Button
-            variant="outline"
-            onClick={() => setIsCategoriesModalOpen(true)}
-            className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
-            size="icon"
-            title="Gestionar Categorías"
-          >
-            <Tag className="h-4 w-4" />
-          </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsCategoriesModalOpen(true)}
+                className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
+                size="icon"
+                title="Gestionar Categorías"
+              >
+                <Tag className="h-4 w-4" />
+              </Button>
+            </>
+          )}
 
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>

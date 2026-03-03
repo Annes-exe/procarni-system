@@ -3,6 +3,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
+import { useSession } from '@/components/SessionContextProvider';
 
 const navItems = [
   {
@@ -49,10 +50,19 @@ interface SidebarNavProps {
 }
 
 const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
+  const { role } = useSession();
+
+  // Filter categories based on role
+  const filteredNavItems = navItems.filter(category => {
+    if (category.category === 'Admin' && role !== 'admin') {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <nav className="mt-4 flex flex-col gap-4 px-2">
-      {navItems.map((category) => (
+      {filteredNavItems.map((category) => (
         <div key={category.category} className="flex flex-col gap-1">
           <p className={`transition-opacity duration-200 text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-3 mb-1 whitespace-nowrap overflow-hidden ${forceExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 delay-100'}`}>
             {category.category}
