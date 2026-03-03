@@ -151,6 +151,22 @@ const GenerateQuoteRequest = () => {
       return;
     }
 
+    let associatedMaterialIds: Set<string>;
+    try {
+      const associatedMaterials = await searchMaterialsBySupplier(supplierId, '');
+      associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+    } catch (e) {
+      console.error("Error validating supplier materials:", e);
+      showError("Error al validar los materiales del proveedor.");
+      return;
+    }
+
+    const unassociatedItem = items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+    if (unassociatedItem) {
+      showError(`El proveedor seleccionado no distribuye el material: ${unassociatedItem.material_name}`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {

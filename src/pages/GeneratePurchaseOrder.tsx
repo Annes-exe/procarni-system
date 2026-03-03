@@ -171,6 +171,8 @@ const GeneratePurchaseOrder = () => {
 
   React.useEffect(() => {
     if (materialData) {
+      // Clear cart to avoid accumulating materials from previous imports
+      clearCart();
       addItem({
         material_id: materialData.id,
         material_name: materialData.name,
@@ -310,6 +312,22 @@ const GeneratePurchaseOrder = () => {
         specificError += `El precio unitario del material "${invalidItem.material_name}" debe ser mayor a cero.`;
       }
       showError(specificError);
+      return;
+    }
+
+    let associatedMaterialIds: Set<string>;
+    try {
+      const associatedMaterials = await searchMaterialsBySupplier(supplierId, '');
+      associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+    } catch (e) {
+      console.error("Error validating supplier materials:", e);
+      showError("Error al validar los materiales del proveedor.");
+      return;
+    }
+
+    const unassociatedItem = items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+    if (unassociatedItem) {
+      showError(`El proveedor seleccionado no distribuye el material: ${unassociatedItem.material_name}`);
       return;
     }
 

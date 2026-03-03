@@ -9,7 +9,7 @@ import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'luc
 import { showError, showSuccess } from '@/utils/toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
-import { searchSuppliers } from '@/integrations/supabase/data';
+import { searchSuppliers, searchMaterialsBySupplier } from '@/integrations/supabase/data';
 import { MadeWithDyad } from '@/components/made-with-dyad';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -306,6 +306,20 @@ const GenerateServiceOrder = () => {
       );
       if (invalidPart) {
         showError(`Revisa los repuestos del proveedor ${group.supplierName}: nombre, cantidad y precio obligatorios.`);
+        return;
+      }
+
+      try {
+        const associatedMaterials = await searchMaterialsBySupplier(group.supplierId, '');
+        const associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+        const unassociatedItem = group.items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+        if (unassociatedItem) {
+          showError(`El proveedor ${group.supplierName} no distribuye el repuesto: ${unassociatedItem.material_name}`);
+          return;
+        }
+      } catch (e) {
+        console.error("Error validating spare parts suppliers:", e);
+        showError("Error al validar los repuestos de los proveedores.");
         return;
       }
     }
