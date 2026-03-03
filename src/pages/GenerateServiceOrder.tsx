@@ -10,7 +10,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
 import { searchSuppliers, searchMaterialsBySupplier } from '@/integrations/supabase/data';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';

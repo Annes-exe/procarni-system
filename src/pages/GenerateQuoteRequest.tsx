@@ -10,7 +10,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
@@ -342,7 +342,7 @@ const GenerateQuoteRequest = () => {
         </Card>
       </div>
 
-      <MadeWithDyad />
+
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
         onClose={() => setIsAddMaterialDialogOpen(false)}

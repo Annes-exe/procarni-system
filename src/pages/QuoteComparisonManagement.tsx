@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Search, Scale, Eye, Trash2, PlusCircle } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { getAllQuoteComparisons, deleteQuoteComparison } from '@/integrations/supabase/data';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { showError, showSuccess } from '@/utils/toast';
@@ -311,7 +311,7 @@ const QuoteComparisonManagement = () => {
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (

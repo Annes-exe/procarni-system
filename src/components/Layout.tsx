@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
-import { MadeWithDyad } from './made-with-dyad';
+
 import { useIsMobile } from '@/hooks/use-mobile';
 import UserDropdown from './UserDropdown';
 import SidebarNav from './SidebarNav';
@@ -49,9 +49,7 @@ const Layout = () => {
           <SidebarNav />
         </div>
       </div>
-      <div className="p-2 border-t border-border mt-auto">
-        <MadeWithDyad />
-      </div>
+
     </aside>
   );
 

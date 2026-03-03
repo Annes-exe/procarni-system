@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Search, Eye, Edit, Archive, RotateCcw, Wrench, XCircle, Trash2, CheckCircle, Trash } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { serviceOrderService, ServiceOrderWithRelations } from '@/services/serviceOrderService';
 import { showError, showSuccess } from '@/utils/toast';
@@ -708,8 +707,6 @@ const ServiceOrderManagement = () => {
           </Tabs>
         </CardContent>
       </Card>
-      <MadeWithDyad />
-
       {/* Reject Confirmation Dialog */}
       <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <AlertDialogContent>

@@ -9,7 +9,7 @@ import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react
 import { showError, showSuccess } from '@/utils/toast';
 import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
@@ -562,7 +562,7 @@ const GeneratePurchaseOrder = () => {
         </div>
       </Card>
 
-      <MadeWithDyad />
+
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}

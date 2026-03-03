@@ -13,7 +13,7 @@ import {
     searchSuppliers
 } from '@/integrations/supabase/data';
 import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
 import ServiceOrderItemsTable from '@/components/ServiceOrderItemsTable';
@@ -694,7 +694,7 @@ const EditServiceOrder = () => {
                 </div>
 
                 <div className="flex justify-end pt-4 pb-8">
-                    <MadeWithDyad />
+
                 </div>
             </div>
         </div>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { UploadCloud, FileText, Download, Trash2, DatabaseBackup, RefreshCw } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
@@ -441,8 +441,6 @@ const BulkUpload = () => {
           </CardContent>
         </Card>
       </div>
-
-      <MadeWithDyad />
 
       <PinInputDialog
         isOpen={isPinDialogOpen}

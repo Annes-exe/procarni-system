@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Search, TrendingUp, TrendingDown, DollarSign, Clock, Users } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { useNavigate } from 'react-router-dom';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterials, getPriceHistoryByMaterialId } from '@/integrations/supabase/data';
@@ -349,7 +349,6 @@ const PriceHistory = () => {
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
     </div >
   );
 };

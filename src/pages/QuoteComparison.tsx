@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, PlusCircle, Scale, Download, X, Loader2, RefreshCw, DollarSign, Save, ListOrdered } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterials, createQuoteComparison, updateQuoteComparison, getQuoteComparisonById } from '@/integrations/supabase/data';
@@ -687,7 +687,6 @@ const QuoteComparison = () => {
 
 
 
-      <MadeWithDyad />
 
       <SaveComparisonDialog
         isOpen={isSaveDialogOpen}

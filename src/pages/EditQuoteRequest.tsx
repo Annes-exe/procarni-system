@@ -11,7 +11,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService'; // Updated import
 import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import SmartSearch from '@/components/SmartSearch';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
@@ -349,7 +349,7 @@ const EditQuoteRequest = () => {
         </Card>
       </div>
 
-      <MadeWithDyad />
+
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
         onClose={() => setIsAddMaterialDialogOpen(false)}

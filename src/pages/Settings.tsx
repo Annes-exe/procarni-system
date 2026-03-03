@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import PinConfirmationDialog from '@/components/PinConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -151,7 +151,7 @@ const Settings = () => {
           </div>
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       <PinConfirmationDialog
         isOpen={isPinDialogOpen}

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2 } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { purchaseOrderService, PurchaseOrderWithRelations } from '@/services/purchaseOrderService';
 import { showError, showSuccess } from '@/utils/toast';
@@ -680,7 +680,7 @@ const PurchaseOrderManagement = () => {
           </Tabs>
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       {/* Reject Confirmation Dialog */}
       <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterials, searchSuppliersByMaterial } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
@@ -380,7 +380,7 @@ const SearchSuppliersByMaterial = () => {
         </div>
       )}
 
-      <MadeWithDyad />
+
     </div>
   );
 };

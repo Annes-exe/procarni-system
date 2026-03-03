@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Search, Clock, User } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { getAllAuditLogs } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
 import { Input } from '@/components/ui/input';
@@ -155,7 +155,7 @@ const AuditLog = () => {
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
     </div>
   );
 };

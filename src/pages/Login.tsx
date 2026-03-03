@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
@@ -39,7 +39,7 @@ const Login = () => {
 
       if (signInError) {
         if (signInError.message === 'Invalid login credentials') {
-           throw new Error('Credenciales inválidas.');
+          throw new Error('Credenciales inválidas.');
         }
         throw signInError;
       }
@@ -120,7 +120,7 @@ const Login = () => {
                 style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
               />
             </div>
-            
+
             <div className="pt-2">
               <label htmlFor="password" className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                 Contraseña
@@ -157,7 +157,7 @@ const Login = () => {
           </form>
         </div>
       </div>
-      <MadeWithDyad />
+
     </div>
   );
 };

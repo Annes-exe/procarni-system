@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, UploadCloud, Eye, Search, Trash2 } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
@@ -333,7 +333,6 @@ const FichaTecnicaUpload = () => {
         </CardContent>
       </Card>
 
-      <MadeWithDyad />
 
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
         <DialogContent className="max-w-5xl h-[95vh] flex flex-col">

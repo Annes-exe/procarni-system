@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2, ChevronDown, Archive, Trash2, RotateCcw } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -544,7 +544,6 @@ const QuoteRequestDetails = () => {
         </CardContent>
       </Card>
 
-      <MadeWithDyad />
 
       <EmailSenderModal
         isOpen={isEmailModalOpen}

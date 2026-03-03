@@ -8,7 +8,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { searchMaterialsBySupplier, searchSuppliers, searchCompanies } from '@/integrations/supabase/data'; // Removed updatePurchaseOrder, getPurchaseOrderDetails
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { useQuery } from '@tanstack/react-query';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { calculateTotals } from '@/utils/calculations';
 
 import { format, parseISO } from "date-fns";
@@ -443,7 +443,6 @@ const EditPurchaseOrder = () => {
           </div>
         </CardContent>
       </Card>
-      <MadeWithDyad />
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}

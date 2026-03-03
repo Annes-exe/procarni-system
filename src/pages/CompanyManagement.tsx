@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Phone, Mail, ArrowLeft, Tag, MapPin } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { getAllCompanies, createCompany, updateCompany, deleteCompany } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import CompanyForm from '@/components/CompanyForm';
@@ -329,7 +329,7 @@ const CompanyManagement = () => {
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       {/* AlertDialog for delete confirmation */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

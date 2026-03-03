@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Search, Filter, Calendar as CalendarIcon, DollarSign, Package, X } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { useQuery } from '@tanstack/react-query';
 import { getPurchaseHistoryReport, searchSuppliers, searchMaterials, searchMaterialsBySupplier, searchSuppliersByMaterial } from '@/integrations/supabase/data';
 import SmartSearch from '@/components/SmartSearch';
@@ -334,7 +334,7 @@ const PurchaseHistory = () => {
                 </div>
             )}
 
-            <MadeWithDyad />
+
         </div>
     );
 };
