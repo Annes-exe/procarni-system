@@ -54,3 +54,8 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 lint_output_verification.txt
+
+# --- Migraciones / Backups Temporales ---
+scripts/*
+!scripts/migrate-cities.ts
+data_produccion_backup.sql
