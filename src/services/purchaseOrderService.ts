@@ -9,9 +9,6 @@ export type CreatePurchaseOrderInput = Omit<PurchaseOrder, 'id' | 'created_at' |
 export type CreatePurchaseOrderItemInput = Omit<PurchaseOrderItem, 'id' | 'order_id' | 'created_at' | 'updated_at'>;
 
 // Type for the list view which includes joined table data
-// Note: Supabase returns arrays for joined 1:1 relations if not strictly defined, 
-// but here we expect single objects because of how we allow the data.
-// We use the plural 'suppliers' matching the table name in the query unless aliased.
 export type PurchaseOrderWithRelations = PurchaseOrder & {
     suppliers: { name: string };
     companies: { name: string };
@@ -45,7 +42,6 @@ export const purchaseOrderService = {
             return [];
         }
 
-        // Cast response to satisfy the strict PurchaseOrder type
         return data as unknown as PurchaseOrderWithRelations[];
     },
 
@@ -91,8 +87,6 @@ export const purchaseOrderService = {
             if (itemsError) {
                 console.error('[purchaseOrderService.create] Error items:', itemsError);
                 showError('Error al crear los ítems de la orden.');
-                // We do not revert the order creation here, but ideally we should (transaction).
-                // For now, we return null to indicate partial failure or just log it.
                 return null;
             }
 
@@ -120,6 +114,20 @@ export const purchaseOrderService = {
             }
         }
 
+        // 4. Create Notification
+        try {
+            await supabase.from('notifications').insert({
+                user_id: newOrder.user_id,
+                title: 'Nueva Orden de Compra',
+                message: `Se ha generado la OC #${newOrder.sequence_number}.`,
+                type: 'crud',
+                resource_type: 'purchase_order',
+                resource_id: newOrder.id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return newOrder as unknown as PurchaseOrder;
     },
 
@@ -138,7 +146,7 @@ export const purchaseOrderService = {
             return null;
         }
 
-        // 2. Refresh Items (Delete all then Re-insert) -> Simple strategy
+        // 2. Refresh Items
         const { error: deleteError } = await supabase
             .from('purchase_order_items')
             .delete()
@@ -164,7 +172,7 @@ export const purchaseOrderService = {
                 return null;
             }
 
-            // 3. Update Price History (Delete old for this PO, insert new)
+            // 3. Update Price History
             await supabase.from('price_history').delete().eq('purchase_order_id', id);
 
             const priceHistoryEntries = items
@@ -184,6 +192,20 @@ export const purchaseOrderService = {
             }
         }
 
+        // 4. Create Notification
+        try {
+            await supabase.from('notifications').insert({
+                user_id: updatedOrder.user_id,
+                title: 'Orden de Compra Actualizada',
+                message: `Se ha actualizado la OC #${updatedOrder.sequence_number}.`,
+                type: 'crud',
+                resource_type: 'purchase_order',
+                resource_id: updatedOrder.id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return updatedOrder as unknown as PurchaseOrder;
     },
 
@@ -198,6 +220,22 @@ export const purchaseOrderService = {
             showError('Error al actualizar estado.');
             return false;
         }
+
+        // Create Notification on status change
+        try {
+            const { data: po } = await supabase.from('purchase_orders').select('sequence_number, user_id').eq('id', id).single();
+            await supabase.from('notifications').insert({
+                user_id: po?.user_id,
+                title: 'Estado de OC Cambiado',
+                message: `La OC #${po?.sequence_number} ha cambiado a: ${newStatus}`,
+                type: 'crud',
+                resource_type: 'purchase_order',
+                resource_id: id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return true;
     },
 
@@ -215,9 +253,6 @@ export const purchaseOrderService = {
         return true;
     },
 
-    /**
-     * Bulk archive orders for a supplier
-     */
     bulkArchiveBySupplier: async (supplierId: string): Promise<number> => {
         const { data, error } = await supabase
             .from('purchase_orders')
@@ -234,9 +269,6 @@ export const purchaseOrderService = {
         return data.length;
     },
 
-    /**
-     * Reporting: Get Purchase History
-     */
     getPurchaseHistoryReport: async ({
         supplierId,
         materialId,
