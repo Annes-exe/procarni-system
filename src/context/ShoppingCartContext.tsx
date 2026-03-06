@@ -1,12 +1,17 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface ShoppingCartItem {
+  material_id?: string;
   material_name: string;
-  supplier_code?: string; // Nuevo campo opcional para el código del proveedor
+  supplier_code?: string;
   quantity: number;
   unit_price: number;
   tax_rate?: number;
   is_exempt?: boolean;
+  unit?: string;
+  description?: string;
+  sales_percentage?: number;
+  discount_percentage?: number;
 }
 
 interface ShoppingCartContextType {

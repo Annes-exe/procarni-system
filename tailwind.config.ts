@@ -65,7 +65,8 @@ export default {
         // Colores corporativos
         'procarni-primary': '#880a0a', // Rojo Italia
         'procarni-secondary': '#0e5708', // Verde acciones
-        'procarni-alert': '#F39C12', // Amarillo Alertas
+        'procarni-alert': '#d97706', // Ámbar Técnico (Reemplaza al #F39C12)
+        'procarni-dark': '#0f172a', // Azul Grisaceo Oscuro
       },
       borderRadius: {
         lg: "var(--radius)",

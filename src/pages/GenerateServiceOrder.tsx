@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
-import { ArrowLeft, Loader2, FileText, Wrench, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createServiceOrder, searchSuppliers } from '@/integrations/supabase/data';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
+import { searchSuppliers, searchMaterialsBySupplier } from '@/integrations/supabase/data';
+
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
@@ -16,6 +18,13 @@ import ServiceOrderItemsTable from '@/components/ServiceOrderItemsTable';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import SmartSearch from '@/components/SmartSearch';
 import { Label } from '@/components/ui/label';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 
 interface Company {
   id: string;
@@ -37,6 +46,28 @@ interface ServiceOrderItemForm {
   is_exempt: boolean;
   sales_percentage: number | null;
   discount_percentage: number | null;
+}
+
+interface SparePartItem {
+  id?: string;
+  material_id?: string;
+  material_name: string;
+  supplier_code?: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate?: number;
+  is_exempt?: boolean;
+  unit?: string;
+  description?: string;
+  sales_percentage?: number;
+  discount_percentage?: number;
+}
+
+interface SparePartsGroup {
+  internalId: string; // Unique ID for React keys
+  supplierId: string;
+  supplierName: string;
+  items: SparePartItem[];
 }
 
 const SERVICE_TYPES = [
@@ -67,8 +98,17 @@ const GenerateServiceOrder = () => {
   const [observations, setObservations] = useState<string>('');
 
   const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
+
+  // Spare Parts Groups
+  const [sparePartsGroups, setSparePartsGroups] = useState<SparePartsGroup[]>([]);
+  const [sparePartsSupplierId, setSparePartsSupplierId] = useState<string>('');
+  const [sparePartsSupplierName, setSparePartsSupplierName] = useState<string>('');
+  const [supplierListVersion, setSupplierListVersion] = useState(0);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
+  const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
 
   const userId = session?.user?.id;
 
@@ -107,9 +147,106 @@ const GenerateServiceOrder = () => {
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
+    setSupplierListVersion(v => v + 1);
   };
 
-  const totals = calculateTotals(items);
+  // --- SPARE PARTS LOGIC ---
+  const handleAddSparePartsSupplier = (supplier: { id: string; name: string }) => {
+    if (sparePartsGroups.some(g => g.supplierId === supplier.id)) {
+      showError('Este proveedor ya ha sido agregado a la lista de repuestos.');
+      setSparePartsSupplierId('');
+      setSparePartsSupplierName('');
+      return;
+    }
+
+    setSparePartsGroups(prev => [
+      ...prev,
+      {
+        internalId: crypto.randomUUID(),
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        items: []
+      }
+    ]);
+    setSparePartsSupplierId('');
+    setSparePartsSupplierName('');
+    setSupplierListVersion(v => v + 1);
+  };
+
+  const handleAddSparePartItem = (groupIndex: number) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items.push({
+        material_name: '',
+        quantity: 1,
+        unit_price: 0,
+        tax_rate: 0.16,
+        is_exempt: false,
+        sales_percentage: 0,
+        discount_percentage: 0
+      });
+      return newGroups;
+    });
+  };
+
+  const handleRemoveSparePartsGroup = (groupIndex: number) => {
+    setSparePartsGroups(prev => prev.filter((_, i) => i !== groupIndex));
+  };
+
+  const handleRemoveSparePartItem = (groupIndex: number, itemIndex: number) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items = newGroups[groupIndex].items.filter((_, i) => i !== itemIndex);
+      return newGroups;
+    });
+  };
+
+  const handleSparePartItemChange = (groupIndex: number, itemIndex: number, field: keyof SparePartItem, value: any) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items[itemIndex] = {
+        ...newGroups[groupIndex].items[itemIndex],
+        [field]: value
+      };
+      return newGroups;
+    });
+  };
+
+  const handleSparePartMaterialSelect = (groupIndex: number, itemIndex: number, material: any) => {
+    setSparePartsGroups(prev => {
+      const newGroups = [...prev];
+      newGroups[groupIndex].items[itemIndex] = {
+        ...newGroups[groupIndex].items[itemIndex],
+        material_id: material.id,
+        material_name: material.name,
+        supplier_code: material.specification || '',
+        unit: material.unit || 'UND',
+        is_exempt: material.is_exempt || false,
+        unit_price: 0
+      };
+      return newGroups;
+    });
+  };
+
+  // --- TOTALS CALCULATION ---
+  const calculateGrandTotals = () => {
+    const serviceTotals = calculateTotals(items);
+
+    // Flatten all spare parts items to calculate their totals
+    const allSpareParts = sparePartsGroups.flatMap(g => g.items);
+    // Cast as any because calculateTotals expects specific fields, which match SparePartItem structurally
+    const materialsTotals = calculateTotals(allSpareParts as any);
+
+    return {
+      baseImponible: serviceTotals.baseImponible + materialsTotals.baseImponible,
+      montoDescuento: serviceTotals.montoDescuento + materialsTotals.montoDescuento,
+      montoVenta: serviceTotals.montoVenta + materialsTotals.montoVenta,
+      montoIVA: serviceTotals.montoIVA + materialsTotals.montoIVA,
+      total: serviceTotals.total + materialsTotals.total
+    };
+  };
+
+  const totals = calculateGrandTotals();
 
   const totalInUSD = React.useMemo(() => {
     if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
@@ -148,19 +285,54 @@ const GenerateServiceOrder = () => {
       return;
     }
 
-    const invalidItem = items.find(item =>
-      !item.description ||
-      item.quantity <= 0 ||
-      item.unit_price <= 0
+    const invalidServiceItem = items.find(item =>
+      !item.description || item.quantity <= 0 || item.unit_price <= 0
     );
 
-    if (items.length === 0 || invalidItem) {
-      showError('Por favor, añade al menos un ítem de costo/servicio válido con descripción, cantidad y precio unitario mayor a cero.');
+    if (items.length === 0 && sparePartsGroups.every(g => g.items.length === 0)) {
+      showError('Por favor, añade al menos un servicio o un repuesto.');
       return;
     }
 
+    if (items.length > 0 && invalidServiceItem) {
+      showError('Por favor, revisa los ítems de servicio: descripción, cantidad y precio obligatorios.');
+      return;
+    }
+
+    // Validate spare parts
+    for (const group of sparePartsGroups) {
+      const invalidPart = group.items.find(item =>
+        !item.material_name || item.quantity <= 0 || item.unit_price <= 0
+      );
+      if (invalidPart) {
+        showError(`Revisa los repuestos del proveedor ${group.supplierName}: nombre, cantidad y precio obligatorios.`);
+        return;
+      }
+
+      try {
+        const associatedMaterials = await searchMaterialsBySupplier(group.supplierId, '');
+        const associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+        const unassociatedItem = group.items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+        if (unassociatedItem) {
+          showError(`El proveedor ${group.supplierName} no distribuye el repuesto: ${unassociatedItem.material_name}`);
+          return;
+        }
+      } catch (e) {
+        console.error("Error validating spare parts suppliers:", e);
+        showError("Error al validar los repuestos de los proveedores.");
+        return;
+      }
+    }
+
+    // Open reminder dialog before proceeding
+    setIsReminderDialogOpen(true);
+  };
+
+  const confirmSubmit = async () => {
+    setIsReminderDialogOpen(false);
     setIsSubmitting(true);
-    const orderData = {
+
+    const orderData: CreateServiceOrderInput = {
       issue_date: format(issueDate, 'yyyy-MM-dd'),
       service_date: format(serviceDate, 'yyyy-MM-dd'),
       supplier_id: supplierId,
@@ -171,16 +343,42 @@ const GenerateServiceOrder = () => {
       destination_address: destinationAddress,
       observations: observations || null,
       currency,
-      exchange_rate: currency === 'VES' ? exchangeRate : null,
-      status: 'Draft' as const,
+      exchange_rate: currency === 'VES' ? exchangeRate || null : null,
+      status: 'Draft',
       user_id: userId,
     };
 
-    const createdOrder = await createServiceOrder(orderData, items);
+    const serviceItems: CreateServiceOrderItemInput[] = items.map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      tax_rate: item.tax_rate,
+      is_exempt: item.is_exempt,
+      sales_percentage: item.sales_percentage,
+      discount_percentage: item.discount_percentage,
+    }));
+
+    const materialsToSave: CreateServiceOrderMaterialInput[] = sparePartsGroups.flatMap(group =>
+      group.items.map(item => ({
+        supplier_id: group.supplierId,
+        material_id: item.material_id || null,
+        description: item.description || null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        tax_rate: item.tax_rate ?? 0.16,
+        is_exempt: item.is_exempt ?? false,
+        supplier_code: item.supplier_code || null,
+        unit: item.unit || null,
+        sales_percentage: item.sales_percentage || null,
+        discount_percentage: item.discount_percentage || null,
+      }))
+    );
+
+    const createdOrder = await serviceOrderService.create(orderData, serviceItems, materialsToSave);
 
     if (createdOrder) {
       showSuccess('Orden de Servicio creada exitosamente.');
-      // Reset form fields
+      // Reset form
       setCompanyId('');
       setCompanyName('');
       setSupplierId('');
@@ -194,124 +392,272 @@ const GenerateServiceOrder = () => {
       setDestinationAddress(DESTINATION_ADDRESSES[0]);
       setObservations('');
       setItems([]);
+      setSparePartsGroups([]);
+      setSparePartsSupplierId('');
+      setSparePartsSupplierName('');
     }
     setIsSubmitting(false);
   };
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+      {/* Action Header */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Orden de Servicio</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Servicio</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleSubmit} disabled={isSubmitting || !companyId || !supplierId} className="bg-procarni-secondary hover:bg-green-700 shadow-sm">
+            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="mr-2 h-4 w-4" /> Guardar Orden</>}
+          </Button>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary flex items-center">
-            <Wrench className="mr-2 h-6 w-6" /> Generar Orden de Servicio (OS)
-          </CardTitle>
-          <CardDescription>Crea una nueva orden de servicio para tus proveedores.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="md:col-span-1">
-              <Label htmlFor="supplier">Proveedor *</Label>
-              <div className="flex gap-2">
-                <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                />
+
+      <div className="space-y-6">
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                Información General
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Detalles de la orden</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
+            <ServiceOrderDetailsForm
+              companyId={companyId}
+              companyName={companyName}
+              currency={currency}
+              exchangeRate={exchangeRate}
+              issueDate={issueDate}
+              serviceDate={serviceDate}
+              equipmentName={equipmentName}
+              serviceType={serviceType}
+              detailedServiceDescription={detailedServiceDescription}
+              destinationAddress={destinationAddress}
+              observations={observations}
+              onCompanySelect={handleCompanySelect}
+              onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
+              onExchangeRateChange={setExchangeRate}
+              onIssueDateChange={setIssueDate}
+              onServiceDateChange={setServiceDate}
+              onEquipmentNameChange={setEquipmentName}
+              onServiceTypeChange={setServiceType}
+              onDetailedServiceDescriptionChange={setDetailedServiceDescription}
+              onDestinationAddressChange={setDestinationAddress}
+              onObservationsChange={setObservations}
+              supplierId={supplierId}
+              supplierName={supplierName}
+              onSupplierSelect={handleSupplierSelect}
+              onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                <Wrench className="mr-2 h-4 w-4" /> Servicios
+              </CardTitle>
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Servicio
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ServiceOrderItemsTable
+              items={items}
+              currency={currency}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
+              onItemChange={handleItemChange}
+            />
+            {items.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+                <Wrench className="h-10 w-10 mb-3 text-gray-200" />
+                <p className="text-sm">No hay servicios agregados a la orden.</p>
+                <Button variant="link" onClick={handleAddItem} className="text-procarni-secondary">Añadir el primero</Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                <Package className="mr-2 h-4 w-4" /> Repuestos y Adicionales
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Materiales adicionales</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="mb-6 max-w-md">
+              <div className="flex justify-between items-center">
+                <Label className="mb-2 block">Añadir Proveedor de Repuestos</Label>
                 <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor"
+                  variant="link"
+                  size="sm"
+                  onClick={() => setIsSparePartsSupplierDialogOpen(true)}
+                  className="h-auto p-0 text-xs text-procarni-primary mb-2"
                 >
-                  <PlusCircle className="h-4 w-4" />
+                  + Nuevo Proveedor
                 </Button>
               </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
+              <div className="flex gap-2">
+                <SmartSearch
+                  key={`spare-parts-supplier-${supplierListVersion}`}
+                  placeholder="Buscar proveedor (ej. Ferretería...)"
+                  onSelect={handleAddSparePartsSupplier}
+                  fetchFunction={searchSuppliers}
+                  displayValue={sparePartsSupplierName}
+                  className="w-full"
+                />
+              </div>
             </div>
-          </div>
 
-          <ServiceOrderDetailsForm
-            companyId={companyId}
-            companyName={companyName}
-            currency={currency}
-            exchangeRate={exchangeRate}
-            issueDate={issueDate}
-            serviceDate={serviceDate}
-            equipmentName={equipmentName}
-            serviceType={serviceType}
-            detailedServiceDescription={detailedServiceDescription}
-            destinationAddress={destinationAddress}
-            observations={observations}
-            onCompanySelect={handleCompanySelect}
-            onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
-            onExchangeRateChange={setExchangeRate}
-            onIssueDateChange={setIssueDate}
-            onServiceDateChange={setServiceDate}
-            onEquipmentNameChange={setEquipmentName}
-            onServiceTypeChange={setServiceType}
-            onDetailedServiceDescriptionChange={setDetailedServiceDescription}
-            onDestinationAddressChange={setDestinationAddress}
-            onObservationsChange={setObservations}
-          />
+            <SupplierCreationDialog
+              isOpen={isSparePartsSupplierDialogOpen}
+              onClose={() => setIsSparePartsSupplierDialogOpen(false)}
+              onSupplierCreated={handleAddSparePartsSupplier}
+            />
 
-          <ServiceOrderItemsTable
-            items={items}
-            currency={currency}
-            onAddItem={handleAddItem}
-            onRemoveItem={handleRemoveItem}
-            onItemChange={handleItemChange}
-          />
+            {sparePartsGroups.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+                <Package className="h-10 w-10 mb-3 text-gray-200" />
+                <p className="text-sm">No hay repuestos agregados a la orden.</p>
+                <Button variant="link" onClick={() => setIsSparePartsSupplierDialogOpen(true)} className="text-procarni-secondary">Añadir el primero</Button>
+              </div>
+            ) : (
+              <Accordion type="multiple" className="w-full space-y-4" defaultValue={sparePartsGroups.map(g => g.internalId)}>
+                {sparePartsGroups.map((group, groupIndex) => (
+                  <AccordionItem key={group.internalId} value={group.internalId} className="border rounded-lg bg-white shadow-sm px-4">
+                    <AccordionTrigger className="hover:no-underline py-4">
+                      <div className="flex justify-between items-center w-full pr-4">
+                        <span className="font-bold text-gray-700">{group.supplierName}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 cursor-pointer"
+                        >
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSparePartsGroup(groupIndex);
+                            }}
+                          >
+                            Quitar Grupo
+                          </span>
+                        </Button>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2 pb-6">
+                      <PurchaseOrderItemsTable
+                        items={group.items as any}
+                        supplierId={group.supplierId}
+                        supplierName={group.supplierName}
+                        currency={currency}
+                        onAddItem={() => handleAddSparePartItem(groupIndex)}
+                        onRemoveItem={(itemIndex) => handleRemoveSparePartItem(groupIndex, itemIndex)}
+                        onItemChange={(itemIndex, field, value) => handleSparePartItemChange(groupIndex, itemIndex, field as any, value)}
+                        onMaterialSelect={(itemIndex, material) => handleSparePartMaterialSelect(groupIndex, itemIndex, material)}
+                        hideHeader={true}
+                      />
+                      <div className="px-5 mt-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAddSparePartItem(groupIndex)}
+                          className="w-full border-dashed border-gray-300 text-gray-500 hover:text-procarni-primary hover:bg-procarni-primary/5"
+                        >
+                          <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Repuesto
+                        </Button>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
 
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{currency} {totals.baseImponible.toFixed(2)}</span>
+        {/* Totals Section - Redesigned */}
+        <div className="bg-gray-50 p-6 rounded-lg border border-gray-100 shadow-inner">
+          <div className="flex flex-col gap-3 max-w-sm ml-auto">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">Base Imponible:</span>
+              <span className="font-mono">{currency} {totals.baseImponible.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {currency} {totals.montoDescuento.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">Descuento:</span>
+              <span className="font-mono text-procarni-alert">- {currency} {totals.montoDescuento.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {currency} {totals.montoVenta.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">Margen Comercial:</span>
+              <span className="font-mono text-procarni-secondary">+ {currency} {totals.montoVenta.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>+ {currency} {totals.montoIVA.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="font-medium text-gray-600">IVA (16%):</span>
+              <span className="font-mono">+ {currency} {totals.montoIVA.toFixed(2)}</span>
             </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{currency} {totals.total.toFixed(2)}</span>
+            <div className="border-t border-gray-300 pt-3 mt-1">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-lg text-procarni-dark">TOTAL:</span>
+                <span className="font-bold text-xl text-procarni-dark font-mono">{currency} {totals.total.toFixed(2)}</span>
+              </div>
             </div>
             {totalInUSD && currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
+              <div className="flex justify-end pt-1">
+                <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  Ref. USD: {totalInUSD}
+                </span>
               </div>
             )}
           </div>
 
-          <div className="flex justify-end gap-2 mt-6">
+        </div>
 
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !supplierId || !serviceDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Servicio'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <MadeWithDyad />
+      </div>
+
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
       />
+
+      <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSubmit}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+            >
+              Confirmar y Guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

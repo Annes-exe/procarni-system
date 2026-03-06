@@ -1,26 +1,28 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct } from '@/integrations/supabase/data';
-import { showError } from '@/utils/toast';
+import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2 } from 'lucide-react';
+
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier } from '@/integrations/supabase/data';
+import { showError, showSuccess } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FichaTecnica } from '@/integrations/supabase/types';
+import { FichaTecnica, Supplier } from '@/integrations/supabase/types'; // Import Supplier type
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel 
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
+import SupplierForm from '@/components/SupplierForm'; // Import SupplierForm
+import { Badge } from '@/components/ui/badge';
 
 interface MaterialAssociation {
   id: string; // ID of supplier_materials entry
@@ -29,6 +31,7 @@ interface MaterialAssociation {
   materials: {
     id: string;
     name: string;
+    code?: string;
     category?: string;
   };
 }
@@ -55,9 +58,11 @@ const SupplierDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
+  const [isEditOpen, setIsEditOpen] = useState(false); // New state for edit dialog
 
   const { data: supplier, isLoading, error } = useQuery<SupplierDetailsData | null>({
     queryKey: ['supplierDetails', id],
@@ -82,6 +87,34 @@ const SupplierDetails = () => {
   const fichaStatusResults = useQueries({ queries: materialQueries });
   const isLoadingFichaStatus = fichaStatusResults.some(result => result.isLoading);
   // --------------------------------------------------------------------
+
+  // Mutation for updating supplier
+  const updateMutation = useMutation({
+    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: Array<{ material_id: string; specification?: string }> }) =>
+      updateSupplier(id, supplierData, materials),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] }); // Also update list
+      setIsEditOpen(false);
+      showSuccess('Proveedor actualizado exitosamente.');
+    },
+    onError: (err) => {
+      showError(`Error al actualizar proveedor: ${err.message}`);
+    },
+  });
+
+  const handleEditSubmit = async (data: any) => {
+    if (!supplier) return;
+
+    const { materials, ...supplierData } = data;
+    const materialsPayload = materials?.map((mat: any) => ({
+      material_id: mat.material_id,
+      specification: mat.specification,
+    })) || [];
+
+    await updateMutation.mutateAsync({ id: supplier.id, supplierData, materials: materialsPayload });
+  };
+
 
   const formatPhoneNumberForWhatsApp = (phone: string) => {
     const digitsOnly = phone.replace(/\D/g, '');
@@ -131,8 +164,9 @@ const SupplierDetails = () => {
 
   if (isLoading || isLoadingFichaStatus) {
     return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando detalles del proveedor...
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-procarni-secondary" />
+        <span className="ml-2 text-gray-500 font-medium">Cargando detalles del proveedor...</span>
       </div>
     );
   }
@@ -160,177 +194,271 @@ const SupplierDetails = () => {
     );
   }
 
+  const isEditable = true;
+
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1 block";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500";
+  const valueClass = "text-procarni-dark font-medium text-sm";
+
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className={cn(isMobile ? 'w-10 h-10 p-0' : '')}>
-              <MoreVertical className={cn("h-4 w-4", !isMobile && "mr-2")} />
-              {!isMobile && 'Acciones'}
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-8 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+
+        {/* Title & Status */}
+        <div className="flex flex-col gap-1 w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>Opciones de Proveedor</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            
-            {/* 1. Generar SC */}
-            <DropdownMenuItem onSelect={handleGenerateSC} className="cursor-pointer text-procarni-secondary focus:text-green-700">
-              <PlusCircle className="mr-2 h-4 w-4" /> Generar Solicitud (SC)
-            </DropdownMenuItem>
-            
-            {/* 2. Generar OC */}
-            <DropdownMenuItem onSelect={handleGenerateOC} className="cursor-pointer text-blue-600 focus:text-blue-700">
-              <ShoppingCart className="mr-2 h-4 w-4" /> Generar Orden (OC)
-            </DropdownMenuItem>
-            
-            <DropdownMenuSeparator />
-            
-            {/* 3. Editar Proveedor */}
-            <DropdownMenuItem onSelect={() => navigate(`/supplier-management?editId=${supplier.id}`)} className="cursor-pointer">
-              <Edit className="mr-2 h-4 w-4" /> Editar Proveedor
-            </DropdownMenuItem>
-            
-            {/* 4. Historial de Precios (Download Button as DropdownMenuItem) */}
-            <DropdownMenuItem asChild>
-              <SupplierPriceHistoryDownloadButton
-                supplierId={supplier.id}
-                supplierName={supplier.name}
-                disabled={isLoading}
-                asChild
-              />
-            </DropdownMenuItem>
-            
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <h1 className="text-2xl font-bold text-procarni-dark tracking-tight">
+              {supplier.name}
+            </h1>
+            <Badge className={cn(
+              "ml-2 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-none border",
+              supplier.status === 'Activo' ? "bg-green-50 text-procarni-secondary border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"
+            )}>
+              {supplier.status}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Primary Actions */}
+            <Button onClick={() => setIsEditOpen(true)} variant="outline" size="sm" className="gap-2">
+              <Edit className="h-4 w-4" />
+              <span className="hidden sm:inline">Editar</span>
+            </Button>
+
+            <Button onClick={handleGenerateSC} className="bg-procarni-secondary hover:bg-green-700 text-white gap-2 shadow-sm" size="sm">
+              <PlusCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Generar SC</span>
+            </Button>
+
+            {/* Secondary Actions: Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="hidden sm:inline">Más</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Opciones</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onSelect={handleGenerateOC} className="cursor-pointer text-blue-600 focus:text-blue-700">
+                  <ShoppingCart className="mr-2 h-4 w-4" /> Generar Orden (OC)
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem asChild>
+                  <SupplierPriceHistoryDownloadButton
+                    supplierId={supplier.id}
+                    supplierName={supplier.name}
+                    disabled={isLoading}
+                    asChild
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">{supplier.name}</CardTitle>
-          <CardDescription>Detalles completos del proveedor.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <p><strong>Código:</strong> {supplier.code || 'N/A'}</p>
-            <p><strong>RIF:</strong> {supplier.rif}</p>
-            <p><strong>Email:</strong> {supplier.email || 'N/A'}</p>
-            <p>
-              <strong>Teléfono Principal:</strong>{' '}
-              {supplier.phone ? (
-                <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
-                  {supplier.phone} <Phone className="ml-1 h-3 w-3" />
-                </a>
-              ) : 'N/A'}
-            </p>
-            <p>
-              <strong>Teléfono Secundario:</strong>{' '}
-              {supplier.phone_2 ? (
-                <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone_2)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
-                  {supplier.phone_2} <Phone className="ml-1 h-3 w-3" />
-                </a>
-              ) : 'N/A'}
-            </p>
-            <p>
-              <strong>Instagram:</strong>{' '}
-              {supplier.instagram ? (
-                <a href={`https://instagram.com/${supplier.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
-                  {supplier.instagram} <Instagram className="ml-1 h-3 w-3" />
-                </a>
-              ) : 'N/A'}
-            </p>
-            <p className="md:col-span-2"><strong>Dirección:</strong> {supplier.address || 'N/A'}</p>
-            <p>
-              <strong>Términos de Pago:</strong>{' '}
-              {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms
-                ? supplier.custom_payment_terms
-                : supplier.payment_terms}
-            </p>
-            <p><strong>Días de Crédito:</strong> {supplier.credit_days}</p>
-            <p><strong>Estado:</strong> {supplier.status}</p>
+      {/* PHASE 2: GENERAL INFORMATION GRID */}
+      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1">
+          {/* Code */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Código</span>
+            <p className={valueClass}>{supplier.code || 'N/A'}</p>
           </div>
 
-          <h3 className="text-lg font-semibold mt-8 mb-4">Materiales Ofrecidos</h3>
+          {/* RIF */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>RIF</span>
+            <p className={valueClass}>{supplier.rif}</p>
+          </div>
+
+          {/* Email */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Email</span>
+            <p className={cn(valueClass, "truncate max-w-full")}>{supplier.email || 'N/A'}</p>
+          </div>
+
+          {/* Phone */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Teléfono</span>
+            {supplier.phone ? (
+              <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center text-sm font-medium">
+                {supplier.phone} <Phone className="ml-1.5 h-3 w-3" />
+              </a>
+            ) : <p className={valueClass}>N/A</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
+          {/* Contact Section */}
+          <div className="space-y-6">
+            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Contacto Adicional</h4>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
+                <div>
+                  <span className={microLabelClass}>Teléfono Secundario</span>
+                  {supplier.phone_2 ? (
+                    <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone_2)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
+                      {supplier.phone_2}
+                    </a>
+                  ) : <p className={valueClass}>N/A</p>}
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Instagram className="h-4 w-4 text-gray-400 mt-0.5" />
+                <div>
+                  <span className={microLabelClass}>Instagram</span>
+                  {supplier.instagram ? (
+                    <a href={`https://instagram.com/${supplier.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
+                      {supplier.instagram}
+                    </a>
+                  ) : <p className={valueClass}>N/A</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms Section */}
+          <div className="space-y-6">
+            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Condiciones</h4>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <CreditCard className="h-4 w-4 text-gray-400 mt-0.5" />
+                <div>
+                  <span className={microLabelClass}>Términos de Pago</span>
+                  <p className={valueClass}>
+                    {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms
+                      ? supplier.custom_payment_terms
+                      : supplier.payment_terms}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Calendar className="h-4 w-4 text-gray-400 mt-0.5" />
+                <div>
+                  <span className={microLabelClass}>Días de Crédito</span>
+                  <p className={valueClass}>{supplier.credit_days} días</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Address Section */}
+          <div className="space-y-6">
+            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Ubicación</h4>
+            <div className="flex items-start gap-3">
+              <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+              <div>
+                <span className={microLabelClass}>Dirección Fiscal</span>
+                <p className="text-gray-600 text-sm leading-relaxed">{supplier.address || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PHASE 3: MATERIALS CARD */}
+      <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
+        <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+          <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+            Materiales Ofrecidos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
           {supplier.materials && supplier.materials.length > 0 ? (
             isMobile ? (
-              <div className="space-y-3">
+              <div className="divide-y divide-gray-100">
                 {supplier.materials.map((sm, index) => {
                   const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
-                  
                   return (
-                    <Card key={sm.id || index} className="p-3">
-                      <p className="font-semibold text-procarni-primary">{sm.materials.name}</p>
-                      <div className="text-sm mt-1 space-y-0.5">
-                        <p><strong>Código:</strong> {sm.materials.code || 'N/A'}</p>
-                        <p><strong>Categoría:</strong> {sm.materials.category || 'N/A'}</p>
-                        <p><strong>Especificación:</strong> {sm.specification || 'N/A'}</p>
-                      </div>
-                      <div className="mt-3 flex justify-end">
+                    <div key={sm.id || index} className="p-4 bg-white">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-semibold text-procarni-dark">{sm.materials.name}</span>
                         {isLoadingFicha ? (
-                          <span className="text-sm text-muted-foreground">Cargando estado...</span>
+                          <span className="text-[10px] text-gray-400 italic">Cargando...</span>
                         ) : hasFicha ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewFicha(sm.materials.name)}>
-                            <FileText className="mr-2 h-4 w-4" /> 
-                            Ver Ficha Técnica
+                          <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} className="h-6 w-6">
+                            <FileText className="h-3.5 w-3.5 text-procarni-secondary" />
                           </Button>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">Sin Ficha Técnica</span>
-                        )}
+                        ) : null}
                       </div>
-                    </Card>
+                      <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
+                        <div>
+                          <span className="text-[10px] uppercase text-gray-400 block">Código</span>
+                          {sm.materials.code || 'N/A'}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase text-gray-400 block">Categoría</span>
+                          {sm.materials.category || 'N/A'}
+                        </div>
+                        <div className="col-span-2 pt-1 border-t border-gray-50 mt-1">
+                          <span className="text-[10px] uppercase text-gray-400 block">Especificación</span>
+                          <span className="italic">{sm.specification || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Nombre del Material</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead>Especificación del Proveedor</TableHead>
-                      <TableHead className="text-right">Ficha Técnica</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {supplier.materials.map((sm, index) => {
-                      const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
-                      
-                      return (
-                        <TableRow key={sm.id || index}>
-                          <TableCell>{sm.materials.code || 'N/A'}</TableCell>
-                          <TableCell>{sm.materials.name}</TableCell>
-                          <TableCell>{sm.materials.category || 'N/A'}</TableCell>
-                          <TableCell>{sm.specification || 'N/A'}</TableCell>
-                          <TableCell className="text-right">
-                            {isLoadingFicha ? (
-                              <span className="text-xs text-muted-foreground">Cargando...</span>
-                            ) : hasFicha ? (
-                              <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} title="Ver Ficha Técnica">
-                                <FileText className="h-4 w-4 text-procarni-primary" />
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">N/A</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <Table>
+                <TableHeader className="bg-gray-50/80">
+                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
+                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Código</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2"}>Nombre del Material</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2"}>Categoría</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2"}>Especificación</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center pr-6"}>Ficha técnica</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {supplier.materials.map((sm, index) => {
+                    const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
+                    return (
+                      <TableRow key={sm.id || index} className="border-b border-gray-50 hover:bg-gray-50/30">
+                        <TableCell className="pl-6 font-mono text-[13px] text-gray-500">{sm.materials.code || 'N/A'}</TableCell>
+                        <TableCell className="font-medium text-procarni-dark">{sm.materials.name}</TableCell>
+                        <TableCell className="text-gray-500">{sm.materials.category || 'N/A'}</TableCell>
+                        <TableCell className="text-gray-500 italic text-sm truncate max-w-[200px]">{sm.specification || 'N/A'}</TableCell>
+                        <TableCell className="text-center pr-6">
+                          {isLoadingFicha ? (
+                            <span className="text-[10px] text-gray-400">...</span>
+                          ) : hasFicha ? (
+                            <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} className="hover:bg-green-50 rounded-full">
+                              <FileText className="h-4 w-4 text-procarni-secondary" />
+                            </Button>
+                          ) : (
+                            <span className="text-[10px] text-gray-300">N/A</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )
           ) : (
-            <p className="text-muted-foreground">Este proveedor no tiene materiales registrados.</p>
+            <div className="p-8 text-center text-gray-400 italic">
+              Este proveedor no tiene materiales registrados.
+            </div>
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
         <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
@@ -346,7 +474,22 @@ const SupplierDetails = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* NEW EDIT DIALOG */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Proveedor</DialogTitle>
+          </DialogHeader>
+          <SupplierForm
+            initialData={supplier as any}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setIsEditOpen(false)}
+            isSubmitting={updateMutation.isPending}
+          />
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 };
 

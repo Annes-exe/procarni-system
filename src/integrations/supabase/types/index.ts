@@ -47,7 +47,7 @@ export interface QuoteRequest {
   company_id: string;
   currency: string;
   exchange_rate?: number | null;
-  status: 'Draft' | 'Sent' | 'Archived' | 'Approved'; // Updated status type
+  status: 'Draft' | 'Archived' | 'Approved'; // Updated status type
   created_at: string;
   created_by?: string;
   user_id: string;
@@ -60,7 +60,7 @@ export interface PurchaseOrder {
   company_id: string;
   currency: string;
   exchange_rate?: number | null;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived'; // Updated status type
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived'; // Updated status type
   created_at: string;
   created_by?: string;
   user_id: string;
@@ -87,7 +87,7 @@ export interface ServiceOrder { // NEW INTERFACE
   observations?: string | null;
   currency: 'USD' | 'VES';
   exchange_rate?: number | null;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
   user_id: string;
   created_at: string;
 }

@@ -5,6 +5,7 @@ import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://esm.s
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
 // --- CONSTANTS ---
@@ -18,6 +19,10 @@ const COMPANY_NAME_FONT_SIZE = 12;
 const LOGO_SIZE = 50;
 
 // --- UTILITY FUNCTIONS (Kept outside serve) ---
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
 
 const calculateTotals = (items: Array<{
   quantity: number | null | undefined;
@@ -119,8 +124,19 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
   if (tempEntero === 1) {
     texto = `UN ${currency === 'VES' ? 'BOLIVAR' : 'DOLAR'}`;
   } else if (tempEntero > 1) {
-    let miles = Math.floor(tempEntero / 1000);
-    let unidades = tempEntero % 1000;
+    let millones = Math.floor(tempEntero / 1000000);
+    let resto = tempEntero % 1000000;
+
+    let miles = Math.floor(resto / 1000);
+    let unidades = resto % 1000;
+
+    if (millones > 0) {
+      if (millones === 1) {
+        texto += 'UN MILLON ';
+      } else {
+        texto += convertirGrupo(millones) + ' MILLONES ';
+      }
+    }
 
     if (miles > 0) {
       if (miles === 1) {
@@ -131,7 +147,11 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
     }
     texto += convertirGrupo(unidades);
 
-    texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    if (millones > 0 && resto === 0) {
+      texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    } else {
+      texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    }
   }
 
   const decimalTexto = decimal.toString().padStart(2, '0');
@@ -373,8 +393,15 @@ serve(async (req: Request) => {
           size: COMPANY_NAME_FONT_SIZE,
           color: PROC_RED
         });
+        // Draw RIF below name
+        drawText(state, `RIF: ${order.companies?.rif || 'N/A'}`, logoX + LOGO_SIZE + 10, state.y - (LOGO_SIZE / 2) + (COMPANY_NAME_FONT_SIZE / 2) - LINE_HEIGHT, {
+          size: 8,
+          color: DARK_GRAY
+        });
       } else {
         drawText(state, order.companies?.name || 'N/A', MARGIN, state.y, { font: boldFont, size: COMPANY_NAME_FONT_SIZE, color: PROC_RED });
+        // Draw RIF below name
+        drawText(state, `RIF: ${order.companies?.rif || 'N/A'}`, MARGIN, state.y - LINE_HEIGHT, { size: 8, color: DARK_GRAY });
       }
 
       // 2. Draw Document Title and Number (Top Right)
@@ -599,7 +626,7 @@ serve(async (req: Request) => {
       return state;
     };
 
-    const drawTotalsAndSummary = (state: PDFState, order: any, items: any[]): PDFState => {
+    const drawTotalsAndSummary = async (state: PDFState, order: any, items: any[], effectiveExchangeRate: number): Promise<PDFState> => {
       const calculatedTotals = calculateTotals(items.map(item => ({
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -609,69 +636,104 @@ serve(async (req: Request) => {
         discount_percentage: item.discount_percentage ?? 0,
       })));
 
-      const totalSectionWidth = 200;
-      const totalSectionX = width - MARGIN - totalSectionWidth;
+      // Helper to calculate converted totals
+      const calculateConvertedTotals = (totals: any, rate: number, toCurrency: 'USD' | 'VES') => {
+        if (!rate || rate <= 0) return totals; // Should not happen with validation
 
-      // Determine number of rows needed for totals
-      let totalRows = 5;
-      let hasUsdTotal = false;
-      if (order.currency === 'VES' && order.exchange_rate && order.exchange_rate > 0) {
-        totalRows = 6;
-        hasUsdTotal = true;
-      }
+        // If converting FROM VES TO USD: Divide by rate
+        if (order.currency === 'VES' && toCurrency === 'USD') {
+          return {
+            baseImponible: totals.baseImponible / rate,
+            montoIVA: totals.montoIVA / rate,
+            montoVenta: totals.montoVenta / rate,
+            montoDescuento: totals.montoDescuento / rate,
+            total: totals.total / rate
+          };
+        }
 
+        // If converting FROM USD TO VES: Multiply by rate
+        if (order.currency === 'USD' && toCurrency === 'VES') {
+          return {
+            baseImponible: totals.baseImponible * rate,
+            montoIVA: totals.montoIVA * rate,
+            montoVenta: totals.montoVenta * rate,
+            montoDescuento: totals.montoDescuento * rate,
+            total: totals.total * rate
+          };
+        }
+
+        return totals; // Same currency
+      };
+
+      const usdTotals = order.currency === 'USD' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'USD');
+      const vesTotals = order.currency === 'VES' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'VES');
+
+      // Layout for side-by-side tables
+      const boxWidth = 200;
+      const spacing = 20;
+      const rightMargin = MARGIN;
+      // Position: [VES Table] [Spacing] [USD Table] (Aligned to right)
+      // Actually, usually currency of record (Order Currency) might go last or first. 
+      // Let's put USD on the left and VES on the right, or simply side-by-side right-aligned.
+      // Let's align the pair to the right side of the page.
+
+      const vesBoxX = width - MARGIN - boxWidth;
+      const usdBoxX = vesBoxX - spacing - boxWidth;
+
+      // Calculate height
+      // Rows: Subtotal, Descuento, Venta, IVA, Total. (5 rows)
+      // VES Box adds "Tasa de Cambio". (6 rows)
+
+      const totalRows = 6;
       const totalRowHeight = LINE_HEIGHT * 1.5;
-      const totalSectionHeight = totalRowHeight * totalRows + 5;
+      const totalSectionHeight = totalRowHeight * totalRows + 10;
 
       state = checkPageBreak(state, totalSectionHeight + LINE_HEIGHT * 3);
 
-      // Draw the outer box
-      drawBorderedRect(state, totalSectionX, state.y - totalSectionHeight, totalSectionWidth, totalSectionHeight, {
-        borderColor: LIGHT_GRAY,
-        borderWidth: 1,
-      });
+      const drawBox = (boxX: number, boxY: number, title: string, totals: any, currencySymbol: string, isVes: boolean) => {
+        drawBorderedRect(state, boxX, boxY, boxWidth, totalSectionHeight, {
+          borderColor: LIGHT_GRAY,
+          borderWidth: 1,
+        });
 
-      let currentY = state.y - 5;
+        let currentY = boxY + totalSectionHeight - 5 - (totalRowHeight / 2); // Start from top of box
 
-      const drawTotalRow = (label: string, value: string, isBold: boolean = false, color: rgb = rgb(0, 0, 0), size: number = FONT_SIZE) => {
-        const fontToUse = isBold ? boldFont : font;
+        // Title / Header for the box
+        drawText(state, title, boxX + 5, boxY + totalSectionHeight + 5, { font: boldFont, size: 10, color: DARK_GRAY });
 
-        const verticalCenterY = currentY - totalRowHeight / 2 + size / 2;
+        const drawRow = (label: string, value: string, isBold: boolean = false, color: any = rgb(0, 0, 0), size: number = FONT_SIZE) => {
+          const fontToUse = isBold ? boldFont : font;
+          drawText(state, label, boxX + 5, currentY, { font: fontToUse, size, color });
+          const valueWidth = fontToUse.widthOfTextAtSize(value, size);
+          drawText(state, value, boxX + boxWidth - 5 - valueWidth, currentY, { font: fontToUse, size, color });
+          currentY -= totalRowHeight;
+        };
 
-        // Draw label (left aligned)
-        drawText(state, label, totalSectionX + 5, verticalCenterY, { font: fontToUse, size, color });
+        drawRow('Base Imponible:', `${currencySymbol} ${totals.baseImponible.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        drawRow('Monto Descuento:', `- ${currencySymbol} ${totals.montoDescuento.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, false, PROC_RED);
+        drawRow('Monto Venta:', `+ ${currencySymbol} ${totals.montoVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, false, PROC_RED);
+        drawRow('Monto IVA:', `+ ${currencySymbol} ${totals.montoIVA.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        drawRow('TOTAL:', `${currencySymbol} ${totals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, true, PROC_RED, FONT_SIZE + 2);
 
-        // Draw value (right aligned)
-        const valueWidth = fontToUse.widthOfTextAtSize(value, size);
-        drawText(state, value, totalSectionX + totalSectionWidth - 5 - valueWidth, verticalCenterY, { font: fontToUse, size, color });
-
-        currentY -= totalRowHeight;
+        if (isVes) {
+          drawRow('Tasa de Cambio:', `${effectiveExchangeRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/USD`, false, DARK_GRAY, 8);
+        }
       };
 
-      // Draw rows
-      drawTotalRow('Base Imponible:', `${order.currency} ${calculatedTotals.baseImponible.toFixed(2)}`);
+      // Draw USD Box (Left)
+      drawBox(usdBoxX, state.y - totalSectionHeight, 'TOTALES EN USD', usdTotals, '$', false);
 
-      // NEW: Descuento
-      drawTotalRow('Monto Descuento:', `- ${order.currency} ${calculatedTotals.montoDescuento.toFixed(2)}`, false, PROC_RED);
+      // Draw VES Box (Right)
+      drawBox(vesBoxX, state.y - totalSectionHeight, 'TOTALES EN VES', vesTotals, 'Bs.', true);
 
-      // NEW: Venta
-      drawTotalRow('Monto Venta:', `+ ${order.currency} ${calculatedTotals.montoVenta.toFixed(2)}`, false, PROC_RED);
-
-      drawTotalRow('Monto IVA:', `+ ${order.currency} ${calculatedTotals.montoIVA.toFixed(2)}`);
-
-      drawTotalRow('TOTAL:', `${order.currency} ${calculatedTotals.total.toFixed(2)}`, true, PROC_RED, FONT_SIZE + 2);
-
-      if (hasUsdTotal) {
-        const totalInUSD = (calculatedTotals.total / order.exchange_rate).toFixed(2);
-        drawTotalRow('TOTAL (USD):', `USD ${totalInUSD}`, true, DARK_GRAY, FONT_SIZE);
-      }
-
-      // Update state.y to be below the total box
+      // Update state.y
       state.y = state.y - totalSectionHeight - LINE_HEIGHT;
 
+      // Amount in words (use the order's original currency amount for the words)
       const amountInWords = numberToWords(calculatedTotals.total, order.currency as 'VES' | 'USD');
-      drawText(state, `Monto en Letras: ${amountInWords}`, MARGIN, state.y, { font: italicFont });
+      drawText(state, `Monto en Letras (${order.currency}): ${amountInWords}`, MARGIN, state.y, { font: italicFont });
       state.y -= LINE_HEIGHT * 3;
+
       return state;
     };
 
@@ -709,13 +771,44 @@ serve(async (req: Request) => {
       return state;
     };
 
+    // --- Fetch Daily Rate if needed ---
+    let effectiveExchangeRate = order.exchange_rate;
+
+    if (!effectiveExchangeRate || effectiveExchangeRate <= 0) {
+      console.log('[generate-po-pdf] Exchange rate missing. Fetching daily rate...');
+      try {
+        const rateResponse = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+        if (rateResponse.ok) {
+          const rateData = await rateResponse.json();
+          const rate = rateData.promedio || rateData.valor;
+          if (typeof rate === 'number' && rate > 0) {
+            effectiveExchangeRate = rate;
+            console.log(`[generate-po-pdf] Fetched daily rate: ${effectiveExchangeRate}`);
+          } else {
+            console.warn('[generate-po-pdf] Invalid rate data received from API');
+          }
+        } else {
+          console.warn('[generate-po-pdf] Failed to fetch daily rate from API. Status:', rateResponse.status);
+        }
+      } catch (rateError) {
+        console.warn('[generate-po-pdf] Error fetching daily rate:', rateError);
+      }
+    }
+
+    // Default to 1 if still missing (to avoid division by zero, though this implies USD=VES which is wrong but prevents crash)
+    // Or handle it gracefully in the display.
+    if (!effectiveExchangeRate) {
+      effectiveExchangeRate = 1;
+      console.warn('[generate-po-pdf] Warning: No exchange rate available. Defaulting to 1 to prevent errors.');
+    }
+
     // --- Execution Flow ---
     state = await drawHeader(state, order);
     state = drawSupplierDetails(state, order);
     state = drawOrderDetails(state, order);
     state = drawObservations(state, order);
     state = drawItemsTable(state, items);
-    state = drawTotalsAndSummary(state, order, items);
+    state = await drawTotalsAndSummary(state, order, items, effectiveExchangeRate);
     state = drawFooter(state, order, user);
 
     const pdfBytes = await pdfDoc.save();
@@ -729,7 +822,7 @@ serve(async (req: Request) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 

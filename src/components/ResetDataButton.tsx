@@ -27,7 +27,7 @@ const ResetDataButton = () => {
     const loadingToastId = showLoading('Reiniciando datos y secuencias...');
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/reset-data-and-sequences`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-data-and-sequences`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

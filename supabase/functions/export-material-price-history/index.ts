@@ -5,33 +5,38 @@ import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
 
 // Helper function to convert price to the base currency
 const convertPriceToBase = (entry: any, base: 'USD' | 'VES'): number | null => {
-    const price = entry.unit_price;
-    const currency = entry.currency;
-    const rate = entry.exchange_rate;
+  const price = entry.unit_price;
+  const currency = entry.currency;
+  const rate = entry.exchange_rate;
 
-    if (currency === base) {
-        return price;
+  if (currency === base) {
+    return price;
+  }
+
+  if (base === 'USD' && currency === 'VES') {
+    if (rate && rate > 0) {
+      return price / rate;
     }
-
-    if (base === 'USD' && currency === 'VES') {
-        if (rate && rate > 0) {
-            return price / rate;
-        }
-        return null;
-    }
-
-    if (base === 'VES' && currency === 'USD') {
-        if (rate && rate > 0) {
-            return price * rate;
-        }
-        return null;
-    }
-
     return null;
+  }
+
+  if (base === 'VES' && currency === 'USD') {
+    if (rate && rate > 0) {
+      return price * rate;
+    }
+    return null;
+  }
+
+  return null;
 };
 
 serve(async (req) => {
@@ -63,10 +68,10 @@ serve(async (req) => {
     console.log(`[export-material-price-history] Export request for material ID: ${materialId}, Base Currency: ${baseCurrency} by user: ${user.email}`);
 
     if (!materialId || !baseCurrency) {
-        return new Response(JSON.stringify({ error: 'Material ID y Moneda Base son requeridos.' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      return new Response(JSON.stringify({ error: 'Material ID y Moneda Base son requeridos.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Fetch price history data
@@ -85,29 +90,28 @@ serve(async (req) => {
     }
 
     const dataToExport = history.map(entry => {
-        const convertedPrice = convertPriceToBase(entry, baseCurrency);
-        
-        return {
-            'ID Transacción': entry.id.substring(0, 8),
-            'Proveedor': entry.suppliers?.name || 'N/A',
-            'Cód. Proveedor': entry.suppliers?.code || 'N/A',
-            'Precio Unitario Original': entry.unit_price,
-            'Moneda Original': entry.currency,
-            'Tasa de Cambio (USD/VES)': entry.exchange_rate || 'N/A',
-            [`Precio Convertido (${baseCurrency})`]: convertedPrice !== null ? convertedPrice.toFixed(4) : 'N/A',
-            'Fecha Registro': new Date(entry.recorded_at).toLocaleString('es-VE'),
-            'ID Orden de Compra': entry.purchase_order_id ? entry.purchase_order_id.substring(0, 8) : 'N/A',
-        };
+      const convertedPrice = convertPriceToBase(entry, baseCurrency);
+
+      return {
+        'ID Transacción': entry.id.substring(0, 8),
+        'Proveedor': entry.suppliers?.name || 'N/A',
+        'Cód. Proveedor': entry.suppliers?.code || 'N/A',
+        'Precio Unitario Original': entry.unit_price,
+        'Moneda Original': entry.currency,
+        'Tasa de Cambio (USD/VES)': entry.exchange_rate || 'N/A',
+        [`Precio Convertido (${baseCurrency})`]: convertedPrice !== null ? convertedPrice.toFixed(4) : 'N/A',
+        'Fecha Registro': new Date(entry.recorded_at).toLocaleString('es-VE'),
+        'ID Orden de Compra': entry.purchase_order_id ? entry.purchase_order_id.substring(0, 8) : 'N/A',
+      };
     });
 
     const headers = [
-        'ID Transacción', 'Proveedor', 'Cód. Proveedor', 'Precio Unitario Original', 
-        'Moneda Original', 'Tasa de Cambio (USD/VES)', `Precio Convertido (${baseCurrency})`, 
-        'Fecha Registro', 'ID Orden de Compra'
+      'ID Transacción', 'Proveedor', 'Cód. Proveedor', 'Precio Unitario Original',
+      'Moneda Original', 'Tasa de Cambio (USD/VES)', `Precio Convertido (${baseCurrency})`,
+      'Fecha Registro', 'ID Orden de Compra'
     ];
-    
-    const safeMaterialName = (materialName || 'Material').replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-    const fileName = `Historial_Precios_${safeMaterialName}_${baseCurrency}.xlsx`;
+
+    const fileName = `Historial_Precios_${materialName || 'Material'}_${baseCurrency}.xlsx`;
 
     const ws = XLSX.utils.json_to_sheet(dataToExport, { header: headers });
     const wb = XLSX.utils.book_new();
@@ -121,7 +125,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(fileName)}"`,
       },
     });
 

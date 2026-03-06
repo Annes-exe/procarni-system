@@ -5,7 +5,12 @@ import { PDFDocument, rgb, StandardFonts, PDFPage, PageSizes } from 'https://esm
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
 
 // --- CONSTANTS ---
 const PROC_RED = rgb(0.533, 0.039, 0.039); // #880a0a
@@ -21,32 +26,32 @@ const MIN_ROW_HEIGHT = LINE_HEIGHT * 1.5;
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
-  
+
   const date = dateString ? new Date(dateString) : new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const seq = String(sequence).padStart(3, '0');
-  
+
   return `OC-${year}-${month}-${seq}`;
 };
 
 const convertPriceToUSD = (entry: any): number | null => {
-    const price = entry.unit_price;
-    const currency = entry.currency;
-    const rate = entry.exchange_rate;
+  const price = entry.unit_price;
+  const currency = entry.currency;
+  const rate = entry.exchange_rate;
 
-    if (currency === 'USD') {
-        return price;
+  if (currency === 'USD') {
+    return price;
+  }
+
+  if (currency === 'VES') {
+    if (rate && rate > 0) {
+      return price / rate;
     }
-
-    if (currency === 'VES') {
-        if (rate && rate > 0) {
-            return price / rate;
-        }
-        return null;
-    }
-
     return null;
+  }
+
+  return null;
 };
 
 function wrapText(text: string, maxCharsPerLine: number): string[] {
@@ -98,24 +103,24 @@ serve(async (req) => {
     console.log(`[generate-supplier-price-history-pdf] Generating PDF for supplier ID: ${supplierId} by user: ${user.email}`);
 
     if (!supplierId) {
-        return new Response(JSON.stringify({ error: 'Supplier ID es requerido.' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      return new Response(JSON.stringify({ error: 'Supplier ID es requerido.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Fetch supplier details
     const { data: supplier, error: supplierError } = await supabaseClient
-        .from('suppliers')
-        .select('name, code, rif')
-        .eq('id', supplierId)
-        .single();
+      .from('suppliers')
+      .select('name, code, rif')
+      .eq('id', supplierId)
+      .single();
 
     if (supplierError || !supplier) {
-        return new Response(JSON.stringify({ error: 'Proveedor no encontrado.' }), {
-            status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      return new Response(JSON.stringify({ error: 'Proveedor no encontrado.' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Fetch price history data for the supplier, joining material and PO details
@@ -137,7 +142,7 @@ serve(async (req) => {
     // --- PDF Setup ---
     const pdfDoc = await PDFDocument.create();
     // Use A4_LANDSCAPE for horizontal format
-    let page = pdfDoc.addPage(PageSizes.A4_LANDSCAPE); 
+    let page = pdfDoc.addPage(PageSizes.A4_LANDSCAPE);
     const { width, height } = page.getSize();
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -157,12 +162,12 @@ serve(async (req) => {
 
     // --- Core Drawing Helpers (Defined inside to access embedded fonts) ---
     const drawText = (state: PDFState, text: string, x: number, yPos: number, options: any = {}) => {
-      const safeText = String(text || 'N/A'); 
+      const safeText = String(text || 'N/A');
       state.page.drawText(safeText, {
         x,
         y: yPos,
-        font: options.font || state.font, 
-        size: options.size || FONT_SIZE, 
+        font: options.font || state.font,
+        size: options.size || FONT_SIZE,
         color: rgb(0, 0, 0),
         ...options,
       });
@@ -182,13 +187,13 @@ serve(async (req) => {
       tableWidth * 0.10,  // 6. N° OC (10%)
     ];
     const colHeaders = [
-      'Material', 'Cód. Mat.', 'P. Unit.', 'Moneda', 'Tasa (USD/VES)', 
+      'Material', 'Cód. Mat.', 'P. Unit.', 'Moneda', 'Tasa (USD/VES)',
       'Precio Convertido (USD)', 'N° Orden Compra'
     ];
-    
+
     const drawTableHeader = (state: PDFState): PDFState => {
       let currentX = MARGIN;
-      
+
       // Draw thin gray line below header row
       state.page.drawLine({
         start: { x: MARGIN, y: state.y - LINE_HEIGHT },
@@ -196,25 +201,25 @@ serve(async (req) => {
         thickness: 1,
         color: LIGHT_GRAY,
       });
-      
+
       for (let i = 0; i < colHeaders.length; i++) {
         // Determine alignment for header text (Indices: 1, 2, 4, 5 are right aligned)
-        const isRightAligned = [1, 2, 4, 5].includes(i); 
-        
+        const isRightAligned = [1, 2, 4, 5].includes(i);
+
         const headerText = colHeaders[i];
         const textWidth = state.boldFont.widthOfTextAtSize(headerText, 7); // Use smaller font for headers
-        
+
         let xPos;
         if (isRightAligned) {
-            // Align header text to the right of the column, with 2pt padding
-            xPos = currentX + colWidths[i] - 2 - textWidth;
+          // Align header text to the right of the column, with 2pt padding
+          xPos = currentX + colWidths[i] - 2 - textWidth;
         } else {
-            // Align header text to the left of the column, with 2pt padding
-            xPos = currentX + 2;
+          // Align header text to the left of the column, with 2pt padding
+          xPos = currentX + 2;
         }
 
-        drawText(state, headerText, xPos, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, { 
-          font: boldFont, 
+        drawText(state, headerText, xPos, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
+          font: boldFont,
           size: 7, // Smaller header font
           color: PROC_RED
         });
@@ -234,11 +239,11 @@ serve(async (req) => {
       return state;
     };
     // --------------------------------------------------------------------
-    
+
     // --- Header ---
     drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS POR PROVEEDOR', MARGIN, state.y, { font: boldFont, size: 16, color: PROC_RED });
     state.y -= LINE_HEIGHT * 2;
-    
+
     drawText(state, `PROVEEDOR: ${supplier.name} (${supplier.code || supplier.rif})`, MARGIN, state.y, { font: boldFont, size: 12 });
     state.y -= LINE_HEIGHT;
     drawText(state, `Moneda Base de Comparación: USD`, MARGIN, state.y, { font: boldFont, size: 10 });
@@ -258,94 +263,94 @@ serve(async (req) => {
     state = drawTableHeader(state);
 
     if (history.length === 0) {
-        drawText(state, 'No se encontró historial de precios para este proveedor.', MARGIN, state.y - LINE_HEIGHT);
-        state.y -= LINE_HEIGHT * 2;
+      drawText(state, 'No se encontró historial de precios para este proveedor.', MARGIN, state.y - LINE_HEIGHT);
+      state.y -= LINE_HEIGHT * 2;
     } else {
-        for (const entry of history) {
-            const convertedPrice = convertPriceToUSD(entry);
-            
-            // Format Order Number
-            const orderSequence = entry.purchase_orders?.sequence_number;
-            const orderDate = entry.purchase_orders?.created_at;
-            const orderNumber = orderSequence ? formatSequenceNumber(orderSequence, orderDate) : 'N/A';
+      for (const entry of history) {
+        const convertedPrice = convertPriceToUSD(entry);
 
-            // --- Calculate required row height based on wrapped Material Name ---
-            const maxCharsPerLine = 40; 
-            const materialLines = wrapText(entry.materials?.name || 'N/A', maxCharsPerLine);
-            
-            const requiredTextHeight = materialLines.length * TIGHT_LINE_SPACING + 5; 
-            const rowHeight = Math.max(MIN_ROW_HEIGHT, requiredTextHeight); 
-            
-            state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader); 
+        // Format Order Number
+        const orderSequence = entry.purchase_orders?.sequence_number;
+        const orderDate = entry.purchase_orders?.created_at;
+        const orderNumber = orderSequence ? formatSequenceNumber(orderSequence, orderDate) : 'N/A';
 
-            // Draw separator line above row content
-            state.page.drawLine({
-                start: { x: MARGIN, y: state.y },
-                end: { x: MARGIN + tableWidth, y: state.y },
-                thickness: 0.5,
-                color: LIGHT_GRAY,
-            });
+        // --- Calculate required row height based on wrapped Material Name ---
+        const maxCharsPerLine = 40;
+        const materialLines = wrapText(entry.materials?.name || 'N/A', maxCharsPerLine);
 
-            let currentX = MARGIN;
-            const finalY = state.y - rowHeight;
-            const verticalCenterY = finalY + rowHeight / 2 - FONT_SIZE / 2;
+        const requiredTextHeight = materialLines.length * TIGHT_LINE_SPACING + 5;
+        const rowHeight = Math.max(MIN_ROW_HEIGHT, requiredTextHeight);
 
-            // Helper to draw data
-            const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = false, fontToUse: any = font) => {
-                const cellWidth = colWidths[colIndex];
-                const textWidth = fontToUse.widthOfTextAtSize(text, FONT_SIZE);
-                
-                let xPos;
-                if (isRightAligned) {
-                    xPos = currentX + cellWidth - 2 - textWidth; // Right aligned
-                } else {
-                    xPos = currentX + 2; // Left aligned
-                }
-                
-                drawText(state, text, xPos, verticalCenterY, { font: fontToUse });
-                currentX += cellWidth;
-            };
-            
-            // 0. Material (Multi-line, Left Aligned)
-            let currentY = state.y - 3; 
-            for (const line of materialLines) {
-                drawText(state, line, currentX + 2, currentY - FONT_SIZE, { size: FONT_SIZE }); 
-                currentY -= TIGHT_LINE_SPACING;
-            }
-            currentX += colWidths[0];
+        state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
 
-            // 1. Cód. Material (Right Aligned)
-            drawCellData(entry.materials?.code || 'N/A', 1, true);
-
-            // 2. Precio Unitario (Right Aligned)
-            drawCellData(entry.unit_price.toFixed(2), 2, true);
-
-            // 3. Moneda (Left Aligned)
-            drawCellData(entry.currency, 3);
-
-            // 4. Tasa (Right Aligned)
-            drawCellData(entry.exchange_rate ? entry.exchange_rate.toFixed(4) : 'N/A', 4, true);
-
-            // 5. Precio Convertido (USD) (Right Aligned, Bold)
-            const convertedText = convertedPrice !== null ? `USD ${convertedPrice.toFixed(2)}` : 'N/A';
-            drawCellData(convertedText, 5, true, boldFont);
-
-            // 6. N° OC (Left Aligned)
-            drawCellData(orderNumber, 6);
-
-            state.y = finalY; // Update Y position for the next row
-        }
-        
-        // Draw final bottom border for the table
+        // Draw separator line above row content
         state.page.drawLine({
-            start: { x: MARGIN, y: state.y },
-            end: { x: MARGIN + tableWidth, y: state.y },
-            thickness: 1,
-            color: LIGHT_GRAY,
+          start: { x: MARGIN, y: state.y },
+          end: { x: MARGIN + tableWidth, y: state.y },
+          thickness: 0.5,
+          color: LIGHT_GRAY,
         });
+
+        let currentX = MARGIN;
+        const finalY = state.y - rowHeight;
+        const verticalCenterY = finalY + rowHeight / 2 - FONT_SIZE / 2;
+
+        // Helper to draw data
+        const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = false, fontToUse: any = font) => {
+          const cellWidth = colWidths[colIndex];
+          const textWidth = fontToUse.widthOfTextAtSize(text, FONT_SIZE);
+
+          let xPos;
+          if (isRightAligned) {
+            xPos = currentX + cellWidth - 2 - textWidth; // Right aligned
+          } else {
+            xPos = currentX + 2; // Left aligned
+          }
+
+          drawText(state, text, xPos, verticalCenterY, { font: fontToUse });
+          currentX += cellWidth;
+        };
+
+        // 0. Material (Multi-line, Left Aligned)
+        let currentY = state.y - 3;
+        for (const line of materialLines) {
+          drawText(state, line, currentX + 2, currentY - FONT_SIZE, { size: FONT_SIZE });
+          currentY -= TIGHT_LINE_SPACING;
+        }
+        currentX += colWidths[0];
+
+        // 1. Cód. Material (Right Aligned)
+        drawCellData(entry.materials?.code || 'N/A', 1, true);
+
+        // 2. Precio Unitario (Right Aligned)
+        drawCellData(entry.unit_price.toFixed(2), 2, true);
+
+        // 3. Moneda (Left Aligned)
+        drawCellData(entry.currency, 3);
+
+        // 4. Tasa (Right Aligned)
+        drawCellData(entry.exchange_rate ? entry.exchange_rate.toFixed(4) : 'N/A', 4, true);
+
+        // 5. Precio Convertido (USD) (Right Aligned, Bold)
+        const convertedText = convertedPrice !== null ? `USD ${convertedPrice.toFixed(2)}` : 'N/A';
+        drawCellData(convertedText, 5, true, boldFont);
+
+        // 6. N° OC (Left Aligned)
+        drawCellData(orderNumber, 6);
+
+        state.y = finalY; // Update Y position for the next row
+      }
+
+      // Draw final bottom border for the table
+      state.page.drawLine({
+        start: { x: MARGIN, y: state.y },
+        end: { x: MARGIN + tableWidth, y: state.y },
+        thickness: 1,
+        color: LIGHT_GRAY,
+      });
     }
-    
-    state.y -= LINE_HEIGHT * 4; 
+
+    state.y -= LINE_HEIGHT * 4;
 
     // --- Footer ---
     const footerY = MARGIN;
@@ -361,7 +366,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 

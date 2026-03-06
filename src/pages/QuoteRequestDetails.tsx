@@ -1,102 +1,63 @@
+// src/pages/QuoteRequestDetails.tsx
+
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Download, ShoppingCart, Mail, MoreVertical, CheckCircle, Tag, Building2, DollarSign, Clock, Users } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
-import { getQuoteRequestDetails, updateQuoteRequestStatus } from '@/integrations/supabase/data';
+import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2, ChevronDown, Archive, Trash2, RotateCcw } from 'lucide-react';
+
+import { quoteRequestService } from '@/services/quoteRequestService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import QuoteRequestPreviewModal, { QuoteRequestPreviewModalRef } from '@/components/QuoteRequestPreviewModal';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
-import WhatsAppSenderButton from '@/components/WhatsAppSenderButton';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Importar la localización en español
+import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel 
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-
-interface QuoteRequestItem {
-  id: string;
-  material_name: string;
-  description?: string;
-  unit?: string;
-  quantity: number;
-  is_exempt?: boolean;
-}
-
-interface SupplierDetails {
-  id: string;
-  name: string;
-  rif: string;
-  email?: string;
-  phone?: string;
-  phone_2?: string;
-  instagram?: string;
-  address?: string;
-}
-
-interface CompanyDetails {
-  id: string;
-  name: string;
-  logo_url?: string;
-  fiscal_data?: any;
-}
-
-interface QuoteRequestDetailsData {
-  id: string;
-  supplier_id: string;
-  suppliers: SupplierDetails;
-  company_id: string;
-  companies: CompanyDetails;
-  currency: string;
-  exchange_rate?: number | null;
-  status: 'Draft' | 'Sent' | 'Archived' | 'Approved';
-  created_at: string;
-  created_by?: string;
-  user_id: string;
-  quote_request_items: QuoteRequestItem[];
-}
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
-  'Sent': 'Enviada',
   'Approved': 'Aprobada',
+  'Rejected': 'Rechazada',
   'Archived': 'Archivada',
 };
 
 const QuoteRequestDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session } = useSession();
+  const { session, role } = useSession();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
+  const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
-  
+  const [isRejecting, setIsRejecting] = useState(false);
+
   const qrViewerRef = React.useRef<QuoteRequestPreviewModalRef>(null);
 
-  const { data: request, isLoading, error } = useQuery<QuoteRequestDetailsData | null>({
+  const { data: request, isLoading, error } = useQuery({
     queryKey: ['quoteRequestDetails', id],
     queryFn: async () => {
       if (!id) throw new Error('Quote Request ID is missing.');
-      const details = await getQuoteRequestDetails(id);
-      if (!details) throw new Error('Quote Request not found.');
-      return details as QuoteRequestDetailsData;
+      return await quoteRequestService.getById(id);
     },
     enabled: !!id,
   });
@@ -115,28 +76,68 @@ const QuoteRequestDetails = () => {
 
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
-    const toastId = showLoading('Aprobando solicitud...');
-    
+
     try {
-      const success = await updateQuoteRequestStatus(request.id, 'Approved');
-      if (success) {
-        showSuccess('Solicitud de Cotización aprobada exitosamente.');
-        queryClient.invalidateQueries({ queryKey: ['quoteRequestDetails', id] });
-        queryClient.invalidateQueries({ queryKey: ['quoteRequests', 'Active'] });
-        queryClient.invalidateQueries({ queryKey: ['quoteRequests', 'Approved'] });
-      } else {
-        throw new Error('Fallo al actualizar el estado.');
-      }
+      await quoteRequestService.updateStatus(request.id, 'Approved');
+      showSuccess('Solicitud de Cotización aprobada exitosamente.');
+      queryClient.invalidateQueries({ queryKey: ['quoteRequestDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+
     } catch (error: any) {
       showError(error.message || 'Error al aprobar la solicitud.');
     } finally {
-      dismissToast(toastId);
       setIsApproving(false);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    if (!request || request.status === 'Rejected') return;
+
+    setIsRejectConfirmOpen(false);
+    setIsRejecting(true);
+
+    try {
+      await quoteRequestService.updateStatus(request.id, 'Rejected');
+      showSuccess('Solicitud de Cotización rechazada exitosamente.');
+      queryClient.invalidateQueries({ queryKey: ['quoteRequestDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+
+    } catch (error: any) {
+      showError(error.message || 'Error al rechazar la solicitud.');
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!request || request.status === newStatus) return;
+
+    if (newStatus === 'Approved') {
+      setIsApproveConfirmOpen(true);
+      return;
+    }
+
+    if (newStatus === 'Rejected') {
+      setIsRejectConfirmOpen(true);
+      return;
+    }
+
+    const toastId = showLoading(`Cambiando estado a ${STATUS_TRANSLATIONS[newStatus] || newStatus}...`);
+    try {
+      await quoteRequestService.updateStatus(request.id, newStatus as any);
+      showSuccess(`Estado cambiado a ${STATUS_TRANSLATIONS[newStatus] || newStatus} exitosamente.`);
+      queryClient.invalidateQueries({ queryKey: ['quoteRequestDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['quoteRequests'] });
+    } catch (error: any) {
+      showError(error.message || 'Error al cambiar el estado.');
+    } finally {
+      dismissToast(toastId);
     }
   };
 
   const generateFileName = () => {
     if (!request) return '';
+    // @ts-ignore
     const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
     const date = new Date(request.created_at).toLocaleDateString('es-VE').replace(/\//g, '-');
     return `SC_${request.id.substring(0, 8)}_${supplierName}_${date}.pdf`;
@@ -157,14 +158,14 @@ const QuoteRequestDetails = () => {
     });
   };
 
-  const handleSendEmail = async (customMessage: string, sendWhatsApp: boolean, phone?: string) => {
+  const handleSendEmail = async (customMessage: string) => {
     if (!session?.user?.email || !request) return;
 
     const toastId = showLoading('Generando PDF y enviando correo...');
 
     try {
       // 1. Generate PDF
-      const pdfResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-qr-pdf`, {
+      const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-qr-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -184,21 +185,27 @@ const QuoteRequestDetails = () => {
       // 2. Send Email
       const emailBody = `
         <h2>Solicitud de Cotización #${request.id.substring(0, 8)}</h2>
-        <p><strong>Empresa:</strong> ${request.companies?.name}</p>
-        <p><strong>Proveedor:</strong> ${request.suppliers?.name}</p>
+        <p><strong>Empresa:</strong> ${
+        // @ts-ignore
+        request.companies?.name}</p>
+        <p><strong>Proveedor:</strong> ${
+        // @ts-ignore
+        request.suppliers?.name}</p>
         <p><strong>Fecha:</strong> ${format(new Date(request.created_at), 'PPP', { locale: es })}</p>
         ${customMessage ? `<p><strong>Mensaje:</strong><br>${customMessage.replace(/\n/g, '<br>')}</p>` : ''}
         <p>Se adjunta el PDF con los detalles de la solicitud.</p>
       `;
 
-      const emailResponse = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/send-email`, {
+      const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          // @ts-ignore
           to: request.suppliers?.email,
+          // @ts-ignore
           subject: `Solicitud de Cotización #${request.id.substring(0, 8)} - ${request.companies?.name}`,
           body: emailBody,
           attachmentBase64: pdfBase64,
@@ -211,14 +218,7 @@ const QuoteRequestDetails = () => {
         throw new Error(errorData.error || 'Error al enviar el correo.');
       }
 
-      // 3. Send WhatsApp (if requested)
-      if (sendWhatsApp && phone) {
-        const formattedPhone = phone.replace(/\D/g, '');
-        const finalPhone = formattedPhone.startsWith('58') ? formattedPhone : `58${formattedPhone}`;
-        const whatsappMessage = `Hola, te he enviado por correo la Solicitud de Cotización #${request.id.substring(0, 8)} de ${request.companies?.name}. Por favor, revisa tu bandeja de entrada.`;
-        const whatsappUrl = `https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-        window.open(whatsappUrl, '_blank');
-      }
+      // 3. Send WhatsApp removed as it is incomplete
 
       dismissToast(toastId);
       showSuccess('Correo enviado exitosamente.');
@@ -233,8 +233,9 @@ const QuoteRequestDetails = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando detalles de la solicitud de cotización...
+      <div className="container mx-auto p-4 text-center text-muted-foreground pt-20">
+        <Loader2 className="h-10 w-10 animate-spin mx-auto text-procarni-secondary mb-4" />
+        <p>Cargando detalles de la solicitud...</p>
       </div>
     );
   }
@@ -262,7 +263,7 @@ const QuoteRequestDetails = () => {
     );
   }
 
-  const isEditable = request.status !== 'Approved' && request.status !== 'Archived';
+  const isEditable = (request.status === 'Draft' || role === 'admin') && request.status !== 'Archived';
 
   const handleModalOpenChange = (open: boolean) => {
     setIsModalOpen(open);
@@ -271,218 +272,292 @@ const QuoteRequestDetails = () => {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusColorClass = (status: string) => {
     switch (status) {
-      case 'Draft':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'Sent':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'Approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'Archived':
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-600';
+      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
+      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
+      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
+      default: return 'bg-gray-50 text-gray-500';
     }
   };
 
-  const ActionButtons = () => (
-    <>
-      {/* 1. Previsualizar PDF */}
-      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-        <DialogTrigger asChild>
-          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-            <span className="flex items-center">
-              <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-            </span>
-          </DropdownMenuItem>
-        </DialogTrigger>
-        <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Previsualización de Solicitud de Cotización</DialogTitle>
-          </DialogHeader>
-          <QuoteRequestPreviewModal
-            requestId={request.id}
-            onClose={() => setIsModalOpen(false)}
-            fileName={generateFileName()}
-            ref={qrViewerRef}
-          />
-        </DialogContent>
-      </Dialog>
-      
-      {/* 2. Descargar PDF */}
-      <DropdownMenuItem asChild>
-        <PDFDownloadButton
-          requestId={request.id}
-          fileNameGenerator={generateFileName}
-          endpoint="generate-qr-pdf"
-          label="Descargar PDF"
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {/* 3. Enviar por Correo */}
-      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsEmailModalOpen(true); }} disabled={!request.suppliers?.email} className="cursor-pointer">
-        <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-      </DropdownMenuItem>
-      
-      {/* 4. Enviar por WhatsApp */}
-      <DropdownMenuItem asChild>
-        <WhatsAppSenderButton
-          recipientPhone={request.suppliers?.phone}
-          documentType="Solicitud de Cotización"
-          documentId={request.id}
-          documentNumber={request.id.substring(0, 8)}
-          companyName={request.companies?.name || ''}
-          variant="ghost"
-          asChild
-        />
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      {/* 5. Aprobar Solicitud */}
-      {request.status !== 'Approved' && request.status !== 'Archived' && (
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setIsApproveConfirmOpen(true); }} disabled={isApproving} className="cursor-pointer text-green-600 focus:text-green-700">
-          <CheckCircle className="mr-2 h-4 w-4" /> Aprobar Solicitud
-        </DropdownMenuItem>
-      )}
-
-      {/* 6. Editar Solicitud */}
-      {isEditable ? (
-        <DropdownMenuItem onSelect={() => navigate(`/quote-requests/edit/${request.id}`)} className="cursor-pointer">
-          <Edit className="mr-2 h-4 w-4" /> Editar Solicitud
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem disabled>
-          <Edit className="mr-2 h-4 w-4" /> Editar Solicitud (No editable)
-        </DropdownMenuItem>
-      )}
-
-      <DropdownMenuSeparator />
-
-      {/* 7. Convertir a OC */}
-      <DropdownMenuItem onSelect={handleConvertToPurchaseOrder} className="cursor-pointer text-procarni-secondary focus:text-green-700">
-        <ShoppingCart className="mr-2 h-4 w-4" /> Convertir a OC
-      </DropdownMenuItem>
-    </>
-  );
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1 block";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500";
+  const valueClass = "text-procarni-dark font-medium text-sm";
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary">
-              <MoreVertical className="h-4 w-4" />
-              <span className="ml-2">Acciones</span>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-10 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+
+        {/* Title & Status */}
+        <div className="flex flex-col gap-1 w-full md:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/quote-request-management')} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>Opciones de Solicitud</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <ActionButtons />
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
+              <span className="text-gray-400 font-light">#</span>{request.id.substring(0, 8)}
+            </h1>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
+                    getStatusColorClass(request.status)
+                  )}
+                >
+                  {STATUS_TRANSLATIONS[request.status] || request.status}
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
+                  const isRestrictedState = request.status === 'Approved' || request.status === 'Rejected';
+                  const isDisabled = isRestrictedState && role !== 'admin' && status !== request.status;
+
+                  return (
+                    <DropdownMenuItem
+                      key={status}
+                      onSelect={() => handleStatusChange(status)}
+                      className={cn(status === request.status && "bg-gray-100 font-medium")}
+                      disabled={isDisabled}
+                    >
+                      {label}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Action Toolbar */}
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Primary Actions: Approve and Edit */}
+            {(request.status === 'Draft' || role === 'admin') && request.status !== 'Approved' && request.status !== 'Archived' && (
+              <Button
+                onClick={() => setIsApproveConfirmOpen(true)}
+                disabled={isApproving || isRejecting}
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                size="sm"
+              >
+                <CheckCircle className="h-4 w-4" />
+                <span className="hidden sm:inline">Aprobar Solicitud</span>
+              </Button>
+            )}
+
+            {isEditable && (
+              <Button
+                onClick={() => navigate(`/quote-requests/edit/${request.id}`)}
+                variant="outline"
+                size="sm"
+                className="gap-2 order-1 md:order-2"
+              >
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+            )}
+
+            {/* Secondary Actions: Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 order-3">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="hidden sm:inline">Acciones</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                </DropdownMenuItem>
+
+                <DropdownMenuItem asChild>
+                  <PDFDownloadButton
+                    requestId={request.id}
+                    fileNameGenerator={generateFileName}
+                    endpoint="generate-qr-pdf"
+                    label="Descargar PDF"
+                    variant="ghost"
+                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
+                  />
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onSelect={() => setIsEmailModalOpen(true)}
+                  // @ts-ignore
+                  disabled={!request.suppliers?.email}
+                >
+                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Flujo de Trabajo</DropdownMenuLabel>
+
+                <DropdownMenuItem onSelect={handleConvertToPurchaseOrder}>
+                  <ShoppingCart className="mr-2 h-4 w-4" /> Convertir a OC
+                </DropdownMenuItem>
+
+                {(request.status === 'Draft' || role === 'admin') && request.status !== 'Archived' && request.status !== 'Rejected' && (
+                  <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
+                    <Clock className="mr-2 h-4 w-4" /> Rechazar Solicitud
+                  </DropdownMenuItem>
+                )}
+
+                {request.status !== 'Archived' ? (
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Archived')}>
+                    <Archive className="mr-2 h-4 w-4" /> Archivar
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Draft')}>
+                    <RotateCcw className="mr-2 h-4 w-4" /> Desarchivar
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Preview Dialog remains the same, but it's now triggered from dropdown */}
+            <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+              <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 gap-0">
+                <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                  <DialogTitle>Previsualización de Documento</DialogTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setIsModalOpen(false)}>Cerrar</Button>
+                </div>
+                <div className="flex-1 overflow-hidden bg-gray-100">
+                  <QuoteRequestPreviewModal
+                    requestId={request.id}
+                    onClose={() => setIsModalOpen(false)}
+                    fileName={generateFileName()}
+                    ref={qrViewerRef}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Solicitud de Cotización #{request.id.substring(0, 8)}</CardTitle>
-          <CardDescription>Detalles completos de la solicitud de cotización.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6 p-4 border rounded-lg bg-muted/50">
-            <p className="flex items-center">
-              <Tag className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>ID:</strong> {request.id.substring(0, 8)}
-            </p>
-            <p className="flex items-center">
-              <Building2 className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Empresa:</strong> {request.companies?.name || 'N/A'}
-            </p>
-            <p className="flex items-center">
-              <Users className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Proveedor:</strong> {request.suppliers?.name || 'N/A'}
-            </p>
-            <p className="flex items-center">
-              <DollarSign className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Moneda:</strong> {request.currency}
-            </p>
-            {request.exchange_rate && <p className="flex items-center">
-              <DollarSign className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Tasa de Cambio:</strong> {request.exchange_rate.toFixed(2)}
-            </p>}
-            <p className="flex items-center">
-              <Clock className="mr-2 h-4 w-4 text-procarni-primary" />
-              <strong>Fecha:</strong> {format(new Date(request.created_at), 'PPP', { locale: es })}
-            </p>
-            <p className="md:col-span-3">
-              <strong>Estado:</strong> 
-              <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(request.status))}>
-                {STATUS_TRANSLATIONS[request.status] || request.status}
-              </span>
+      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {/* PHASE 2: INFO GRID */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1">
+          {/* Company */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Empresa</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{request.companies?.name || 'N/A'}</p>
+            {/* @ts-ignore */}
+            <p className="text-xs text-gray-500">{request.companies?.rif}</p>
+          </div>
+
+          {/* Supplier */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Proveedor</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{request.suppliers?.name || 'N/A'}</p>
+            {/* @ts-ignore */}
+            {(request.suppliers?.email || request.suppliers?.phone) && (
+              <p className="text-xs text-gray-500">
+                {/* @ts-ignore */}
+                {request.suppliers?.email}
+              </p>
+            )}
+          </div>
+
+          {/* Date */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Solicitud</span>
+            <p className={valueClass}>
+              {format(new Date(request.created_at), 'PPP', { locale: es })}
             </p>
           </div>
 
-          <h3 className="text-lg font-semibold mt-8 mb-4 text-procarni-primary">Ítems Solicitados</h3>
+          {/* Created By */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Elaborado Por</span>
+            {/* @ts-ignore */}
+            <p className={valueClass}>{request.created_by || '---'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* PHASE 3: ITEMS TABLE */}
+      <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
+        <CardContent className="p-0">
+          {/* @ts-ignore */}
           {request.quote_request_items && request.quote_request_items.length > 0 ? (
             isMobile ? (
-              <div className="space-y-3">
+              <div className="grid gap-0 divide-y divide-gray-100">
+                {/* @ts-ignore */}
                 {request.quote_request_items.map((item) => (
-                  <Card key={item.id} className="p-3 shadow-sm">
-                    <p className="font-semibold text-procarni-primary">{item.material_name}</p>
-                    <div className="text-sm mt-1 space-y-0.5">
-                      <p><strong>Cantidad:</strong> {item.quantity} {item.unit || 'N/A'}</p>
-                      <p><strong>Descripción:</strong> {item.description || 'N/A'}</p>
+                  <div key={item.id} className="p-4 bg-white hover:bg-gray-50">
+                    <div className="flex justify-between items-start mb-1">
+                      {/* @ts-ignore */}
+                      <p className="font-semibold text-procarni-primary text-sm">{item.materials?.name || item.material_name}</p>
+                      <Badge variant="outline" className="ml-2 font-mono text-[10px]">{item.quantity} {item.unit}</Badge>
                     </div>
-                  </Card>
+                    {item.description && (
+                      <p className="text-xs text-gray-500 line-clamp-2">{item.description}</p>
+                    )}
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Material</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>Unidad</TableHead>
-                      <TableHead>Descripción</TableHead>
+              <Table>
+                <TableHeader className="bg-gray-50/80">
+                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
+                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6 w-[40%]"}>Material / Descripción</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>Cantidad</TableHead>
+                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>Unidad</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* @ts-ignore */}
+                  {request.quote_request_items.map((item) => (
+                    <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                      <TableCell className="pl-6 py-4">
+                        <span className="font-medium text-procarni-dark text-sm block">
+                          {/* @ts-ignore */}
+                          {item.materials?.name || item.material_name}
+                        </span>
+                        {item.description && (
+                          <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center font-mono text-sm text-gray-600">{item.quantity}</TableCell>
+                      <TableCell className="text-center text-xs text-gray-500">{item.unit || '---'}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {request.quote_request_items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.material_name}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>{item.unit || 'N/A'}</TableCell>
-                        <TableCell>{item.description || 'N/A'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             )
           ) : (
-            <p className="text-muted-foreground">Esta solicitud no tiene ítems registrados.</p>
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems registrados.</p>
+            </div>
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       <EmailSenderModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
-        onSend={(message, sendWhatsApp) => handleSendEmail(message, sendWhatsApp, request.suppliers?.phone)}
+        // @ts-ignore
+        onSend={(message) => handleSendEmail(message)}
+        // @ts-ignore
         recipientEmail={request.suppliers?.email || ''}
-        recipientPhone={request.suppliers?.phone}
         documentType="Solicitud de Cotización"
         documentId={request.id}
       />
@@ -492,13 +567,30 @@ const QuoteRequestDetails = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Aprobación</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Estás seguro de que deseas aprobar esta Solicitud de Cotización? Esto marcará la solicitud como finalizada.
+              ¿Estás seguro de que deseas aprobar esta Solicitud de Cotización? Esto marcará la solicitud como finalizada y lista para generar una Orden de Compra si es necesario.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isApproving}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApproveRequest} disabled={isApproving} className="bg-green-600 hover:bg-green-700">
+            <AlertDialogAction onClick={handleApproveRequest} disabled={isApproving} className="bg-green-600 hover:bg-green-700 text-white">
               {isApproving ? 'Aprobando...' : 'Aprobar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isRejectConfirmOpen} onOpenChange={setIsRejectConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Rechazo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas rechazar esta Solicitud de Cotización? Esta acción marcará la solicitud como rechazada y no podrá ser editada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRejecting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRejectRequest} disabled={isRejecting} className="bg-red-600 hover:bg-red-700 text-white border-red-600">
+              {isRejecting ? 'Rechazando...' : 'Rechazar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

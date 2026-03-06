@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp } from 'lucide-react';
+
 import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import SupplierForm from '@/components/SupplierForm';
@@ -111,12 +111,14 @@ const SupplierManagement = () => {
   }, [suppliers, searchTerm, selectedStatus]);
 
   const createMutation = useMutation({
-    mutationFn: ({ supplierData, materials }: { supplierData: Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>; materials: Array<{ material_id: string; specification?: string }> }) =>
+    mutationFn: ({ supplierData, materials }: { supplierData: any; materials: any }) =>
       createSupplier(supplierData, materials),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      setIsFormOpen(false);
-      showSuccess('Proveedor creado exitosamente.');
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+        setIsFormOpen(false);
+        showSuccess('Proveedor creado exitosamente.');
+      }
     },
     onError: (err) => {
       showError(`Error al crear proveedor: ${err.message}`);
@@ -124,13 +126,15 @@ const SupplierManagement = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: Array<{ material_id: string; specification?: string }> }) =>
+    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: any; materials: any }) =>
       updateSupplier(id, supplierData, materials),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      setIsFormOpen(false);
-      setEditingSupplier(null);
-      showSuccess('Proveedor actualizado exitosamente.');
+    onSuccess: (data) => {
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+        setIsFormOpen(false);
+        setEditingSupplier(null);
+        showSuccess('Proveedor actualizado exitosamente.');
+      }
     },
     onError: (err) => {
       showError(`Error al actualizar proveedor: ${err.message}`);
@@ -189,14 +193,14 @@ const SupplierManagement = () => {
     }
   };
 
-  const handleSubmitForm = async (data: SupplierFormValues) => {
+  const handleSubmitForm = async (data: any) => {
     if (!userId) {
       showError('Usuario no autenticado. No se puede realizar la operación.');
       return;
     }
 
     const { materials, ...supplierData } = data;
-    const materialsPayload = materials?.map(mat => ({
+    const materialsPayload = materials?.map((mat: any) => ({
       material_id: mat.material_id,
       specification: mat.specification,
     })) || [];
@@ -204,7 +208,7 @@ const SupplierManagement = () => {
     if (editingSupplier) {
       await updateMutation.mutateAsync({ id: editingSupplier.id, supplierData, materials: materialsPayload });
     } else {
-      await createMutation.mutateAsync({ supplierData, materials: materialsPayload });
+      await createMutation.mutateAsync({ supplierData: { ...supplierData, user_id: userId }, materials: materialsPayload });
     }
   };
 
@@ -237,34 +241,42 @@ const SupplierManagement = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
-      </div>
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-procarni-primary">Gestión de Proveedores</CardTitle>
-            <CardDescription>Administra la información de tus proveedores.</CardDescription>
-          </div>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Proveedores</h1>
+          <p className="text-muted-foreground text-sm">Administra la información de tus proveedores.</p>
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/ficha-tecnica-upload')}
+            className={cn(isMobile && "w-10 h-10 p-0", "text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10 hover:text-procarni-secondary")}
+            title="Fichas Técnicas"
+          >
+            <FileUp className={cn("h-4 w-4", !isMobile && "mr-2")} />
+            {!isMobile && 'Fichas Técnicas'}
+          </Button>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-              <Button 
-                onClick={handleAddSupplier} 
+              <Button
+                onClick={handleAddSupplier}
                 className={cn(
-                  "bg-procarni-secondary hover:bg-green-700",
-                  isMobile && "w-10 h-10 p-0" // Hacer el botón cuadrado y sin padding en móvil
+                  "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
+                  isMobile && "w-10 h-10 p-0"
                 )}
+                size={isMobile ? "default" : "sm"}
               >
-                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
+                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
                 {!isMobile && 'Añadir Proveedor'}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto" description={editingSupplier ? 'Edita los detalles del proveedor existente.' : 'Completa los campos para añadir un nuevo proveedor.'}>
+            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>
+                <DialogDescription>
+                  {editingSupplier ? 'Edita los detalles del proveedor existente.' : 'Completa los campos para añadir un nuevo proveedor.'}
+                </DialogDescription>
               </DialogHeader>
               {isLoadingEditData ? (
                 <div className="flex items-center justify-center p-8">
@@ -273,7 +285,7 @@ const SupplierManagement = () => {
                 </div>
               ) : (
                 <SupplierForm
-                  initialData={editingSupplier || undefined}
+                  initialData={(editingSupplier as any) || undefined}
                   onSubmit={handleSubmitForm}
                   onCancel={() => setIsFormOpen(false)}
                   isSubmitting={createMutation.isPending || updateMutation.isPending}
@@ -281,23 +293,26 @@ const SupplierManagement = () => {
               )}
             </DialogContent>
           </Dialog>
-        </CardHeader>
-        <CardContent className={cn(isMobile ? "px-2 py-4" : "p-6")}>
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="relative flex-1">
+        </div>
+      </div>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+            <div className="relative w-full md:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Buscar proveedor por RIF, nombre o email..."
-                className="w-full appearance-none bg-background pl-8 shadow-none"
+                className="w-full appearance-none bg-background pl-8 h-9 text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="relative md:w-1/3">
+            <div className="relative w-full md:w-72">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as 'All' | 'Active' | 'Inactive')}>
-                <SelectTrigger className="w-full pl-8">
+                <SelectTrigger className="w-full pl-8 h-9 text-sm">
                   <SelectValue placeholder="Filtrar por estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -337,7 +352,7 @@ const SupplierManagement = () => {
                       </p>
                       {/* Etiqueta de estado movida aquí */}
                       <p>
-                        <strong>Estado:</strong> 
+                        <strong>Estado:</strong>
                         <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
                           {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                         </span>
@@ -377,39 +392,39 @@ const SupplierManagement = () => {
                 ))}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>RIF</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Teléfono</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Código</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">RIF</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Email</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Teléfono</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Estado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredSuppliers.map((supplier) => (
-                      <TableRow key={supplier.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <TableCell>{supplier.code || 'N/A'}</TableCell>
-                        <TableCell className="font-medium">{supplier.name}</TableCell>
-                        <TableCell>{supplier.rif}</TableCell>
-                        <TableCell>{supplier.email || 'N/A'}</TableCell>
-                        <TableCell className={cn(supplier.phone ? '' : 'text-procarni-alert font-medium')}>
+                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors">
+                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
+                        <TableCell className="py-3 font-medium text-procarni-dark">{supplier.name}</TableCell>
+                        <TableCell className="py-3">{supplier.rif}</TableCell>
+                        <TableCell className="py-3 text-gray-600">{supplier.email || 'N/A'}</TableCell>
+                        <TableCell className={cn("py-3", supplier.phone ? '' : 'text-procarni-alert font-medium')}>
                           {supplier.phone || (
                             <span className="flex items-center">
-                              <AlertTriangle className="h-4 w-4 mr-1" /> Faltante
+                              <AlertTriangle className="h-3 w-3 mr-1" /> Faltante
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
+                        <TableCell className="py-3">
+                          <span className={cn("px-2 py-0.5 text-xs font-medium rounded-md border", getStatusBadgeClass(supplier.status))}>
                             {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right pr-4 py-3">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -451,7 +466,7 @@ const SupplierManagement = () => {
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
 
       {/* AlertDialog for delete confirmation */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

@@ -5,7 +5,12 @@ import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,7 +21,10 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.warn('[generate-template] Unauthorized: No Authorization header');
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Unauthorized: No Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -26,10 +34,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      console.warn('[generate-template] Unauthorized: Invalid user session');
-      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error('[generate-template] Auth Error:', authError);
+      return new Response(JSON.stringify({ error: `Unauthorized: ${authError?.message || 'User not found'}` }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const { type } = await req.json();
@@ -74,7 +85,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(fileName)}"`,
       },
     });
 

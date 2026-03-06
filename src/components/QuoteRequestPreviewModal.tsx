@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
-import { showError, showLoading, dismissToast } from '@/utils/toast';
+import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton'; // Importar el botón de descarga
 
@@ -18,7 +18,7 @@ const QuoteRequestPreviewModal = React.forwardRef<QuoteRequestPreviewModalRef, Q
   const { session } = useSession();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
-  const [loadingToastId, setLoadingToastId] = useState<string | null>(null);
+  const [loadingToastId, setLoadingToastId] = useState<string | number | null>(null);
   const [successToastId, setSuccessToastId] = useState<string | null>(null);
 
   const handleClose = () => {
@@ -81,14 +81,8 @@ const QuoteRequestPreviewModal = React.forwardRef<QuoteRequestPreviewModalRef, Q
       setLoadingToastId(null);
 
       // Show success toast that will auto-dismiss
-      const successId = showLoading('PDF generado. Puedes previsualizarlo.', 2000);
-      setSuccessToastId(successId);
-
-      // Auto-dismiss the success toast after 2 seconds
-      setTimeout(() => {
-        dismissToast(successId);
-        setSuccessToastId(null);
-      }, 2000);
+      showSuccess('PDF generado. Puedes previsualizarlo.');
+      setSuccessToastId(null);
 
     } catch (error: any) {
       console.error('[QuoteRequestPreviewModal] Error generating PDF:', error);

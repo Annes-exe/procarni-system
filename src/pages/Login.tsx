@@ -1,117 +1,163 @@
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
 const Login = () => {
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      let loginEmail = identifier;
+
+      // Si el identificador no tiene '@', asumimos que es un username
+      if (!identifier.includes('@')) {
+        const { data: emailData, error: rpcError } = await supabase
+          .rpc('get_email_by_username', { p_username: identifier });
+
+        if (rpcError) throw new Error('Error al verificar el usuario.');
+        if (!emailData) throw new Error('Usuario no encontrado.');
+
+        loginEmail = emailData;
+      }
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: password,
+      });
+
+      if (signInError) {
+        if (signInError.message === 'Invalid login credentials') {
+          throw new Error('Credenciales inválidas.');
+        }
+        throw signInError;
+      }
+
+      // El usuario se logueó correctamente, la redirección suele manejarla el App.tsx o ProtectedRoute
+      // pero por si acaso forzamos la ida a inicio
+      navigate('/');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex w-full">
+    <div className="min-h-screen flex w-full font-inter bg-slate-50">
       {/* 1. Left Panel (Branding and Context) - Hidden on small screens */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gray-900 text-white p-12 flex-col justify-center relative overflow-hidden">
-        {/* Background Gradient/Color (Dark Burgundy to Near Black) */}
-        <div className="absolute inset-0 bg-gradient-to-b from-procarni-primary to-gray-900 opacity-90"></div>
-        
+      {/* STRICT MONOCHROMATIC: Slate-900 with subtle texture or completely flat. No Red Gradients. */}
+      <div className="hidden lg:flex lg:w-1/2 bg-procarni-dark text-white p-12 flex-col justify-center relative overflow-hidden">
+        {/* Subtle decorative element ensuring it remains monochrome */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 opacity-50"></div>
+
         {/* Content */}
-        <div className="relative z-10 max-w-md space-y-6">
-          <h1 className="text-5xl font-extrabold tracking-tight leading-tight">
-            Procarni System
-          </h1>
-          <h2 className="text-2xl font-semibold text-gray-200">
+        <div className="relative z-10 max-w-lg space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight text-white">
+              Procarni System
+            </h1>
+            <div className="h-1 w-12 bg-procarni-primary rounded-full"></div>
+            {/* Red accent limited to small details */}
+          </div>
+
+          <h2 className="text-xl font-medium text-slate-300">
             Gestión de Suministros y Compras
           </h2>
-          <p className="text-gray-300 text-lg max-w-sm">
-            Plataforma integral diseñada para centralizar, optimizar y agilizar el flujo de abastecimiento y las órdenes de compra de la empresa.
+          <p className="text-slate-400 text-base leading-relaxed max-w-md">
+            Plataforma integral diseñada para centralizar, optimizar y agilizar el flujo de abastecimiento.
           </p>
+        </div>
+
+        {/* Footer/Copyright for left panel */}
+        <div className="absolute bottom-12 left-12 text-slate-600 text-xs">
+          &copy; {currentYear} Procarni System
         </div>
       </div>
 
       {/* 2. Right Panel (Login Form) - Full width on mobile, 50% on large screens */}
-      <div className="w-full lg:w-1/2 bg-white flex items-center justify-center p-8 dark:bg-gray-800">
-        <div className="w-full max-w-md space-y-6">
-          <div className="flex flex-col items-center justify-center mb-6">
-            <img 
-              src="/Sis-Prov.png" 
-              alt="Sis-Prov Logo" 
-              className="h-16 w-auto object-contain drop-shadow-md mb-4" 
+      <div className="w-full lg:w-1/2 bg-slate-50 flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-sm border border-gray-100 p-8">
+          <div className="flex flex-col items-center justify-center mb-8">
+            <img
+              src="/Sis-Prov.png"
+              alt="Sis-Prov Logo"
+              className="h-12 w-auto object-contain mb-6"
             />
-            <h1 className="text-3xl font-bold text-center text-gray-900 dark:text-white">
-              Acceso al Sistema
+            <h1 className="text-2xl font-bold text-center text-slate-900 tracking-tight">
+              Bienvenido de nuevo
             </h1>
+            <p className="text-sm text-slate-500 mt-2 text-center">
+              Ingresa tus credenciales para acceder al sistema
+            </p>
           </div>
-          
-          <Auth
-            supabaseClient={supabase}
-            providers={[]}
-            appearance={{
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    // Usar Hex color para mayor robustez en Supabase Auth UI
-                    brand: '#880a0a', // Procarni Primary Red
-                    brandAccent: '#660808', // Rojo ligeramente más oscuro para hover/focus
-                  },
-                },
-              },
-            }}
-            theme="light"
-            redirectTo={window.location.origin}
-            localization={{
-              variables: {
-                sign_in: {
-                  button_label: 'Iniciar Sesión',
-                  email_label: 'Correo Electrónico',
-                  password_label: 'Contraseña',
-                  forgot_password_link: '¿Olvidaste tu contraseña?',
-                  loading_button_label: 'Iniciando sesión...',
-                  social_provider_text: 'Iniciar sesión con {{provider}}',
-                  confirmation_text: 'Te hemos enviado un correo para confirmar tu cuenta.',
-                  email_input_placeholder: 'Tu correo electrónico',
-                  password_input_placeholder: 'Tu contraseña',
-                  no_account_text: '¿No tienes una cuenta?',
-                  link_text: '¿Ya tienes una cuenta? Inicia sesión',
-                },
-                sign_up: {
-                  button_label: 'Registrarse',
-                  email_label: 'Correo Electrónico',
-                  password_label: 'Contraseña',
-                  confirm_password_label: 'Confirmar Contraseña',
-                  loading_button_label: 'Registrando...',
-                  social_provider_text: 'Registrarse con {{provider}}',
-                  confirmation_text: 'Te hemos enviado un correo para confirmar tu cuenta.',
-                  email_input_placeholder: 'Tu correo electrónico',
-                  password_input_placeholder: 'Tu contraseña',
-                  confirm_password_input_placeholder: 'Confirma tu contraseña',
-                  link_text: '¿No tienes una cuenta? Regístrate',
-                },
-                forgotten_password: {
-                  button_label: 'Enviar enlace de restablecimiento',
-                  email_label: 'Correo Electrónico',
-                  loading_button_label: 'Enviando...',
-                  link_text: '¿Olvidaste tu contraseña?',
-                  confirmation_text: 'Te hemos enviado un correo con instrucciones para restablecer tu contraseña.',
-                  email_input_placeholder: 'Tu correo electrónico',
-                },
-                update_password: {
-                  button_label: 'Actualizar contraseña',
-                  password_label: 'Nueva contraseña',
-                  confirm_password_label: 'Confirmar nueva contraseña',
-                  loading_button_label: 'Actualizando...',
-                  password_input_placeholder: 'Tu nueva contraseña',
-                  confirm_password_input_placeholder: 'Confirma tu nueva contraseña',
-                },
-              },
-            }}
-          />
-          
-          <p className="text-center text-xs text-gray-500 dark:text-gray-400 pt-4">
-            &copy; {currentYear} Procarni System. Todos los derechos reservados.
-          </p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="identifier" className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
+                Usuario o Correo Corporativo
+              </label>
+              <input
+                id="identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="ejemplo@procarni.com o tunombre"
+                required
+                className="block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors"
+                style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
+              />
+            </div>
+
+            <div className="pt-2">
+              <label htmlFor="password" className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
+                Contraseña
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors"
+                style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
+              />
+            </div>
+
+            {error && (
+              <div className="text-xs text-red-600 bg-red-50 p-3 rounded-md border border-red-100 mt-4 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-procarni-primary hover:bg-red-900 text-white font-medium rounded-md py-2.5 shadow-sm transition-all active:scale-[0.98] text-sm tracking-wide flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loading ? 'Verificando...' : 'Entrar al Sistema'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
-      <MadeWithDyad />
+
     </div>
   );
 };

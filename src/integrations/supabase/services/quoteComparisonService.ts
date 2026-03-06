@@ -22,7 +22,7 @@ const QuoteComparisonService = {
   getAll: async (): Promise<QuoteComparison[]> => {
     const { data, error } = await supabase
       .from('quote_comparisons')
-      .select('*')
+      .select('*, quote_comparison_items(*)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -83,9 +83,9 @@ const QuoteComparisonService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('CREATE_QUOTE_COMPARISON', { 
+    logAudit('CREATE_QUOTE_COMPARISON', {
       table: 'quote_comparisons',
-      record_id: newComparison.id, 
+      record_id: newComparison.id,
       description: `Creación de Comparación de Cotizaciones: ${newComparison.name}`,
       material_count: items.length
     });
@@ -132,9 +132,9 @@ const QuoteComparisonService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('UPDATE_QUOTE_COMPARISON', { 
+    logAudit('UPDATE_QUOTE_COMPARISON', {
       table: 'quote_comparisons',
-      record_id: id, 
+      record_id: id,
       description: `Actualización de Comparación de Cotizaciones: ${updatedComparison.name}`,
       material_count: items.length
     });
@@ -188,13 +188,13 @@ const QuoteComparisonService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('DELETE_QUOTE_COMPARISON', { 
+    logAudit('DELETE_QUOTE_COMPARISON', {
       table: 'quote_comparisons',
       record_id: id,
       description: 'Eliminación de Comparación de Cotizaciones'
     });
     // -----------------
-    
+
     return true;
   },
 };

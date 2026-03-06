@@ -5,7 +5,12 @@ import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Expose-Headers': 'Content-Disposition',
 };
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
 
 // Define colores corporativos y de borde
 const PROC_RED = rgb(0.533, 0.039, 0.039); // #880a0a
@@ -74,20 +79,21 @@ serve(async (req) => {
 
     // --- Generación de PDF con pdf-lib ---
     const pdfDoc = await PDFDocument.create();
-    let page = pdfDoc.addPage(); 
+    let page = pdfDoc.addPage();
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     const { width, height } = page.getSize();
-    const margin = 30; 
+    const margin = 30;
     let y = height - margin;
     const fontSize = 10;
     const lineHeight = fontSize * 1.2;
-    
+
     // Helper para dibujar texto
     const drawText = (text: string, x: number, yPos: number, options: any = {}) => {
-      page.drawText(text, {
+      const safeText = String(text || 'N/A');
+      page.drawText(safeText, {
         x,
         y: yPos,
         font: font,
@@ -106,7 +112,7 @@ serve(async (req) => {
     // Function to draw table headers (Red text, thin gray bottom border)
     const drawTableHeader = () => {
       let currentX = tableX;
-      
+
       // Draw thin gray line below header row
       page.drawLine({
         start: { x: tableX, y: y - lineHeight },
@@ -124,7 +130,7 @@ serve(async (req) => {
 
     // Function to check for page breaks and add new page if necessary
     const checkPageBreak = (requiredSpace: number) => {
-      if (y - requiredSpace < margin) { 
+      if (y - requiredSpace < margin) {
         page = pdfDoc.addPage();
         y = height - margin;
         drawTableHeader(); // Redraw headers on new page
@@ -178,7 +184,7 @@ serve(async (req) => {
       drawText(request.companies?.name || 'N/A', margin, y, { font: boldFont, size: companyNameFontSize, color: PROC_RED });
       y -= lineHeight * 2;
     }
-    
+
     // Separator line (Red, 2pt)
     page.drawLine({
       start: { x: margin, y: y },
@@ -218,16 +224,16 @@ serve(async (req) => {
       color: LIGHT_GRAY,
     });
     y -= lineHeight;
-    
+
     drawTableHeader(); // Draw table header (already includes bottom border)
 
     // Dibujar filas de ítems
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      checkPageBreak(lineHeight); 
+      checkPageBreak(lineHeight);
 
       let currentX = tableX;
-      
+
       // Draw thin gray line above the row content (to separate rows)
       page.drawLine({
         start: { x: tableX, y: y },
@@ -237,11 +243,11 @@ serve(async (req) => {
       });
 
       // Draw item data
-      drawText(item.material_name, currentX + 5, y - lineHeight + (lineHeight - fontSize) / 2);
+      drawText(item.material_name || 'N/A', currentX + 5, y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[0];
 
       // Right-align numeric values
-      const quantityText = item.quantity.toString();
+      const quantityText = (item.quantity || 0).toString();
       drawText(quantityText, currentX + colWidths[1] - 5 - font.widthOfTextAtSize(quantityText, fontSize), y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[1];
 
@@ -254,7 +260,7 @@ serve(async (req) => {
 
       y -= lineHeight;
     }
-    
+
     // Draw final bottom border for the table
     page.drawLine({
       start: { x: tableX, y: y },
@@ -262,11 +268,11 @@ serve(async (req) => {
       thickness: 1,
       color: LIGHT_GRAY,
     });
-    
-    y -= lineHeight * 2; 
+
+    y -= lineHeight * 2;
 
     // --- Footer ---
-    const footerY = margin; 
+    const footerY = margin;
     drawText(`Generado por: ${request.created_by || user.email}`, margin, footerY + lineHeight * 2);
 
     const pdfBytes = await pdfDoc.save();
@@ -274,8 +280,7 @@ serve(async (req) => {
     // Format filename as: SC, "NOMBRE DEL PROVEEDOR" "FECHA ACTUAL"
     const supplierName = request.suppliers?.name || 'Proveedor';
     const currentDate = new Date().toLocaleDateString('es-VE').replace(/\//g, '-');
-    const safeSupplierName = supplierName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-    const filename = `SC_${safeSupplierName}_${currentDate}.pdf`;
+    const filename = `SC_${supplierName}_${currentDate}.pdf`;
 
     console.log(`[generate-qr-pdf] Generated PDF with filename: ${filename}`);
 
@@ -283,7 +288,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
       },
     });
 

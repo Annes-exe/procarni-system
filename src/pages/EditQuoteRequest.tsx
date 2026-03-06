@@ -1,38 +1,27 @@
+// src/pages/EditQuoteRequest.tsx
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, Trash2, ArrowLeft, FileText, Loader2, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { getQuoteRequestDetails, searchSuppliers, searchMaterialsBySupplier, searchCompanies, updateQuoteRequest } from '@/integrations/supabase/data';
+import { quoteRequestService } from '@/services/quoteRequestService'; // Updated import
+import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import SmartSearch from '@/components/SmartSearch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import QuoteRequestPreviewModal from '@/components/QuoteRequestPreviewModal';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Importar la localización en español
+import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
 
 interface Company {
   id: string;
   name: string;
   rif: string;
-}
-
-interface QuoteRequestItemForm {
-  id?: string;
-  material_name: string;
-  quantity: number;
-  description?: string;
-  unit?: string;
 }
 
 interface MaterialSearchResult {
@@ -45,17 +34,16 @@ interface MaterialSearchResult {
   specification?: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
 
 const EditQuoteRequest = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, isLoadingSession } = useSession();
+  const { session, role, isLoadingSession } = useSession();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isMobile = useIsMobile();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
+  const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
@@ -64,40 +52,57 @@ const EditQuoteRequest = () => {
   const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
+
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
 
   const { data: initialRequest, isLoading: isLoadingRequest, error: requestError } = useQuery({
     queryKey: ['quoteRequestDetails', id],
-    queryFn: () => getQuoteRequestDetails(id!),
+    queryFn: () => quoteRequestService.getById(id!), // Using service
     enabled: !!id && !!session && !isLoadingSession,
   });
 
   useEffect(() => {
     if (initialRequest) {
+      // @ts-ignore
+      if (initialRequest.status !== 'Draft' && role !== 'admin') {
+        showError('No tienes permisos para editar esta solicitud en su estado actual.');
+        navigate('/quote-requests');
+        return;
+      }
+
       setCompanyId(initialRequest.company_id);
+      // @ts-ignore
       setCompanyName(initialRequest.companies?.name || '');
       setSupplierId(initialRequest.supplier_id);
+      // @ts-ignore
       setSupplierName(initialRequest.suppliers?.name || '');
-      setItems(initialRequest.quote_request_items.map(item => ({
+
+      // Map items
+      // @ts-ignore
+      const mappedItems = initialRequest.quote_request_items?.map(item => ({
+        // We need an ID for internal react key if possible, but the form uses index primarily or internal id
         id: item.id,
-        material_name: item.material_name,
+        material_name: item.materials?.name || 'Material Desconocido',
         quantity: item.quantity,
         description: item.description || '',
-        unit: item.unit || MATERIAL_UNITS[0],
-      })));
+        unit: item.unit || (units[0]?.name || ''),
+        material_id: item.material_id || undefined,
+      })) || [];
+
+      setItems(mappedItems);
     }
   }, [initialRequest]);
 
-  const searchSupplierMaterials = React.useCallback(async (query: string) => {
-    if (!supplierId) return [];
-    return searchMaterialsBySupplier(supplierId, query);
-  }, [supplierId]);
-
   if (isLoadingRequest || isLoadingSession) {
     return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando solicitud de cotización para edición...
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-procarni-secondary" />
+        <span className="ml-2 text-gray-500 font-medium">Cargando solicitud...</span>
       </div>
     );
   }
@@ -106,9 +111,9 @@ const EditQuoteRequest = () => {
     showError(requestError.message);
     return (
       <div className="container mx-auto p-4 text-center text-destructive">
-        Error al cargar la solicitud de cotización: {requestError.message}
+        Error al cargar la solicitud: {requestError.message}
         <Button asChild variant="link" className="mt-4">
-          <Link to="/quote-request-management">Volver a la gestión de solicitudes</Link>
+          <Link to="/quote-requests">Volver a la gestión</Link>
         </Button>
       </div>
     );
@@ -117,16 +122,16 @@ const EditQuoteRequest = () => {
   if (!initialRequest) {
     return (
       <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Solicitud de cotización no encontrada.
+        Solicitud no encontrada.
         <Button asChild variant="link" className="mt-4">
-          <Link to="/quote-request-management">Volver a la gestión de solicitudes</Link>
+          <Link to="/quote-requests">Volver a la gestión</Link>
         </Button>
       </div>
     );
   }
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0] }]);
+    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
   };
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
@@ -141,7 +146,8 @@ const EditQuoteRequest = () => {
 
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
-    handleItemChange(index, 'unit', material.unit || MATERIAL_UNITS[0]);
+    handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
+    handleItemChange(index, 'material_id', material.id); // Save ID
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);
     }
@@ -152,8 +158,13 @@ const EditQuoteRequest = () => {
     setCompanyName(company.name);
   };
 
+  const handleSupplierCreated = (supplier: { id: string; name: string }) => {
+    setSupplierId(supplier.id);
+    setSupplierName(supplier.name);
+  };
+
   const handleMaterialAdded = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
-    // Material created and associated, user can now select it via SmartSearch.
+    // Material created logic
   };
 
   const handleSubmit = async () => {
@@ -169,7 +180,7 @@ const EditQuoteRequest = () => {
       showError('Por favor, selecciona un proveedor.');
       return;
     }
-    
+
     const invalidItem = items.find(item => !item.material_name || item.quantity <= 0 || !item.unit);
     if (items.length === 0 || invalidItem) {
       showError('Por favor, añade al menos un ítem válido con nombre, cantidad mayor a cero y unidad.');
@@ -177,246 +188,186 @@ const EditQuoteRequest = () => {
     }
 
     setIsSubmitting(true);
-    const requestData = {
-      supplier_id: supplierId,
-      company_id: companyId,
-      currency: 'USD' as const,
-      exchange_rate: null,
-      created_by: userEmail || 'unknown',
-      user_id: userId,
-    };
 
-    const updatedRequest = await updateQuoteRequest(id!, requestData, items);
+    try {
+      const requestData = {
+        supplier_id: supplierId,
+        company_id: companyId,
+        currency: 'USD' as const,
+        // status: initialRequest.status, // Keep existing status or allow update?
+        // Usually editing resets to Draft if significant changes, or stays same.
+        // Let's keep it same for now unless we add status dropdown.
+      };
 
-    if (updatedRequest) {
-      showSuccess('Solicitud de cotización actualizada exitosamente.');
+      const formattedItems = items.map(item => ({
+        material_id: item.material_id || '', // Strict check again?
+        quantity: item.quantity,
+        unit: item.unit,
+        description: item.description,
+      }));
+
+      if (formattedItems.some(i => !i.material_id)) {
+        showError("Todos los ítems deben estar asociados a un material registrado.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // @ts-ignore
+      await quoteRequestService.update(id!, requestData, formattedItems);
+
+      showSuccess('Solicitud actualizada exitosamente.');
       navigate(`/quote-requests/${id}`);
+    } catch (error: any) {
+      console.error('Error updating quote request:', error);
+      showError(error.message || 'Error al actualizar la solicitud.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
-  const generateFileName = () => {
-    if (!initialRequest) return '';
-    const supplierName = initialRequest.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-    const date = new Date(initialRequest.created_at).toLocaleDateString('es-VE').replace(/\//g, '-');
-    return `SC_${initialRequest.id.substring(0, 8)}_${supplierName}_${date}.pdf`;
-  };
-
-  const renderItemFields = (item: QuoteRequestItemForm, index: number) => {
-    const isMaterialSelected = !!item.material_name;
-
-    if (isMobile) {
-      return (
-        <div key={item.id || index} className="border rounded-md p-3 space-y-3 bg-white shadow-sm">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h4 className="font-semibold text-procarni-primary truncate flex items-center">
-              {item.material_name || 'Nuevo Ítem'}
-            </h4>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="h-8 w-8">
-                <PlusCircle className="h-4 w-4" />
-              </Button>
-              <Button variant="destructive" size="icon" onClick={() => handleRemoveItem(index)} className="h-8 w-8">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="space-y-1 col-span-2">
-              <label className="text-xs font-medium text-muted-foreground flex items-center">
-                Material
-                {isMaterialSelected && <CheckCircle className="ml-2 h-4 w-4 text-green-600" />}
-              </label>
-              <SmartSearch
-                placeholder={supplierId ? "Buscar material asociado al proveedor" : "Selecciona un proveedor primero"}
-                onSelect={(material) => handleMaterialSelect(index, material as MaterialSearchResult)}
-                fetchFunction={searchSupplierMaterials}
-                displayValue={item.material_name}
-                disabled={!supplierId}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Cantidad</label>
-              <Input
-                id={`quantity-${index}`}
-                type="number"
-                value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value))}
-                min="0"
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Unidad</label>
-              <Select value={item.unit} onValueChange={(value) => handleItemChange(index, 'unit', value)}>
-                <SelectTrigger id={`unit-${index}`} className="h-9">
-                  <SelectValue placeholder="Unidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MATERIAL_UNITS.map(unitOption => (
-                    <SelectItem key={unitOption} value={unitOption}>{unitOption}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">Descripción</label>
-              <Textarea
-                id={`description-${index}`}
-                value={item.description}
-                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                placeholder="Especificación, marca, etc."
-                rows={2}
-              />
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Desktop/Tablet View
-    return (
-      <div key={item.id || index} className="grid grid-cols-7 gap-4 items-end border p-3 rounded-md bg-white shadow-sm">
-        <div className="col-span-2">
-          <Label htmlFor={`material_name-${index}`} className="flex items-center">
-            Material
-            {isMaterialSelected && <CheckCircle className="ml-2 h-4 w-4 text-green-600" />}
-          </Label>
-          <SmartSearch
-            placeholder={supplierId ? "Buscar material asociado al proveedor" : "Selecciona un proveedor primero"}
-            onSelect={(material) => handleMaterialSelect(index, material as MaterialSearchResult)}
-            fetchFunction={searchSupplierMaterials}
-            displayValue={item.material_name}
-            disabled={!supplierId}
-          />
-        </div>
-        <div className="col-span-1">
-          <Label htmlFor={`quantity-${index}`}>Cantidad</Label>
-          <Input
-            id={`quantity-${index}`}
-            type="number"
-            value={item.quantity}
-            onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value))}
-            min="0"
-          />
-        </div>
-        <div className="col-span-1">
-          <Label htmlFor={`unit-${index}`}>Unidad</Label>
-          <Select value={item.unit} onValueChange={(value) => handleItemChange(index, 'unit', value)}>
-            <SelectTrigger id={`unit-${index}`}>
-              <SelectValue placeholder="Unidad" />
-            </SelectTrigger>
-            <SelectContent>
-              {MATERIAL_UNITS.map(unitOption => (
-                <SelectItem key={unitOption} value={unitOption}>{unitOption}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-2">
-          <Label htmlFor={`description-${index}`}>Descripción</Label>
-          <Textarea
-            id={`description-${index}`}
-            value={item.description}
-            onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-            placeholder="Especificación, marca, etc."
-            rows={1}
-            className="min-h-10"
-          />
-        </div>
-        <div className="flex flex-col space-y-2 col-span-1 justify-end">
-          <Button variant="outline" size="icon" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="h-8 w-8">
-            <PlusCircle className="h-4 w-4" />
-          </Button>
-          <Button variant="destructive" size="icon" onClick={() => handleRemoveItem(index)} className="h-8 w-8">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+
+      {/* Action Header - Sticky like GenerateQuoteRequest */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Editar Solicitud</h1>
+            <p className="text-[11px] text-gray-500 font-medium">#{id?.substring(0, 8)}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
+          >
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Guardar Solicitud
+          </Button>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Editar Solicitud de Cotización #{id?.substring(0, 8)}</CardTitle>
-          <CardDescription>Modifica los detalles de esta solicitud de cotización.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
-            <div>
-              <Label htmlFor="company">Empresa de Origen *</Label>
-              <SmartSearch
-                placeholder="Buscar empresa por RIF o nombre"
-                onSelect={handleCompanySelect}
-                fetchFunction={searchCompanies}
-                displayValue={companyName}
-              />
-              {companyName && <p className="text-sm text-muted-foreground mt-1">Empresa seleccionada: {companyName}</p>}
+      <div className="grid gap-6">
+        {/* General Information Card */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                Información General
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Detalles de la solicitud</span>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="supplier">Proveedor *</Label>
-              <SmartSearch
-                placeholder="Buscar proveedor por RIF o nombre"
-                onSelect={(supplier) => {
-                  setSupplierId(supplier.id);
-                  setSupplierName(supplier.name);
-                }}
-                fetchFunction={searchSuppliers}
-                displayValue={supplierName}
-              />
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
-            </div>
-          </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label htmlFor="supplier" className="text-sm font-semibold text-gray-700">
+                      Proveedor Principal <span className="text-red-500">*</span>
+                    </Label>
+                    <div
+                      className="text-xs font-semibold text-procarni-primary hover:text-green-700 cursor-pointer flex items-center transition-colors"
+                      onClick={() => setIsAddSupplierDialogOpen(true)}
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" /> Nuevo Proveedor
+                    </div>
+                  </div>
+                  <SmartSearch
+                    placeholder="Buscar proveedor por RIF o nombre"
+                    onSelect={(supplier) => {
+                      setSupplierId(supplier.id);
+                      setSupplierName(supplier.name);
+                    }}
+                    fetchFunction={searchSuppliers}
+                    displayValue={supplierName}
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
+                    icon={<Search className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
+              </div>
 
-          <h3 className="text-lg font-semibold mb-4 text-procarni-primary">Ítems de la Solicitud</h3>
-          <div className="space-y-4">
-            {items.map(renderItemFields)}
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={handleAddItem} className="w-full">
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
+              <div className="space-y-6">
+                <div>
+                  <Label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Empresa de Origen <span className="text-red-500">*</span>
+                  </Label>
+                  <SmartSearch
+                    placeholder="Buscar empresa por RIF o nombre"
+                    onSelect={handleCompanySelect}
+                    fetchFunction={searchCompanies}
+                    displayValue={companyName}
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
+                    icon={<Building2 className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Items Card */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+              <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+              </Button>
+              <Button
+                onClick={() => setIsAddMaterialDialogOpen(true)}
+                variant="secondary"
+                size="sm"
+                disabled={!supplierId}
+              >
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
               </Button>
             </div>
-          </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <QuoteRequestItemsTable
+              items={items}
+              supplierId={supplierId}
+              supplierName={supplierName}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
+              onItemChange={handleItemChange}
+              onMaterialSelect={handleMaterialSelect}
+            />
+          </CardContent>
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems agregados a la solicitud.</p>
+              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
+            </div>
+          )}
+        </Card>
+      </div>
 
-          <div className="flex justify-end gap-2 mt-6">
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" disabled={isSubmitting || !companyId || items.length === 0}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Previsualización de Solicitud de Cotización</DialogTitle>
-                </DialogHeader>
-                <QuoteRequestPreviewModal
-                  requestId={id!}
-                  onClose={() => setIsModalOpen(false)}
-                  fileName={generateFileName()}
-                />
-              </DialogContent>
-            </Dialog>
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Cambios'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <MadeWithDyad />
+
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
         onClose={() => setIsAddMaterialDialogOpen(false)}
         onMaterialCreated={handleMaterialAdded}
         supplierId={supplierId}
         supplierName={supplierName}
+      />
+      <SupplierCreationDialog
+        isOpen={isAddSupplierDialogOpen}
+        onClose={() => setIsAddSupplierDialogOpen(false)}
+        onSupplierCreated={handleSupplierCreated}
       />
     </div>
   );

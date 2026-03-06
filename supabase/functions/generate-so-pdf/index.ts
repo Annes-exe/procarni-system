@@ -5,6 +5,7 @@ import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://esm.s
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
 // --- CONSTANTS ---
@@ -18,6 +19,10 @@ const COMPANY_NAME_FONT_SIZE = 12;
 const LOGO_SIZE = 50;
 
 // --- UTILITY FUNCTIONS (Kept outside serve) ---
+
+function sanitizeFilename(filename: string): string {
+    return filename.replace(/[/\\?%*:|"<>]/g, '-');
+}
 
 const calculateTotals = (items: Array<{
     quantity: number | null | undefined;
@@ -119,8 +124,19 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
     if (tempEntero === 1) {
         texto = `UN ${currency === 'VES' ? 'BOLIVAR' : 'DOLAR'}`;
     } else if (tempEntero > 1) {
-        let miles = Math.floor(tempEntero / 1000);
-        let unidades = tempEntero % 1000;
+        let millones = Math.floor(tempEntero / 1000000);
+        let resto = tempEntero % 1000000;
+
+        let miles = Math.floor(resto / 1000);
+        let unidades = resto % 1000;
+
+        if (millones > 0) {
+            if (millones === 1) {
+                texto += 'UN MILLON ';
+            } else {
+                texto += convertirGrupo(millones) + ' MILLONES ';
+            }
+        }
 
         if (miles > 0) {
             if (miles === 1) {
@@ -131,7 +147,11 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
         }
         texto += convertirGrupo(unidades);
 
-        texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+        if (millones > 0 && resto === 0) {
+            texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+        } else {
+            texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+        }
     }
 
     const decimalTexto = decimal.toString().padStart(2, '0');
@@ -223,6 +243,18 @@ serve(async (req) => {
 
         if (itemsError) {
             return new Response(JSON.stringify({ error: 'Error fetching order items.' }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        const { data: materials, error: materialsError } = await supabaseClient
+            .from('service_order_materials')
+            .select('*, suppliers(name), materials(name)')
+            .eq('service_order_id', orderId);
+
+        if (materialsError) {
+            return new Response(JSON.stringify({ error: 'Error fetching order materials.' }), {
                 status: 500,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -329,7 +361,7 @@ serve(async (req) => {
         };
 
         const checkPageBreak = (state: PDFState, requiredSpace: number): PDFState => {
-            if (state.y - requiredSpace < MARGIN + LINE_HEIGHT * 10) {
+            if (state.y - requiredSpace < MARGIN + LINE_HEIGHT * 2) {
                 state.page = pdfDoc.addPage();
                 state.y = height - MARGIN;
                 state = drawTableHeader(state);
@@ -620,7 +652,142 @@ serve(async (req) => {
             return state;
         };
 
-        const drawTotalsAndSummary = (state: PDFState, order: any, items: any[]): PDFState => {
+        const drawMaterialsSection = (state: PDFState, materials: any[]): PDFState => {
+            if (!materials || materials.length === 0) return state;
+
+            // Group by Supplier
+            const groupedMaterials: { [key: string]: { name: string, items: any[] } } = {};
+
+            materials.forEach(mat => {
+                const supplierId = mat.supplier_id;
+                const supplierName = mat.suppliers?.name || 'Proveedor Desconocido';
+
+                if (!groupedMaterials[supplierId]) {
+                    groupedMaterials[supplierId] = { name: supplierName, items: [] };
+                }
+                groupedMaterials[supplierId].items.push(mat);
+            });
+
+            // Draw Section Title
+            drawText(state, 'REPUESTOS Y ADICIONALES:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
+
+            state.page.drawLine({
+                start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
+                end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
+                thickness: 0.5,
+                color: LIGHT_GRAY,
+            });
+
+            state.y -= LINE_HEIGHT * 2;
+
+            // Iterate Groups
+            Object.values(groupedMaterials).forEach(group => {
+                // Check space for Header + Table Header + 1 Row
+                state = checkPageBreak(state, LINE_HEIGHT * 4);
+
+                // Draw Supplier Sub-header
+                drawText(state, `Proveedor: ${group.name}`, MARGIN, state.y, { font: boldFont, size: 10, color: DARK_GRAY });
+                state.y -= LINE_HEIGHT;
+
+                // Draw Table Header (Reuse existing function)
+                state = drawTableHeader(state);
+
+                // Draw Items
+                for (let i = 0; i < group.items.length; i++) {
+                    const item = group.items[i];
+
+                    const totals = calculateTotals([{
+                        quantity: item.quantity,
+                        unit_price: item.unit_price,
+                        tax_rate: item.tax_rate,
+                        is_exempt: item.is_exempt,
+                        sales_percentage: item.sales_percentage ?? 0,
+                        discount_percentage: item.discount_percentage ?? 0,
+                    }]);
+
+                    const itemIva = totals.montoIVA;
+                    const totalItem = totals.total;
+
+                    // Combine material name and description
+                    let materialContent = String(item.materials?.name || item.description || 'Material sin nombre');
+                    if (item.materials?.name && item.description) {
+                        materialContent += `\n${item.description}`;
+                    }
+                    if (item.supplier_code) {
+                        materialContent += `\n(Cód: ${item.supplier_code})`;
+                    }
+
+                    const materialLines = wrapText(materialContent, 20);
+                    const lineSpacing = (FONT_SIZE - 1) * 1.2;
+                    const requiredHeight = materialLines.length * lineSpacing + 5;
+
+                    state = checkPageBreak(state, requiredHeight + 10);
+
+                    state.page.drawLine({
+                        start: { x: MARGIN, y: state.y },
+                        end: { x: MARGIN + tableWidth, y: state.y },
+                        thickness: 0.5,
+                        color: LIGHT_GRAY,
+                    });
+
+                    let currentX = MARGIN;
+                    let currentY = state.y - 3;
+
+                    // 1. Material Name
+                    for (const line of materialLines) {
+                        drawText(state, line, currentX + 2, currentY - (FONT_SIZE - 1), { size: FONT_SIZE - 1 });
+                        currentY -= lineSpacing;
+                    }
+                    currentX += colWidths[0];
+
+                    const finalY = state.y - requiredHeight;
+
+                    const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font, color: any = rgb(0, 0, 0)) => {
+                        const cellWidth = colWidths[colIndex];
+                        const textWidth = fontToUse.widthOfTextAtSize(text, size);
+                        const verticalCenterY = finalY + requiredHeight / 2 - size / 2;
+                        const xPos = isRightAligned ? currentX + cellWidth - 5 - textWidth : currentX + 5;
+                        drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse, color });
+                        currentX += cellWidth;
+                    };
+
+                    // 2. Quantity
+                    drawCellData(`${String(item.quantity ?? 0)} ${item.unit || 'UND'}`, 1);
+
+                    // 3. Unit Price
+                    drawCellData((item.unit_price ?? 0).toFixed(2), 2);
+
+                    // 4. Desc %
+                    drawCellData(`${(item.discount_percentage ?? 0).toFixed(2)}%`, 3);
+
+                    // 5. Sales %
+                    drawCellData(`${(item.sales_percentage ?? 0).toFixed(2)}%`, 4);
+
+                    // 6. IVA
+                    if (item.is_exempt) {
+                        drawCellData('EXENTO', 5, true, 8, font, DARK_GRAY);
+                    } else {
+                        drawCellData(itemIva.toFixed(2), 5);
+                    }
+
+                    // 7. Total
+                    drawCellData(totalItem.toFixed(2), 6, true, FONT_SIZE + 1, boldFont);
+
+                    state.y = finalY;
+                }
+                state.page.drawLine({
+                    start: { x: MARGIN, y: state.y },
+                    end: { x: MARGIN + tableWidth, y: state.y },
+                    thickness: 1,
+                    color: LIGHT_GRAY,
+                });
+                state.y -= LINE_HEIGHT * 2;
+            });
+
+            return state;
+        };
+
+        const drawTotalsAndSummary = async (state: PDFState, order: any, items: any[], effectiveExchangeRate: number): Promise<PDFState> => {
             const calculatedTotals = calculateTotals(items.map(item => ({
                 quantity: item.quantity,
                 unit_price: item.unit_price,
@@ -630,69 +797,100 @@ serve(async (req) => {
                 discount_percentage: item.discount_percentage ?? 0,
             })));
 
-            const totalSectionWidth = 200;
-            const totalSectionX = width - MARGIN - totalSectionWidth;
+            // Helper to calculate converted totals
+            const calculateConvertedTotals = (totals: any, rate: number, toCurrency: 'USD' | 'VES') => {
+                if (!rate || rate <= 0) return totals; // Should not happen with validation
 
-            // Determine number of rows needed for totals
-            let totalRows = 5;
-            let hasUsdTotal = false;
-            if (order.currency === 'VES' && order.exchange_rate && order.exchange_rate > 0) {
-                totalRows = 6;
-                hasUsdTotal = true;
-            }
+                // If converting FROM VES TO USD: Divide by rate
+                if (order.currency === 'VES' && toCurrency === 'USD') {
+                    return {
+                        baseImponible: totals.baseImponible / rate,
+                        montoIVA: totals.montoIVA / rate,
+                        montoVenta: totals.montoVenta / rate,
+                        montoDescuento: totals.montoDescuento / rate,
+                        total: totals.total / rate
+                    };
+                }
 
+                // If converting FROM USD TO VES: Multiply by rate
+                if (order.currency === 'USD' && toCurrency === 'VES') {
+                    return {
+                        baseImponible: totals.baseImponible * rate,
+                        montoIVA: totals.montoIVA * rate,
+                        montoVenta: totals.montoVenta * rate,
+                        montoDescuento: totals.montoDescuento * rate,
+                        total: totals.total * rate
+                    };
+                }
+
+                return totals; // Same currency
+            };
+
+            const usdTotals = order.currency === 'USD' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'USD');
+            const vesTotals = order.currency === 'VES' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'VES');
+
+            // Layout for side-by-side tables
+            const boxWidth = 200;
+            const spacing = 20;
+            const rightMargin = MARGIN;
+
+            const vesBoxX = width - MARGIN - boxWidth;
+            const usdBoxX = vesBoxX - spacing - boxWidth;
+
+            // Calculate height
+            // Rows: Subtotal, Descuento, Venta, IVA, Total. (5 rows)
+            // VES Box adds "Tasa de Cambio". (6 rows)
+
+            const totalRows = 6;
             const totalRowHeight = LINE_HEIGHT * 1.5;
-            const totalSectionHeight = totalRowHeight * totalRows + 5;
+            const totalSectionHeight = totalRowHeight * totalRows + 10;
 
             state = checkPageBreak(state, totalSectionHeight + LINE_HEIGHT * 3);
 
-            // Draw the outer box
-            drawBorderedRect(state, totalSectionX, state.y - totalSectionHeight, totalSectionWidth, totalSectionHeight, {
-                borderColor: LIGHT_GRAY,
-                borderWidth: 1,
-            });
+            const drawBox = (boxX: number, boxY: number, title: string, totals: any, currencySymbol: string, isVes: boolean) => {
+                drawBorderedRect(state, boxX, boxY, boxWidth, totalSectionHeight, {
+                    borderColor: LIGHT_GRAY,
+                    borderWidth: 1,
+                });
 
-            let currentY = state.y - 5;
+                let currentY = boxY + totalSectionHeight - 5 - (totalRowHeight / 2); // Start from top of box
 
-            const drawTotalRow = (label: string, value: string, isBold: boolean = false, color: rgb = rgb(0, 0, 0), size: number = FONT_SIZE) => {
-                const fontToUse = isBold ? boldFont : font;
+                // Title / Header for the box
+                drawText(state, title, boxX + 5, boxY + totalSectionHeight + 5, { font: boldFont, size: 10, color: DARK_GRAY });
 
-                const verticalCenterY = currentY - totalRowHeight / 2 + size / 2;
+                const drawRow = (label: string, value: string, isBold: boolean = false, color: any = rgb(0, 0, 0), size: number = FONT_SIZE) => {
+                    const fontToUse = isBold ? boldFont : font;
+                    drawText(state, label, boxX + 5, currentY, { font: fontToUse, size, color });
+                    const valueWidth = fontToUse.widthOfTextAtSize(value, size);
+                    drawText(state, value, boxX + boxWidth - 5 - valueWidth, currentY, { font: fontToUse, size, color });
+                    currentY -= totalRowHeight;
+                };
 
-                // Draw label (left aligned)
-                drawText(state, label, totalSectionX + 5, verticalCenterY, { font: fontToUse, size, color });
+                drawRow('Base Imponible:', `${currencySymbol} ${totals.baseImponible.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                drawRow('Monto Descuento:', `- ${currencySymbol} ${totals.montoDescuento.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, false, PROC_RED);
+                drawRow('Monto Venta:', `+ ${currencySymbol} ${totals.montoVenta.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, false, PROC_RED);
+                drawRow('Monto IVA:', `+ ${currencySymbol} ${totals.montoIVA.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+                drawRow('TOTAL:', `${currencySymbol} ${totals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, true, PROC_RED, FONT_SIZE + 2);
 
-                // Draw value (right aligned)
-                const valueWidth = fontToUse.widthOfTextAtSize(value, size);
-                drawText(state, value, totalSectionX + totalSectionWidth - 5 - valueWidth, verticalCenterY, { font: fontToUse, size, color });
-
-                currentY -= totalRowHeight;
+                if (isVes) {
+                    drawRow('Tasa de Cambio:', `${effectiveExchangeRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/USD`, false, DARK_GRAY, 8);
+                }
             };
 
-            // Draw rows
-            drawTotalRow('Base Imponible:', `${order.currency} ${calculatedTotals.baseImponible.toFixed(2)}`);
+            // Draw USD Box (Left)
+            drawBox(usdBoxX, state.y - totalSectionHeight, 'TOTALES EN USD', usdTotals, '$', false);
 
-            // NEW: Descuento
-            drawTotalRow('Monto Descuento:', `- ${order.currency} ${calculatedTotals.montoDescuento.toFixed(2)}`, false, PROC_RED);
+            // Draw VES Box (Right)
+            drawBox(vesBoxX, state.y - totalSectionHeight, 'TOTALES EN VES', vesTotals, 'Bs.', true);
 
-            // NEW: Venta
-            drawTotalRow('Monto Venta:', `+ ${order.currency} ${calculatedTotals.montoVenta.toFixed(2)}`, false, PROC_RED);
-
-            drawTotalRow('Monto IVA:', `+ ${order.currency} ${calculatedTotals.montoIVA.toFixed(2)}`);
-
-            drawTotalRow('TOTAL:', `${order.currency} ${calculatedTotals.total.toFixed(2)}`, true, PROC_RED, FONT_SIZE + 2);
-
-            if (hasUsdTotal) {
-                const totalInUSD = (calculatedTotals.total / order.exchange_rate).toFixed(2);
-                drawTotalRow('TOTAL (USD):', `USD ${totalInUSD}`, true, DARK_GRAY, FONT_SIZE);
-            }
-
-            // Update state.y to be below the total box
+            // Update state.y
             state.y = state.y - totalSectionHeight - LINE_HEIGHT;
 
+            // Amount in words
             const amountInWords = numberToWords(calculatedTotals.total, order.currency as 'VES' | 'USD');
-            drawText(state, `Monto en Letras: ${amountInWords}`, MARGIN, state.y, { font: italicFont });
+            drawText(state, `Monto en Letras (${order.currency}): ${amountInWords}`, MARGIN, state.y, { font: italicFont });
             state.y -= LINE_HEIGHT * 3;
+
             return state;
         };
 
@@ -730,13 +928,45 @@ serve(async (req) => {
             return state;
         };
 
+        // --- Fetch Daily Rate if needed ---
+        let effectiveExchangeRate = order.exchange_rate;
+
+        if (!effectiveExchangeRate || effectiveExchangeRate <= 0) {
+            console.log('[generate-so-pdf] Exchange rate missing. Fetching daily rate...');
+            try {
+                const rateResponse = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+                if (rateResponse.ok) {
+                    const rateData = await rateResponse.json();
+                    const rate = rateData.promedio || rateData.valor;
+                    if (typeof rate === 'number' && rate > 0) {
+                        effectiveExchangeRate = rate;
+                        console.log(`[generate-so-pdf] Fetched daily rate: ${effectiveExchangeRate}`);
+                    } else {
+                        console.warn('[generate-so-pdf] Invalid rate data received from API');
+                    }
+                } else {
+                    console.warn('[generate-so-pdf] Failed to fetch daily rate from API. Status:', rateResponse.status);
+                }
+            } catch (rateError) {
+                console.warn('[generate-so-pdf] Error fetching daily rate:', rateError);
+            }
+        }
+
+        if (!effectiveExchangeRate) {
+            effectiveExchangeRate = 1;
+            console.warn('[generate-so-pdf] Warning: No exchange rate available. Defaulting to 1 to prevent errors.');
+        }
+
         // --- Execution Flow ---
         state = await drawHeader(state, order);
         state = drawSupplierDetails(state, order);
         state = drawOrderDetails(state, order);
         state = drawObservations(state, order);
         state = drawItemsTable(state, items);
-        state = drawTotalsAndSummary(state, order, items);
+        state = drawMaterialsSection(state, materials || []);
+
+        const allItems = [...items, ...(materials || [])];
+        state = await drawTotalsAndSummary(state, order, allItems, effectiveExchangeRate);
         state = drawFooter(state, order, user);
 
         const pdfBytes = await pdfDoc.save();
@@ -750,7 +980,7 @@ serve(async (req) => {
             headers: {
                 ...corsHeaders,
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename="${filename}"`,
+                'Content-Disposition': `attachment; filename="${sanitizeFilename(filename)}"`,
             },
         });
 

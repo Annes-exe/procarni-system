@@ -1,24 +1,24 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useSession } from '@/components/SessionContextProvider';
 import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
-import { PlusCircle, Trash2, ArrowLeft, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createPurchaseOrder, searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequest } from '@/integrations/supabase/data';
-import { MadeWithDyad } from '@/components/made-with-dyad';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits } from '@/integrations/supabase/data';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
+
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 import PurchaseOrderDetailsForm from '@/components/PurchaseOrderDetailsForm';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
-import SmartSearch from '@/components/SmartSearch';
-import { Label } from '@/components/ui/label';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+
 
 interface Company {
   id: string;
@@ -26,27 +26,14 @@ interface Company {
   rif: string;
 }
 
-interface MaterialSearchResult {
-  id: string;
-  name: string;
-  code: string;
-  category?: string;
-  unit?: string;
-  is_exempt?: boolean;
-  specification?: string;
-}
 
 interface Supplier {
   id: string;
   name: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
-
 const GeneratePurchaseOrder = () => {
-  const { session, isLoadingSession } = useSession();
+  const { session } = useSession();
   const { items, addItem, updateItem, removeItem, clearCart } = useShoppingCart();
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,6 +44,7 @@ const GeneratePurchaseOrder = () => {
   const [supplierName, setSupplierName] = React.useState<string>('');
   const [currency, setCurrency] = React.useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
+  const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null);
 
   const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(undefined);
   const [paymentTerms, setPaymentTerms] = React.useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
@@ -65,8 +53,14 @@ const GeneratePurchaseOrder = () => {
   const [observations, setObservations] = React.useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-
+  const [isReminderDialogOpen, setIsReminderDialogOpen] = React.useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = React.useState(false);
+  const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = React.useState(false);
+
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -77,6 +71,7 @@ const GeneratePurchaseOrder = () => {
 
   React.useEffect(() => {
     const loadQuoteRequestItems = async () => {
+      // 1. Handle Quote Request
       if (quoteRequest) {
         setCompanyId(quoteRequest.company_id);
         setCompanyName(quoteRequest.companies?.name || '');
@@ -91,14 +86,15 @@ const GeneratePurchaseOrder = () => {
         const supplierIdForSearch = quoteRequest.supplier_id;
 
         for (const item of quoteRequest.quote_request_items) {
-          let materialId: string | undefined = undefined;
+          const materialName = item.materials?.name || item.material_name || item.description || 'Material sin nombre';
+          let materialId: string | undefined = item.material_id || undefined;
           let supplierCode: string = '';
-          let isExempt: boolean = false;
+          let isExempt: boolean = item.is_exempt || false;
 
           if (supplierIdForSearch) {
             try {
-              const associatedMaterials = await searchMaterialsBySupplier(supplierIdForSearch, item.material_name);
-              const exactMatch = associatedMaterials.find(m => m.name.toLowerCase() === item.material_name.toLowerCase());
+              const associatedMaterials = await searchMaterialsBySupplier(supplierIdForSearch, materialName);
+              const exactMatch = associatedMaterials.find(m => m.name.toLowerCase() === materialName.toLowerCase());
 
               if (exactMatch) {
                 materialId = exactMatch.id;
@@ -112,23 +108,59 @@ const GeneratePurchaseOrder = () => {
 
           addItem({
             material_id: materialId,
-            material_name: item.material_name,
+            material_name: materialName,
             supplier_code: supplierCode,
             quantity: item.quantity,
             unit_price: 0,
             tax_rate: 0.16,
             is_exempt: isExempt,
-            unit: item.unit || MATERIAL_UNITS[0],
+            unit: item.unit || (units[0]?.name || ''),
             description: item.description || '',
             sales_percentage: 0,
             discount_percentage: 0,
           });
         }
       }
+      // 2. Handle Service Order Items
+      else if (location.state?.serviceOrderItems && location.state?.serviceOrder) {
+        const { serviceOrder, serviceOrderItems, supplier } = location.state;
+
+        setCompanyId(serviceOrder.company_id);
+        setCompanyName(serviceOrder.companies?.name || '');
+        setServiceOrderId(serviceOrder.id);
+
+        if (supplier) {
+          setSupplierId(supplier.id);
+          setSupplierName(supplier.name);
+        }
+
+        setCurrency(serviceOrder.currency || 'USD');
+        setObservations(`Generado desde Orden de Servicio #${serviceOrder.sequence_number || serviceOrder.id.substring(0, 8)}`);
+
+        clearCart();
+
+        for (const item of serviceOrderItems) {
+          const materialName = item.materials?.name || item.material_name || item.description || 'Material sin nombre';
+
+          addItem({
+            material_id: item.material_id,
+            material_name: materialName,
+            supplier_code: item.supplier_code || '',
+            quantity: item.quantity || 0,
+            unit_price: item.unit_price || 0,
+            tax_rate: item.tax_rate || 0.16,
+            is_exempt: item.is_exempt || false,
+            unit: item.unit || 'UND',
+            description: item.description || '',
+            sales_percentage: item.sales_percentage || 0,
+            discount_percentage: item.discount_percentage || 0,
+          });
+        }
+      }
     };
 
     loadQuoteRequestItems();
-  }, [quoteRequest]);
+  }, [quoteRequest, location.state]);
 
   React.useEffect(() => {
     if (supplierData) {
@@ -139,6 +171,8 @@ const GeneratePurchaseOrder = () => {
 
   React.useEffect(() => {
     if (materialData) {
+      // Clear cart to avoid accumulating materials from previous imports
+      clearCart();
       addItem({
         material_id: materialData.id,
         material_name: materialData.name,
@@ -147,7 +181,7 @@ const GeneratePurchaseOrder = () => {
         unit_price: 0,
         tax_rate: 0.16,
         is_exempt: materialData.is_exempt || false,
-        unit: materialData.unit || MATERIAL_UNITS[0],
+        unit: materialData.unit || (units[0]?.name || ''),
         description: materialData.specification || '',
         sales_percentage: 0,
         discount_percentage: 0,
@@ -174,11 +208,11 @@ const GeneratePurchaseOrder = () => {
     }
   }, [supplierDetails]);
 
-  const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
+  const handleMaterialSelect = (index: number, material: any) => {
     updateItem(index, {
       material_id: material.id,
       material_name: material.name,
-      unit: material.unit || MATERIAL_UNITS[0],
+      unit: material.unit || (units[0]?.name || ''),
       is_exempt: material.is_exempt || false,
       description: material.specification || '',
     });
@@ -193,7 +227,7 @@ const GeneratePurchaseOrder = () => {
       unit_price: 0,
       tax_rate: 0.16,
       is_exempt: false,
-      unit: MATERIAL_UNITS[0],
+      unit: units[0]?.name || '',
       description: '',
       sales_percentage: 0,
       discount_percentage: 0,
@@ -222,6 +256,11 @@ const GeneratePurchaseOrder = () => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
     clearCart();
+  };
+
+  const handleMaterialCreated = (material: any) => {
+    // Optionally trigger a refresh or select the new material
+    // For now, simpler to just let them search it or if we knew which row triggered it, auto-fill.
   };
 
   const totals = calculateTotals(items);
@@ -276,6 +315,22 @@ const GeneratePurchaseOrder = () => {
       return;
     }
 
+    let associatedMaterialIds: Set<string>;
+    try {
+      const associatedMaterials = await searchMaterialsBySupplier(supplierId, '');
+      associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+    } catch (e) {
+      console.error("Error validating supplier materials:", e);
+      showError("Error al validar los materiales del proveedor.");
+      return;
+    }
+
+    const unassociatedItem = items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+    if (unassociatedItem) {
+      showError(`El proveedor seleccionado no distribuye el material: ${unassociatedItem.material_name}`);
+      return;
+    }
+
     if (paymentTerms === 'Otro' && (!customPaymentTerms || customPaymentTerms.trim() === '')) {
       showError('Debe especificar los términos de pago personalizados.');
       return;
@@ -289,6 +344,12 @@ const GeneratePurchaseOrder = () => {
       return;
     }
 
+    // Open reminder dialog before proceeding
+    setIsReminderDialogOpen(true);
+  };
+
+  const confirmSubmit = async () => {
+    setIsReminderDialogOpen(false);
     setIsSubmitting(true);
     const orderData = {
       supplier_id: supplierId,
@@ -304,25 +365,19 @@ const GeneratePurchaseOrder = () => {
       credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
       observations: observations || null,
       quote_request_id: quoteRequest?.id || null,
+      service_order_id: serviceOrderId || null,
     };
 
-    const createdOrder = await createPurchaseOrder(orderData, items);
+    const createdOrder = await purchaseOrderService.create(orderData as any, items as any);
 
     if (createdOrder) {
-      if (quoteRequest?.id && quoteRequest.quote_request_items) {
-        const itemsPayload = quoteRequest.quote_request_items.map((item: any) => ({
-          material_name: item.material_name,
-          quantity: item.quantity,
-          description: item.description,
-          unit: item.unit,
-        }));
-
-        const updatedQR = await updateQuoteRequest(quoteRequest.id, { status: 'Archived' }, itemsPayload);
+      if (quoteRequest?.id) {
+        const updatedQR = await updateQuoteRequestStatus(quoteRequest.id, 'Approved');
 
         if (updatedQR) {
-          console.log(`Quote Request ${quoteRequest.id} archived successfully.`);
+          console.log(`Quote Request ${quoteRequest.id} approved successfully.`);
         } else {
-          showError('Advertencia: No se pudo archivar la Solicitud de Cotización de origen.');
+          showError('Advertencia: No se pudo actualizar el estado de la Solicitud de Cotización de origen.');
         }
       }
 
@@ -338,57 +393,54 @@ const GeneratePurchaseOrder = () => {
       setCustomPaymentTerms('');
       setCreditDays(0);
       setObservations('');
+      // navigate('/purchase-order-management'); // Optional: redirect user
     }
     setIsSubmitting(false);
   };
 
+  // Shared Styles
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1.5 block";
+
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+
+      {/* 1. STICKY ACTION BAR */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Orden</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Compra</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0}
+            className="bg-procarni-primary hover:bg-red-800 text-white font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
+          >
+            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden'}
+          </Button>
+        </div>
       </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Generar Orden de Compra (OC)</CardTitle>
-          <CardDescription>Crea una nueva orden de compra para tus proveedores.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="md:col-span-1">
-              <Label htmlFor="company">Empresa de Origen</Label>
-              <SmartSearch
-                placeholder="Buscar empresa por RIF o nombre"
-                onSelect={handleCompanySelect}
-                fetchFunction={searchCompanies}
-                displayValue={companyName}
-              />
-              {companyName && <p className="text-sm text-muted-foreground mt-1">Empresa seleccionada: {companyName}</p>}
-            </div>
-            <div className="md:col-span-1">
-              <Label htmlFor="supplier">Proveedor</Label>
-              <div className="flex gap-2">
-                <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
-              </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
+
+      <Card className="mb-6 border-gray-200 shadow-sm overflow-visible">
+        <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+              Información General
+            </CardTitle>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <Info className="h-4 w-4" />
+              <span>Detalles de la orden</span>
             </div>
           </div>
+        </CardHeader>
+        <CardContent className="p-6 md:p-8">
 
+          {/* 3. DETAILS FORM */}
           <PurchaseOrderDetailsForm
             companyId={companyId}
             companyName={companyName}
@@ -409,8 +461,33 @@ const GeneratePurchaseOrder = () => {
             onCustomPaymentTermsChange={setCustomPaymentTerms}
             onCreditDaysChange={setCreditDays}
             onObservationsChange={setObservations}
+            onSupplierSelect={handleSupplierSelect}
+            onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
           />
 
+        </CardContent>
+      </Card>
+
+      <Card className="border-gray-200 shadow-sm overflow-hidden mb-8">
+        <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between border-b border-gray-200">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+            <ShoppingCart className="h-4 w-4 mr-2" /> Ítems de la Orden
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+            </Button>
+            <Button
+              onClick={() => setIsAddMaterialDialogOpen(true)}
+              variant="secondary"
+              size="sm"
+              disabled={!supplierId}
+            >
+              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
           <PurchaseOrderItemsTable
             items={items}
             supplierId={supplierId}
@@ -420,51 +497,104 @@ const GeneratePurchaseOrder = () => {
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}
             onMaterialSelect={handleMaterialSelect}
+            hideHeader={true}
           />
-
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{currency} {totals.baseImponible.toFixed(2)}</span>
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems agregados a la orden.</p>
+              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
             </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {currency} {totals.montoDescuento.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {currency} {totals.montoVenta.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>+ {currency} {totals.montoIVA.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{currency} {totals.total.toFixed(2)}</span>
-            </div>
-            {totalInUSD && currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 mt-6">
-
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Orden de Compra'}
-            </Button>
-          </div>
+          )}
         </CardContent>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/30">
+
+          {/* 5. TOTALS SECTION ("TICKET DE CAJA") */}
+          <div className="flex justify-end">
+            <div className="w-full max-w-sm bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
+
+              {/* 2. Discount */}
+              {totals.montoDescuento > 0 && (
+                <div className="flex justify-between items-center text-sm text-red-600">
+                  <span className="font-medium">Descuento</span>
+                  <span className="font-mono">- {currency} {totals.montoDescuento.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* 3. Base Imponible (Taxable Amount) */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Base Imponible</span>
+                <span className="font-mono text-gray-700">{currency} {totals.baseImponible.toFixed(2)}</span>
+              </div>
+
+              {/* 5. Sales Percentage / Margin (montoVenta) */}
+              {totals.montoVenta > 0 && (
+                <div className="flex justify-between items-center text-sm text-blue-600">
+                  <span className="font-medium">% de Venta</span>
+                  <span className="font-mono">+ {currency} {totals.montoVenta.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* 6. IVA */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Monto IVA (16%)</span>
+                <span className="font-mono text-gray-700">+ {currency} {totals.montoIVA.toFixed(2)}</span>
+              </div>
+
+              <div className="h-px bg-gray-200 my-2" />
+
+              {/* 6. Total Final */}
+              <div className="flex justify-between items-center text-lg">
+                <span className="font-bold text-procarni-dark">Total Final</span>
+                <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
+              </div>
+
+              {totalInUSD && currency === 'VES' && (
+                <div className="flex justify-end pt-1">
+                  <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                    Ref. USD {totalInUSD}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
       </Card>
-      <MadeWithDyad />
+
+
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
       />
+      <MaterialCreationDialog
+        isOpen={isAddMaterialDialogOpen}
+        onClose={() => setIsAddMaterialDialogOpen(false)}
+        onMaterialCreated={handleMaterialCreated}
+        supplierId={supplierId}
+        supplierName={supplierName}
+      />
+
+      <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de compra?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSubmit}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+            >
+              Confirmar y Guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

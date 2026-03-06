@@ -5,32 +5,40 @@
  * @param items Array de objetos con 'quantity', 'unit_price', 'tax_rate', 'is_exempt', 'sales_percentage', 'discount_percentage'.
  * @returns Objeto con baseImponible, montoIVA, montoVenta, montoDescuento, y total.
  */
-export const calculateTotals = (items: Array<{ 
-  quantity: number; 
-  unit_price: number; 
-  tax_rate?: number; 
-  is_exempt?: boolean; 
+export const calculateTotals = (items: Array<{
+  quantity: number;
+  unit_price: number;
+  tax_rate?: number;
+  is_exempt?: boolean;
   sales_percentage?: number; // NEW
   discount_percentage?: number; // NEW
 }>) => {
-  let baseImponible = 0; // Suma de subtotales después de descuento (Base para IVA y Venta)
+  let subtotal = 0; // Suma bruta (Qty * Price)
+  let baseImponible = 0; // Base para IVA
+  let montoExento = 0; // Monto exento
   let montoIVA = 0;
-  let montoVenta = 0; 
-  let montoDescuento = 0; 
+  let montoVenta = 0;
+  let montoDescuento = 0;
   let total = 0;
 
   items.forEach(item => {
     const itemValue = item.quantity * item.unit_price;
-    
+    subtotal += itemValue;
+
     // 1. Apply Discount
     const discountRate = (item.discount_percentage ?? 0) / 100;
     const discountAmount = itemValue * discountRate;
     montoDescuento += discountAmount;
-    
+
     const subtotalAfterDiscount = itemValue - discountAmount;
-    
-    // 2. Calculate Base Imponible (Subtotal after discount, before taxes)
-    baseImponible += subtotalAfterDiscount; 
+
+    // Both exempt and non-exempt items contribute to base imponible
+    baseImponible += subtotalAfterDiscount;
+
+    if (item.is_exempt) {
+      montoExento += subtotalAfterDiscount;
+    }
+
 
     // 3. Apply Sales Percentage (Additional Tax)
     const salesRate = (item.sales_percentage ?? 0) / 100;
@@ -39,18 +47,20 @@ export const calculateTotals = (items: Array<{
 
     // 4. Apply IVA (Standard Tax)
     let ivaAmount = 0;
-    if (!item.is_exempt) { 
+    if (!item.is_exempt) {
       const taxRate = item.tax_rate ?? 0.16; // Default IVA 16%
       ivaAmount = subtotalAfterDiscount * taxRate;
       montoIVA += ivaAmount;
     }
-    
+
     // 5. Calculate Total Item
     total += subtotalAfterDiscount + salesAmount + ivaAmount;
   });
 
   return {
+    subtotal: parseFloat(subtotal.toFixed(2)),
     baseImponible: parseFloat(baseImponible.toFixed(2)),
+    montoExento: parseFloat(montoExento.toFixed(2)),
     montoIVA: parseFloat(montoIVA.toFixed(2)),
     montoVenta: parseFloat(montoVenta.toFixed(2)),
     montoDescuento: parseFloat(montoDescuento.toFixed(2)),
@@ -107,8 +117,19 @@ export const numberToWords = (amount: number, currency: 'VES' | 'USD'): string =
   if (tempEntero === 1) {
     texto = `UN ${currency === 'VES' ? 'BOLIVAR' : 'DOLAR'}`;
   } else if (tempEntero > 1) {
-    let miles = Math.floor(tempEntero / 1000);
-    let unidades = tempEntero % 1000;
+    let millones = Math.floor(tempEntero / 1000000);
+    let resto = tempEntero % 1000000;
+
+    let miles = Math.floor(resto / 1000);
+    let unidades = resto % 1000;
+
+    if (millones > 0) {
+      if (millones === 1) {
+        texto += 'UN MILLON ';
+      } else {
+        texto += convertirGrupo(millones) + ' MILLONES ';
+      }
+    }
 
     if (miles > 0) {
       if (miles === 1) {
@@ -119,7 +140,11 @@ export const numberToWords = (amount: number, currency: 'VES' | 'USD'): string =
     }
     texto += convertirGrupo(unidades);
 
-    texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    if (millones > 0 && resto === 0) {
+      texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    } else {
+      texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+    }
   }
 
   const decimalTexto = decimal.toString().padStart(2, '0');

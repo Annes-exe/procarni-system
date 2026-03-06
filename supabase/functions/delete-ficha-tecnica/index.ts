@@ -49,19 +49,20 @@ serve(async (req) => {
 
     // 1. Extract file path from storage URL
     const pathSegments = storageUrl.split('/');
-    const bucketIndex = pathSegments.indexOf('fichas');
-    
+    const bucketIndex = pathSegments.indexOf('fichas_tecnicas');
+
     if (bucketIndex === -1 || bucketIndex + 1 >= pathSegments.length) {
       console.error('[delete-ficha-tecnica] Invalid storage URL format:', storageUrl);
       throw new Error('URL de almacenamiento inválida.');
     }
-    
+
     const filePath = pathSegments.slice(bucketIndex + 1).join('/');
-    
+
     // 2. Delete file from Storage (using Service Role Key)
     const { error: storageError } = await serviceRoleClient.storage
-      .from('fichas')
+      .from('fichas_tecnicas')
       .remove([filePath]);
+
 
     if (storageError) {
       console.error('[delete-ficha-tecnica] Storage Delete Error:', storageError);

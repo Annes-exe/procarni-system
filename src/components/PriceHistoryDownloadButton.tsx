@@ -4,11 +4,20 @@ import { Download } from 'lucide-react';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 
+import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+
+const sanitizeFilename = (filename: string): string => {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+};
+
 interface PriceHistoryDownloadButtonProps {
   materialId: string;
   materialName: string;
   // baseCurrency: 'USD' | 'VES'; // Removed as PDF report is always USD
   disabled?: boolean;
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
+  className?: string;
 }
 
 const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
@@ -16,6 +25,8 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
   materialName,
   // baseCurrency, // Removed
   disabled = false,
+  variant = 'outline',
+  className
 }) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -34,11 +45,19 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
     const toastId = showLoading('Generando reporte PDF de historial de precios...');
 
     try {
+      // Fetch fresh session to ensure we have the latest token
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        showError('No hay sesión activa para descargar el historial.');
+        return;
+      }
+
       // Use the new PDF generation function
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-material-price-history-pdf`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-material-price-history-pdf`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ materialId, materialName }), // Removed baseCurrency
@@ -57,11 +76,12 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = sanitizeFilename(fileName);
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      // Delay revocation to ensure the browser has finished writing the file to disk
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 
       dismissToast(toastId);
       showSuccess('Reporte PDF descargado exitosamente.');
@@ -78,11 +98,11 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
     <Button
       onClick={handleDownload}
       disabled={isDownloading || disabled || !materialId}
-      variant="outline"
-      className="bg-procarni-secondary text-white hover:bg-green-700"
+      variant={variant || "outline"}
+      className={cn("bg-procarni-secondary text-white hover:bg-green-700", className)}
     >
       <Download className="mr-2 h-4 w-4" />
-      {isDownloading ? 'Descargando...' : 'Descargar Reporte PDF'}
+      {isDownloading ? 'Descargando...' : 'Descargar PDF'}
     </Button>
   );
 };

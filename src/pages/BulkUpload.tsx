@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { UploadCloud, FileText, Download, Trash2, DatabaseBackup, RefreshCw } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PinInputDialog from '@/components/PinInputDialog';
 import ResetDataButton from '@/components/ResetDataButton'; // Import the new ResetDataButton component
+import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
+
+const sanitizeFilename = (filename: string): string => {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+};
 
 interface UploadResult {
   successCount: number;
@@ -19,7 +25,8 @@ interface UploadResult {
 }
 
 const BulkUpload = () => {
-  const { session } = useSession();
+  const { session, role, isLoadingSession } = useSession();
+  const navigate = useNavigate();
   const [supplierFile, setSupplierFile] = useState<File | null>(null);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [relationFile, setRelationFile] = useState<File | null>(null);
@@ -32,6 +39,13 @@ const BulkUpload = () => {
   const [pinActionType, setPinActionType] = useState<'backup' | 'delete' | null>(null);
   const [pinDataType, setPinDataType] = useState<'supplier' | 'material' | 'supplier_material_relation' | null>(null);
   const [isConfirmingPin, setIsConfirmingPin] = useState(false);
+
+  useEffect(() => {
+    if (!isLoadingSession && role !== 'admin') {
+      navigate('/');
+      showError('No tienes permisos para acceder a esta página.');
+    }
+  }, [role, isLoadingSession, navigate]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'supplier' | 'material' | 'supplier_material_relation') => {
     if (event.target.files && event.target.files[0]) {
@@ -65,10 +79,11 @@ const BulkUpload = () => {
       formData.append('file', file);
       formData.append('type', type);
 
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/bulk-upload`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bulk-upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
         body: formData,
       });
@@ -116,13 +131,22 @@ const BulkUpload = () => {
     const loadingToastId = showLoading(`Generando ${mode === 'template' ? 'plantilla' : 'respaldo'} de ${type === 'supplier' ? 'proveedores' : (type === 'material' ? 'materiales' : 'relaciones proveedor-material')}...`);
 
     try {
+      // Fetch fresh session to ensure we have the latest token
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        showError('No hay sesión activa. Por favor, inicia sesión para descargar.');
+        return;
+      }
+
       const functionName = mode === 'template' ? 'generate-template' : 'export-data';
       const body = mode === 'template' ? JSON.stringify({ type }) : JSON.stringify({ type, pin });
 
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/${functionName}`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
         body: body,
@@ -141,11 +165,12 @@ const BulkUpload = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = sanitizeFilename(fileName);
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      // Delay revocation to ensure the browser has finished writing the file to disk
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 
       dismissToast(loadingToastId);
       showSuccess(`${mode === 'template' ? 'Plantilla' : 'Respaldo'} descargado exitosamente.`);
@@ -170,10 +195,11 @@ const BulkUpload = () => {
     const loadingToastId = showLoading(`Eliminando todos los ${type === 'supplier' ? 'proveedores' : (type === 'material' ? 'materiales' : 'relaciones proveedor-material')}...`);
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/delete-all-data`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-all-data`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ type, pin }),
@@ -316,13 +342,16 @@ const BulkUpload = () => {
   );
 
   return (
-    <div className="container mx-auto p-4">
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Carga Masiva de Datos</CardTitle>
-          <CardDescription>Sube tus proveedores, materiales y sus relaciones desde archivos Excel.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Carga Masiva de Datos</h1>
+          <p className="text-muted-foreground text-sm">Sube tus proveedores, materiales y sus relaciones desde archivos Excel.</p>
+        </div>
+      </div>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6">
           <Tabs defaultValue="suppliers" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="suppliers">Proveedores</TabsTrigger>
@@ -342,85 +371,85 @@ const BulkUpload = () => {
         </CardContent>
       </Card>
 
-      <Card className="mb-6 border-destructive card-alert-border">
-        <CardHeader>
-          <CardTitle className="text-destructive">Gestión Avanzada de Datos</CardTitle>
-          <CardDescription>Opciones para respaldar, eliminar o reiniciar datos existentes. Requiere PIN de seguridad.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Suppliers */}
-          <div className="flex flex-col gap-2 p-4 border rounded-md">
-            <h4 className="font-semibold">Proveedores</h4>
-            <Button
-              variant="outline"
-              onClick={() => openPinDialogForBackup('supplier')}
-              disabled={downloadingTemplate}
-            >
-              <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => openPinDialogForDelete('supplier')}
-              disabled={isConfirmingPin}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
-            </Button>
-          </div>
+      <div className="grid grid-cols-1 gap-6 mt-8">
+        <Card className="border-destructive shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-destructive">Gestión Avanzada de Datos</CardTitle>
+            <CardDescription>Opciones para respaldar o eliminar datos existentes. Requiere PIN de seguridad.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Suppliers */}
+            <div className="flex flex-col gap-2 p-4 border rounded-md">
+              <h4 className="font-semibold">Proveedores</h4>
+              <Button
+                variant="outline"
+                onClick={() => openPinDialogForBackup('supplier')}
+                disabled={downloadingTemplate}
+              >
+                <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => openPinDialogForDelete('supplier')}
+                disabled={isConfirmingPin}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
+              </Button>
+            </div>
 
-          {/* Materials */}
-          <div className="flex flex-col gap-2 p-4 border rounded-md">
-            <h4 className="font-semibold">Materiales</h4>
-            <Button
-              variant="outline"
-              onClick={() => openPinDialogForBackup('material')}
-              disabled={downloadingTemplate}
-            >
-              <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => openPinDialogForDelete('material')}
-              disabled={isConfirmingPin}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
-            </Button>
-          </div>
+            {/* Materials */}
+            <div className="flex flex-col gap-2 p-4 border rounded-md">
+              <h4 className="font-semibold">Materiales</h4>
+              <Button
+                variant="outline"
+                onClick={() => openPinDialogForBackup('material')}
+                disabled={downloadingTemplate}
+              >
+                <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => openPinDialogForDelete('material')}
+                disabled={isConfirmingPin}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
+              </Button>
+            </div>
 
-          {/* Relations */}
-          <div className="flex flex-col gap-2 p-4 border rounded-md">
-            <h4 className="font-semibold">Relaciones P-M</h4>
-            <Button
-              variant="outline"
-              onClick={() => openPinDialogForBackup('supplier_material_relation')}
-              disabled={downloadingTemplate}
-            >
-              <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => openPinDialogForDelete('supplier_material_relation')}
-              disabled={isConfirmingPin}
-            >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            {/* Relations */}
+            <div className="flex flex-col gap-2 p-4 border rounded-md">
+              <h4 className="font-semibold">Relaciones P-M</h4>
+              <Button
+                variant="outline"
+                onClick={() => openPinDialogForBackup('supplier_material_relation')}
+                disabled={downloadingTemplate}
+              >
+                <DatabaseBackup className="mr-2 h-4 w-4" /> Descargar Respaldo
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => openPinDialogForDelete('supplier_material_relation')}
+                disabled={isConfirmingPin}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Todos
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card className="mb-6 border-destructive card-alert-border">
-        <CardHeader>
-          <CardTitle className="text-destructive">Reinicio Completo de Datos</CardTitle>
-          <CardDescription>
-            <strong>¡ADVERTENCIA!</strong> Esto eliminará TODOS tus proveedores, materiales y relaciones,
-            y reiniciará los correlativos de los códigos a P001 y MT001.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResetDataButton />
-        </CardContent>
-      </Card>
-
-      <MadeWithDyad />
+        <Card className="border-destructive shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-destructive">Reinicio Completo de Datos</CardTitle>
+            <CardDescription>
+              <strong>¡ADVERTENCIA!</strong> Esto eliminará TODOS tus proveedores, materiales y relaciones,
+              y reiniciará los correlativos de los códigos a P001 y MT001.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResetDataButton />
+          </CardContent>
+        </Card>
+      </div>
 
       <PinInputDialog
         isOpen={isPinDialogOpen}

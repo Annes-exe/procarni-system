@@ -1,33 +1,27 @@
+// src/pages/GenerateQuoteRequest.tsx
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, Trash2, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { createQuoteRequest, searchSuppliers, searchMaterialsBySupplier, searchCompanies } from '@/integrations/supabase/data';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+import { quoteRequestService } from '@/services/quoteRequestService';
+import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
+import { useQuery } from '@tanstack/react-query';
+
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
-import SupplierCreationDialog from '@/components/SupplierCreationDialog'; // NEW IMPORT
+import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/lib/utils';
+import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
 
 interface Company {
   id: string;
   name: string;
   rif: string;
-}
-
-interface QuoteRequestItem {
-  material_name: string;
-  quantity: number;
-  description?: string;
-  unit?: string;
 }
 
 interface MaterialSearchResult {
@@ -40,29 +34,32 @@ interface MaterialSearchResult {
   specification?: string;
 }
 
-interface Supplier { // Define Supplier type for the callback
+interface Supplier {
   id: string;
   name: string;
 }
 
-const MATERIAL_UNITS = [
-  'KG', 'LT', 'ROL', 'PAQ', 'SACO', 'GAL', 'UND', 'MT', 'RESMA', 'PZA', 'TAMB', 'MILL', 'CAJA', 'PAR'
-];
 
 const GenerateQuoteRequest = () => {
-  const { session, isLoadingSession } = useSession();
+  const { session } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isMobile = useIsMobile();
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
-  const [items, setItems] = useState<QuoteRequestItem[]>([]);
+  const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
-  const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false); // NEW STATE
+  const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
+
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -79,26 +76,22 @@ const GenerateQuoteRequest = () => {
 
   useEffect(() => {
     if (materialData) {
-      // Add the material as the first item
       setItems([{
         material_name: materialData.name,
         quantity: 0,
         description: materialData.specification || '',
-        unit: materialData.unit || MATERIAL_UNITS[0],
+        unit: materialData.unit || (units[0]?.name || ''),
+        // @ts-ignore
+        material_id: materialData.id,
       }]);
     }
   }, [materialData]);
 
-  const searchSupplierMaterials = React.useCallback(async (query: string) => {
-    if (!supplierId) return [];
-    return searchMaterialsBySupplier(supplierId, query);
-  }, [supplierId]);
-
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: MATERIAL_UNITS[0] }]);
+    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
   };
 
-  const handleItemChange = (index: number, field: keyof QuoteRequestItem, value: any) => {
+  const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
     setItems((prevItems) =>
       prevItems.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
@@ -110,8 +103,12 @@ const GenerateQuoteRequest = () => {
 
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
-    handleItemChange(index, 'unit', material.unit || MATERIAL_UNITS[0]);
-    if (material.specification) {
+    handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
+    handleItemChange(index, 'material_id', material.id); // Save ID
+
+    // Solo completamos la descripción si existe una especificación guardada
+    // Y si esa especificación NO es exactamente igual al código del material
+    if (material.specification && material.specification !== material.code) {
       handleItemChange(index, 'description', material.specification);
     }
   };
@@ -125,17 +122,16 @@ const GenerateQuoteRequest = () => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
   };
-  
-  // NEW HANDLER: Set the newly created supplier as selected
+
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
-    // Optionally, clear items if a new supplier is selected/created
     setItems([]);
   };
 
   const handleMaterialAdded = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
-    // Material created and associated, user can now select it via SmartSearch.
+    // Optionally trigger a refresh or select the new material
+    // For now, simpler to just let them search it or if we knew which row triggered it, auto-fill.
   };
 
   const handleSubmit = async () => {
@@ -151,236 +147,205 @@ const GenerateQuoteRequest = () => {
       showError('Por favor, selecciona un proveedor.');
       return;
     }
-    
+
     const invalidItem = items.find(item => !item.material_name || item.quantity <= 0 || !item.unit);
     if (items.length === 0 || invalidItem) {
       showError('Por favor, añade al menos un ítem válido con nombre, cantidad mayor a cero y unidad.');
       return;
     }
 
+    let associatedMaterialIds: Set<string>;
+    try {
+      const associatedMaterials = await searchMaterialsBySupplier(supplierId, '');
+      associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+    } catch (e) {
+      console.error("Error validating supplier materials:", e);
+      showError("Error al validar los materiales del proveedor.");
+      return;
+    }
+
+    const unassociatedItem = items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+    if (unassociatedItem) {
+      showError(`El proveedor seleccionado no distribuye el material: ${unassociatedItem.material_name}`);
+      return;
+    }
+
     setIsSubmitting(true);
-    const requestData = {
-      supplier_id: supplierId,
-      company_id: companyId,
-      currency: 'USD' as const,
-      exchange_rate: null,
-      created_by: userEmail || 'unknown',
-      user_id: userId,
-    };
 
-    const createdRequest = await createQuoteRequest(requestData, items);
+    try {
+      const orderData = {
+        supplier_id: supplierId,
+        company_id: companyId,
+        currency: 'USD' as const, // Default to USD for now, strictly typed
+        issue_date: new Date().toISOString(),
+        deadline_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // +7 days default
+        status: 'Draft' as const,
+      };
 
-    if (createdRequest) {
+      const formattedItems = items.map(item => ({
+        material_id: item.material_id || '', // Should ideally reject if no ID, but for flexible generic items might be empty? NO, we enforced strict materials.
+        // If strict materials are Enforced, we need material_id.
+        // If the user typed a name that isn't in DB, they should create it.
+        // For now, let's assume if they used SmartSearch they have an ID.
+        // If they just typed, we might fail or create a "Generic"?
+        // The service expects material_id.
+        // Let's check if we have IDs.
+        quantity: item.quantity,
+        unit: item.unit,
+        description: item.description,
+      }));
+
+      // Validation:
+      if (formattedItems.some(i => !i.material_id)) {
+        // If we allow ad-hoc items, we might need a "Generic Material" ID or handle it.
+        // But the system seems to want strict tracking.
+        // Let's warn the user if they didn't select a material from the list.
+        showError("Todos los ítems deben estar asociados a un material registrado. Por favor selecciona materiales de la lista.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      await quoteRequestService.create(orderData, formattedItems as any);
+
       showSuccess('Solicitud de cotización creada exitosamente.');
-      // Reset form fields
-      setCompanyId('');
-      setCompanyName('');
-      setSupplierId('');
-      setSupplierName('');
-      setItems([]);
+      navigate('/quote-request-management');
+
+    } catch (error: any) {
+      console.error('Error creating quote request:', error);
+      showError(error.message || 'Error al crear la solicitud.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
-  };
-
-  const renderItemFields = (item: QuoteRequestItem, index: number) => {
-    const isMaterialSelected = !!item.material_name; // Simple check for name presence
-
-    if (isMobile) {
-      return (
-        <div key={index} className="border rounded-md p-3 space-y-3 bg-white shadow-sm">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h4 className="font-semibold text-procarni-primary truncate flex items-center">
-              {item.material_name || 'Nuevo Ítem'}
-            </h4>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="h-8 w-8">
-                <PlusCircle className="h-4 w-4" />
-              </Button>
-              <Button variant="destructive" size="icon" onClick={() => handleRemoveItem(index)} className="h-8 w-8">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="space-y-1 col-span-2">
-              <label className="text-xs font-medium text-muted-foreground flex items-center">
-                Material
-                {isMaterialSelected && <CheckCircle className="ml-2 h-4 w-4 text-green-600" />}
-              </label>
-              <SmartSearch
-                placeholder={supplierId ? "Buscar material asociado al proveedor" : "Selecciona un proveedor primero"}
-                onSelect={(material) => handleMaterialSelect(index, material as MaterialSearchResult)}
-                fetchFunction={searchSupplierMaterials}
-                displayValue={item.material_name}
-                disabled={!supplierId}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Cantidad</label>
-              <Input
-                id={`quantity-${index}`}
-                type="number"
-                value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value))}
-                min="0"
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Unidad</label>
-              <Select value={item.unit} onValueChange={(value) => handleItemChange(index, 'unit', value)}>
-                <SelectTrigger id={`unit-${index}`} className="h-9">
-                  <SelectValue placeholder="Unidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MATERIAL_UNITS.map(unitOption => (
-                    <SelectItem key={unitOption} value={unitOption}>{unitOption}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">Descripción</label>
-              <Textarea
-                id={`description-${index}`}
-                value={item.description}
-                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                placeholder="Especificación, marca, etc."
-                rows={2}
-              />
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Desktop/Tablet View
-    return (
-      <div key={index} className="grid grid-cols-7 gap-4 items-end border p-3 rounded-md bg-white shadow-sm">
-        <div className="col-span-2">
-          <Label htmlFor={`material_name-${index}`} className="flex items-center">
-            Material
-            {isMaterialSelected && <CheckCircle className="ml-2 h-4 w-4 text-green-600" />}
-          </Label>
-          <SmartSearch
-            placeholder={supplierId ? "Buscar material asociado al proveedor" : "Selecciona un proveedor primero"}
-            onSelect={(material) => handleMaterialSelect(index, material as MaterialSearchResult)}
-            fetchFunction={searchSupplierMaterials}
-            displayValue={item.material_name}
-            disabled={!supplierId}
-          />
-        </div>
-        <div className="col-span-1">
-          <Label htmlFor={`quantity-${index}`}>Cantidad</Label>
-          <Input
-            id={`quantity-${index}`}
-            type="number"
-            value={item.quantity}
-            onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value))}
-            min="0"
-          />
-        </div>
-        <div className="col-span-1">
-          <Label htmlFor={`unit-${index}`}>Unidad</Label>
-          <Select value={item.unit} onValueChange={(value) => handleItemChange(index, 'unit', value)}>
-            <SelectTrigger id={`unit-${index}`}>
-              <SelectValue placeholder="Unidad" />
-            </SelectTrigger>
-            <SelectContent>
-              {MATERIAL_UNITS.map(unitOption => (
-                <SelectItem key={unitOption} value={unitOption}>{unitOption}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-2">
-          <Label htmlFor={`description-${index}`}>Descripción</Label>
-          <Textarea
-            id={`description-${index}`}
-            value={item.description}
-            onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-            placeholder="Especificación, marca, etc."
-            rows={1}
-            className="min-h-10"
-          />
-        </div>
-        <div className="flex flex-col space-y-2 col-span-1 justify-end">
-          <Button variant="outline" size="icon" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="h-8 w-8">
-            <PlusCircle className="h-4 w-4" />
-          </Button>
-          <Button variant="destructive" size="icon" onClick={() => handleRemoveItem(index)} className="h-8 w-8">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    );
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
-      </div>
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Generar Solicitud de Cotización (SC)</CardTitle>
-          <CardDescription>Crea una nueva solicitud de cotización para tus proveedores.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
-            <div>
-              <Label htmlFor="company">Empresa de Origen *</Label>
-              <SmartSearch
-                placeholder="Buscar empresa por RIF o nombre"
-                onSelect={handleCompanySelect}
-                fetchFunction={searchCompanies}
-                displayValue={companyName}
-              />
-              {companyName && <p className="text-sm text-muted-foreground mt-1">Empresa seleccionada: {companyName}</p>}
-            </div>
-            <div>
-              <Label htmlFor="supplier">Proveedor *</Label>
-              <div className="flex gap-2">
-                <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
-              </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
-            </div>
-          </div>
+    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
-          <h3 className="text-lg font-semibold mb-4 text-procarni-primary">Ítems de la Solicitud</h3>
-          <div className="space-y-4">
-            {items.map(renderItemFields)}
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={handleAddItem} className="w-full">
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
+      {/* PHASE 1: STICKY HEADER & ACTIONS */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Solicitud</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Cotización</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
+          >
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Guardar Solicitud
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-6">
+        {/* PHASE 2: GENERAL INFO CARD */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+                Información General
+              </CardTitle>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Info className="h-4 w-4" />
+                <span>Detalles de la solicitud</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 md:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <Label htmlFor="supplier" className="text-sm font-semibold text-gray-700">
+                      Proveedor Principal <span className="text-red-500">*</span>
+                    </Label>
+                    <div
+                      className="text-xs font-semibold text-procarni-primary hover:text-green-700 cursor-pointer flex items-center transition-colors"
+                      onClick={() => setIsAddSupplierDialogOpen(true)}
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" /> Nuevo Proveedor
+                    </div>
+                  </div>
+                  <SmartSearch
+                    placeholder="Buscar proveedor por RIF o nombre"
+                    onSelect={handleSupplierSelect}
+                    fetchFunction={searchSuppliers}
+                    displayValue={supplierName}
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
+                    icon={<Search className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <Label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Empresa de Origen <span className="text-red-500">*</span>
+                  </Label>
+                  <SmartSearch
+                    placeholder="Buscar empresa por RIF o nombre"
+                    onSelect={handleCompanySelect}
+                    fetchFunction={searchCompanies}
+                    displayValue={companyName}
+                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
+                    icon={<Building2 className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* PHASE 3: ITEMS TABLE */}
+        <Card className="border-gray-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
+              <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+              </Button>
+              <Button
+                onClick={() => setIsAddMaterialDialogOpen(true)}
+                variant="secondary"
+                size="sm"
+                disabled={!supplierId}
+              >
+                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
               </Button>
             </div>
-          </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <QuoteRequestItemsTable
+              items={items}
+              supplierId={supplierId}
+              supplierName={supplierName}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
+              onItemChange={handleItemChange}
+              onMaterialSelect={handleMaterialSelect}
+            />
+          </CardContent>
+          {items.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+              <p className="text-sm">No hay ítems agregados a la solicitud.</p>
+              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
+            </div>
+          )}
+        </Card>
+      </div>
 
-          <div className="flex justify-end gap-2 mt-6">
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Solicitud de Cotización'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      <MadeWithDyad />
+
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
         onClose={() => setIsAddMaterialDialogOpen(false)}

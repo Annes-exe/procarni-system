@@ -6,23 +6,23 @@ import { QuoteRequest, QuoteRequestItem } from '../types';
 import { logAudit } from './auditLogService';
 
 const QuoteRequestService = {
-  getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' = 'Active'): Promise<QuoteRequest[]> => {
+  getAll: async (statusFilter?: string | string[]): Promise<QuoteRequest[]> => {
     let query = supabase
       .from('quote_requests')
       .select('*, suppliers(name), companies(name)')
       .order('created_at', { ascending: false });
 
-    if (statusFilter === 'Active') {
-      // Incluir 'Draft' y 'Sent'
-      query = query.in('status', ['Draft', 'Sent']);
-    } else if (statusFilter === 'Approved') {
-      // Solo incluir 'Approved'
-      query = query.eq('status', 'Approved');
-    } else if (statusFilter === 'Archived') {
-      // Solo incluir 'Archived'
-      query = query.eq('status', 'Archived');
+    if (statusFilter) {
+      if (Array.isArray(statusFilter)) {
+        query = query.in('status', statusFilter);
+      } else if (statusFilter === 'Active') {
+        // Incluir 'Draft' para compatibilidad con la lógica anterior si es necesario
+        query = query.in('status', ['Draft']);
+      } else {
+        // Filtro por estado específico (Approved, Rejected, Archived, Draft, etc.)
+        query = query.eq('status', statusFilter);
+      }
     }
-    // Si statusFilter es algo más (ej. 'All'), no se aplica filtro de estado.
 
     const { data, error } = await query;
 
@@ -48,11 +48,11 @@ const QuoteRequestService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('CREATE_QUOTE_REQUEST', { 
+    logAudit('CREATE_QUOTE_REQUEST', {
       table: 'quote_requests',
-      record_id: newRequest.id, 
+      record_id: newRequest.id,
       description: 'Creación de Solicitud de Cotización',
-      supplier_id: newRequest.supplier_id, 
+      supplier_id: newRequest.supplier_id,
       company_id: newRequest.company_id,
       items_count: items.length
     });
@@ -65,6 +65,7 @@ const QuoteRequestService = {
         quantity: item.quantity,
         description: item.description,
         unit: item.unit,
+        material_id: item.material_id, // Added for name update propagation
         // is_exempt removed
       }));
 
@@ -97,9 +98,9 @@ const QuoteRequestService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('UPDATE_QUOTE_REQUEST', { 
+    logAudit('UPDATE_QUOTE_REQUEST', {
       table: 'quote_requests',
-      record_id: id, 
+      record_id: id,
       description: 'Actualización de Solicitud de Cotización',
       updates: updates,
       items_count: items.length
@@ -126,6 +127,7 @@ const QuoteRequestService = {
         quantity: item.quantity,
         description: item.description,
         unit: item.unit,
+        material_id: item.material_id, // Added for name update propagation
         // is_exempt removed
       }));
 
@@ -142,8 +144,8 @@ const QuoteRequestService = {
 
     return updatedRequest;
   },
-  
-  updateStatus: async (id: string, newStatus: 'Draft' | 'Sent' | 'Archived' | 'Approved'): Promise<boolean> => {
+
+  updateStatus: async (id: string, newStatus: 'Draft' | 'Archived' | 'Approved' | 'Rejected'): Promise<boolean> => {
     const { error } = await supabase
       .from('quote_requests')
       .update({ status: newStatus })
@@ -156,14 +158,14 @@ const QuoteRequestService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('UPDATE_QUOTE_REQUEST_STATUS', { 
+    logAudit('UPDATE_QUOTE_REQUEST_STATUS', {
       table: 'quote_requests',
-      record_id: id, 
+      record_id: id,
       description: `Cambio de estado a ${newStatus}`,
-      new_status: newStatus 
+      new_status: newStatus
     });
     // -----------------
-    
+
     return true;
   },
 
@@ -181,21 +183,21 @@ const QuoteRequestService = {
       .from('quote_requests')
       .update({ status: 'Archived' })
       .eq('supplier_id', supplierId)
-      .not('status', 'in', '("Archived", "Approved")')
+      .not('status', 'in', '("Archived","Approved","Rejected")')
       .select('id');
 
     if (error) {
       console.error('[QuoteRequestService.bulkArchiveBySupplier] Error:', error);
       return 0;
     }
-    
+
     // --- AUDIT LOG ---
     if (data.length > 0) {
-      logAudit('BULK_ARCHIVE_QUOTE_REQUESTS', { 
+      logAudit('BULK_ARCHIVE_QUOTE_REQUESTS', {
         table: 'quote_requests',
         description: `Archivado masivo de ${data.length} SCs`,
-        supplier_id: supplierId, 
-        count: data.length 
+        supplier_id: supplierId,
+        count: data.length
       });
     }
     // -----------------
@@ -217,20 +219,20 @@ const QuoteRequestService = {
     }
 
     // --- AUDIT LOG ---
-    logAudit('DELETE_QUOTE_REQUEST', { 
+    logAudit('DELETE_QUOTE_REQUEST', {
       table: 'quote_requests',
       record_id: id,
       description: 'Eliminación permanente de Solicitud de Cotización'
     });
     // -----------------
-    
+
     return true;
   },
 
   getById: async (id: string): Promise<QuoteRequest | null> => {
     const { data, error } = await supabase
       .from('quote_requests')
-      .select('*, suppliers(*), companies(*), quote_request_items(*)')
+      .select('*, suppliers(*), companies(*), quote_request_items(*, materials(code, name))')
       .eq('id', id)
       .single();
 

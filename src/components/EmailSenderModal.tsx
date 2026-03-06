@@ -10,9 +10,8 @@ import { useSession } from '@/components/SessionContextProvider';
 interface EmailSenderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSend: (message: string, sendWhatsApp: boolean) => Promise<void>;
+  onSend: (message: string) => Promise<void>;
   recipientEmail: string;
-  recipientPhone?: string;
   documentType: 'Solicitud de Cotización' | 'Orden de Compra' | 'Orden de Servicio';
   documentId: string;
 }
@@ -22,12 +21,10 @@ const EmailSenderModal: React.FC<EmailSenderModalProps> = ({
   onClose,
   onSend,
   recipientEmail,
-  recipientPhone,
   documentType,
   documentId,
 }) => {
   const [message, setMessage] = useState('');
-  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const { session } = useSession();
 
@@ -46,7 +43,7 @@ const EmailSenderModal: React.FC<EmailSenderModalProps> = ({
     const toastId = showLoading(`Enviando ${documentType}...`);
 
     try {
-      await onSend(message, sendWhatsApp);
+      await onSend(message);
       showSuccess(`${documentType} enviada exitosamente.`);
       onClose();
     } catch (error: unknown) {
@@ -79,18 +76,6 @@ const EmailSenderModal: React.FC<EmailSenderModalProps> = ({
               rows={4}
             />
           </div>
-          {recipientPhone && (
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="whatsapp"
-                checked={sendWhatsApp}
-                onCheckedChange={(checked) => setSendWhatsApp(!!checked)}
-              />
-              <Label htmlFor="whatsapp" className="text-sm">
-                Enviar notificación por WhatsApp al {recipientPhone}
-              </Label>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isSending}>

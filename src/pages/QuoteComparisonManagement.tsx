@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ArrowLeft, Search, Scale, Eye, Trash2, PlusCircle } from 'lucide-react';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { getAllQuoteComparisons, deleteQuoteComparison } from '@/integrations/supabase/data';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { showError, showSuccess } from '@/utils/toast';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { QuoteComparison } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const QuoteComparisonManagement = () => {
   const navigate = useNavigate();
@@ -23,6 +25,9 @@ const QuoteComparisonManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [comparisonToDeleteId, setComparisonToDeleteId] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
   const { data: comparisons, isLoading, error } = useQuery<QuoteComparison[]>({
     queryKey: ['quoteComparisons'],
@@ -70,6 +75,37 @@ const QuoteComparisonManagement = () => {
     }
   };
 
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filteredComparisons.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredComparisons.map(c => c.id)));
+    }
+  };
+
+  const executeBulkDelete = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => deleteQuoteComparison(id)));
+      queryClient.invalidateQueries({ queryKey: ['quoteComparisons'] });
+      showSuccess(`${selectedIds.size} comparaciones eliminadas exitosamente.`);
+      setSelectedIds(new Set());
+      setIsBulkDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Error deleting comparisons:', error);
+      showError('Error al eliminar las comparaciones seleccionadas.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4 text-center text-muted-foreground">
@@ -89,12 +125,21 @@ const QuoteComparisonManagement = () => {
 
   const renderComparisonRow = (comparison: QuoteComparison) => {
     const exchangeRateDisplay = comparison.global_exchange_rate ? comparison.global_exchange_rate.toFixed(2) : 'N/A';
-    const materialCount = comparison.items?.length || 0;
+    // @ts-ignore - quote_comparison_items is populated by the join in the service
+    const materialCount = comparison.quote_comparison_items?.length || 0;
 
     if (isMobile) {
       return (
-        <Card key={comparison.id} className="p-4 shadow-md">
-          <CardTitle className="text-lg mb-1 truncate">{comparison.name}</CardTitle>
+        <Card key={comparison.id} className={cn("p-4 shadow-md", selectedIds.has(comparison.id) && "border-destructive border-2")}>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={selectedIds.has(comparison.id)}
+                onCheckedChange={() => toggleSelection(comparison.id)}
+              />
+              <CardTitle className="text-lg mb-1 truncate">{comparison.name}</CardTitle>
+            </div>
+          </div>
           <CardDescription className="mb-2 flex items-center">
             <Scale className="mr-1 h-3 w-3" /> ID: {comparison.id.substring(0, 8)}
           </CardDescription>
@@ -105,94 +150,125 @@ const QuoteComparisonManagement = () => {
             <p><strong>Guardado:</strong> {format(new Date(comparison.created_at), 'dd/MM/yyyy')}</p>
           </div>
           <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleLoadComparison(comparison.id)}
-              disabled={deleteMutation.isPending}
-            >
-              <Eye className="h-4 w-4 mr-2" /> Cargar
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => confirmDeleteComparison(comparison.id)}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <TooltipProvider delayDuration={0}>
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => handleLoadComparison(comparison.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Cargar y Editar</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                      onClick={() => confirmDeleteComparison(comparison.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Eliminar</TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
           </div>
         </Card>
       );
     }
 
     return (
-      <TableRow key={comparison.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-        <TableCell className="font-medium">{comparison.name}</TableCell>
-        <TableCell className="text-xs">{comparison.id.substring(0, 8)}</TableCell>
-        <TableCell>{comparison.base_currency}</TableCell>
-        <TableCell>{exchangeRateDisplay}</TableCell>
-        <TableCell>{materialCount}</TableCell>
-        <TableCell>{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
-        <TableCell className="text-right">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleLoadComparison(comparison.id)}
-            disabled={deleteMutation.isPending}
-            title="Cargar y Editar"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => confirmDeleteComparison(comparison.id)}
-            disabled={deleteMutation.isPending}
-            title="Eliminar"
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+      <TableRow key={comparison.id} className="hover:bg-gray-50/50 transition-colors">
+        <TableCell className="pl-4 py-3">
+          <Checkbox
+            checked={selectedIds.has(comparison.id)}
+            onCheckedChange={() => toggleSelection(comparison.id)}
+          />
+        </TableCell>
+        <TableCell className="py-3 font-medium text-procarni-dark">{comparison.name}</TableCell>
+        <TableCell className="py-3 text-xs text-gray-500">{comparison.id.substring(0, 8)}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600 font-mono">{comparison.base_currency}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600 font-mono">{exchangeRateDisplay}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600">{materialCount}</TableCell>
+        <TableCell className="py-3 text-sm text-gray-600">{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
+        <TableCell className="text-right pr-4 py-3">
+          <TooltipProvider delayDuration={0}>
+            <div className="flex justify-end gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleLoadComparison(comparison.id)}
+                    disabled={deleteMutation.isPending}
+                    className="h-8 w-8"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Cargar y Editar</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => confirmDeleteComparison(comparison.id)}
+                    disabled={deleteMutation.isPending}
+                    className="h-8 w-8"
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Eliminar</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </TableCell>
       </TableRow>
     );
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+    <div className="container mx-auto p-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Comparaciones</h1>
+          <p className="text-muted-foreground text-sm flex items-center gap-2">
+            Carga, edita o elimina comparaciones guardadas.
+          </p>
+        </div>
+        <Button
+          onClick={() => navigate('/quote-comparison')}
+          className={cn(
+            "bg-procarni-secondary hover:bg-green-700 w-full md:w-auto",
+          )}
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Nueva Comparación
         </Button>
       </div>
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-procarni-primary flex items-center">
-              <Scale className="mr-2 h-6 w-6" /> Gestión de Comparaciones Guardadas
-            </CardTitle>
-            <CardDescription>
-              Carga, edita o elimina comparaciones de cotizaciones guardadas previamente.
-            </CardDescription>
-          </div>
-          <Button 
-            onClick={() => navigate('/quote-comparison')} 
-            className={cn(
-              "bg-procarni-secondary hover:bg-green-700",
-              isMobile && "w-10 h-10 p-0"
-            )}
-          >
-            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} /> 
-            {!isMobile && 'Nueva Comparación'}
-          </Button>
-        </CardHeader>
-        <CardContent>
+
+      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+        <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Buscar por nombre o ID..."
-              className="w-full appearance-none bg-background pl-8 shadow-none"
+              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -204,17 +280,23 @@ const QuoteComparisonManagement = () => {
                 {filteredComparisons.map(renderComparisonRow)}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Moneda Base</TableHead>
-                      <TableHead>Tasa Global</TableHead>
-                      <TableHead>Materiales</TableHead>
-                      <TableHead>Fecha Guardado</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="w-[50px] pl-4 py-3">
+                        <Checkbox
+                          checked={filteredComparisons.length > 0 && selectedIds.size === filteredComparisons.length}
+                          onCheckedChange={toggleAll}
+                        />
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">ID</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Moneda Base</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Tasa Global</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Materiales</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Fecha Guardado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -230,7 +312,35 @@ const QuoteComparisonManagement = () => {
           )}
         </CardContent>
       </Card>
-      <MadeWithDyad />
+
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-procarni-primary/20 p-2 pl-4 pr-2 rounded-full shadow-lg flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
+          <span className="text-sm font-medium text-procarni-primary">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
+          <div className="h-6 w-px bg-gray-200"></div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 rounded-full text-xs hover:bg-gray-100">
+              Cancelar
+            </Button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                    onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Eliminar Seleccionadas</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+      )}
 
       {/* AlertDialog for delete confirmation */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -245,6 +355,24 @@ const QuoteComparisonManagement = () => {
             <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={executeDeleteComparison} disabled={deleteMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Eliminación Masiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar permanentemente las {selectedIds.size} comparaciones seleccionadas? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar {selectedIds.size} Comparaciones
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

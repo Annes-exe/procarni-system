@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
-import { showError, showLoading, dismissToast } from '@/utils/toast';
+import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton';
 import { getServiceOrderDetails } from '@/integrations/supabase/data';
@@ -43,11 +43,11 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
             URL.revokeObjectURL(pdfUrl);
         }
         if (loadingToastId) {
-            dismissToast(String(loadingToastId));
+            dismissToast(loadingToastId);
             setLoadingToastId(null);
         }
         if (successToastId) {
-            dismissToast(String(successToastId));
+            dismissToast(successToastId);
             setSuccessToastId(null);
         }
         onClose();
@@ -63,8 +63,8 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
             return;
         }
 
-        if (loadingToastId) dismissToast(String(loadingToastId));
-        if (successToastId) dismissToast(String(successToastId));
+        if (loadingToastId) dismissToast(loadingToastId);
+        if (successToastId) dismissToast(successToastId);
 
         setIsLoadingPdf(true);
         const toastId = showLoading('Generando PDF de la Orden de Servicio...');
@@ -95,20 +95,16 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
             const url = URL.createObjectURL(blob);
             setPdfUrl(url);
 
-            dismissToast(String(toastId));
+            dismissToast(toastId);
             setLoadingToastId(null);
 
-            const successId = showLoading('PDF generado. Puedes previsualizarlo.');
-            setSuccessToastId(successId);
-
-            setTimeout(() => {
-                dismissToast(String(successId));
-                setSuccessToastId(null);
-            }, 2000);
+            const successId = showSuccess('PDF generado. Puedes previsualizarlo.');
+            // Success toast auto-dismisses
+            setSuccessToastId(null);
 
         } catch (error: any) {
             console.error('[ServiceOrderPDFViewer] Error generating PDF:', error);
-            if (loadingToastId) dismissToast(String(loadingToastId));
+            if (loadingToastId) dismissToast(loadingToastId);
             setLoadingToastId(null);
             showError(error.message || 'Error desconocido al generar el PDF.');
         } finally {
@@ -125,10 +121,10 @@ const ServiceOrderPDFViewer = React.forwardRef<ServiceOrderPDFViewerRef, Service
                 URL.revokeObjectURL(pdfUrl);
             }
             if (loadingToastId) {
-                dismissToast(String(loadingToastId));
+                dismissToast(loadingToastId);
             }
             if (successToastId) {
-                dismissToast(String(successToastId));
+                dismissToast(successToastId);
             }
         };
     }, [orderId]);

@@ -19,9 +19,22 @@ interface SmartSearchProps {
   displayValue?: string; // Optional prop to control the displayed value
   selectedId?: string; // NEW: Optional prop to indicate the currently selected ID
   disabled?: boolean; // New prop
+  className?: string;
+  autoFocus?: boolean;
+  icon?: React.ReactNode; // New prop for icon
 }
 
-const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchFunction, displayValue, selectedId, disabled = false }) => {
+const SmartSearch: React.FC<SmartSearchProps> = ({
+  placeholder,
+  onSelect,
+  fetchFunction,
+  displayValue,
+  selectedId,
+  disabled = false,
+  className,
+  autoFocus,
+  icon
+}) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -33,7 +46,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
     if (displayValue) {
       setQuery(displayValue);
       // Synchronize selectedItem based on displayValue and selectedId
-      setSelectedItem({ id: selectedId || '', name: displayValue }); 
+      setSelectedItem({ id: selectedId || '', name: displayValue });
     } else {
       setQuery('');
       setSelectedItem(null);
@@ -61,7 +74,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
         // Si la consulta está vacía, cargamos todos los resultados (para el scroll)
         const fetchQuery = query.trim() === '' ? '' : query;
         debouncedFetch(fetchQuery);
-      }, 300) as unknown as number;
+      }, query.trim() === '' ? 0 : 300) as unknown as number;
     } else {
       setResults([]);
     }
@@ -81,17 +94,27 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
   };
 
   return (
-    <Popover open={open && !disabled} onOpenChange={setOpen}>
+    <Popover open={open && !disabled} onOpenChange={(newOpen) => {
+      setOpen(newOpen);
+      if (newOpen) {
+        setQuery('');
+      }
+    }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between", "min-w-[150px] md:min-w-[200px] lg:min-w-[250px]")}
+          className={cn("w-full justify-between overflow-hidden min-w-[150px] md:min-w-[200px] lg:min-w-[250px] text-left", className)}
           disabled={disabled}
         >
-          {selectedItem ? selectedItem.name : placeholder}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="flex items-center truncate w-full mr-2">
+            {icon && <span className="mr-2 shrink-0">{icon}</span>}
+            <span className="truncate">
+              {selectedItem ? selectedItem.name : placeholder}
+            </span>
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -100,6 +123,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({ placeholder, onSelect, fetchF
             placeholder={placeholder}
             value={query}
             onValueChange={setQuery}
+            autoFocus={autoFocus}
           />
           <CommandList className="max-h-60 overflow-y-auto"> {/* Added max-h-60 and overflow-y-auto */}
             <CommandEmpty>No se encontraron resultados.</CommandEmpty>

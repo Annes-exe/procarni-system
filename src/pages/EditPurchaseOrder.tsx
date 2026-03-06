@@ -3,14 +3,14 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2, FileText } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { getPurchaseOrderDetails, searchMaterialsBySupplier, updatePurchaseOrder, searchSuppliers, searchCompanies } from '@/integrations/supabase/data';
+import { searchMaterialsBySupplier, searchSuppliers, searchCompanies } from '@/integrations/supabase/data'; // Removed updatePurchaseOrder, getPurchaseOrderDetails
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { useQuery } from '@tanstack/react-query';
-import { MadeWithDyad } from '@/components/made-with-dyad';
+
 import { calculateTotals } from '@/utils/calculations';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import PurchaseOrderDraftPreview from '@/components/PurchaseOrderDraftPreview';
+
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale'; // Importar la localización en español
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
@@ -58,7 +58,7 @@ interface Supplier {
 const EditPurchaseOrder = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, isLoadingSession } = useSession();
+  const { session, role, isLoadingSession } = useSession();
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
@@ -75,7 +75,7 @@ const EditPurchaseOrder = () => {
 
   const [items, setItems] = useState<PurchaseOrderItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false); // NEW STATE
 
   const userId = session?.user?.id;
@@ -83,12 +83,21 @@ const EditPurchaseOrder = () => {
 
   const { data: initialOrder, isLoading: isLoadingOrder, error: orderError } = useQuery({
     queryKey: ['purchaseOrderDetails', id],
-    queryFn: () => getPurchaseOrderDetails(id!),
+    queryFn: async () => {
+      const res = await purchaseOrderService.getById(id!);
+      return res as any; // Cast because local component expects specific structure (joins)
+    },
     enabled: !!id && !!session && !isLoadingSession,
   });
 
   useEffect(() => {
     if (initialOrder) {
+      if (initialOrder.status !== 'Draft' && role !== 'admin') {
+        showError('No tienes permisos para editar esta orden.');
+        navigate('/purchase-order-management');
+        return;
+      }
+
       setCompanyId(initialOrder.company_id);
       setCompanyName(initialOrder.companies?.name || '');
       setSupplierId(initialOrder.supplier_id);
@@ -256,7 +265,7 @@ const EditPurchaseOrder = () => {
       observations: observations || null,
     };
 
-    const updatedOrder = await updatePurchaseOrder(id!, orderData, items);
+    const updatedOrder = await purchaseOrderService.update(id!, orderData, items as any);
 
     if (updatedOrder) {
       showSuccess('Orden de compra actualizada exitosamente.');
@@ -298,18 +307,30 @@ const EditPurchaseOrder = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
-        </Button>
+      {/* 1. STICKY ACTION BAR */}
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-6 -mx-4 px-4 shadow-sm flex justify-between items-center transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Editar Orden #{initialOrder.sequence_number}</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Modificar Detalles de Compra</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0}
+            className="bg-procarni-primary hover:bg-red-800 text-white font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
+          >
+            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Cambios'}
+          </Button>
+        </div>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-procarni-primary">Editar Orden de Compra #{initialOrder.sequence_number}</CardTitle>
-          <CardDescription>Modifica los detalles de esta orden de compra.</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Card className="mb-6 border-gray-200 shadow-sm overflow-visible">
+        <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="md:col-span-1">
               <Label htmlFor="company">Empresa de Origen</Label>
@@ -319,7 +340,7 @@ const EditPurchaseOrder = () => {
                 fetchFunction={searchCompanies}
                 displayValue={companyName}
               />
-              {companyName && <p className="text-sm text-muted-foreground mt-1">Empresa seleccionada: {companyName}</p>}
+              {companyName && <p className="text-sm text-muted-foreground mt-1 break-words">Empresa seleccionada: {companyName}</p>}
             </div>
             <div className="md:col-span-1">
               <Label htmlFor="supplier">Proveedor</Label>
@@ -340,7 +361,7 @@ const EditPurchaseOrder = () => {
                   <PlusCircle className="h-4 w-4" />
                 </Button>
               </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1">Proveedor seleccionado: {supplierName}</p>}
+              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
             </div>
           </div>
 
@@ -377,73 +398,57 @@ const EditPurchaseOrder = () => {
             onMaterialSelect={handleMaterialSelect}
           />
 
-          <div className="mt-8 border-t pt-4">
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Base Imponible:</span>
-              <span>{currency} {totals.baseImponible.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Descuento:</span>
-              <span className="text-red-600">- {currency} {totals.montoDescuento.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto Venta:</span>
-              <span className="text-blue-600">+ {currency} {totals.montoVenta.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center mb-2">
-              <span className="font-semibold mr-2">Monto IVA:</span>
-              <span>+ {currency} {totals.montoIVA.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-end items-center text-xl font-bold">
-              <span className="mr-2">TOTAL:</span>
-              <span>{currency} {totals.total.toFixed(2)}</span>
-            </div>
-            {totalInUSD && currency === 'VES' && (
-              <div className="flex justify-end items-center text-lg font-bold text-blue-600 mt-1">
-                <span className="mr-2">TOTAL (USD):</span>
-                <span>USD {totalInUSD}</span>
-              </div>
-            )}
-          </div>
+          {/* 5. TOTALS SECTION ("TICKET DE CAJA") */}
+          <div className="mt-8 flex justify-end">
+            <div className="w-full max-w-sm bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
 
-          <div className="flex justify-end gap-2 mt-6">
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" disabled={isSubmitting || !companyId || items.length === 0}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar PDF
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Previsualización de Orden de Compra</DialogTitle>
-                </DialogHeader>
-                <PurchaseOrderDraftPreview
-                  orderData={{
-                    supplier_id: supplierId,
-                    company_id: companyId,
-                    currency,
-                    exchange_rate: currency === 'VES' ? exchangeRate : null,
-                    status: initialOrder.status,
-                    created_by: userEmail || 'unknown',
-                    user_id: userId || '',
-                    delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
-                    payment_terms: paymentTerms,
-                    custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
-                    credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
-                    observations: observations || null,
-                  }}
-                  itemsData={items}
-                  onClose={() => setIsModalOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
-            <Button onClick={handleSubmit} disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0} className="bg-procarni-secondary hover:bg-green-700">
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</> : 'Guardar Cambios'}
-            </Button>
+              {/* 2. Discount */}
+              {totals.montoDescuento > 0 && (
+                <div className="flex justify-between items-center text-sm text-red-600">
+                  <span className="font-medium">Descuento</span>
+                  <span className="font-mono">- {currency} {totals.montoDescuento.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* 3. Base Imponible (Taxable Amount) */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Base Imponible</span>
+                <span className="font-mono text-gray-700">{currency} {totals.baseImponible.toFixed(2)}</span>
+              </div>
+
+              {/* 5. Sales Percentage / Margin (montoVenta) */}
+              {totals.montoVenta > 0 && (
+                <div className="flex justify-between items-center text-sm text-blue-600">
+                  <span className="font-medium">% de Venta</span>
+                  <span className="font-mono">+ {currency} {totals.montoVenta.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* 6. IVA */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500 font-medium">Monto IVA (16%)</span>
+                <span className="font-mono text-gray-700">+ {currency} {totals.montoIVA.toFixed(2)}</span>
+              </div>
+
+              <div className="h-px bg-gray-200 my-2" />
+
+              {/* 6. Total Final */}
+              <div className="flex justify-between items-center text-lg">
+                <span className="font-bold text-procarni-dark">Total Final</span>
+                <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
+              </div>
+
+              {totalInUSD && currency === 'VES' && (
+                <div className="flex justify-end pt-1">
+                  <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                    Ref. USD {totalInUSD}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
-      <MadeWithDyad />
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}

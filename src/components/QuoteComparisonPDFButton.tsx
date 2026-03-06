@@ -4,6 +4,11 @@ import { Download } from 'lucide-react';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+
+const sanitizeFilename = (filename: string): string => {
+  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+};
 
 interface QuoteEntry {
   supplierId: string;
@@ -31,6 +36,7 @@ interface QuoteComparisonPDFButtonProps {
   globalExchangeRate?: number;
   label?: string;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
+  className?: string; // Permitir estilos personalizados
   isSingleMaterial?: boolean; // If true, uses a specific filename format
 }
 
@@ -41,6 +47,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
   label = 'Descargar Comparación PDF',
   variant = 'default',
   isSingleMaterial = false,
+  className,
 }) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -59,15 +66,23 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
     const toastId = showLoading('Generando PDF de comparación...');
 
     try {
-      const response = await fetch(`https://sbmwuttfblpwwwpifmza.supabase.co/functions/v1/generate-quote-comparison-pdf`, {
+      // Fetch fresh session to ensure we have the latest token
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        showError('No hay sesión activa para descargar el PDF.');
+        return;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quote-comparison-pdf`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${currentSession.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          comparisonResults, 
-          baseCurrency, 
+        body: JSON.stringify({
+          comparisonResults,
+          baseCurrency,
           globalExchangeRate,
           isSingleMaterial,
         }),
@@ -86,11 +101,12 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = sanitizeFilename(fileName);
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      // Delay revocation to ensure the browser has finished writing the file to disk
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 
       dismissToast(toastId);
       showSuccess('PDF descargado exitosamente.');
@@ -107,10 +123,10 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
 
   return (
     <Button
+      variant={variant}
       onClick={handleDownload}
       disabled={isDisabled}
-      variant={variant}
-      className={cn("flex items-center gap-2", variant === 'default' ? 'bg-procarni-secondary hover:bg-green-700' : '')}
+      className={cn("shadow-sm transition-all flex items-center gap-2", variant === 'default' ? 'bg-procarni-secondary hover:bg-green-700' : '', className)}
     >
       <Download className="h-4 w-4" />
       {isDownloading ? 'Generando...' : label}

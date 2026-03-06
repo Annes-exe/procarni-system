@@ -25,6 +25,7 @@ export type Supplier = {
   instagram: string | null;
   address: string | null;
   code: string | null;
+  city: string | null;
 };
 
 export type Material = {
@@ -37,6 +38,20 @@ export type Material = {
   user_id: string | null;
   unit: string | null;
   is_exempt: boolean | null;
+};
+
+export type MaterialCategory = {
+  id: string;
+  name: string;
+  user_id: string | null;
+  created_at: string | null;
+};
+
+export type UnitOfMeasure = {
+  id: string;
+  name: string;
+  user_id: string | null;
+  created_at: string | null;
 };
 
 export type Company = {
@@ -70,6 +85,7 @@ export type PurchaseOrder = {
   credit_days: number | null;
   observations: string | null;
   quote_request_id: string | null;
+  service_order_id?: string | null; // Added
   supplier: Supplier; // Assuming we might join this
   company: Company; // Assuming we might join this
 };
@@ -114,6 +130,11 @@ export type QuoteRequestItem = {
   description: string | null;
   unit: string | null;
   is_exempt: boolean | null;
+  material_id: string | null; // Added
+  materials?: { // Added
+    code: string | null;
+    name: string;
+  };
 };
 
 export type PriceHistory = {
@@ -124,6 +145,7 @@ export type PriceHistory = {
   currency: string;
   exchange_rate: number | null;
   purchase_order_id: string | null;
+  service_order_id: string | null;
   recorded_at: string | null;
   user_id: string;
 };
@@ -214,11 +236,13 @@ export type ServiceOrder = {
   observations: string | null;
   currency: 'USD' | 'VES';
   exchange_rate: number | null;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
   user_id: string;
   created_at: string | null;
   supplier?: Supplier;
   company?: Company;
+  service_order_items?: ServiceOrderItem[];
+  service_order_materials?: ServiceOrderMaterial[];
 };
 
 export type ServiceOrderItem = {
@@ -231,5 +255,28 @@ export type ServiceOrderItem = {
   is_exempt: boolean;
   sales_percentage: number | null;
   discount_percentage: number | null;
+  created_at: string | null;
+};
+
+export type ServiceOrderMaterial = {
+  id: string;
+  service_order_id: string;
+  supplier_id: string;
+  material_id: string | null;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+  is_exempt: boolean;
+  supplier_code: string | null;
+  unit: string | null;
+  description: string | null;
+  sales_percentage: number | null;
+  discount_percentage: number | null;
+  suppliers?: {
+    name: string;
+  };
+  materials?: {
+    name: string;
+  };
   created_at: string | null;
 };
