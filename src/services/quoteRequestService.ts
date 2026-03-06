@@ -41,19 +41,12 @@ export const quoteRequestService = {
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
-            // Logic for 'Active': Draft, Sent, Approved. 
-            // Actually 'Approved' usually moves to PO, but for QR it might stay open? 
-            // Let's assume Active = Draft, Sent. Approved/Rejected/Archived = History?
-            // Or maybe strictly follow status if provided in UI tabs.
-            // If UI sends 'Active', let's return Draft.
             query = query.in('status', ['Draft']);
         } else if (statusFilter === 'History') {
-            // All history: Approved, Rejected, Archived
             query = query.in('status', ['Approved', 'Rejected', 'Archived']);
         } else if (statusFilter === 'Rejected') {
             query = query.eq('status', 'Rejected');
         } else if (statusFilter) {
-            // Specific status
             query = query.eq('status', statusFilter);
         }
 
@@ -76,14 +69,6 @@ export const quoteRequestService = {
 
         if (error) throw error;
 
-        // We might need to join materials to get names for items if not stored directly
-        // The current quote_request_items has material_id. Fetching its name might require a separate query or better join.
-        // Let's see if we can join materials in the same query.
-        // quote_request_items(*, materials(name))
-
-        // Check if the relation exists in types or enabling it.
-        // Ideally: quote_request_items(..., materials(name))
-
         const { data: itemsWithMaterials, error: itemsError } = await supabase
             .from('quote_request_items')
             .select('*, materials(name)')
@@ -99,7 +84,6 @@ export const quoteRequestService = {
     },
 
     async create(orderData: CreateQuoteRequestInput, items: CreateQuoteRequestItemInput[]) {
-        // 1. Get next sequence number
         const { data: lastOrder } = await supabase
             .from('quote_requests')
             .select('sequence_number')
@@ -108,18 +92,17 @@ export const quoteRequestService = {
             .single();
 
         const sequence_number = (lastOrder?.sequence_number || 0) + 1;
+        const user_id = (await supabase.auth.getUser()).data.user?.id;
 
-        // 2. Create Quote Request
         const { data: newOrder, error: orderError } = await supabase
             .from('quote_requests')
-            .insert([{ ...orderData, sequence_number, user_id: (await supabase.auth.getUser()).data.user?.id }])
+            .insert([{ ...orderData, sequence_number, user_id }])
             .select()
             .single();
 
         if (orderError) throw orderError;
         if (!newOrder) throw new Error('Failed to create quote request');
 
-        // 3. Create Items
         if (items.length > 0) {
             const itemsToInsert = items.map(item => ({
                 request_id: newOrder.id,
@@ -133,18 +116,27 @@ export const quoteRequestService = {
                 .from('quote_request_items')
                 .insert(itemsToInsert);
 
-            if (itemsError) {
-                // Rollback? complex. Just throw for now.
-                console.error('Error creating items:', itemsError);
-                throw itemsError;
-            }
+            if (itemsError) throw itemsError;
+        }
+
+        // Create Notification
+        try {
+            await supabase.from('notifications').insert({
+                user_id,
+                title: 'Nueva Solicitud de Cotización',
+                message: `Se ha generado una nueva solicitud de cotización.`,
+                type: 'crud',
+                resource_type: 'quote_request',
+                resource_id: newOrder.id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
         }
 
         return newOrder;
     },
 
     async update(id: string, orderData: UpdateQuoteRequestInput, items: CreateQuoteRequestItemInput[]) {
-        // 1. Update Order
         const { error: orderError } = await supabase
             .from('quote_requests')
             .update(orderData)
@@ -152,8 +144,6 @@ export const quoteRequestService = {
 
         if (orderError) throw orderError;
 
-        // 2. Replace Items (Delete all and re-create)
-        // For simplicity in this project, we replace all items on update.
         const { error: deleteError } = await supabase
             .from('quote_request_items')
             .delete()
@@ -177,6 +167,21 @@ export const quoteRequestService = {
             if (itemsError) throw itemsError;
         }
 
+        // Create Notification
+        try {
+            const user_id = (await supabase.auth.getUser()).data.user?.id;
+            await supabase.from('notifications').insert({
+                user_id,
+                title: 'Solicitud Actualizada',
+                message: `Se ha actualizado la solicitud de cotización.`,
+                type: 'crud',
+                resource_type: 'quote_request',
+                resource_id: id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return true;
     },
 
@@ -187,6 +192,22 @@ export const quoteRequestService = {
             .eq('id', id);
 
         if (error) throw error;
+
+        // Create Notification
+        try {
+            const user_id = (await supabase.auth.getUser()).data.user?.id;
+            await supabase.from('notifications').insert({
+                user_id,
+                title: 'Estado de Solicitud Cambiado',
+                message: `La solicitud de cotización ha cambiado de estado a: ${status}`,
+                type: 'crud',
+                resource_type: 'quote_request',
+                resource_id: id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return true;
     },
 

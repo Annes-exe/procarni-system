@@ -72,3 +72,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# --- Re-confirmación de Env ---
+.env
+.env.local

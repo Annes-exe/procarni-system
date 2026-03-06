@@ -136,6 +136,20 @@ export const serviceOrderService = {
             }
         }
 
+        // Notification
+        try {
+            await supabase.from('notifications').insert({
+                user_id: newOrder.user_id,
+                title: 'Nueva Orden de Servicio',
+                message: `Se ha generado la OS #${newOrder.sequence_number}.`,
+                type: 'crud',
+                resource_type: 'service_order',
+                resource_id: newOrder.id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return newOrder as unknown as ServiceOrder;
     },
 
@@ -224,6 +238,20 @@ export const serviceOrderService = {
             }
         }
 
+        // Notification
+        try {
+            await supabase.from('notifications').insert({
+                user_id: updatedOrder.user_id,
+                title: 'Orden de Servicio Actualizada',
+                message: `Se ha actualizado la OS #${updatedOrder.sequence_number}.`,
+                type: 'crud',
+                resource_type: 'service_order',
+                resource_id: updatedOrder.id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return updatedOrder as unknown as ServiceOrder;
     },
 
@@ -238,6 +266,22 @@ export const serviceOrderService = {
             showError('Error al actualizar estado.');
             return false;
         }
+
+        // Notification on status change
+        try {
+            const { data: so } = await supabase.from('service_orders').select('sequence_number, user_id').eq('id', id).single();
+            await supabase.from('notifications').insert({
+                user_id: so?.user_id,
+                title: 'Estado de OS Cambiado',
+                message: `La OS #${so?.sequence_number} ha cambiado a: ${newStatus}`,
+                type: 'crud',
+                resource_type: 'service_order',
+                resource_id: id
+            });
+        } catch (e) {
+            console.error('Error creating notification:', e);
+        }
+
         return true;
     },
 
