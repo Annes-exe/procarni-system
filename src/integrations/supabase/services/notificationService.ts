@@ -73,7 +73,7 @@ export const notificationService = {
 
     subscribeToNotifications(onNotification: (notification: Notification) => void) {
         return supabase
-            .channel('public:notifications')
+            .channel('notifications-changes')
             .on(
                 'postgres_changes',
                 {
