@@ -53,12 +53,6 @@ coverage/
 *.sln
 *.sw?
 
-# --- Sistema Operativo (Windows/Mac) ---
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 # --- Migraciones / Backups / Debug ---
 backups/
 debug_logs_and_scripts/
@@ -71,5 +65,10 @@ debug_*.ts
 debug_logs_and_scripts
 lint_*.txt
 lint_output_verification.txt
-.env
-.env.local
+
+# --- Sistema Operativo (Windows/Mac) ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
