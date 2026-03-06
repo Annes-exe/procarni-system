@@ -53,7 +53,7 @@ export const serviceOrderService = {
                 suppliers(*),
                 companies(*),
                 service_order_items(*),
-                service_order_materials(*, materials(name))
+                service_order_materials(*, materials(name), suppliers(name))
             `)
             .eq('id', id)
             .single();

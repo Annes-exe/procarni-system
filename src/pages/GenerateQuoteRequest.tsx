@@ -105,7 +105,10 @@ const GenerateQuoteRequest = () => {
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
     handleItemChange(index, 'material_id', material.id); // Save ID
-    if (material.specification) {
+
+    // Solo completamos la descripción si existe una especificación guardada
+    // Y si esa especificación NO es exactamente igual al código del material
+    if (material.specification && material.specification !== material.code) {
       handleItemChange(index, 'description', material.specification);
     }
   };

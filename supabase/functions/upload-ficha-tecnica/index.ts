@@ -33,12 +33,12 @@ serve(async (req) => {
       return new Response('Unauthorized', { status: 401, headers: corsHeaders });
     }
 
-    const { 
-      nombre_producto, 
-      proveedor_id, 
-      fileBase64, 
-      fileName, 
-      mimeType 
+    const {
+      nombre_producto,
+      proveedor_id,
+      fileBase64,
+      fileName,
+      mimeType
     } = await req.json();
 
     if (!nombre_producto || !proveedor_id || !fileBase64 || !fileName || !mimeType) {
@@ -50,10 +50,10 @@ serve(async (req) => {
     }
 
     // --- 1. Upload file to Supabase Storage ---
-    
+
     // Create a unique path: user_id/timestamp_filename
     const filePath = `${user.id}/${Date.now()}_${fileName.replace(/\s/g, '_')}`;
-    
+
     // Convert Base64 string to ArrayBuffer/Blob for upload
     // Remove data URL prefix if present (e.g., "data:application/pdf;base64,")
     let base64Data = fileBase64;
@@ -76,7 +76,7 @@ serve(async (req) => {
     );
 
     const { error: uploadError } = await serviceRoleClient.storage
-      .from('fichas')
+      .from('fichas_tecnicas')
       .upload(filePath, fileBuffer, {
         contentType: mimeType,
         upsert: false,
@@ -89,11 +89,12 @@ serve(async (req) => {
 
     // --- 2. Get Public URL ---
     const { data: publicUrlData } = serviceRoleClient.storage
-      .from('fichas')
+      .from('fichas_tecnicas')
       .getPublicUrl(filePath);
-      
+
     const storageUrl = publicUrlData.publicUrl;
     console.log(`[upload-ficha-tecnica] Public URL obtained: ${storageUrl}`);
+
 
     // --- 3. Insert Metadata into Supabase DB ---
     const { data: newFicha, error: insertError } = await supabaseClient
