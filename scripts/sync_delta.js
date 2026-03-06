@@ -5,6 +5,8 @@ require('dotenv').config();
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+const userConfig = require('./user_config.json');
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function syncDelta() {
@@ -19,14 +21,17 @@ async function syncDelta() {
 
     // Mapa de IDs viejos a nuevos basado en correos conocidos
     const getNewUserId = (oldId) => {
-        // Mapeos fijos basados en los IDs del proyecto sbmwuttfblpwwwpifmza
-        if (oldId === 'be2aab53-9d6b-4cda-97ad-8edf9902a007' || oldId === '334ddfb0-dc1e-48bc-ad10-dafe29ff6dc9') {
-            return userMapping['sistemasprocarni2025@gmail.com'];
+        const email = userConfig.emailByOldUserId[oldId];
+        if (!email) return userMapping[userConfig.fallbackEmail];
+
+        // Buscar en grupos
+        for (const group of Object.values(userConfig.groups)) {
+            if (group.emails.includes(email)) {
+                return userMapping[group.targetEmail];
+            }
         }
-        if (oldId === '575a8f50-4117-4560-b1fa-c21199a1e4e0' || oldId === '9b44f0ec-4a3c-4d34-945c-1180a3d54efe') {
-            return userMapping['analistacompraspc@gmail.com'];
-        }
-        return userMapping['sistemasprocarni2025@gmail.com']; // Fallback
+
+        return userMapping[email] || userMapping[userConfig.fallbackEmail];
     };
 
     const tableOrder = [

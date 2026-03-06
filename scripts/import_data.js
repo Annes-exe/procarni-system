@@ -10,6 +10,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
     process.exit(1);
 }
 
+const userConfig = require('./user_config.json');
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function importData() {
@@ -42,12 +44,7 @@ async function importData() {
     const oldProfiles = allData['profiles'] || [];
     const oldUserIdToEmail = {};
     oldProfiles.forEach(p => {
-        let email = p.email;
-        // IDs conocidos del proyecto anterior para los que tenían email null
-        if (!email) {
-            if (p.id === 'be2aab53-9d6b-4cda-97ad-8edf9902a007') email = 'sistemasprocarni2025@gmail.com';
-            if (p.id === '575a8f50-4117-4560-b1fa-c21199a1e4e0') email = 'analistacompraspc@gmail.com';
-        }
+        let email = p.email || userConfig.emailByOldUserId[p.id];
         if (email) oldUserIdToEmail[p.id] = email;
     });
 
@@ -56,16 +53,14 @@ async function importData() {
         const email = oldUserIdToEmail[oldId];
         if (!email) return null;
 
-        // Regla: sistemasprocarni2025@gmail.com y admin@procarni.com -> sistemasprocarni2025@gmail.com
-        if (email === 'sistemasprocarni2025@gmail.com' || email === 'admin@procarni.com') {
-            return userMapping['sistemasprocarni2025@gmail.com'];
-        }
-        // Regla: analistacompraspc@gmail.com y compras@procarni.com -> analistacompraspc@gmail.com
-        if (email === 'analistacompraspc@gmail.com' || email === 'compras@procarni.com') {
-            return userMapping['analistacompraspc@gmail.com'];
+        // Buscar en grupos definidos (admin, analyst)
+        for (const group of Object.values(userConfig.groups)) {
+            if (group.emails.includes(email)) {
+                return userMapping[group.targetEmail];
+            }
         }
 
-        return userMapping[email] || userMapping['sistemasprocarni2025@gmail.com'];
+        return userMapping[email] || userMapping[userConfig.fallbackEmail];
     };
 
     // 5. Orden de tablas para respetar llaves foráneas
@@ -111,11 +106,7 @@ async function importData() {
 
             // Caso especial: profiles debe usar el ID oficial del Auth del nuevo proyecto
             if (tableName === 'profiles') {
-                let email = record.email;
-                if (!email) {
-                    if (record.id === 'be2aab53-9d6b-4cda-97ad-8edf9902a007') email = 'sistemasprocarni2025@gmail.com';
-                    if (record.id === '575a8f50-4117-4560-b1fa-c21199a1e4e0') email = 'analistacompraspc@gmail.com';
-                }
+                let email = record.email || userConfig.emailByOldUserId[record.id];
                 const targetAuthId = userMapping[email];
                 if (targetAuthId) {
                     newRecord.id = targetAuthId;

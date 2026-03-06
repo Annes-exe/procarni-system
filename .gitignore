@@ -30,8 +30,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# --- Archivos Generados (PDFs) ---
+# --- Archivos Generados (PDFs y JSON Data) ---
 *.pdf
+backup_*.json
+produccion_data_completa.json
+delta_today.json
+sync_*.json
 
 # --- Testing y Calidad de Código ---
 coverage/
@@ -62,5 +66,9 @@ scripts/*.sql
 scripts/*.zip
 scripts/node_modules/
 supabase/functions/node_modules/
+debug_*.ts
+debug_logs_and_scripts
+lint_*.txt
+lint_output_verification.txt
 .env
 .env.local

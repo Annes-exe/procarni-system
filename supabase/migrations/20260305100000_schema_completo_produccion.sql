@@ -598,7 +598,7 @@ UPDATE public.profiles
 SET 
   role = 'admin',
   username = 'Admin'
-WHERE email = 'sistemasprocarni2025@gmail.com';
+WHERE email = 'admin@example.com'; -- Sustituir por el correo real
 \n\n-- ARCHIVO: 20260305000000_create_missing_ui_tables.sql\n-- 1. Table structure for public.material_categories
 CREATE TABLE IF NOT EXISTS public.material_categories (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

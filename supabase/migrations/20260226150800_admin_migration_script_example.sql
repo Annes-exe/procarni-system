@@ -14,4 +14,4 @@ UPDATE public.profiles
 SET 
   role = 'admin',
   username = 'Admin'
-WHERE email = 'sistemasprocarni2025@gmail.com';
+WHERE email = 'tu_correo_admin@example.com';
