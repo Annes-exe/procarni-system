@@ -13,8 +13,9 @@ dist-ssr/
 .env.test
 .env.prod
 
-# --- Supabase ---
-supabase/.temp/
+# --- Supabase / Temporales ---
+**/.temp/
+**/.tmp/
 supabase/functions/.well-known/
 
 # --- Despliegue (Vercel) ---
@@ -53,9 +54,13 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
-lint_output_verification.txt
-
-# --- Migraciones / Backups Temporales ---
-scripts/*
-!scripts/migrate-cities.ts
-data_produccion_backup.sql
+# --- Migraciones / Backups / Debug ---
+backups/
+debug_logs_and_scripts/
+scripts/*.json
+scripts/*.sql
+scripts/*.zip
+scripts/node_modules/
+supabase/functions/node_modules/
+.env
+.env.local
