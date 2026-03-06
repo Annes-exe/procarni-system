@@ -17,6 +17,7 @@ dist-ssr/
 **/.temp/
 **/.tmp/
 supabase/functions/.well-known/
+scripts/supabase/.temp/
 
 # --- Despliegue (Vercel) ---
 .vercel/
