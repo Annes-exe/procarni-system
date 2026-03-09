@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search } from 'lucide-react';
-import { showError, showSuccess } from '@/utils/toast';
+import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search, TriangleAlert } from 'lucide-react';
+import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
-import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits } from '@/integrations/supabase/data';
+import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits, getSupplierDetails } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 
 import SmartSearch from '@/components/SmartSearch';
@@ -86,6 +86,20 @@ const GenerateQuoteRequest = () => {
       }]);
     }
   }, [materialData]);
+
+  const { data: supplierDetails } = useQuery({
+    queryKey: ['supplierDetails', supplierId],
+    queryFn: () => getSupplierDetails(supplierId),
+    enabled: !!supplierId,
+  });
+
+  useEffect(() => {
+    if (supplierDetails?.alert_comment) {
+      showSupplierAlert(supplierDetails.alert_comment);
+    } else {
+      dismissToast("supplier-alert");
+    }
+  }, [supplierDetails]);
 
   const handleAddItem = () => {
     setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);

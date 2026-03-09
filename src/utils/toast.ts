@@ -15,3 +15,18 @@ export const showLoading = (message: string) => {
 export const dismissToast = (toastId: string | number) => {
   toast.dismiss(toastId);
 };
+
+export const showSupplierAlert = (message: string) => {
+  return toast.error(message, {
+    id: "supplier-alert", // Evita duplicados
+    duration: Infinity,
+    closeButton: false,
+    style: {
+      background: '#fef2f2',
+      border: '1px solid #fee2e2',
+      color: '#991b1b',
+      fontWeight: '600'
+    },
+    description: "Aviso importante del proveedor"
+  });
+};

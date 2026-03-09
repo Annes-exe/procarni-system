@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'lucide-react';
-import { showError, showSuccess } from '@/utils/toast';
+import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
-import { searchSuppliers, searchMaterialsBySupplier } from '@/integrations/supabase/data';
+import { searchSuppliers, searchMaterialsBySupplier, getSupplierDetails } from '@/integrations/supabase/data';
 
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -109,6 +109,23 @@ const GenerateServiceOrder = () => {
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
   const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
+
+  // Trigger alert when supplier changes
+  React.useEffect(() => {
+    const checkSupplierAlert = async () => {
+      if (supplierId) {
+        const details = await getSupplierDetails(supplierId);
+        if (details?.alert_comment) {
+          showSupplierAlert(details.alert_comment);
+        } else {
+          dismissToast("supplier-alert");
+        }
+      } else {
+        dismissToast("supplier-alert");
+      }
+    };
+    checkSupplierAlert();
+  }, [supplierId]);
 
   const userId = session?.user?.id;
 

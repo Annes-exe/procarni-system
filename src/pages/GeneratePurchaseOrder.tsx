@@ -6,7 +6,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react';
-import { showError, showSuccess } from '@/utils/toast';
+import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 
@@ -201,7 +201,14 @@ const GeneratePurchaseOrder = () => {
       setPaymentTerms(terms);
       setCustomPaymentTerms(supplierDetails.custom_payment_terms || '');
       setCreditDays(supplierDetails.credit_days || 0);
+
+      if (supplierDetails.alert_comment) {
+        showSupplierAlert(supplierDetails.alert_comment);
+      } else {
+        dismissToast("supplier-alert");
+      }
     } else {
+      dismissToast("supplier-alert");
       setPaymentTerms('Contado');
       setCustomPaymentTerms('');
       setCreditDays(0);

@@ -9,6 +9,8 @@ import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier
 import { showError, showSuccess } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Info, TriangleAlert } from 'lucide-react';
 import { FichaTecnica, Supplier } from '@/integrations/supabase/types'; // Import Supplier type
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -51,6 +53,7 @@ interface SupplierDetailsData {
   credit_days: number;
   status: string;
   user_id: string;
+  alert_comment: string | null;
   materials?: MaterialAssociation[];
 }
 
@@ -269,6 +272,19 @@ const SupplierDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* PHASE 1.5: SUPPLIER ALERT */}
+      {supplier.alert_comment && (
+        <Alert variant="destructive" className="mb-6 bg-red-50 border-red-200 text-red-900 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
+          <TriangleAlert className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-800 font-bold flex items-center gap-2">
+            Aviso Importante para este Proveedor
+          </AlertTitle>
+          <AlertDescription className="text-red-700 font-medium mt-1 leading-relaxed">
+            {supplier.alert_comment}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* PHASE 2: GENERAL INFORMATION GRID */}
       <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Plus, X, PlusCircle } from 'lucide-react';
+import { Loader2, Plus, X, PlusCircle, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -51,6 +51,7 @@ const supplierFormSchema = z.object({
       specification: z.string().optional(),
     })
   ).optional(),
+  alert_comment: z.string().optional().nullable(),
 });
 
 type SupplierFormValues = z.infer<typeof supplierFormSchema>;
@@ -71,6 +72,7 @@ interface SupplierFormProps {
     custom_payment_terms?: string | null;
     credit_days: number;
     status: string;
+    alert_comment?: string | null;
     materials?: Array<{
       id?: string;
       material_id: string;
@@ -112,6 +114,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       credit_days: 0,
       status: 'Active', // Changed to English to match database constraint
       materials: [],
+      alert_comment: '',
     },
   });
 
@@ -160,6 +163,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         credit_days: initialData.credit_days || 0,
         status: initialData.status || 'Active', // Changed to English
         materials: formattedMaterials,
+        alert_comment: initialData.alert_comment || '',
       });
     } else {
       form.reset({
@@ -176,6 +180,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         credit_days: 0,
         status: 'Active', // Changed to English
         materials: [],
+        alert_comment: '',
       });
     }
   }, [initialData, form]);
@@ -468,6 +473,29 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="alert_comment"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-procarni-alert flex items-center gap-2">
+                <Info className="h-4 w-4" /> Aviso / Comentario Especial
+              </FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Este comentario aparecerá como una alerta cuando este proveedor sea seleccionado en una Orden o Documento."
+                  className="bg-red-50/10 border-procarni-alert/30 focus:border-procarni-alert min-h-[100px]"
+                  {...field}
+                  value={field.value || ''}
+                />
+              </FormControl>
+              <p className="text-[10px] text-gray-500">Útil para alertar sobre condiciones de crédito especiales, advertencias de cobros o acuerdos específicos.</p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         {/* Sección de materiales asociados */}
         <div className="mt-6 p-4 border rounded-lg">
           <h3 className="text-lg font-semibold mb-4 flex justify-between items-center">
