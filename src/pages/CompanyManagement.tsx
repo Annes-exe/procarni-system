@@ -97,8 +97,12 @@ const CompanyManagement = () => {
       setIsFormOpen(false);
       showSuccess('Empresa creada exitosamente.');
     },
-    onError: (err) => {
-      showError(`Error al crear empresa: ${err.message}`);
+    onError: (err: any) => {
+      if (err.code === '23505') {
+        showError('Ya existe una empresa con este nombre o RIF.');
+      } else {
+        showError(`Error al crear empresa: ${err.message}`);
+      }
     },
   });
 
@@ -124,8 +128,12 @@ const CompanyManagement = () => {
       setIsDeleteDialogOpen(false);
       setCompanyToDeleteId(null);
     },
-    onError: (err) => {
-      showError(`Error al eliminar empresa: ${err.message}`);
+    onError: (err: any) => {
+      if (err.code === '23503') {
+        showError('No se puede eliminar la empresa porque tiene órdenes o solicitudes asociadas. Elimina esos registros primero.');
+      } else {
+        showError(`Error al eliminar empresa: ${err.message}`);
+      }
       setIsDeleteDialogOpen(false);
       setCompanyToDeleteId(null);
     },
@@ -344,7 +352,7 @@ const CompanyManagement = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente la empresa y todas las órdenes de compra/solicitudes de cotización asociadas a ella.
+              Esta acción no se puede deshacer. No podrás eliminar la empresa si tiene registros (órdenes o solicitudes) asociados a ella.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
