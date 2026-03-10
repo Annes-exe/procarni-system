@@ -193,7 +193,9 @@ const QuoteRequestDetails = () => {
         request.suppliers?.name}</p>
         <p><strong>Fecha:</strong> ${format(new Date(request.created_at), 'PPP', { locale: es })}</p>
         ${customMessage ? `<p><strong>Mensaje:</strong><br>${customMessage.replace(/\n/g, '<br>')}</p>` : ''}
-        <p>Se adjunta el PDF con los detalles de la solicitud.</p>
+        <p>Se adjunta el PDF con los detalles de la solicitud. Por favor, responda al siguiente correo con su cotización: ${
+        // @ts-ignore
+        request.companies?.email || ''}</p>
       `;
 
       const emailResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
