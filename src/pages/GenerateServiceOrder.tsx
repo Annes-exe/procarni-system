@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
 import ServiceOrderItemsTable from '@/components/ServiceOrderItemsTable';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import SmartSearch from '@/components/SmartSearch';
 import { Label } from '@/components/ui/label';
 import {
@@ -113,6 +114,8 @@ const GenerateServiceOrder = () => {
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
   const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
+  const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
+  const [activeSupplierForMaterial, setActiveSupplierForMaterial] = useState<{ id: string, name: string, groupIndex: number } | null>(null);
 
   // Trigger alert when supplier changes
   React.useEffect(() => {
@@ -262,6 +265,33 @@ const GenerateServiceOrder = () => {
       };
       return newGroups;
     });
+  };
+
+  const handleOpenMaterialDialog = (groupIndex: number, supplierId: string, supplierName: string) => {
+    setActiveSupplierForMaterial({ id: supplierId, name: supplierName, groupIndex });
+    setIsAddMaterialDialogOpen(true);
+  };
+
+  const handleMaterialCreated = (material: any) => {
+    if (activeSupplierForMaterial) {
+      const { groupIndex } = activeSupplierForMaterial;
+      setSparePartsGroups(prev => {
+        const newGroups = [...prev];
+        newGroups[groupIndex].items.push({
+          material_id: material.id,
+          material_name: material.name,
+          supplier_code: material.specification || '',
+          unit: material.unit || 'UND',
+          quantity: 1,
+          unit_price: 0,
+          tax_rate: 0.16,
+          is_exempt: material.is_exempt || false,
+          sales_percentage: 0,
+          discount_percentage: 0
+        });
+        return newGroups;
+      });
+    }
   };
 
   // --- TOTALS CALCULATION ---
@@ -589,21 +619,34 @@ const GenerateServiceOrder = () => {
                     <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex justify-between items-center w-full pr-4">
                         <span className="font-bold text-gray-700">{group.supplierName}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 cursor-pointer"
-                        >
-                          <span
+                        <div className="flex gap-2 items-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveSparePartsGroup(groupIndex);
+                              handleOpenMaterialDialog(groupIndex, group.supplierId, group.supplierName);
                             }}
+                            className="text-procarni-primary hover:text-green-700 hover:bg-green-50 -my-2"
                           >
-                            Quitar Grupo
-                          </span>
-                        </Button>
+                            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Nuevo Material
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 cursor-pointer"
+                          >
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveSparePartsGroup(groupIndex);
+                              }}
+                            >
+                              Quitar Grupo
+                            </span>
+                          </Button>
+                        </div>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pt-2 pb-6">
@@ -679,6 +722,16 @@ const GenerateServiceOrder = () => {
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
       />
+
+      {activeSupplierForMaterial && (
+        <MaterialCreationDialog
+          isOpen={isAddMaterialDialogOpen}
+          onClose={() => setIsAddMaterialDialogOpen(false)}
+          onMaterialCreated={handleMaterialCreated}
+          supplierId={activeSupplierForMaterial.id}
+          supplierName={activeSupplierForMaterial.name}
+        />
+      )}
 
       <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
         <AlertDialogContent>
