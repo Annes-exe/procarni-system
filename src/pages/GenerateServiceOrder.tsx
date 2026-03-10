@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
 import { calculateTotals } from '@/utils/calculations';
-import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info, Trash2 } from 'lucide-react';
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
@@ -621,30 +621,27 @@ const GenerateServiceOrder = () => {
                         <span className="font-bold text-gray-700">{group.supplierName}</span>
                         <div className="flex gap-2 items-center">
                           <Button
-                            variant="ghost"
+                            variant="secondary"
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleOpenMaterialDialog(groupIndex, group.supplierId, group.supplierName);
                             }}
-                            className="text-procarni-primary hover:text-green-700 hover:bg-green-50 -my-2"
+                            className="h-8 px-3"
                           >
-                            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Nuevo Material
+                            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
                           </Button>
                           <Button
                             variant="ghost"
-                            size="sm"
-                            asChild
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 -my-2 cursor-pointer"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSparePartsGroup(groupIndex);
+                            }}
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 transition-all translate-x-1"
+                            title="Quitar Grupo"
                           >
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveSparePartsGroup(groupIndex);
-                              }}
-                            >
-                              Quitar Grupo
-                            </span>
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
