@@ -120,6 +120,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
               displayValue={supplierName}
               className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
               icon={<Search className="h-4 w-4 text-gray-400" />}
+              autoFocus={true}
             />
           </div>
 

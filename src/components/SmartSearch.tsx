@@ -53,6 +53,13 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
     }
   }, [displayValue, selectedId]);
 
+  // NEW: Handle autoFocus by opening popover on mount
+  useEffect(() => {
+    if (autoFocus && !disabled) {
+      setOpen(true);
+    }
+  }, [autoFocus, disabled]);
+
   const debouncedFetch = useCallback(async (searchQuery: string) => {
     try {
       const data = await fetchFunction(searchQuery);

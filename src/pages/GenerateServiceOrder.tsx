@@ -9,7 +9,7 @@ import { ArrowLeft, Loader2, Wrench, PlusCircle, Package, Save, Info } from 'luc
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { serviceOrderService, CreateServiceOrderInput, CreateServiceOrderItemInput, CreateServiceOrderMaterialInput } from '@/services/serviceOrderService';
-import { searchSuppliers, searchMaterialsBySupplier, getSupplierDetails } from '@/integrations/supabase/data';
+import { searchSuppliers, searchMaterialsBySupplier, getSupplierDetails, searchCompanies } from '@/integrations/supabase/data';
 
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -90,7 +90,11 @@ const GenerateServiceOrder = () => {
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
   const [issueDate, setIssueDate] = useState<Date>(new Date());
-  const [serviceDate, setServiceDate] = useState<Date | undefined>(undefined);
+  const [serviceDate, setServiceDate] = useState<Date | undefined>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+  });
   const [equipmentName, setEquipmentName] = useState<string>('');
   const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0]);
   const [detailedServiceDescription, setDetailedServiceDescription] = useState<string>('');
@@ -126,6 +130,21 @@ const GenerateServiceOrder = () => {
     };
     checkSupplierAlert();
   }, [supplierId]);
+
+  // Default Company Effect
+  React.useEffect(() => {
+    if (!companyId) {
+      setCompanyId("b090f2e9-b6b9-41c2-a542-4a696ecd7c73");
+      setCompanyName("PRODUCTOS ALIMENTICIOS MONTANO ANTILIA, C.A");
+    }
+  }, []);
+
+  // Ensure at least one service item on mount if items list is empty
+  React.useEffect(() => {
+    if (items.length === 0) {
+      handleAddItem();
+    }
+  }, []);
 
   const userId = session?.user?.id;
 
@@ -402,7 +421,9 @@ const GenerateServiceOrder = () => {
       setSupplierName('');
       setExchangeRate(undefined);
       setIssueDate(new Date());
-      setServiceDate(undefined);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setServiceDate(tomorrow);
       setEquipmentName('');
       setServiceType(SERVICE_TYPES[0]);
       setDetailedServiceDescription('');
@@ -412,6 +433,9 @@ const GenerateServiceOrder = () => {
       setSparePartsGroups([]);
       setSparePartsSupplierId('');
       setSparePartsSupplierName('');
+
+      // Redirect to details after success - Corrected path
+      navigate(`/service-orders/${createdOrder.id}`);
     }
     setIsSubmitting(false);
   };

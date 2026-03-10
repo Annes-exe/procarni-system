@@ -46,7 +46,11 @@ const GeneratePurchaseOrder = () => {
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
   const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null);
 
-  const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(undefined);
+  const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+  });
   const [paymentTerms, setPaymentTerms] = React.useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
   const [customPaymentTerms, setCustomPaymentTerms] = React.useState<string>('');
   const [creditDays, setCreditDays] = React.useState<number>(0);
@@ -161,6 +165,22 @@ const GeneratePurchaseOrder = () => {
 
     loadQuoteRequestItems();
   }, [quoteRequest, location.state]);
+
+  // Default Company Effect
+  React.useEffect(() => {
+    // Si no hay empresa seleccionada y no venimos de una solicitud de cotización o servicio
+    if (!companyId && !quoteRequest && !location.state?.serviceOrder) {
+      setCompanyId("b090f2e9-b6b9-41c2-a542-4a696ecd7c73");
+      setCompanyName("PRODUCTOS ALIMENTICIOS MONTANO ANTILIA, C.A");
+    }
+  }, []);
+
+  // Ensure at least one item on mount if cart is empty
+  React.useEffect(() => {
+    if (items.length === 0 && !quoteRequest && !location.state?.serviceOrder && !location.state?.material) {
+      handleAddItem();
+    }
+  }, []);
 
   React.useEffect(() => {
     if (supplierData) {
@@ -395,12 +415,16 @@ const GeneratePurchaseOrder = () => {
       setSupplierId('');
       setSupplierName('');
       setExchangeRate(undefined);
-      setDeliveryDate(undefined);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setDeliveryDate(tomorrow);
       setPaymentTerms('Contado');
       setCustomPaymentTerms('');
       setCreditDays(0);
       setObservations('');
-      // navigate('/purchase-order-management'); // Optional: redirect user
+
+      // Redirect to details after success - Corrected path
+      navigate(`/purchase-orders/${createdOrder.id}`);
     }
     setIsSubmitting(false);
   };

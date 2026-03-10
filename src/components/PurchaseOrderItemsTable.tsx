@@ -218,37 +218,25 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* --- FILA 1: DATOS CLAVE --- */}
 
-            {/* Col 1: BUSCADOR (Botón Lupa) - Compacto */}
-            <div className="col-span-1 space-y-1.5 flex flex-col items-center">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 w-full text-center">
-                Buscar
+            {/* Col 1-4: BUSCADOR DIRECTO (Reemplaza Lupa) */}
+            <div className="col-span-4 space-y-1.5">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                Producto / Material
               </label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-dashed border-gray-300 hover:border-procarni-primary hover:text-procarni-primary" disabled={!supplierId}>
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-2" align="start">
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm text-muted-foreground mb-1">Buscar Material</h4>
-                    <SmartSearch
-                      placeholder="Escribe para buscar..."
-                      onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
-                      fetchFunction={searchSupplierMaterials}
-                      displayValue=""
-                      selectedId={item.material_id}
-                      disabled={!supplierId}
-                      autoFocus={true}
-                      className="w-full"
-                    />
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <SmartSearch
+                placeholder={supplierId ? "Escribe para buscar..." : "Selecciona prov."}
+                onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
+                fetchFunction={searchSupplierMaterials}
+                displayValue={item.material_name}
+                selectedId={item.material_id}
+                disabled={!supplierId}
+                className="w-full h-9 bg-white border-gray-200"
+                icon={<Search className="h-4 w-4 text-gray-400" />}
+              />
             </div>
 
-            {/* Col 2-4: Cantidad (AMPLIADO a 3 columnas para Tablets) */}
-            <div className="col-span-3 space-y-1.5">
+            {/* Col 5-6: Cantidad */}
+            <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Cantidad</label>
               <Input
                 type="number" min="0"
@@ -257,10 +245,17 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 className="h-9 font-medium border-gray-200"
                 placeholder="0"
                 onWheel={(e) => e.currentTarget.blur()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (index === items.length - 1) {
+                      onAddItem();
+                    }
+                  }
+                }}
               />
             </div>
 
-            {/* Col 5-6: Unidad */}
+            {/* Col 7-8: Unidad */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</label>
               <Select value={item.unit || ''} onValueChange={(v) => onItemChange(index, 'unit', v)}>
@@ -273,7 +268,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               </Select>
             </div>
 
-            {/* Col 7-9: Precio (AMPLIADO a 3 columnas para Tablets) */}
+            {/* Col 9-11: Precio */}
             <div className="col-span-3 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
                 <Calculator className="w-3 h-3" /> Precio
@@ -287,21 +282,15 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   className="h-9 pl-6 text-right font-semibold bg-gray-50/30 border-gray-200"
                   placeholder="0"
                   onWheel={(e) => e.currentTarget.blur()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (index === items.length - 1) {
+                        onAddItem();
+                      }
+                    }
+                  }}
                 />
               </div>
-            </div>
-
-            {/* Col 10-11: Código Prov. */}
-            <div className="col-span-2 space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
-                <Hash className="w-3 h-3" /> Ref.
-              </label>
-              <Input
-                value={item.supplier_code || ''}
-                onChange={(e) => onItemChange(index, 'supplier_code', e.target.value)}
-                className="h-9 bg-gray-50/50 border-gray-200 focus:bg-white text-xs"
-                placeholder="---"
-              />
             </div>
 
             {/* Col 12: Eliminar */}
@@ -319,7 +308,20 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* --- FILA 2: DETALLES FINANCIEROS Y NOTAS --- */}
 
-            {/* Col 1-2: Descuento */}
+            {/* Col 1-2: Ref. (Mover aquí para liberar espacio arriba) */}
+            <div className="col-span-2 space-y-1.5">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
+                <Hash className="w-3 h-3" /> Ref.
+              </label>
+              <Input
+                value={item.supplier_code || ''}
+                onChange={(e) => onItemChange(index, 'supplier_code', e.target.value)}
+                className="h-9 bg-gray-50/50 border-gray-200 focus:bg-white text-xs"
+                placeholder="---"
+              />
+            </div>
+
+            {/* Col 3-4: Descuento */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Desc.</label>
               <div className="relative">
@@ -330,12 +332,19 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   className="h-9 text-right pr-6 bg-gray-50/30 border-gray-200"
                   placeholder="0"
                   onWheel={(e) => e.currentTarget.blur()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (index === items.length - 1) {
+                        onAddItem();
+                      }
+                    }
+                  }}
                 />
                 <span className="absolute right-2.5 top-2.5 text-xs text-gray-400">%</span>
               </div>
             </div>
 
-            {/* Col 3-4: Margen */}
+            {/* Col 5-6: Margen */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Margen</label>
               <div className="relative">

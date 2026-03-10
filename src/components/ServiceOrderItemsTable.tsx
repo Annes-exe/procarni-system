@@ -187,6 +187,13 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 className="h-9 font-medium border-gray-200"
                 placeholder="0"
                 onWheel={(e) => e.currentTarget.blur()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (index === items.length - 1) {
+                      onAddItem();
+                    }
+                  }
+                }}
               />
             </div>
 
@@ -204,6 +211,13 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                   className="h-9 pl-6 text-right font-semibold bg-gray-50/30 border-gray-200"
                   placeholder="0"
                   onWheel={(e) => e.currentTarget.blur()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (index === items.length - 1) {
+                        onAddItem();
+                      }
+                    }
+                  }}
                 />
               </div>
             </div>
