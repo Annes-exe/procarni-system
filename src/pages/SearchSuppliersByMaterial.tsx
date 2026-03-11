@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterials, searchSuppliersByMaterial } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
+import { isGenericRif } from '@/utils/validators';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Phone, Instagram, PlusCircle, Eye, ArrowLeft, Tag, MapPin, Clock, DollarSign,
-  X, Search, Building2, CreditCard, Mail, Globe, Info, Package, Loader2
+  X, Search, Building2, CreditCard, Mail, Globe, Info, Package, Loader2, AlertTriangle
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -245,8 +246,12 @@ const SearchSuppliersByMaterial = () => {
                           {supplier.name}
                         </CardTitle>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[9px] font-mono uppercase tracking-tighter text-gray-400 border-gray-200 bg-white">
-                            RIF: {supplier.rif}
+                          <Badge variant="outline" className={cn("text-[9px] font-mono uppercase tracking-tighter border-gray-200 bg-white", isGenericRif(supplier.rif) ? "text-procarni-alert border-procarni-alert/30" : "text-gray-400")}>
+                            RIF: {isGenericRif(supplier.rif) ? (
+                              <span className="flex items-center">
+                                <AlertTriangle className="mr-1 h-2.5 w-2.5" /> Faltante
+                              </span>
+                            ) : supplier.rif}
                           </Badge>
                           {supplier.status === 'Activo' && (
                             <Badge className="bg-green-50 text-procarni-secondary border-green-200 text-[9px] uppercase font-bold shadow-none">

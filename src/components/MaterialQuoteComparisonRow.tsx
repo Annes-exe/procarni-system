@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags } from 'lucide-react';
+import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSuppliersByMaterial } from '@/integrations/supabase/data';
+import { isGenericRif } from '@/utils/validators';
 
 interface MaterialSearchResult {
   id: string;
@@ -87,7 +88,14 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     }
     return associatedSuppliers.map(supplier => (
       <SelectItem key={supplier.id} value={supplier.id}>
-        {supplier.name} ({supplier.code || supplier.rif})
+        <div className="flex items-center justify-between w-full gap-2">
+          <span>{supplier.name} ({supplier.code || supplier.rif})</span>
+          {isGenericRif(supplier.rif) && (
+            <span className="flex items-center text-[10px] text-procarni-alert font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 uppercase tracking-tighter ml-auto">
+              <AlertTriangle className="h-2.5 w-2.5 mr-1 shrink-0" /> Rif Faltante
+            </span>
+          )}
+        </div>
       </SelectItem>
     ));
   }, [associatedSuppliers, isLoadingSuppliers]);

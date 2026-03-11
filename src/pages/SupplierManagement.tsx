@@ -9,6 +9,7 @@ import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft,
 
 import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
+import { isGenericRif } from '@/utils/validators';
 import SupplierForm from '@/components/SupplierForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -336,7 +337,11 @@ const SupplierManagement = () => {
                       <div className="w-[30%] text-right"></div>
                     </div>
                     <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3" /> Cód: {supplier.code || 'N/A'} | RIF: {supplier.rif}
+                      <Tag className="mr-1 h-3 w-3" /> Cód: {supplier.code || 'N/A'} | RIF: {isGenericRif(supplier.rif) ? (
+                        <span className="text-procarni-alert flex items-center">
+                          <AlertTriangle className="mr-1 h-3 w-3" /> Faltante
+                        </span>
+                      ) : supplier.rif}
                     </CardDescription>
                     <div className="text-sm space-y-1 mt-2 w-full">
                       {/* Eliminado el email para ahorrar espacio */}
@@ -410,7 +415,13 @@ const SupplierManagement = () => {
                       <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors">
                         <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
                         <TableCell className="py-3 font-medium text-procarni-dark">{supplier.name}</TableCell>
-                        <TableCell className="py-3">{supplier.rif}</TableCell>
+                        <TableCell className={cn("py-3", isGenericRif(supplier.rif) ? "text-procarni-alert font-medium" : "")}>
+                          {isGenericRif(supplier.rif) ? (
+                            <span className="flex items-center">
+                              <AlertTriangle className="h-3 w-3 mr-1" /> Faltante
+                            </span>
+                          ) : supplier.rif}
+                        </TableCell>
                         <TableCell className="py-3 text-gray-600">{supplier.email || 'N/A'}</TableCell>
                         <TableCell className={cn("py-3", supplier.phone ? '' : 'text-procarni-alert font-medium')}>
                           {supplier.phone || (

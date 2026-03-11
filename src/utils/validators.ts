@@ -23,3 +23,13 @@ export const validateRif = (rif: string): string | null => {
     return null; // RIF inválido
   }
 };
+
+/**
+ * Determina si un RIF es genérico (formato J0000000XX).
+ * @param rif El RIF a verificar.
+ * @returns true si el RIF es genérico.
+ */
+export const isGenericRif = (rif: string): boolean => {
+  if (!rif) return false;
+  return rif.toUpperCase().startsWith('J000000');
+};

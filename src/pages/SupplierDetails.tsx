@@ -7,6 +7,7 @@ import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVe
 
 import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
+import { isGenericRif } from '@/utils/validators';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -298,7 +299,13 @@ const SupplierDetails = () => {
           {/* RIF */}
           <div className="space-y-1">
             <span className={microLabelClass}>RIF</span>
-            <p className={valueClass}>{supplier.rif}</p>
+            <p className={cn(valueClass, isGenericRif(supplier.rif) && "text-procarni-alert flex items-center")}>
+              {isGenericRif(supplier.rif) ? (
+                <>
+                  <TriangleAlert className="mr-1 h-3 w-3" /> Faltante
+                </>
+              ) : supplier.rif}
+            </p>
           </div>
 
           {/* Email */}
