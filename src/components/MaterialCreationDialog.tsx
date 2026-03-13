@@ -246,9 +246,13 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     }
   };
 
-  const dialogDescription = supplierId
-    ? `Crea un nuevo material o asocia uno existente a ${supplierName ? <strong>{supplierName}</strong> : 'este proveedor'}.`
-    : 'Crea un nuevo material. Si estás creando un nuevo proveedor, este material se asociará al guardar el formulario.';
+  const dialogDescription = supplierId ? (
+    <>
+      Crea un nuevo material o asocia uno existente a {supplierName ? <strong>{supplierName}</strong> : 'este proveedor'}.
+    </>
+  ) : (
+    'Crea un nuevo material. Si estás creando un nuevo proveedor, este material se asociará al guardar el formulario.'
+  );
 
   const isMaterialNameValid = materialName.trim().length > 0;
   const isExactMatch = suggestedMaterial && suggestedMaterial.name.toUpperCase() === materialName.trim().toUpperCase();
@@ -315,7 +319,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 <SelectTrigger id="category">
                   <SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Selecciona categoría"} />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto">
+                <SelectContent className="max-h-[200px]">
                   {categories.map(cat => (
                     <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                   ))}
@@ -329,7 +333,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 <SelectTrigger id="unit">
                   <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto">
+                <SelectContent className="max-h-[200px]">
                   {units.map(u => (
                     <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
                   ))}
