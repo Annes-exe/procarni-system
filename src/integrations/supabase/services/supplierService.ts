@@ -225,8 +225,7 @@ const SupplierService = {
 
     if (error) {
       console.error('[SupplierService.delete] Error:', error);
-      showError('Error al eliminar el proveedor.');
-      return false;
+      throw error;
     }
 
     // --- AUDIT LOG ---
