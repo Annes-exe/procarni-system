@@ -2,8 +2,8 @@ name: Weekly Database Backup
 
 on:
   schedule:
-    - cron: '0 0 * * 0' # Se ejecuta cada domingo a medianoche
-  workflow_dispatch:   # Permite activarlo manualmente para pruebas
+    - cron: '0 0 * * 0' # Todos los domingos a medianoche
+  workflow_dispatch:   # Ejecución manual para pruebas
 
 jobs:
   backup:
@@ -23,9 +23,22 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DB_CONNECTION_STRING }}
         run: |
-          pg_dump "$DATABASE_URL" | gzip > backup_procarni_$(date +%Y-%m-%d).sql.gz
+          echo "Iniciando pg_dump..."
+          # Usamos --no-owner y --no-privileges para evitar errores de permisos en Supabase
+          pg_dump "$DATABASE_URL" --no-owner --no-privileges > backup_full.sql
+          
+          # Verificar si el archivo tiene contenido
+          if [ -s backup_full.sql ]; then
+            SIZE=$(stat -c%s "backup_full.sql")
+            echo "✅ Backup generado con éxito. Tamaño: $SIZE bytes."
+            gzip -c backup_full.sql > "backup_procarni_$(date +%Y-%m-%d).sql.gz"
+          else
+            echo "❌ ERROR: El archivo de backup está vacío. Revisa tu DB_CONNECTION_STRING (asegúrate de usar el Pooler IPv4 puerto 6543)."
+            exit 1
+          fi
 
       - name: Upload Backup to GitHub Artifacts
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: db-backup-procarni
