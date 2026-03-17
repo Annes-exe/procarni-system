@@ -13,6 +13,10 @@ import NotificationBell from './NotificationBell';
 import { Menu, Search } from 'lucide-react';
 import GlobalSearch from './GlobalSearch';
 import { useState, useEffect } from 'react';
+import { useSession } from './SessionContextProvider';
+import { notificationService } from '@/integrations/supabase/services/notificationService';
+import { format, nextSunday, isSunday, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const Layout = () => {
   const isMobile = useIsMobile();
@@ -29,6 +33,62 @@ const Layout = () => {
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
   }, []);
+
+  const { role, session, supabase } = useSession();
+
+  useEffect(() => {
+    if (role === 'admin' && session?.user && supabase) {
+      const today = new Date();
+      const nextSun = isSunday(today) ? today : nextSunday(today);
+      const formattedDate = format(nextSun, 'dd-MM-yyyy');
+      
+      // Mensaje en consola
+      console.log(`%c Backup programado para el dia Domingo ${formattedDate}`, 'background: #222; color: #bada55; padding: 2px 5px; border-radius: 3px;');
+
+      // Verificar si ya existe una notificación para este domingo
+      const checkAndCreateNotification = async () => {
+        try {
+          // 1. Manejar "Backup programado"
+          const { data: existingProgrammed } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('title', 'Respaldo Programado')
+            .like('message', `%${formattedDate}%`)
+            .limit(1);
+
+          if (!existingProgrammed || existingProgrammed.length === 0) {
+            await notificationService.createNotification({
+              title: 'Respaldo Programado',
+              message: `Backup programado para el dia Domingo ${formattedDate}`,
+              type: 'reminder',
+              user_id: session.user.id
+            });
+          }
+
+          // 2. Manejar "Backup creado" en consola (si existe para hoy)
+          if (isSunday(today)) {
+            const todayFormatted = format(today, 'dd-MM-yyyy');
+            const { data: existingCreated } = await supabase
+              .from('notifications')
+              .select('id')
+              .eq('user_id', session.user.id)
+              .eq('title', 'Respaldo del Sistema')
+              .like('message', `%${todayFormatted}%`)
+              .limit(1);
+
+            if (existingCreated && existingCreated.length > 0) {
+              console.log(`%c Backup creado el dia Domingo ${todayFormatted}, ya puedes descargarlo`, 'background: #222; color: #4db8ff; padding: 2px 5px; border-radius: 3px;');
+            }
+          }
+        } catch (error) {
+          console.error('Error al gestionar notificación de backup:', error);
+        }
+      };
+
+      checkAndCreateNotification();
+    }
+  }, [role, session, supabase]);
 
   const SidebarHeader = () => (
     <NavLink to="/" className="h-16 flex items-center px-4 justify-start border-b border-border transition-all overflow-hidden hover:bg-muted/50">

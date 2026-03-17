@@ -86,5 +86,28 @@ export const notificationService = {
                 }
             )
             .subscribe();
+    },
+
+    async createNotification(notification: Partial<Notification>): Promise<Notification> {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) throw new Error("No user logged in");
+
+        const { data, error } = await supabase
+            .from('notifications')
+            .insert([{
+                ...notification,
+                user_id: notification.user_id || userData.user.id,
+                created_at: new Date().toISOString(),
+                is_read: false
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating notification:', error);
+            throw error;
+        }
+
+        return data;
     }
 };

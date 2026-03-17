@@ -49,3 +49,13 @@ jobs:
           name: db-backup-procarni
           path: backup_procarni_*.sql.gz
           retention-days: 30
+      - name: Create System Notification
+        if: success()
+        env:
+          DATABASE_URL: ${{ secrets.DB_CONNECTION_STRING }}
+        run: |
+          # Obtenemos la fecha actual en formato DD-MM-YYYY
+          FORMATTED_DATE=$(date +%d-%m-%Y)
+          
+          # Insertamos la notificación para el admin (ID: a273f316-513f-4057-bf40-702f8c2bc920)
+          /usr/lib/postgresql/17/bin/psql "$DATABASE_URL" -c "INSERT INTO notifications (user_id, title, message, type) VALUES ('a273f316-513f-4057-bf40-702f8c2bc920', 'Respaldo del Sistema', 'Backup creado el dia Domingo $FORMATTED_DATE, ya puedes descargarlo', 'reminder');"
