@@ -14,26 +14,31 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install PostgreSQL Client
+      - name: Install PostgreSQL 17 Client
         run: |
+          # Añadir el repositorio oficial de PostgreSQL para Ubuntu
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y wget gnupg2
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          # Instalar específicamente la versión 17
+          sudo apt-get install -y postgresql-client-17
 
       - name: Run pg_dump
         env:
           DATABASE_URL: ${{ secrets.DB_CONNECTION_STRING }}
         run: |
-          echo "Iniciando pg_dump..."
-          # Usamos --no-owner y --no-privileges para evitar errores de permisos en Supabase
+          echo "Iniciando pg_dump con Postgres 17..."
+          # Usamos --no-owner y --no-privileges para evitar errores de permisos
           pg_dump "$DATABASE_URL" --no-owner --no-privileges > backup_full.sql
           
-          # Verificar si el archivo tiene contenido
           if [ -s backup_full.sql ]; then
             SIZE=$(stat -c%s "backup_full.sql")
             echo "✅ Backup generado con éxito. Tamaño: $SIZE bytes."
             gzip -c backup_full.sql > "backup_procarni_$(date +%Y-%m-%d).sql.gz"
           else
-            echo "❌ ERROR: El archivo de backup está vacío. Revisa tu DB_CONNECTION_STRING (asegúrate de usar el Pooler IPv4 puerto 6543)."
+            echo "❌ ERROR: El archivo de backup está vacío. Revisa la conexión."
             exit 1
           fi
 
