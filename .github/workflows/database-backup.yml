@@ -30,8 +30,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DB_CONNECTION_STRING }}
         run: |
           echo "Iniciando pg_dump con Postgres 17..."
-          # Usamos --no-owner y --no-privileges para evitar errores de permisos
-          pg_dump "$DATABASE_URL" --no-owner --no-privileges > backup_full.sql
+          # Forzamos el uso del binario de la versión 17 instalada
+          /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-privileges > backup_full.sql
           
           if [ -s backup_full.sql ]; then
             SIZE=$(stat -c%s "backup_full.sql")
