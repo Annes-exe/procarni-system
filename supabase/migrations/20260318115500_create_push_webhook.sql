@@ -6,7 +6,7 @@ BEGIN
   -- Solo disparamos la funcion Edge si es un recordatorio
   IF NEW.type = 'reminder' THEN
     PERFORM net.http_post(
-        url := 'https://hsspvhxneuetpatafdzy.supabase.co/functions/v1/send-notification',
+        url := 'https://TU_REF_PRODUCCION.supabase.co/functions/v1/send-notification',
         headers := '{"Content-Type": "application/json"}'::jsonb,
         body := jsonb_build_object(
           'type', 'INSERT',

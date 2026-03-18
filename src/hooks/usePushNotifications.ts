@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 
 // Esta llave debe ser publica.
-const VAPID_PUBLIC_KEY = 'BPnTObWGLYXKELZP9KbL0svCBmhOzeWqxupFzq0VIwJMG1LgmUaIeH45XEyAsObeEbjGUQhIILIaKIDjWyuqkKw';
+const VAPID_PUBLIC_KEY = 'BOP4U1okKF9-J6_YkUgQaCtCnNgtK8E8RemK63_y8khTl_46h1hbx_uF5PcSnK2IKKBDuAf9nqYSlBf5ue55wfE';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -75,7 +75,7 @@ export function usePushNotifications() {
       // Guardar en Supabase
       const subscriptionJSON = subscription.toJSON();
       if (!subscriptionJSON.endpoint || !subscriptionJSON.keys?.auth || !subscriptionJSON.keys?.p256dh) {
-          throw new Error("Invalid subscription object");
+        throw new Error("Invalid subscription object");
       }
 
       const { error } = await supabase
@@ -103,20 +103,20 @@ export function usePushNotifications() {
     if (!isSupported || !session?.user) return;
 
     try {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-            await subscription.unsubscribe();
-            setIsSubscribed(false);
-            
-            // Opcional: Borrar de Supabase
-            await supabase.from('user_push_subscriptions').delete().match({ 
-                user_id: session.user.id, 
-                endpoint: subscription.endpoint 
-            });
-        }
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+        setIsSubscribed(false);
+
+        // Opcional: Borrar de Supabase
+        await supabase.from('user_push_subscriptions').delete().match({
+          user_id: session.user.id,
+          endpoint: subscription.endpoint
+        });
+      }
     } catch (e) {
-        console.error("Error unsubscribing", e);
+      console.error("Error unsubscribing", e);
     }
   }, [isSupported, session]);
 
