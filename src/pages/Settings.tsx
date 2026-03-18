@@ -8,8 +8,7 @@ import { useSession } from '@/components/SessionContextProvider';
 
 import PinConfirmationDialog from '@/components/PinConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, BellRing } from 'lucide-react';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { ArrowLeft, Cog } from 'lucide-react';
 
 const Settings = () => {
   const { session, role, isLoadingSession } = useSession();
@@ -19,40 +18,6 @@ const Settings = () => {
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [sequenceTypeToUpdate, setSequenceTypeToUpdate] = useState<'PO' | 'SO' | null>(null);
-  const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications();
-  const [isSendingTest, setIsSendingTest] = useState(false);
-
-  const handleSendTestPush = async () => {
-    if (!session?.user?.id) return;
-    setIsSendingTest(true);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-notification`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            test: true, 
-            user_id: session.user.id 
-          }),
-        }
-      );
-      
-      if (response.ok) {
-        showSuccess('Petición de notificación enviada. ¡Revisa tu teléfono/navegador!');
-      } else {
-        const err = await response.json();
-        showError('Error al enviar push: ' + (err.message || response.statusText));
-      }
-    } catch (e: any) {
-      showError('Error de red: ' + e.message);
-    } finally {
-      setIsSendingTest(false);
-    }
-  };
 
   useEffect(() => {
     if (!isLoadingSession && role !== 'admin') {
@@ -188,45 +153,6 @@ const Settings = () => {
                 >
                   {isConfirming && sequenceTypeToUpdate === 'SO' ? 'Actualizando...' : 'Actualizar Secuencia OS'}
                 </Button>
-              </div>
-            </div>
-
-            {/* Test Push Notifications (Temporary) */}
-            <div className="border p-4 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border-blue-100">
-              <h3 className="text-lg font-semibold mb-4 text-blue-800 flex items-center gap-2">
-                <BellRing className="h-5 w-5" /> Notificaciones Push (Prueba)
-              </h3>
-              <p className="text-sm text-blue-600 mb-4">
-                Esta sección es temporal para probar la suscripción del dispositivo actual a las notificaciones Push web.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded border shadow-sm">
-                <div className="flex-1">
-                  <p className="font-medium text-sm">Estado del Navegador: {isSupported ? <span className="text-green-600">Soportado</span> : <span className="text-red-600">No Soportado</span>}</p>
-                  <p className="font-medium text-sm">Suscripción Activa: {isSubscribed ? <span className="text-green-600">Sí</span> : <span className="text-orange-500">No</span>}</p>
-                </div>
-                
-                {isSupported && (
-                  <div className="flex gap-2">
-                    <Button 
-                      variant={isSubscribed ? "destructive" : "default"}
-                      onClick={isSubscribed ? unsubscribe : subscribe}
-                      className={!isSubscribed ? "bg-procarni-primary hover:bg-red-800" : ""}
-                    >
-                      {isSubscribed ? 'Desactivar Notificaciones' : 'Activar Notificaciones'}
-                    </Button>
-                    
-                    {isSubscribed && (
-                      <Button 
-                        variant="outline"
-                        onClick={handleSendTestPush}
-                        disabled={isSendingTest}
-                      >
-                        {isSendingTest ? 'Enviando...' : 'Enviar Push de Prueba'}
-                      </Button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 

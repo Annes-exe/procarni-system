@@ -42,8 +42,8 @@ serve(async (req) => {
       }
     } else if (payload.test === true) {
       record = {
-        title: 'Push de Prueba Exitoso',
-        message: '¡Tu dispositivo está recibiendo las notificaciones nativas!'
+        title: 'Notificaciones Activadas',
+        message: 'Notificaciones Activadas en este dispositivo'
       };
       userId = payload.user_id;
     } else {
