@@ -170,6 +170,12 @@ importers:
       vaul:
         specifier: ^0.9.3
         version: 0.9.9(@types/react-dom@18.3.6(@types/react@18.3.20))(@types/react@18.3.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      workbox-core:
+        specifier: ^7.3.0
+        version: 7.4.0
+      workbox-precaching:
+        specifier: ^7.3.0
+        version: 7.4.0
       workbox-window:
         specifier: ^7.4.0
         version: 7.4.0

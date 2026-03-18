@@ -66,6 +66,8 @@
     "update-browserslist-db": "^1.2.3",
     "vaul": "^0.9.3",
     "workbox-window": "^7.4.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-core": "^7.3.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
