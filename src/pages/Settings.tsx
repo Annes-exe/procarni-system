@@ -8,7 +8,7 @@ import { useSession } from '@/components/SessionContextProvider';
 
 import PinConfirmationDialog from '@/components/PinConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Cog } from 'lucide-react';
 
 const Settings = () => {
   const { session, role, isLoadingSession } = useSession();
@@ -155,6 +155,7 @@ const Settings = () => {
                 </Button>
               </div>
             </div>
+
           </div>
         </CardContent>
       </Card>

@@ -10,12 +10,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { showError, showSuccess } from '@/utils/toast';
-import { User } from 'lucide-react';
+import { User, Bell, BellOff } from 'lucide-react';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 const UserDropdown = () => {
   const { session, supabase } = useSession();
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null>(null);
+  const { isSupported, isSubscribed, subscribe, unsubscribe } = usePushNotifications();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -77,6 +79,29 @@ const UserDropdown = () => {
       <DropdownMenuContent className="w-56" align="end">
         <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        
+        {isSupported && (
+          <>
+            <DropdownMenuItem 
+              onClick={isSubscribed ? unsubscribe : subscribe}
+              className="cursor-pointer flex items-center gap-2"
+            >
+              {isSubscribed ? (
+                <>
+                  <BellOff className="h-4 w-4 text-red-500" />
+                  Desactivar Notificaciones
+                </>
+              ) : (
+                <>
+                  <Bell className="h-4 w-4 text-green-500" />
+                  Activar Notificaciones
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
           Cerrar Sesión
         </DropdownMenuItem>
