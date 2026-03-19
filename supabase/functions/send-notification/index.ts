@@ -76,8 +76,8 @@ serve(async (req) => {
     const pushPayload = JSON.stringify({
       title: record.title || 'Recordatorio de Compras',
       body: record.message || '',
-      icon: '/pwa-192x192.png',
-      badge: '/favicon.ico',
+      icon: '/Sis-Prov.png',
+      badge: '/badge-72x72.png',
       data: { url: '/' }
     });
 
