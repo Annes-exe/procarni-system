@@ -56,7 +56,7 @@ const SERVICE_TYPES = [
 ];
 
 const DESTINATION_ADDRESSES = [
-  'PROCARNI', 'EMPOMACA', 'MONTANO'
+  'PROCARNI', 'EMPOMACA', 'MONTANO', 'LOCAL'
 ];
 
 const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
