@@ -22,7 +22,7 @@ interface ServiceOrderItemForm {
 
 interface ServiceOrderItemsTableProps {
   items: ServiceOrderItemForm[];
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
   onItemChange: (index: number, field: keyof ServiceOrderItemForm, value: ServiceOrderItemForm[keyof ServiceOrderItemForm]) => void;
@@ -203,7 +203,7 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 <Calculator className="w-3 h-3" /> Precio
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-2.5 text-xs text-gray-400 font-medium">{currency === 'USD' ? '$' : 'Bs'}</span>
+                <span className="absolute left-2.5 top-2.5 text-xs text-gray-400 font-medium">{currency === 'USD' ? '$' : currency === 'VES' ? 'Bs' : '€'}</span>
                 <Input
                   type="number" step="0.01" min="0"
                   value={item.unit_price || ''}

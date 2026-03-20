@@ -92,7 +92,7 @@ const EditServiceOrder = () => {
     const [companyName, setCompanyName] = useState<string>('');
     const [supplierId, setSupplierId] = useState<string>('');
     const [supplierName, setSupplierName] = useState<string>('');
-    const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
+    const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
     const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
     const [issueDate, setIssueDate] = useState<Date>(new Date());
@@ -344,7 +344,7 @@ const EditServiceOrder = () => {
 
     const totals = calculateTotals(itemsForCalculation);
     const totalInUSD = React.useMemo(() => {
-        if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
+        if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
             return (totals.total / exchangeRate).toFixed(2);
         }
         return null;
@@ -402,7 +402,7 @@ const EditServiceOrder = () => {
                 destination_address: destinationAddress,
                 observations: observations || null,
                 currency,
-                exchange_rate: currency === 'VES' ? exchangeRate : null,
+                exchange_rate: currency !== 'USD' ? exchangeRate : null,
                 // Do not update status here unless explicitly changing state workflow
                 // user_id is generally preserved from creation or updated to last editor? usually preserved.
             };
@@ -506,7 +506,7 @@ const EditServiceOrder = () => {
                             destinationAddress={destinationAddress}
                             observations={observations}
                             onCompanySelect={handleCompanySelect}
-                            onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
+                            onCurrencyChange={setCurrency}
                             onExchangeRateChange={setExchangeRate}
                             onIssueDateChange={setIssueDate}
                             onServiceDateChange={setServiceDate}
@@ -683,7 +683,7 @@ const EditServiceOrder = () => {
                                 <span className="font-bold text-xl text-procarni-dark font-mono">{currency} {totals.total.toFixed(2)}</span>
                             </div>
                         </div>
-                        {totalInUSD && currency === 'VES' && (
+                        {totalInUSD && (currency === 'VES' || currency === 'EUR') && (
                             <div className="flex justify-end pt-1">
                                 <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
                                     Ref. USD: {totalInUSD}

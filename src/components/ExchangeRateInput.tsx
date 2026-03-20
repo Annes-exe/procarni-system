@@ -3,13 +3,23 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, RefreshCw, Info } from 'lucide-react';
+import { Loader2, RefreshCw, Info, History, Calendar } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface ExchangeRateInputProps {
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
   onExchangeRateChange: (value: number | undefined) => void;
+}
+
+interface RateHistoryItem {
+  fecha: string;
+  promedio: number;
 }
 
 const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
@@ -20,21 +30,41 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
   const [rateSource, setRateSource] = useState<'custom' | 'daily'>('custom');
   const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const [isStale, setIsStale] = useState(false);
+  const [history, setHistory] = useState<RateHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const fetchDailyRate = useCallback(async () => {
     setIsLoadingRate(true);
     try {
-      const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+      const endpoint = currency === 'EUR'
+        ? 'https://ve.dolarapi.com/v1/euros/oficial'
+        : 'https://ve.dolarapi.com/v1/dolares/oficial';
+
+      const response = await fetch(endpoint);
       if (!response.ok) {
         throw new Error('Failed to fetch daily rate');
       }
       const data = await response.json();
 
       const rate = data.promedio || data.valor;
+      const updateDate = data.fechaActualizacion;
 
       if (typeof rate === 'number' && rate > 0) {
         setDailyRate(rate);
-        showSuccess(`Tasa del día cargada: ${rate.toFixed(2)} VES/USD`);
+
+        // Holiday detection logic: check if the update date is today
+        if (updateDate) {
+          const apiDate = new Date(updateDate);
+          const today = new Date();
+          const isSameDay = apiDate.getUTCFullYear() === today.getUTCFullYear() &&
+            apiDate.getUTCMonth() === today.getUTCMonth() &&
+            apiDate.getUTCDate() === today.getUTCDate();
+
+          setIsStale(!isSameDay);
+        }
+
+        showSuccess(`Tasa ${currency === 'EUR' ? 'Euro' : 'Dólar'} cargada: ${rate.toFixed(2)} VES/${currency === 'EUR' ? 'EUR' : 'USD'}`);
         return rate;
       } else {
         throw new Error('Formato de tasa de cambio inválido.');
@@ -48,19 +78,36 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     } finally {
       setIsLoadingRate(false);
     }
-  }, []);
+  }, [currency]);
+
+  const fetchHistory = useCallback(async () => {
+    setIsLoadingHistory(true);
+    try {
+      const endpoint = currency === 'EUR'
+        ? 'https://ve.dolarapi.com/v1/historicos/euros/oficial'
+        : 'https://ve.dolarapi.com/v1/historicos/dolares/oficial';
+      const response = await fetch(endpoint);
+      if (!response.ok) throw new Error('Failed to fetch history');
+      const data = await response.json();
+      // Reverse to show most recent first and take last 15 days
+      setHistory(data.slice(-15).reverse());
+    } catch (e) {
+      console.error('[ExchangeRateInput] Error fetching history:', e);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [currency]);
 
   // Effect to manage rate fetching and default selection when currency switches to VES
   useEffect(() => {
-    if (currency === 'VES') {
-      // If we switch to VES, try to fetch the daily rate and default to it
+    if (currency === 'VES' || currency === 'EUR') {
+      // If we switch to VES/EUR, try to fetch the daily rate and default to it
       fetchDailyRate().then(rate => {
         if (rate) {
           setRateSource('daily');
           onExchangeRateChange(rate);
         } else {
           setRateSource('custom');
-          // If rate fetch fails, keep current exchangeRate or set undefined
         }
       });
     } else {
@@ -68,20 +115,18 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
       setDailyRate(undefined);
       setRateSource('custom');
       onExchangeRateChange(undefined);
+      setIsStale(false);
     }
-  }, [currency, fetchDailyRate, onExchangeRateChange]); // Only run when currency changes
+  }, [currency, fetchDailyRate, onExchangeRateChange]);
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {
-    if (currency === 'VES') {
+    if (currency !== 'USD') {
       if (rateSource === 'daily' && dailyRate !== undefined) {
         onExchangeRateChange(dailyRate);
-      } else if (rateSource === 'custom' && exchangeRate !== undefined) {
-        // If custom, ensure the external state is reflected internally if the user types
-        // This is handled by the input onChange below, but this ensures external updates are caught.
       }
     }
-  }, [rateSource, dailyRate, exchangeRate, onExchangeRateChange, currency]); // Run when internal rate source changes
+  }, [rateSource, dailyRate, exchangeRate, onExchangeRateChange, currency]);
 
   const handleRateSourceChange = (source: 'custom' | 'daily') => {
     setRateSource(source);
@@ -109,14 +154,72 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="exchangeRate">Tasa de Cambio (USD a VES)</Label>
+      <div className="flex justify-between items-center">
+        <Label htmlFor="exchangeRate">
+          Tasa de Cambio ({currency === 'EUR' ? 'EUR a VES' : 'USD a VES'})
+        </Label>
+        {(currency === 'VES' || currency === 'EUR') && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs flex items-center gap-1 text-muted-foreground hover:text-procarni-primary"
+                onClick={fetchHistory}
+              >
+                <History className="h-3 w-3" />
+                Historial
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-procarni-primary" />
+                  Historial de Tasas ({currency === 'EUR' ? 'Euro' : 'Dólar'})
+                </DialogTitle>
+              </DialogHeader>
+              <div className="py-2">
+                {isLoadingHistory ? (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[300px] pr-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Fecha</TableHead>
+                          <TableHead className="text-right">Tasa (BCV)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {history.map((item, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium">
+                              {format(new Date(item.fecha), "PPP", { locale: es })}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {item.promedio.toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
       <Select value={rateSource} onValueChange={handleRateSourceChange}>
         <SelectTrigger id="rate-source">
           <SelectValue placeholder="Selecciona fuente de tasa" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="daily" disabled={dailyRate === undefined}>
-            Tasa del día {dailyRate ? `(${dailyRate.toFixed(2)} VES/USD)` : '(Cargando...)'}
+            Tasa oficial {dailyRate ? `(${dailyRate.toFixed(2)} VES/${currency === 'EUR' ? 'EUR' : 'USD'})` : '(Cargando...)'}
           </SelectItem>
           <SelectItem value="custom">Tasa personalizada</SelectItem>
         </SelectContent>
@@ -128,7 +231,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
             type="number"
             step="0.01"
             value={exchangeRate || dailyRate || ''}
-            placeholder="Tasa del día"
+            placeholder="Tasa oficial"
             disabled
             className="bg-gray-100 dark:bg-gray-700"
           />
@@ -154,10 +257,21 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         />
       )}
 
-      <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1">
-        <Info className="h-3 w-3 inline mr-1 text-blue-500" />
-        En días feriados o fines de semana, la tasa oficial puede no estar actualizada. Considera usar una tasa personalizada si es necesario.
-      </p>
+      {(currency === 'VES' || currency === 'EUR') && isStale && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-1 flex items-start gap-1">
+          <Info className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
+          <span>
+            <strong>Tasa no actualizada:</strong> La tasa oficial del BCV no coincide con la fecha de hoy. Esto suele ocurrir en feriados o fines de semana. Se recomienda usar una <strong>tasa personalizada</strong>.
+          </span>
+        </p>
+      )}
+
+      {(currency === 'VES' || currency === 'EUR') && !isStale && (
+        <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1">
+          <Info className="h-3 w-3 inline mr-1 text-blue-500" />
+          Tasa oficial actualizada para el cierre del día.
+        </p>
+      )}
     </div>
   );
 };

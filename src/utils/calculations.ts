@@ -101,10 +101,10 @@ function convertirGrupo(num: number): string {
 /**
  * Convierte un monto numérico a texto en español, con formato fiscal venezolano.
  * @param amount Monto numérico.
- * @param currency Moneda (ej. 'VES', 'USD').
+ * @param currency Moneda (ej. 'VES', 'USD', 'EUR').
  * @returns Monto en texto (Ej: 'CIEN BOLIVARES CON 00/100').
  */
-export const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
+export const numberToWords = (amount: number, currency: 'VES' | 'USD' | 'EUR'): string => {
   if (amount === 0) {
     return `CERO ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'} CON 00/100`;
   }
@@ -141,9 +141,9 @@ export const numberToWords = (amount: number, currency: 'VES' | 'USD'): string =
     texto += convertirGrupo(unidades);
 
     if (millones > 0 && resto === 0) {
-      texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+      texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : currency === 'USD' ? 'DOLARES' : 'EUROS'}`;
     } else {
-      texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+      texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : currency === 'USD' ? 'DOLARES' : 'EUROS'}`;
     }
   }
 

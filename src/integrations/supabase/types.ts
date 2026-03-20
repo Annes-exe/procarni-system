@@ -73,8 +73,7 @@ export type PurchaseOrder = {
   id: string;
   sequence_number: number | null;
   supplier_id: string;
-  company_id: string;
-  currency: string;
+  currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   status: string;
   created_at: string | null;
@@ -113,7 +112,7 @@ export type QuoteRequest = {
   id: string;
   supplier_id: string;
   company_id: string;
-  currency: string;
+  currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   status: string;
   created_at: string | null;
@@ -143,7 +142,7 @@ export type PriceHistory = {
   material_id: string;
   supplier_id: string;
   unit_price: number;
-  currency: string;
+  currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   purchase_order_id: string | null;
   service_order_id: string | null;
@@ -184,7 +183,7 @@ export type SupplierQuote = {
   supplier_id: string;
   user_id: string;
   unit_price: number;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   quote_request_id: string | null;
   valid_until: string | null;
@@ -196,7 +195,7 @@ export type QuoteComparison = {
   id: string;
   user_id: string;
   name: string;
-  base_currency: 'USD' | 'VES';
+  base_currency: 'USD' | 'VES' | 'EUR';
   global_exchange_rate: number | null;
   created_at: string;
   items?: QuoteComparisonItem[]; // Joined items
@@ -211,7 +210,7 @@ export type QuoteComparisonItem = {
     supplierId: string;
     supplierName: string;
     unitPrice: number;
-    currency: 'USD' | 'VES';
+    currency: 'USD' | 'VES' | 'EUR';
     exchangeRate?: number;
   }>;
   created_at: string;
@@ -235,7 +234,7 @@ export type ServiceOrder = {
   detailed_service_description: string | null;
   destination_address: string;
   observations: string | null;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
   user_id: string;

@@ -2,8 +2,9 @@ import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar as CalendarIcon, Info, Search, Building2, PlusCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Info, Search, Building2, PlusCircle, DollarSign, Coins } from 'lucide-react';
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,7 +27,7 @@ interface PurchaseOrderDetailsFormProps {
   companyName: string;
   supplierId: string;
   supplierName: string;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
   deliveryDate?: Date;
   paymentTerms: 'Contado' | 'Crédito' | 'Otro';
@@ -34,7 +35,7 @@ interface PurchaseOrderDetailsFormProps {
   creditDays: number;
   observations: string;
   onCompanySelect: (company: Company) => void;
-  onCurrencyChange: (checked: boolean) => void;
+  onCurrencyChange: (value: 'USD' | 'VES' | 'EUR') => void;
   onExchangeRateChange: (value: number | undefined) => void;
   onDeliveryDateChange: (date: Date | undefined) => void;
   onPaymentTermsChange: (value: 'Contado' | 'Crédito' | 'Otro') => void;
@@ -226,24 +227,31 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
             </div>
           </div>
 
-          {/* Moneda Toggle (Moved Here & Aligned) */}
+          {/* Moneda Toggle (Updated to 3-way) */}
           <div>
-            <Label className="block text-sm font-semibold text-transparent mb-2 select-none">
-              Moneda
+            <Label className="block text-sm font-semibold text-gray-700 mb-2">
+              Moneda de la Orden
             </Label>
-            <div className="flex items-center space-x-3 bg-gray-50 border border-gray-200 rounded-lg p-3 w-fit">
-              <span className="text-sm font-semibold text-gray-700">Moneda (USD/VES)</span>
-              <div className="flex items-center">
-                <Switch
-                  id="currency"
-                  checked={currency === 'VES'}
-                  onCheckedChange={onCurrencyChange}
-                  className="data-[state=checked]:bg-procarni-primary"
-                />
-                <span className="ml-3 text-sm font-medium text-gray-900 w-8">{currency}</span>
-              </div>
-            </div>
-            {currency === 'VES' && (
+            <ToggleGroup
+              type="single"
+              value={currency}
+              onValueChange={(value) => {
+                if (value) onCurrencyChange(value as 'USD' | 'VES' | 'EUR');
+              }}
+              className="justify-start bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit"
+            >
+              <ToggleGroupItem value="USD" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                <DollarSign className="h-4 w-4 mr-1" /> USD
+              </ToggleGroupItem>
+              <ToggleGroupItem value="VES" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                <Coins className="h-4 w-4 mr-1" /> VES
+              </ToggleGroupItem>
+              <ToggleGroupItem value="EUR" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                <span className="font-bold mr-1">€</span> EUR
+              </ToggleGroupItem>
+            </ToggleGroup>
+
+            {currency !== 'USD' && (
               <div className="mt-2">
                 <ExchangeRateInput
                   currency={currency}

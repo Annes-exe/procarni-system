@@ -64,7 +64,7 @@ const EditPurchaseOrder = () => {
   const [companyName, setCompanyName] = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
-  const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
+  const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
   const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
@@ -102,7 +102,7 @@ const EditPurchaseOrder = () => {
       setCompanyName(initialOrder.companies?.name || '');
       setSupplierId(initialOrder.supplier_id);
       setSupplierName(initialOrder.suppliers?.name || '');
-      setCurrency(initialOrder.currency as 'USD' | 'VES');
+      setCurrency(initialOrder.currency as 'USD' | 'VES' | 'EUR');
       setExchangeRate(initialOrder.exchange_rate || undefined);
 
       if (initialOrder.delivery_date) {
@@ -187,7 +187,7 @@ const EditPurchaseOrder = () => {
   const totals = calculateTotals(items);
 
   const totalInUSD = React.useMemo(() => {
-    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
+    if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
       return (totals.total / exchangeRate).toFixed(2);
     }
     return null;
@@ -206,8 +206,8 @@ const EditPurchaseOrder = () => {
       showError('Por favor, selecciona un proveedor.');
       return;
     }
-    if (currency === 'VES' && (!exchangeRate || exchangeRate <= 0)) {
-      showError('La tasa de cambio es requerida y debe ser mayor que cero para órdenes en Bolívares.');
+    if (currency !== 'USD' && (!exchangeRate || exchangeRate <= 0)) {
+      showError(`La tasa de cambio es requerida y debe ser mayor que cero para órdenes en ${currency === 'VES' ? 'Bolívares' : 'Euros'}.`);
       return;
     }
 
@@ -254,7 +254,7 @@ const EditPurchaseOrder = () => {
       supplier_id: supplierId,
       company_id: companyId,
       currency,
-      exchange_rate: currency === 'VES' ? exchangeRate : null,
+      exchange_rate: currency !== 'USD' ? exchangeRate : null,
       status: initialOrder.status,
       created_by: userEmail || 'unknown',
       user_id: userId,
@@ -378,7 +378,7 @@ const EditPurchaseOrder = () => {
             creditDays={creditDays}
             observations={observations}
             onCompanySelect={handleCompanySelect}
-            onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
+            onCurrencyChange={setCurrency}
             onExchangeRateChange={setExchangeRate}
             onDeliveryDateChange={setDeliveryDate}
             onPaymentTermsChange={setPaymentTerms}
@@ -438,7 +438,7 @@ const EditPurchaseOrder = () => {
                 <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
               </div>
 
-              {totalInUSD && currency === 'VES' && (
+              {totalInUSD && (currency === 'VES' || currency === 'EUR') && (
                 <div className="flex justify-end pt-1">
                   <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
                     Ref. USD {totalInUSD}

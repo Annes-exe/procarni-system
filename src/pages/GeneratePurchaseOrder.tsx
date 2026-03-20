@@ -42,7 +42,7 @@ const GeneratePurchaseOrder = () => {
   const [companyName, setCompanyName] = React.useState<string>('');
   const [supplierId, setSupplierId] = React.useState<string>('');
   const [supplierName, setSupplierName] = React.useState<string>('');
-  const [currency, setCurrency] = React.useState<'USD' | 'VES'>('USD');
+  const [currency, setCurrency] = React.useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
   const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null);
 
@@ -81,7 +81,7 @@ const GeneratePurchaseOrder = () => {
         setCompanyName(quoteRequest.companies?.name || '');
         setSupplierId(quoteRequest.supplier_id);
         setSupplierName(quoteRequest.suppliers?.name || '');
-        setCurrency(quoteRequest.currency as 'USD' | 'VES');
+        setCurrency(quoteRequest.currency as 'USD' | 'VES' | 'EUR');
         setExchangeRate(quoteRequest.exchange_rate || undefined);
         setObservations(`Generado desde Solicitud de Cotización: ${quoteRequest.id.substring(0, 8)}`);
 
@@ -138,7 +138,7 @@ const GeneratePurchaseOrder = () => {
           setSupplierName(supplier.name);
         }
 
-        setCurrency(serviceOrder.currency || 'USD');
+        setCurrency(serviceOrder.currency as 'USD' | 'VES' | 'EUR' || 'USD');
         setObservations(`Generado desde Orden de Servicio #${serviceOrder.sequence_number || serviceOrder.id.substring(0, 8)}`);
 
         clearCart();
@@ -293,7 +293,7 @@ const GeneratePurchaseOrder = () => {
   const totals = calculateTotals(items);
 
   const totalInUSD = React.useMemo(() => {
-    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
+    if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
       return (totals.total / exchangeRate).toFixed(2);
     }
     return null;
@@ -312,8 +312,8 @@ const GeneratePurchaseOrder = () => {
       showError('Por favor, selecciona un proveedor.');
       return;
     }
-    if (currency === 'VES' && (!exchangeRate || exchangeRate <= 0)) {
-      showError('La tasa de cambio es requerida y debe ser mayor que cero para órdenes en Bolívares.');
+    if (currency !== 'USD' && (!exchangeRate || exchangeRate <= 0)) {
+      showError(`La tasa de cambio es requerida y debe ser mayor que cero para órdenes en ${currency === 'VES' ? 'Bolívares' : 'Euros'}.`);
       return;
     }
 
@@ -382,7 +382,8 @@ const GeneratePurchaseOrder = () => {
       supplier_id: supplierId,
       company_id: companyId,
       currency,
-      exchange_rate: currency === 'VES' ? exchangeRate : null,
+      exchange_rate: currency !== 'USD' ? exchangeRate : null,
+ pocket_id: null,
       status: 'Draft',
       created_by: userEmail || 'unknown',
       user_id: userId,
@@ -485,7 +486,7 @@ const GeneratePurchaseOrder = () => {
             creditDays={creditDays}
             observations={observations}
             onCompanySelect={handleCompanySelect}
-            onCurrencyChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
+            onCurrencyChange={setCurrency}
             onExchangeRateChange={setExchangeRate}
             onDeliveryDateChange={setDeliveryDate}
             onPaymentTermsChange={setPaymentTerms}
@@ -615,11 +616,11 @@ const GeneratePurchaseOrder = () => {
               <p>
                 ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de compra?
               </p>
-              {currency === 'VES' && (
+              {(currency === 'VES' || currency === 'EUR') && (
                 <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
                   <Info className="h-4 w-4 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Nota sobre Feriados:</strong> En días feriados o fines de semana, la tasa oficial (BCV) no se actualiza y se suele utilizar la del próximo día hábil. Asegúrate de que la tasa ingresada es la correcta.
+                    <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
                   </p>
                 </div>
               )}
