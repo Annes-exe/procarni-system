@@ -734,8 +734,18 @@ const GenerateServiceOrder = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
+              </p>
+              {currency === 'VES' && (
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Nota sobre Feriados:</strong> En días feriados o fines de semana, la tasa oficial (BCV) no se actualiza y se suele utilizar la del próximo día hábil. Asegúrate de que la tasa ingresada es la correcta.
+                  </p>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

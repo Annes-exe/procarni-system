@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Info } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 
 interface ExchangeRateInputProps {
@@ -153,6 +153,11 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
           placeholder="Ej: 36.50"
         />
       )}
+
+      <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1">
+        <Info className="h-3 w-3 inline mr-1 text-blue-500" />
+        En días feriados o fines de semana, la tasa oficial puede no estar actualizada. Considera usar una tasa personalizada si es necesario.
+      </p>
     </div>
   );
 };
