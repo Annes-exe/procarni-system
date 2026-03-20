@@ -734,18 +734,20 @@ const GenerateServiceOrder = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
-              </p>
-              {(currency === 'VES' || currency === 'EUR') && (
-                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
-                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                  <p>
-                    <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
-                  </p>
-                </div>
-              )}
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-gray-600 pt-2">
+                <p>
+                  ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
+                </p>
+                {(currency === 'VES' || currency === 'EUR') && (
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                    <p>
+                      <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
+                    </p>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
