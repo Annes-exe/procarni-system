@@ -45,24 +45,48 @@ export const serviceOrderService = {
     },
 
     getById: async (id: string): Promise<ServiceOrder | null> => {
-        // Need to fetch order, items, and materials
-        const { data, error } = await supabase
+        // Fetch the main order
+        const { data: order, error: orderError } = await supabase
             .from('service_orders')
             .select(`
                 *,
                 suppliers(*),
-                companies(*),
-                service_order_items(*),
-                service_order_materials(*, materials(name), suppliers(name))
+                companies(*)
             `)
             .eq('id', id)
             .single();
 
-        if (error) {
-            console.error('[serviceOrderService.getById] Error:', error);
+        if (orderError) {
+            console.error('[serviceOrderService.getById] Error fetching order:', orderError);
             return null;
         }
-        return data as unknown as ServiceOrder;
+
+        // Fetch items separately
+        const { data: items, error: itemsError } = await supabase
+            .from('service_order_items')
+            .select('*')
+            .eq('order_id', id);
+
+        if (itemsError) {
+            console.error('[serviceOrderService.getById] Error fetching items:', itemsError);
+        }
+
+        // Fetch materials separately with relations
+        const { data: materials, error: materialsError } = await supabase
+            .from('service_order_materials')
+            .select('*, materials(name), suppliers(name)')
+            .eq('service_order_id', id);
+
+        if (materialsError) {
+            console.error('[serviceOrderService.getById] Error fetching materials:', materialsError);
+        }
+
+        // Combine data
+        return {
+            ...order,
+            service_order_items: items || [],
+            service_order_materials: materials || []
+        } as unknown as ServiceOrder;
     },
 
     create: async (
