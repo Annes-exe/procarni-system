@@ -42,11 +42,18 @@ jobs:
             exit 1
           fi
 
+      - name: Set Artifact Name with Date Range
+        id: set-name
+        run: |
+          CURR_DATE=$(date +%d-%m-%Y)
+          PREV_DATE=$(date -d "7 days ago" +%d-%m-%Y)
+          echo "ARTIFACT_NAME=db-backup-procarni $PREV_DATE a $CURR_DATE" >> $GITHUB_OUTPUT
+
       - name: Upload Backup to GitHub Artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: db-backup-procarni
+          name: ${{ steps.set-name.outputs.ARTIFACT_NAME }}
           path: backup_procarni_*.sql.gz
           retention-days: 30
       - name: Create System Notification
@@ -54,8 +61,21 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DB_CONNECTION_STRING }}
         run: |
-          # Obtenemos la fecha actual en formato DD-MM-YYYY
-          FORMATTED_DATE=$(date +%d-%m-%Y)
+          CURR_DATE=$(date +%d-%m-%Y)
+          PREV_DATE=$(date -d "7 days ago" +%d-%m-%Y)
           
-          # Insertamos la notificación para el admin (ID: a273f316-513f-4057-bf40-702f8c2bc920)
-          /usr/lib/postgresql/17/bin/psql "$DATABASE_URL" -c "INSERT INTO notifications (user_id, title, message, type) VALUES ('a273f316-513f-4057-bf40-702f8c2bc920', 'Respaldo del Sistema', 'Backup creado el dia Domingo $FORMATTED_DATE, ya puedes descargarlo', 'reminder');"
+          # Intentamos obtener el ID del administrador por correo (evita fallos por IDs estáticos tras restauraciones)
+          # Buscamos primero en auth.users por el correo específico
+          USER_ID=$(/usr/lib/postgresql/17/bin/psql "$DATABASE_URL" -t -A -c "SELECT id FROM auth.users WHERE email = 'sistemasprocarni2025@gmail.com' LIMIT 1;")
+          
+          # Si no se encuentra, buscamos cualquier admin en public.profiles como respaldo
+          if [ -z "$USER_ID" ]; then
+            USER_ID=$(/usr/lib/postgresql/17/bin/psql "$DATABASE_URL" -t -A -c "SELECT id FROM public.profiles WHERE role = 'admin' LIMIT 1;")
+          fi
+          
+          if [ -n "$USER_ID" ]; then
+            echo "Enviando notificación al usuario: $USER_ID"
+            /usr/lib/postgresql/17/bin/psql "$DATABASE_URL" -c "INSERT INTO notifications (user_id, title, message, type) VALUES ('$USER_ID', 'Respaldo del Sistema', 'Backup semanal ($PREV_DATE a $CURR_DATE) generado con éxito. Ya puedes descargarlo.', 'reminder');"
+          else
+            echo "⚠️ No se encontró un usuario administrador válido para notificar. El backup se guardó correctamente como artefacto."
+          fi
