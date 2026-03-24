@@ -31,10 +31,12 @@ serve(async (req) => {
     let record = null;
     let userId = null;
 
-    if (payload.type === 'INSERT' && payload.table === 'notifications') {
+    if ((payload.type === 'INSERT' && payload.table === 'notifications') || payload.type === 'RETRY') {
       record = payload.record;
       userId = record.user_id;
-      if (record.type !== 'reminder') {
+      
+      // We allow 'reminder' and explicit 'RETRY' requests
+      if (payload.type !== 'RETRY' && record.type !== 'reminder') {
         return new Response(JSON.stringify({ message: "Notificación ignorada" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
