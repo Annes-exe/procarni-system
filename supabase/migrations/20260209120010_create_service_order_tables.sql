@@ -72,11 +72,7 @@ FOR DELETE TO authenticated USING (auth.uid() = user_id);
 ALTER TABLE public.service_order_items ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can view service order items" ON public.service_order_items
-FOR SELECT TO authenticated USING (EXISTS (
-    SELECT 1 FROM public.service_orders
-    WHERE service_orders.id = service_order_items.order_id
-    AND service_orders.user_id = auth.uid()
-));
+FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY "Authenticated users can manage service order items" ON public.service_order_items
 FOR ALL TO authenticated USING (EXISTS (
