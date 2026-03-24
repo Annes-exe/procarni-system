@@ -63,17 +63,26 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log(`Buscando suscripciones para user_id: ${userId}`);
     const { data: subscriptions, error } = await supabase
       .from('user_push_subscriptions')
       .select('endpoint, auth_key, p256dh_key')
       .eq('user_id', userId);
 
-    if (error || !subscriptions || subscriptions.length === 0) {
+    if (error) {
+      console.error('Error buscando suscripciones:', error);
+      return new Response(JSON.stringify({ error: 'Error DB' }), { status: 500, headers: corsHeaders });
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      console.log('No se encontraron suscripciones activas para este usuario.');
       return new Response(JSON.stringify({ message: "Sin suscripciones" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
+
+    console.log(`Enviando push a ${subscriptions.length} dispositivo(s).`);
 
     const pushPayload = JSON.stringify({
       title: record.title || 'Recordatorio de Compras',
@@ -82,6 +91,7 @@ serve(async (req) => {
       badge: '/badge-72x72.png',
       data: { url: '/' }
     });
+
 
     const sendPromises = subscriptions.map((sub: any) => {
       const pushSubscription = {

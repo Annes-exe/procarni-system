@@ -1,51 +1,67 @@
--- 0. Portable Configuration via Supabase Vault
+-- 1. Extensiones necesarias
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS supabase_vault;
+
+-- 2. Configuración de la URL del proyecto en el Vault
+-- IMPORTANTE: Cambiar la URL por la de producción al ejecutar en ese entorno
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM vault.secrets WHERE name = 'supabase_url') THEN
-        PERFORM vault.create_secret('https://hsspvhxneuetpatafdzy.supabase.co', 'supabase_url', 'Project URL for notifications');
+        PERFORM vault.create_secret('https://hsspvhxneuetpatafdzy.supabase.co', 'supabase_url', 'URL base del proyecto para Edge Functions');
     END IF;
 END $$;
 
--- Helper to get project URL from Vault
+-- 3. Función auxiliar para obtener la URL del Vault
 CREATE OR REPLACE FUNCTION public.get_project_url()
 RETURNS TEXT AS $$
-DECLARE
-    url TEXT;
-BEGIN
-    SELECT decrypted_secret INTO url FROM vault.decrypted_secrets WHERE name = 'supabase_url' LIMIT 1;
-    RETURN url;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+    SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'supabase_url' LIMIT 1;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = vault, public;
 
-
--- 1. Create tracking table
+-- 4. Tabla para el seguimiento de los re-envíos
 CREATE TABLE IF NOT EXISTS public.scheduled_repush (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     notification_id UUID NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
     next_push_at TIMESTAMPTZ NOT NULL,
-    interval_index INT NOT NULL DEFAULT 1, -- 1 to 5
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled')),
+    interval_index INT NOT NULL DEFAULT 1, -- 1: 2h, 2: 1h, 3: 45m, 4: 30m, 5: 15m
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, sent, cancelled
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for cron performance
-CREATE INDEX IF NOT EXISTS idx_scheduled_repush_next_push ON public.scheduled_repush (next_push_at) WHERE status = 'pending';
+-- Habilitar RLS
+ALTER TABLE public.scheduled_repush ENABLE ROW LEVEL SECURITY;
 
--- 2. Function to calculate next interval
+-- Políticas de RLS
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Solo administradores pueden gestionar re-intentos') THEN
+        CREATE POLICY "Solo administradores pueden gestionar re-intentos"
+        ON public.scheduled_repush FOR ALL TO service_role, postgres USING (true);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admins pueden ver re-intentos') THEN
+        CREATE POLICY "Admins pueden ver re-intentos"
+        ON public.scheduled_repush FOR SELECT TO authenticated USING (
+            EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+        );
+    END IF;
+END $$;
+
+-- 5. Función de lógica de intervalos (TIEMPOS REALES)
 CREATE OR REPLACE FUNCTION public.get_next_repush_interval(idx INT)
 RETURNS INTERVAL AS $$
 BEGIN
     RETURN CASE 
-        WHEN idx = 1 THEN INTERVAL '1 hour'   -- After the 2h retry, next is 1h
+        WHEN idx = 1 THEN INTERVAL '1 hour'    -- 1er retry: 2h (fijo), el siguiente a la 1h
         WHEN idx = 2 THEN INTERVAL '45 minutes'
         WHEN idx = 3 THEN INTERVAL '30 minutes'
         WHEN idx = 4 THEN INTERVAL '15 minutes'
-        ELSE NULL -- No more retries after index 5
+        ELSE NULL 
     END;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- 3. Queue Processor
+-- 6. Procesador de la cola de re-envíos
 CREATE OR REPLACE FUNCTION public.process_repush_queue()
 RETURNS VOID AS $$
 DECLARE
@@ -58,14 +74,13 @@ BEGIN
         JOIN public.notifications n ON sr.notification_id = n.id
         WHERE sr.next_push_at <= NOW() AND sr.status = 'pending'
     LOOP
-        -- Check if already read in the system
-        IF r.is_read THEN
+        -- Si ya fue leída, cancelar re-envío
+        IF r.is_read = true THEN
             UPDATE public.scheduled_repush SET status = 'cancelled' WHERE id = r.id;
             CONTINUE;
         END IF;
 
-        -- Trigger Push via Edge Function
-        -- We use the URL from the Vault for portability
+        -- Disparar Edge Function (Modo RETRY)
         PERFORM net.http_post(
             url := (public.get_project_url() || '/functions/v1/send-notification'),
             headers := '{"Content-Type": "application/json"}'::jsonb,
@@ -81,9 +96,7 @@ BEGIN
             )
         );
 
-
-
-        -- Calculate next interval
+        -- Calcular siguiente intervalo
         next_interval := public.get_next_repush_interval(r.interval_index);
         
         IF next_interval IS NOT NULL THEN
@@ -92,23 +105,17 @@ BEGIN
                 interval_index = r.interval_index + 1
             WHERE id = r.id;
         ELSE
-            UPDATE public.scheduled_repush SET status = 'completed' WHERE id = r.id;
+            UPDATE public.scheduled_repush SET status = 'sent' WHERE id = r.id;
         END IF;
     END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- 4. Schedule Cron (every minute)
--- First unschedule if exists to avoid duplicates
-SELECT cron.unschedule('process-repush-notifications');
-SELECT cron.schedule('process-repush-notifications', '* * * * *', 'SELECT public.process_repush_queue()');
-
--- 5. Update handle_new_notification_push to trigger initial and schedule retries
+-- 7. Modificar el disparador inicial de notificaciones
 CREATE OR REPLACE FUNCTION public.handle_new_notification_push()
-RETURNS trigger AS $$
+RETURNS TRIGGER AS $$
 BEGIN
-  -- Trigger initial Edge Function call ONLY for 'reminder'
-  -- Document CRUD notifications will skip the push/retry logic
+  -- Primer aviso inmediato (Solo para recordatorios)
   IF NEW.type = 'reminder' THEN
     PERFORM net.http_post(
         url := (public.get_project_url() || '/functions/v1/send-notification'),
@@ -121,12 +128,30 @@ BEGIN
         )
     );
 
-    -- Schedule the FIRST retry (+2 hours from now)
+    -- Agendar el PRIMER re-intento (+2 horas desde ahora)
     INSERT INTO public.scheduled_repush (notification_id, next_push_at, interval_index)
     VALUES (NEW.id, NOW() + INTERVAL '2 hours', 1);
   END IF;
 
-  
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- 8. Permisos necesarios para el esquema net (Cron lo necesita)
+GRANT USAGE ON SCHEMA net TO authenticated, service_role, postgres;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA net TO authenticated, service_role, postgres;
+
+-- 9. Programar el Cron (Ejecutar cada minuto)
+DO $$
+BEGIN
+    -- Intentamos borrarla solo si existe para evitar el error XX000
+    IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'process-repush-notifications') THEN
+        PERFORM cron.unschedule('process-repush-notifications');
+    END IF;
+END $$;
+-- Ahora sí la agendamos limpiamente
+SELECT cron.schedule(
+  'process-repush-notifications',
+  '* * * * *', -- Cada minuto
+  'SELECT public.process_repush_queue()'
+);
