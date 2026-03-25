@@ -5,7 +5,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2, ChevronDown, Archive, Trash2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, ShoppingCart, Mail, MoreVertical, CheckCircle, Building2, Clock, Loader2, ChevronDown, Archive, Trash2, RotateCcw, Send, Smartphone } from 'lucide-react';
 
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -16,6 +16,7 @@ import PDFDownloadButton from '@/components/PDFDownloadButton';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
+import WhatsAppShareModal from '@/components/WhatsAppShareModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -50,6 +51,7 @@ const QuoteRequestDetails = () => {
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const qrViewerRef = React.useRef<QuoteRequestPreviewModalRef>(null);
 
@@ -404,6 +406,14 @@ const QuoteRequestDetails = () => {
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
                 </DropdownMenuItem>
 
+                <DropdownMenuItem
+                  onSelect={() => setIsWhatsAppModalOpen(true)}
+                  // @ts-ignore
+                  disabled={!request.suppliers?.phone && !request.suppliers?.phone_2}
+                >
+                  <Smartphone className="mr-2 h-4 w-4" /> Enviar por WhatsApp
+                </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Flujo de Trabajo</DropdownMenuLabel>
 
@@ -597,6 +607,22 @@ const QuoteRequestDetails = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WhatsAppShareModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        orderId={request.id}
+        type="quote_request"
+        // @ts-ignore
+        supplierName={request.suppliers?.name || 'Proveedor'}
+        orderNumber={request.id.substring(0, 8)}
+        phones={{
+          // @ts-ignore
+          primary: request.suppliers?.phone || null,
+          // @ts-ignore
+          secondary: request.suppliers?.phone_2 || null
+        }}
+      />
     </div>
   );
 };

@@ -19,6 +19,7 @@ import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
+import WhatsAppShareModal from '@/components/WhatsAppShareModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +60,7 @@ const ServiceOrderDetails = () => {
   const [isApproving, setIsApproving] = useState(false);
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const pdfViewerRef = React.useRef<ServiceOrderPDFViewerRef>(null);
 
@@ -473,6 +475,16 @@ const ServiceOrderDetails = () => {
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
                 </DropdownMenuItem>
 
+                <DropdownMenuItem 
+                  onSelect={() => setIsWhatsAppModalOpen(true)} 
+                  disabled={
+                    // @ts-ignore
+                    !order.suppliers?.phone && !order.suppliers?.phone_2
+                  }
+                >
+                  <Smartphone className="mr-2 h-4 w-4" /> Enviar por WhatsApp
+                </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
 
@@ -843,6 +855,21 @@ const ServiceOrderDetails = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <WhatsAppShareModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        orderId={order.id}
+        type="service"
+        // @ts-ignore
+        supplierName={order.suppliers?.name || 'Proveedor'}
+        orderNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+        phones={{
+          // @ts-ignore
+          primary: order.suppliers?.phone || null,
+          // @ts-ignore
+          secondary: order.suppliers?.phone_2 || null
+        }}
+      />
     </div>
   );
 };

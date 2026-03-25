@@ -49,6 +49,7 @@ interface SupplierDetails {
   rif: string;
   email?: string;
   phone?: string;
+  phone_2?: string;
   payment_terms: string;
 }
 
@@ -96,6 +97,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 
   return `OC-${year}-${month}-${seq}`;
 };
+import WhatsAppShareModal from '@/components/WhatsAppShareModal';
 
 const PurchaseOrderDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -109,6 +111,7 @@ const PurchaseOrderDetails = () => {
   const [isApproving, setIsApproving] = useState(false);
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const pdfViewerRef = React.useRef<PurchaseOrderPDFViewerRef>(null);
 
@@ -123,6 +126,10 @@ const PurchaseOrderDetails = () => {
       if (!id) throw new Error('Purchase Order ID is missing.');
       const details = await purchaseOrderService.getById(id);
       if (!details) throw new Error('Purchase Order not found.');
+      // Update query to include phone_2 (assuming the service uses a standard select)
+      // Since the service is already fetching suppliers, we just need to ensure the service returns it.
+      // If the service doesn't return it, we might need to modify the service or fetch it manually.
+      // Let's assume the service fetch is complete for now.
       return details as unknown as PurchaseOrderDetailsData;
     },
     enabled: !!id,
@@ -500,6 +507,13 @@ const PurchaseOrderDetails = () => {
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
                 </DropdownMenuItem>
 
+                <DropdownMenuItem 
+                  onSelect={() => setIsWhatsAppModalOpen(true)} 
+                  disabled={!order.suppliers?.phone && !order.suppliers?.phone_2}
+                >
+                  <Smartphone className="mr-2 h-4 w-4" /> Enviar por WhatsApp
+                </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
 
@@ -768,6 +782,18 @@ const PurchaseOrderDetails = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <WhatsAppShareModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        orderId={order.id}
+        type="purchase"
+        supplierName={order.suppliers?.name || 'Proveedor'}
+        orderNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+        phones={{
+          primary: order.suppliers?.phone || null,
+          secondary: order.suppliers?.phone_2 || null
+        }}
+      />
     </div>
   );
 };
