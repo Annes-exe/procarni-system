@@ -66,7 +66,8 @@ export default {
         'procarni-primary': '#880a0a', // Rojo Italia
         'procarni-secondary': '#0e5708', // Verde acciones
         'procarni-alert': '#d97706', // Ámbar Técnico (Reemplaza al #F39C12)
-        'procarni-dark': '#0f172a', // Azul Grisaceo Oscuro
+        'procarni-dark': '#0f172a', // Azul Oscuro para no usar negro
+        'procarni-blue': '#1B294A', // Azul para uso
       },
       borderRadius: {
         lg: "var(--radius)",
