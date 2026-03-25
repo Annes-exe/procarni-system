@@ -5,6 +5,7 @@ export type Profile = {
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
+  cloudinary_public_id: string | null;
   updated_at: string | null;
 };
 
@@ -59,6 +60,7 @@ export type Company = {
   id: string;
   name: string;
   logo_url: string | null;
+  cloudinary_public_id: string | null;
   fiscal_data: any | null;
   created_at: string | null;
   updated_at: string | null;
@@ -156,6 +158,7 @@ export type FichaTecnica = {
   nombre_producto: string;
   proveedor_id: string;
   storage_url: string;
+  cloudinary_public_id?: string | null;
   created_at: string | null;
 };
 

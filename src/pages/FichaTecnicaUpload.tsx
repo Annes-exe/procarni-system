@@ -10,10 +10,11 @@ import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
 import SmartSearch from '@/components/SmartSearch';
 import { searchSuppliers, uploadFichaTecnica, getAllFichasTecnicas, searchMaterialsBySupplier, deleteFichaTecnica } from '@/integrations/supabase/data';
+import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FichaTecnica } from '@/integrations/supabase/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -49,21 +50,22 @@ const FichaTecnicaUpload = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [fichaToDelete, setFichaToDelete] = useState<any | null>(null);
 
-  const { data: fichas, isLoading: isLoadingFichas, refetch } = useQuery<any[]>({
+  const { data: fichas, isLoading: isLoadingFichas, refetch } = useQuery<FichaTecnica[]>({
     queryKey: ['fichasTecnicas'],
     queryFn: getAllFichasTecnicas,
     enabled: !!session,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: ({ id, storage_url }: { id: string; storage_url: string }) => deleteFichaTecnica(id, storage_url),
+    mutationFn: ({ id, cloudinary_public_id }: { id: string; cloudinary_public_id?: string }) => 
+      deleteFichaTecnica(id, cloudinary_public_id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fichasTecnicas'] });
       showSuccess('Ficha técnica eliminada exitosamente.');
       setIsDeleteDialogOpen(false);
       setFichaToDelete(null);
     },
-    onError: (err) => {
+    onError: (err: any) => {
       showError(`Error al eliminar ficha: ${err.message}`);
       setIsDeleteDialogOpen(false);
       setFichaToDelete(null);
@@ -77,7 +79,7 @@ const FichaTecnicaUpload = () => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     return fichas.filter(ficha =>
       ficha.nombre_producto.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (ficha.suppliers?.name && ficha.suppliers.name.toLowerCase().includes(lowerCaseSearchTerm))
+      ((ficha as any).suppliers?.name && (ficha as any).suppliers.name.toLowerCase().includes(lowerCaseSearchTerm))
     );
   }, [fichas, searchTerm]);
 
@@ -125,28 +127,26 @@ const FichaTecnicaUpload = () => {
     setIsUploading(true);
 
     try {
-      // Convert file to Base64
-      const fileBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          // Extract Base64 string after the comma (removing data URL prefix)
-          const base64String = (reader.result as string).split(',')[1];
-          resolve(base64String);
-        };
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(selectedFile);
-      });
+      // 1. Prepare dynamic folder path: procarni_system/fichas_tecnicas/NOMBRE_PROVEEDOR
+      const sanitizedSupplierName = selectedSupplier.name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '_')         // Replace spaces with underscores
+        .replace(/-+/g, '_');         // Replace hyphens with underscores
 
+      const targetFolder = `procarni_system/fichas_tecnicas/${sanitizedSupplierName}`;
+
+      // 2. Upload to Cloudinary
+      const cloudinaryResponse = await uploadToCloudinary(selectedFile, targetFolder);
+
+      // 3. Save metadata to Supabase
       const payload = {
-        nombre_producto: selectedMaterial.name, // Use material name as product name
+        nombre_producto: selectedMaterial.name,
         proveedor_id: selectedSupplier.id,
-        fileBase64: fileBase64,
-        fileName: selectedFile.name,
-        mimeType: selectedFile.type,
+        storage_url: cloudinaryResponse.secure_url,
+        cloudinary_public_id: cloudinaryResponse.public_id,
       };
-
-      // Log the payload to verify it's correct
-      console.log('[FichaTecnicaUpload] Payload:', payload);
 
       const newFicha = await uploadFichaTecnica(payload);
 
@@ -176,14 +176,17 @@ const FichaTecnicaUpload = () => {
     setIsViewerOpen(true);
   };
 
-  const confirmDelete = (ficha: any) => {
+  const confirmDelete = (ficha: FichaTecnica) => {
     setFichaToDelete(ficha);
     setIsDeleteDialogOpen(true);
   };
 
   const executeDelete = async () => {
     if (fichaToDelete) {
-      await deleteMutation.mutateAsync({ id: fichaToDelete.id, storage_url: fichaToDelete.storage_url });
+      await deleteMutation.mutateAsync({ 
+        id: fichaToDelete.id, 
+        cloudinary_public_id: fichaToDelete.cloudinary_public_id 
+      });
     }
   };
 
@@ -202,7 +205,7 @@ const FichaTecnicaUpload = () => {
           {filteredFichas.map((ficha) => (
             <Card key={ficha.id} className="p-4">
               <CardTitle className="text-lg mb-1 truncate">{ficha.nombre_producto}</CardTitle>
-              <CardDescription className="mb-2">Proveedor: {ficha.suppliers?.name || 'N/A'}</CardDescription>
+              <CardDescription className="mb-2">Proveedor: {(ficha as any).suppliers?.name || 'N/A'}</CardDescription>
               <div className="flex justify-end gap-2 mt-4">
                 <Button variant="outline" size="sm" onClick={() => handleViewFicha(ficha.storage_url)}>
                   <Eye className="mr-2 h-4 w-4" /> Ver PDF
@@ -232,8 +235,8 @@ const FichaTecnicaUpload = () => {
             {filteredFichas.map((ficha) => (
               <TableRow key={ficha.id} className="hover:bg-gray-50/50 transition-colors">
                 <TableCell className="pl-4 py-3 font-medium text-procarni-dark">{ficha.nombre_producto}</TableCell>
-                <TableCell className="py-3 text-gray-600">{ficha.suppliers?.name || 'N/A'}</TableCell>
-                <TableCell className="py-3 text-gray-600">{new Date(ficha.created_at).toLocaleDateString()}</TableCell>
+                <TableCell className="py-3 text-gray-600">{(ficha as any).suppliers?.name || 'N/A'}</TableCell>
+                <TableCell className="py-3 text-gray-600">{ficha.created_at ? new Date(ficha.created_at).toLocaleDateString() : 'N/A'}</TableCell>
                 <TableCell className="text-right pr-4 py-3">
                   <Button variant="ghost" size="icon" onClick={() => handleViewFicha(ficha.storage_url)}>
                     <Eye className="h-4 w-4" />
@@ -338,6 +341,7 @@ const FichaTecnicaUpload = () => {
         <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Visualización de Ficha Técnica</DialogTitle>
+            <DialogDescription>Previsualización del documento técnico seleccionado.</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto">
             {currentFichaUrl ? (

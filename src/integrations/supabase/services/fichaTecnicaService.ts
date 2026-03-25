@@ -5,16 +5,18 @@ import { showError } from '@/utils/toast';
 import { FichaTecnica } from '../types';
 import { logAudit } from './auditLogService';
 
-interface UploadPayload {
+interface SaveMetadataPayload {
   nombre_producto: string;
   proveedor_id: string;
-  fileBase64: string;
-  fileName: string;
-  mimeType: string;
+  storage_url: string;
+  cloudinary_public_id?: string;
 }
 
 const FichaTecnicaService = {
-  upload: async (payload: UploadPayload): Promise<FichaTecnica | null> => {
+  /**
+   * Saves the metadata of a ficha técnica after the file has been uploaded (e.g., to Cloudinary).
+   */
+  saveMetadata: async (payload: SaveMetadataPayload): Promise<FichaTecnica | null> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       showError('Sesión no activa. Por favor, inicia sesión.');
@@ -22,12 +24,20 @@ const FichaTecnicaService = {
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('upload-ficha-tecnica', {
-        body: payload
-      });
+      const { data, error } = await supabase
+        .from('fichas_tecnicas')
+        .insert({
+          user_id: session.user.id,
+          nombre_producto: payload.nombre_producto,
+          proveedor_id: payload.proveedor_id,
+          storage_url: payload.storage_url,
+          cloudinary_public_id: payload.cloudinary_public_id,
+        })
+        .select()
+        .single();
 
       if (error) {
-        throw new Error(error.message || 'Error desconocido al subir la ficha técnica.');
+        throw error;
       }
 
       const newFicha: FichaTecnica = data;
@@ -39,15 +49,15 @@ const FichaTecnicaService = {
         description: `Subida de ficha técnica para ${newFicha.nombre_producto}`,
         nombre_producto: newFicha.nombre_producto,
         proveedor_id: newFicha.proveedor_id,
-        file_name: payload.fileName
+        cloudinary_public_id: payload.cloudinary_public_id
       });
       // -----------------
 
       return newFicha;
 
     } catch (error: any) {
-      console.error('[FichaTecnicaService.upload] Error:', error);
-      showError(error.message || 'Error al subir la ficha técnica.');
+      console.error('[FichaTecnicaService.saveMetadata] Error:', error);
+      showError(error.message || 'Error al guardar los datos de la ficha técnica.');
       return null;
     }
   },
@@ -67,7 +77,6 @@ const FichaTecnicaService = {
   },
 
   getBySupplierAndProduct: async (proveedorId: string, nombreProducto: string): Promise<FichaTecnica | null> => {
-    // Eliminamos .single() para evitar el error 406 si hay 0 o >1 resultado.
     const { data, error } = await supabase
       .from('fichas_tecnicas')
       .select('*')
@@ -79,11 +88,10 @@ const FichaTecnicaService = {
       return null;
     }
 
-    // Si hay datos, devolvemos el primer resultado (o null si no hay)
     return data.length > 0 ? data[0] as FichaTecnica : null;
   },
 
-  delete: async (fichaId: string, storageUrl: string): Promise<boolean> => {
+  delete: async (fichaId: string, cloudinaryPublicId?: string): Promise<boolean> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       showError('Sesión no activa. Por favor, inicia sesión.');
@@ -91,13 +99,34 @@ const FichaTecnicaService = {
     }
 
     try {
-      // Llama a la Edge Function para manejar la eliminación del archivo y el registro DB
-      const { data, error } = await supabase.functions.invoke('delete-ficha-tecnica', {
-        body: { fichaId, storageUrl }
-      });
+      // 1. Delete the record from the database
+      const { error } = await supabase
+        .from('fichas_tecnicas')
+        .delete()
+        .eq('id', fichaId);
 
       if (error) {
-        throw new Error(error.message || 'Error desconocido al eliminar la ficha técnica.');
+        throw error;
+      }
+
+      // 2. Delete from Cloudinary if public_id exists
+      if (cloudinaryPublicId) {
+        console.log(`[FichaTecnicaService] Deleting from Cloudinary: ${cloudinaryPublicId}`);
+        // For PDFs, we need to specify resource_type as 'raw' (Cloudinary treats them as such if auto-uploaded)
+        // or just 'image' if they were detected as images. 
+        // Our upload uses 'auto', so for PDFs it usually results in 'image' (for previews) or 'raw'.
+        // The error log showed 'image/upload', so we'll try 'image' but the function defaults to it.
+        try {
+          await supabase.functions.invoke('delete-cloudinary-asset', {
+            body: { 
+              public_id: cloudinaryPublicId,
+              resource_type: 'image' // Based on the observed URL: image/upload/...
+            }
+          });
+        } catch (cloudinaryError) {
+          console.error('[FichaTecnicaService] Error deleting from Cloudinary:', cloudinaryError);
+          // We don't throw here to avoid failing the DB delete, but we log it
+        }
       }
 
       // --- AUDIT LOG ---
@@ -105,7 +134,7 @@ const FichaTecnicaService = {
         table: 'fichas_tecnicas',
         record_id: fichaId,
         description: 'Eliminación de ficha técnica',
-        storage_url: storageUrl
+        cloudinary_public_id: cloudinaryPublicId
       });
       // -----------------
 
@@ -113,14 +142,13 @@ const FichaTecnicaService = {
 
     } catch (error: any) {
       console.error('[FichaTecnicaService.delete] Error:', error);
-      // Re-throw the error so useMutation catches it
       throw new Error(error.message || 'Error al eliminar la ficha técnica.');
     }
   },
 };
 
 export const {
-  upload: uploadFichaTecnica,
+  saveMetadata: uploadFichaTecnica,
   getAll: getAllFichasTecnicas,
   delete: deleteFichaTecnica,
   getBySupplierAndProduct: getFichaTecnicaBySupplierAndProduct,

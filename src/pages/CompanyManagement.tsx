@@ -21,6 +21,7 @@ interface Company {
   name: string;
   rif: string;
   logo_url?: string;
+  cloudinary_public_id?: string;
   address?: string;
   phone?: string;
   email?: string;
@@ -34,6 +35,7 @@ interface CompanyFormValues {
   name: string;
   rif: string;
   logo_url?: string;
+  cloudinary_public_id?: string;
   address?: string;
   phone?: string;
   email?: string;
@@ -86,6 +88,7 @@ const CompanyManagement = () => {
         name: newCompany.name,
         rif: newCompany.rif,
         logo_url: newCompany.logo_url || null,
+        cloudinary_public_id: newCompany.cloudinary_public_id || null,
         address: newCompany.address || null,
         phone: newCompany.phone || null,
         email: newCompany.email || null,
