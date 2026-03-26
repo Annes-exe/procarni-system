@@ -30,12 +30,11 @@ serve(async (req) => {
     type = body.type;
     
     console.log(`Starting PDF generation for ${type} document: ${orderId}`);
+    console.log("Environment Keys:", Object.keys(Deno.env.toObject()).filter(k => k.includes('SUPABASE') || k.includes('CLOUDINARY')));
 
-    const authHeader = req.headers.get('Authorization')!;
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
     // 1. Fetch Data based on type
@@ -92,14 +91,14 @@ serve(async (req) => {
     const pdfBytes = await pdfDoc.save();
     console.log("PDF generated. Size:", pdfBytes.length);
 
-    // 3. Upload to Cloudinary
-    console.log("Uploading to Cloudinary...");
-    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME');
-    const apiKey = Deno.env.get('CLOUDINARY_API_KEY');
-    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET');
+    // 3. Upload to Cloudinary (Base64 for robustness)
+    console.log("Uploading to Cloudinary (Base64)...");
+    const cloudName = Deno.env.get('VITE_CLOUDINARY_CLOUD_NAME');
+    const apiKey = Deno.env.get('VITE_CLOUDINARY_API_KEY');
+    const apiSecret = Deno.env.get('VITE_CLOUDINARY_API_SECRET');
     
     if (!cloudName || !apiKey || !apiSecret) {
-      throw new Error('Cloudinary configuration missing (Environment Variables)');
+      throw new Error(`Cloudinary secrets missing. Keys present: ${Object.keys(Deno.env.toObject()).filter(k => k.includes('CLOUDINARY'))}`);
     }
 
     const timestamp = Math.round(new Date().getTime() / 1000);
@@ -108,8 +107,12 @@ serve(async (req) => {
     const params = { folder, timestamp };
     const signature = await generateSignature(params, apiSecret);
 
+    // Convert to Base64
+    const base64Data = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+    const fileData = `data:application/pdf;base64,${base64Data}`;
+
     const formData = new FormData();
-    formData.append('file', new Blob([pdfBytes], { type: 'application/pdf' }), fileName);
+    formData.append('file', fileData);
     formData.append('api_key', apiKey);
     formData.append('timestamp', timestamp.toString());
     formData.append('signature', signature);
@@ -118,8 +121,11 @@ serve(async (req) => {
     const uploadRes = await fetch(cloudinaryUrl(cloudName), { method: 'POST', body: formData });
     const uploadData = await uploadRes.json();
 
-    if (!uploadRes.ok) throw new Error(uploadData.error?.message || 'Cloudinary upload failed');
-    console.log("Uploaded to Cloudinary:", uploadData.secure_url);
+    if (!uploadRes.ok) {
+      console.error("Cloudinary Error Log:", uploadData);
+      throw new Error(uploadData.error?.message || `Cloudinary upload failed (Status ${uploadRes.status})`);
+    }
+    console.log("Uploaded successfully to Cloudinary.");
 
     // 4. Register in Supabase
     console.log("Registering asset in Database...");
@@ -132,7 +138,10 @@ serve(async (req) => {
       expires_at: expiresAt.toISOString()
     }).select().single();
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      console.error("DB Error Log:", dbError);
+      throw dbError;
+    }
     console.log("Asset registered successfully.");
 
     return new Response(JSON.stringify({ url: asset.url }), {

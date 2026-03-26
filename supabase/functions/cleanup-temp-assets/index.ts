@@ -38,17 +38,24 @@ serve(async (req) => {
     }
 
     // 2. Delete from Cloudinary
-    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')!;
-    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')!;
-    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')!;
+    const cloudName = Deno.env.get('VITE_CLOUDINARY_CLOUD_NAME');
+    const apiKey = Deno.env.get('VITE_CLOUDINARY_API_KEY');
+    const apiSecret = Deno.env.get('VITE_CLOUDINARY_API_SECRET');
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      console.error("Cleanup failed: Cloudinary secrets missing (VITE_ prefix required)");
+      return new Response(JSON.stringify({ error: 'Cloudinary secrets missing (VITE_ prefix required)' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     for (const asset of expiredAssets) {
       const timestamp = Math.round(new Date().getTime() / 1000);
-      const params = { public_id: asset.public_id, timestamp };
+      const params = { public_id: asset.cloudinary_public_id, timestamp };
       const signature = await generateSignature(params, apiSecret);
 
       const formData = new FormData();
-      formData.append('public_id', asset.public_id);
+      formData.append('public_id', asset.cloudinary_public_id);
       formData.append('api_key', apiKey);
       formData.append('timestamp', timestamp.toString());
       formData.append('signature', signature);
@@ -60,10 +67,10 @@ serve(async (req) => {
       
       if (deleteRes.ok) {
         await supabase.from('temporary_assets').delete().eq('id', asset.id);
-        console.log(`[cleanup] Deleted asset: ${asset.public_id}`);
+        console.log(`[cleanup] Deleted asset: ${asset.cloudinary_public_id}`);
       } else {
         const errorData = await deleteRes.json();
-        console.error(`[cleanup] Failed to delete ${asset.public_id}:`, errorData);
+        console.error(`[cleanup] Failed to delete ${asset.cloudinary_public_id}:`, errorData);
       }
     }
 

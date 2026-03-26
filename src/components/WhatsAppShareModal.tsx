@@ -57,12 +57,13 @@ const WhatsAppShareModal = ({
         body: JSON.stringify({ orderId, type }),
       });
 
+      const data = await response.json();
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al generar el documento.');
+        console.error("Server Error:", data);
+        throw new Error(data.error || 'Error al generar el documento.');
       }
 
-      const { url } = await response.json();
+      const { url } = data;
       
       // Clean phone number (remove non-digits)
       const cleanPhone = selectedPhone.replace(/\D/g, '');
