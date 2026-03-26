@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1';
 import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 
 const corsHeaders = {
@@ -25,90 +24,72 @@ serve(async (req) => {
   let type = 'unknown';
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No Authorization header provided');
+    }
+
     const body = await req.json();
     orderId = body.orderId;
     type = body.type;
     
-    console.log(`Starting PDF generation for ${type} document: ${orderId}`);
-    console.log("Environment Keys:", Object.keys(Deno.env.toObject()).filter(k => k.includes('SUPABASE') || k.includes('CLOUDINARY')));
+    console.log(`[generate-temp-pdf] Request: Type=${type}, ID=${orderId}`);
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    // 1. Determine local endpoint and payload
+    let targetEndpoint = '';
+    let payload = {};
 
-    // 1. Fetch Data based on type
-    console.log(`Fetching data for ${type}...`);
-    let data, items, title, fileName;
     if (type === 'purchase') {
-      const { data: po, error: poErr } = await supabase.from('purchase_orders').select('*, suppliers(*), companies(*)').eq('id', orderId).single();
-      if (poErr) throw poErr;
-      const { data: poItems, error: itemsErr } = await supabase.from('purchase_order_items').select('*, materials(name)').eq('order_id', orderId);
-      if (itemsErr) throw itemsErr;
-      data = po; items = poItems; title = 'ORDEN DE COMPRA'; fileName = `OC_${orderId.slice(0,8)}.pdf`;
+      targetEndpoint = 'generate-po-pdf';
+      payload = { orderId };
     } else if (type === 'service') {
-      const { data: so, error: soErr } = await supabase.from('service_orders').select('*, suppliers(*), companies(*)').eq('id', orderId).single();
-      if (soErr) throw soErr;
-      const { data: soItems, error: itemsErr } = await supabase.from('service_order_items').select('*').eq('order_id', orderId);
-      if (itemsErr) throw itemsErr;
-      data = so; items = soItems; title = 'ORDEN DE SERVICIO'; fileName = `OS_${orderId.slice(0,8)}.pdf`;
+      targetEndpoint = 'generate-so-pdf';
+      payload = { orderId };
     } else if (type === 'quote_request') {
-      const { data: qr, error: qrErr } = await supabase.from('quote_requests').select('*, suppliers(*), companies(*)').eq('id', orderId).single();
-      if (qrErr) throw qrErr;
-      const { data: qrItems, error: itemsErr } = await supabase.from('quote_request_items').select('*, materials(name)').eq('request_id', orderId);
-      if (itemsErr) throw itemsErr;
-      data = qr; items = qrItems; title = 'SOLICITUD DE COTIZACIÓN'; fileName = `SC_${orderId.slice(0,8)}.pdf`;
+      targetEndpoint = 'generate-qr-pdf';
+      payload = { requestId: orderId };
+    } else {
+      throw new Error(`Invalid document type: ${type}`);
     }
 
-    if (!data) throw new Error('Document not found');
-    console.log(`Data fetched successfully. Supplier: ${data.suppliers?.name}`);
-
-    // 2. Simple PDF Generation
-    console.log("Generating PDF...");
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const { width, height } = page.getSize();
-    
-    let y = height - 50;
-    page.drawText(title, { x: 50, y, size: 20, font: boldFont, color: rgb(0.5, 0, 0) });
-    y -= 30;
-    page.drawText(`Nro: ${orderId.slice(0,8)}`, { x: 50, y, size: 12, font });
-    y -= 20;
-    page.drawText(`Proveedor: ${data.suppliers?.name || 'N/A'}`, { x: 50, y, size: 12, font });
-    y -= 30;
-
-    // Items Header
-    page.drawText('Items', { x: 50, y, size: 12, font: boldFont });
-    y -= 20;
-    items?.forEach((item: any) => {
-      const name = item.materials?.name || item.material_name || item.description || 'Item';
-      page.drawText(`- ${item.quantity} x ${name}`, { x: 60, y, size: 10, font });
-      y -= 15;
+    // 2. Fetch PDF from the official generator (PROXY)
+    console.log(`[generate-temp-pdf] Proxying to official generator: ${targetEndpoint}`);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/${targetEndpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
 
-    const pdfBytes = await pdfDoc.save();
-    console.log("PDF generated. Size:", pdfBytes.length);
+    if (!pdfResponse.ok) {
+      const errorText = await pdfResponse.text();
+      console.error(`[generate-temp-pdf] Official generator error (${targetEndpoint}):`, errorText);
+      throw new Error(`Official PDF generator failed: ${errorText}`);
+    }
 
-    // 3. Upload to Cloudinary (Base64 for robustness)
-    console.log("Uploading to Cloudinary (Base64)...");
+    const pdfBlob = await pdfResponse.blob();
+    const pdfBuffer = await pdfBlob.arrayBuffer();
+    console.log(`[generate-temp-pdf] Received PDF bytes: ${pdfBuffer.byteLength}`);
+
+    // 3. Upload to Cloudinary (Base64)
+    console.log("[generate-temp-pdf] Uploading to Cloudinary...");
     const cloudName = Deno.env.get('VITE_CLOUDINARY_CLOUD_NAME');
     const apiKey = Deno.env.get('VITE_CLOUDINARY_API_KEY');
     const apiSecret = Deno.env.get('VITE_CLOUDINARY_API_SECRET');
     
     if (!cloudName || !apiKey || !apiSecret) {
-      throw new Error(`Cloudinary secrets missing. Keys present: ${Object.keys(Deno.env.toObject()).filter(k => k.includes('CLOUDINARY'))}`);
+      throw new Error("Cloudinary secrets (VITE_) missing from environment");
     }
 
     const timestamp = Math.round(new Date().getTime() / 1000);
     const folder = 'procarni_system/temp';
-    
     const params = { folder, timestamp };
     const signature = await generateSignature(params, apiSecret);
 
-    // Convert to Base64
-    const base64Data = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+    const base64Data = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
     const fileData = `data:application/pdf;base64,${base64Data}`;
 
     const formData = new FormData();
@@ -122,13 +103,16 @@ serve(async (req) => {
     const uploadData = await uploadRes.json();
 
     if (!uploadRes.ok) {
-      console.error("Cloudinary Error Log:", uploadData);
-      throw new Error(uploadData.error?.message || `Cloudinary upload failed (Status ${uploadRes.status})`);
+      console.error("[generate-temp-pdf] Cloudinary Error:", uploadData);
+      throw new Error(uploadData.error?.message || "Cloudinary upload failed");
     }
-    console.log("Uploaded successfully to Cloudinary.");
 
-    // 4. Register in Supabase
-    console.log("Registering asset in Database...");
+    // 4. Register in Supabase (Service Role)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 72);
 
@@ -138,25 +122,16 @@ serve(async (req) => {
       expires_at: expiresAt.toISOString()
     }).select().single();
 
-    if (dbError) {
-      console.error("DB Error Log:", dbError);
-      throw dbError;
-    }
-    console.log("Asset registered successfully.");
+    if (dbError) throw dbError;
 
     return new Response(JSON.stringify({ url: asset.url }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error(`Edge Function Error [${type} - ${orderId}]:`, error);
-    return new Response(JSON.stringify({ 
-      error: error.message, 
-      details: error.details || error.hint || null,
-      stack: error.stack 
-    }), {
+    console.error(`[generate-temp-pdf] Critical Error:`, error);
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-});
 });
