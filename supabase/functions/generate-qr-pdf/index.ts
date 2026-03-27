@@ -66,7 +66,7 @@ serve(async (req) => {
 
     const { data: items, error: itemsError } = await supabaseClient
       .from('quote_request_items')
-      .select('*')
+      .select('*, materials(name)')
       .eq('request_id', requestId);
 
     if (itemsError) {
@@ -243,7 +243,8 @@ serve(async (req) => {
       });
 
       // Draw item data
-      drawText(item.material_name || 'N/A', currentX + 5, y - lineHeight + (lineHeight - fontSize) / 2);
+      const displayName = item.material_name || item.materials?.name || 'N/A';
+      drawText(displayName, currentX + 5, y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[0];
 
       // Right-align numeric values
