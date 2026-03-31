@@ -50,7 +50,7 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 /*
 SELECT cron.schedule(
     'cleanup-temp-assets-job',
-    '0 */6 * * *',
+    '0 0,6,12,18 * * *',
     $$
     SELECT
       net.http_post(
