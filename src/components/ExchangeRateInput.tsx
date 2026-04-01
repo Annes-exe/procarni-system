@@ -195,7 +195,13 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
                             onClick={() => handleSelectHistoricalRate(item.promedio)}
                           >
                             <TableCell className="font-medium">
-                              {format(new Date(item.fecha), "PPP", { locale: es })}
+                              {(() => {
+                                // Extract just the date part (YYYY-MM-DD) to avoid timezone shifts
+                                const dateStr = item.fecha.split('T')[0];
+                                const [year, month, day] = dateStr.split('-');
+                                const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+                                return format(localDate, "PPP", { locale: es });
+                              })()}
                             </TableCell>
                             <TableCell className="text-right font-mono">
                               {item.promedio.toFixed(2)}
