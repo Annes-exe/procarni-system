@@ -373,6 +373,11 @@ const EditServiceOrder = () => {
             return;
         }
 
+        if (!exchangeRate || exchangeRate <= 0) {
+            showError('La tasa de cambio es requerida y debe ser mayor que cero.');
+            return;
+        }
+
         const invalidItem = items.find(item => !item.description || item.quantity <= 0 || item.unit_price <= 0);
         const hasServiceItems = items.length > 0;
         const hasSpareParts = sparePartsGroups.some(g => g.items.length > 0);
@@ -402,7 +407,7 @@ const EditServiceOrder = () => {
                 destination_address: destinationAddress,
                 observations: observations || null,
                 currency,
-                exchange_rate: currency !== 'USD' ? exchangeRate : null,
+                exchange_rate: exchangeRate,
                 // Do not update status here unless explicitly changing state workflow
                 // user_id is generally preserved from creation or updated to last editor? usually preserved.
             };

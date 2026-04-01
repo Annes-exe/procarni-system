@@ -251,15 +251,13 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
               </ToggleGroupItem>
             </ToggleGroup>
 
-            {currency !== 'USD' && (
-              <div className="mt-2">
-                <ExchangeRateInput
-                  currency={currency}
-                  exchangeRate={exchangeRate}
-                  onExchangeRateChange={onExchangeRateChange}
-                />
-              </div>
-            )}
+            <div className="mt-2">
+              <ExchangeRateInput
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onExchangeRateChange={onExchangeRateChange}
+              />
+            </div>
           </div>
         </div>
       </div>

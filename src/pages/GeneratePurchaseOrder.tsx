@@ -312,8 +312,8 @@ const GeneratePurchaseOrder = () => {
       showError('Por favor, selecciona un proveedor.');
       return;
     }
-    if (currency !== 'USD' && (!exchangeRate || exchangeRate <= 0)) {
-      showError(`La tasa de cambio es requerida y debe ser mayor que cero para órdenes en ${currency === 'VES' ? 'Bolívares' : 'Euros'}.`);
+    if (!exchangeRate || exchangeRate <= 0) {
+      showError(`La tasa de cambio es requerida y debe ser mayor que cero.`);
       return;
     }
 
@@ -382,7 +382,7 @@ const GeneratePurchaseOrder = () => {
       supplier_id: supplierId,
       company_id: companyId,
       currency,
-      exchange_rate: currency !== 'USD' ? exchangeRate : null,
+      exchange_rate: exchangeRate,
       status: 'Draft',
       created_by: userEmail || 'unknown',
       user_id: userId,

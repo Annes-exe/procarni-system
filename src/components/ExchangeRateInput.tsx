@@ -98,35 +98,25 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     }
   }, [currency]);
 
-  // Effect to manage rate fetching and default selection when currency switches to VES
+  // Effect to manage rate fetching and default selection when currency changes
   useEffect(() => {
-    if (currency === 'VES' || currency === 'EUR') {
-      // If we switch to VES/EUR, try to fetch the daily rate and default to it
-      fetchDailyRate().then(rate => {
-        if (rate) {
-          setRateSource('daily');
-          onExchangeRateChange(rate);
-        } else {
-          setRateSource('custom');
-        }
-      });
-    } else {
-      // If we switch to USD, clear daily rate and custom rate
-      setDailyRate(undefined);
-      setRateSource('custom');
-      onExchangeRateChange(undefined);
-      setIsStale(false);
-    }
+    // We always try to fetch the daily rate and default to it (even for USD, we fetch USD rate)
+    fetchDailyRate().then(rate => {
+      if (rate) {
+        setRateSource('daily');
+        onExchangeRateChange(rate);
+      } else {
+        setRateSource('custom');
+      }
+    });
   }, [currency, fetchDailyRate, onExchangeRateChange]);
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {
-    if (currency !== 'USD') {
-      if (rateSource === 'daily' && dailyRate !== undefined) {
-        onExchangeRateChange(dailyRate);
-      }
+    if (rateSource === 'daily' && dailyRate !== undefined) {
+      onExchangeRateChange(dailyRate);
     }
-  }, [rateSource, dailyRate, exchangeRate, onExchangeRateChange, currency]);
+  }, [rateSource, dailyRate, exchangeRate, onExchangeRateChange]);
 
   const handleRateSourceChange = (source: 'custom' | 'daily') => {
     setRateSource(source);
@@ -148,9 +138,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     }
   };
 
-  if (currency === 'USD') {
-    return null;
-  }
+
 
   return (
     <div className="space-y-2">
@@ -158,7 +146,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         <Label htmlFor="exchangeRate">
           Tasa de Cambio ({currency === 'EUR' ? 'EUR a VES' : 'USD a VES'})
         </Label>
-        {(currency === 'VES' || currency === 'EUR') && (
+        {(currency === 'VES' || currency === 'EUR' || currency === 'USD') && (
           <Dialog>
             <DialogTrigger asChild>
               <Button
@@ -257,7 +245,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         />
       )}
 
-      {(currency === 'VES' || currency === 'EUR') && isStale && (
+      {isStale && (
         <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-1 flex items-start gap-1">
           <Info className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
           <span>
@@ -266,7 +254,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         </p>
       )}
 
-      {(currency === 'VES' || currency === 'EUR') && !isStale && (
+      {!isStale && (
         <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1">
           <Info className="h-3 w-3 inline mr-1 text-blue-500" />
           Tasa oficial actualizada para el cierre del día.

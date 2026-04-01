@@ -346,8 +346,8 @@ const GenerateServiceOrder = () => {
       showError('El detalle del servicio es requerido.');
       return;
     }
-    if (currency !== 'USD' && (!exchangeRate || exchangeRate <= 0)) {
-      showError(`La tasa de cambio es requerida y debe ser mayor que cero para órdenes en ${currency === 'VES' ? 'Bolívares' : 'Euros'}.`);
+    if (!exchangeRate || exchangeRate <= 0) {
+      showError(`La tasa de cambio es requerida y debe ser mayor que cero.`);
       return;
     }
 
@@ -409,7 +409,7 @@ const GenerateServiceOrder = () => {
       destination_address: destinationAddress,
       observations: observations || null,
       currency,
-      exchange_rate: currency !== 'USD' ? exchangeRate || null : null,
+      exchange_rate: exchangeRate || null,
       status: 'Draft',
       user_id: userId,
     };
