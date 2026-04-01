@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, RefreshCw, Info, History, Calendar } from 'lucide-react';
-import { showError, showSuccess } from '@/utils/toast';
+import { showError, showSuccess, showWarning } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,6 +33,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const [isStale, setIsStale] = useState(false);
   const [history, setHistory] = useState<RateHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const fetchDailyRate = useCallback(async () => {
     setIsLoadingRate(true);
@@ -139,6 +140,12 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   };
 
 
+  const handleSelectHistoricalRate = (rate: number) => {
+    setRateSource('custom');
+    onExchangeRateChange(rate);
+    showWarning(`Se ha seleccionado una tasa de cambio anterior: ${rate.toFixed(2)} VES/${currency === 'EUR' ? 'EUR' : 'USD'}`);
+    setIsDialogOpen(false);
+  };
 
   return (
     <div className="space-y-2">
@@ -147,7 +154,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
           Tasa de Cambio ({currency === 'EUR' ? 'EUR a VES' : 'USD a VES'})
         </Label>
         {(currency === 'VES' || currency === 'EUR' || currency === 'USD') && (
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
                 variant="ghost"
@@ -182,7 +189,11 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
                       </TableHeader>
                       <TableBody>
                         {history.map((item, idx) => (
-                          <TableRow key={idx}>
+                          <TableRow 
+                            key={idx} 
+                            className="cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => handleSelectHistoricalRate(item.promedio)}
+                          >
                             <TableCell className="font-medium">
                               {format(new Date(item.fecha), "PPP", { locale: es })}
                             </TableCell>

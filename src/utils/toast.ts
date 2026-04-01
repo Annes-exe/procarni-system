@@ -30,3 +30,15 @@ export const showSupplierAlert = (message: string) => {
     description: "Aviso importante del proveedor"
   });
 };
+export const showWarning = (message: string) => {
+  toast(message, {
+    duration: 4000,
+    position: 'top-center',
+    style: {
+      background: '#fefce8', // Amarillo claro
+      border: '1px solid #fef08a', // Borde amarillo
+      color: '#854d0e', // Texto marrón/ámbar oscuro
+      fontWeight: '600'
+    }
+  });
+};
