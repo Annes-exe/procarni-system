@@ -627,25 +627,33 @@ const GenerateServiceOrder = () => {
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenMaterialDialog(groupIndex, group.supplierId, group.supplierName);
-                            }}
-                            className="h-8 px-3"
+                            asChild
+                            className="h-8 px-3 cursor-pointer"
                           >
-                            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenMaterialDialog(groupIndex, group.supplierId, group.supplierName);
+                              }}
+                            >
+                              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+                            </span>
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveSparePartsGroup(groupIndex);
-                            }}
-                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 transition-all translate-x-1"
+                            asChild
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 transition-all translate-x-1 cursor-pointer"
                             title="Quitar Grupo"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveSparePartsGroup(groupIndex);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </span>
                           </Button>
                         </div>
                       </div>
