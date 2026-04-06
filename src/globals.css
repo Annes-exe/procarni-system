@@ -103,4 +103,16 @@
   .card-alert-border {
     border-left: 4px solid hsl(var(--procarni-alert));
   }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-none,
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
 }

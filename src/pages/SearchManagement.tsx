@@ -49,96 +49,124 @@ const SearchManagement = () => {
   ];
 
   return (
-    <div className="container mx-auto p-4"> {/* Added p-4 for consistent padding */}
-      {/* KPI Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 mb-6">
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 ease-out">
+      {/* Header del Dashboard */}
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-black text-procarni-blue tracking-tighter">Bienvenido al Sistema</h1>
+        <p className="text-xs text-gray-500 font-medium italic">Gestión integral de compras y servicios para Procarni</p>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
         {kpis.map((kpi, index) => (
           <Card
             key={index}
-            className="shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer"
+            className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1 rounded-[1.75rem] transition-all duration-500 hover:scale-[1.02] hover:shadow-procarni-primary/10 cursor-pointer"
             onClick={() => navigate(kpi.path)}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-procarni-primary">
-                {kpi.title}
-              </CardTitle>
-              <kpi.icon className="h-5 w-5 text-procarni-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {kpi.value}
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-2xl bg-procarni-primary/5 text-procarni-primary group-hover:bg-procarni-primary group-hover:text-white transition-all duration-500">
+                  <kpi.icon className="h-6 w-6" />
+                </div>
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
+                  Resumen
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {kpi.description}
-              </p>
-            </CardContent>
+              <div>
+                <div className="text-3xl font-black text-gray-900 tracking-tighter mb-1">
+                  {kpi.value}
+                </div>
+                <div className="text-base font-bold text-procarni-blue mb-0.5">
+                  {kpi.title}
+                </div>
+                <p className="text-xs text-gray-500 font-medium">
+                  {kpi.description}
+                </p>
+              </div>
+            </div>
+            {/* Decoración de fondo */}
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <kpi.icon className="h-24 w-24 -mr-8 -mt-8 rotate-12" />
+            </div>
           </Card>
         ))}
       </div>
 
       {/* Quick Actions & Search Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Quick Actions */}
-        <Card className="shadow-lg h-full">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-semibold text-procarni-primary flex items-center">
-              <Zap className="mr-2 h-5 w-5" /> Acciones Rápidas
-            </CardTitle>
-            <CardDescription>Accesos directos a las funciones más utilizadas.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-3">
+        <Card className="lg:col-span-12 xl:col-span-5 border-none bg-procarni-blue shadow-2xl rounded-[1.75rem] overflow-hidden relative group">
+          <div className="p-6 relative z-10 space-y-6">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-white" />
+                </div>
+                <h3 className="text-xl font-black text-white tracking-tight">Acciones Rápidas</h3>
+              </div>
+              <p className="text-white/60 text-xs font-medium italic">Optimiza tu flujo de trabajo diario</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => navigate('/generate-po')}
-                className="w-full justify-start text-left h-auto py-3 px-4 border-procarni-primary/30 hover:bg-procarni-primary/10 hover:border-procarni-primary transition-all"
+                className="w-full justify-start h-16 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border-none group/btn transition-all duration-300"
               >
-                <div className="flex items-center">
-                  <div className="bg-procarni-primary/10 p-2 rounded-full mr-3">
-                    <FilePlus className="h-4 w-4 text-procarni-primary" />
+                <div className="flex items-center w-full">
+                  <div className="bg-procarni-primary p-2.5 rounded-xl shadow-lg shadow-procarni-primary/20 group-hover/btn:scale-110 transition-transform">
+                    <FilePlus className="h-4 w-4 text-white" />
                   </div>
-                  <div>
-                    <span className="font-medium block">Nueva Orden de Compra</span>
-                    <span className="text-xs text-muted-foreground">Crear OC para proveedores</span>
+                  <div className="ml-4 text-left">
+                    <span className="font-extrabold text-white block text-sm">Nueva Orden de Compra</span>
+                    <span className="text-[10px] text-white/40 font-medium">Crear documento para proveedores</span>
                   </div>
                 </div>
               </Button>
+
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => navigate('/generate-quote')}
-                className="w-full justify-start text-left h-auto py-3 px-4 border-procarni-primary/30 hover:bg-procarni-primary/10 hover:border-procarni-primary transition-all"
+                className="w-full justify-start h-16 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border-none group/btn transition-all duration-300"
               >
-                <div className="flex items-center">
-                  <div className="bg-procarni-primary/10 p-2 rounded-full mr-3">
-                    <ClipboardPlus className="h-4 w-4 text-procarni-primary" />
+                <div className="flex items-center w-full">
+                  <div className="bg-procarni-secondary p-2.5 rounded-xl shadow-lg shadow-procarni-secondary/20 group-hover/btn:scale-110 transition-transform">
+                    <ClipboardPlus className="h-4 w-4 text-white" />
                   </div>
-                  <div>
-                    <span className="font-medium block">Nueva Solicitud (SC)</span>
-                    <span className="text-xs text-muted-foreground">Solicitar cotizaciones</span>
+                  <div className="ml-4 text-left">
+                    <span className="font-extrabold text-white block text-sm">Nueva Solicitud (SC)</span>
+                    <span className="text-[10px] text-white/40 font-medium">Generar requisición de materiales</span>
                   </div>
                 </div>
               </Button>
+
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => navigate('/quote-comparison')}
-                className="w-full justify-start text-left h-auto py-3 px-4 border-procarni-primary/30 hover:bg-procarni-primary/10 hover:border-procarni-primary transition-all"
+                className="w-full justify-start h-16 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border-none group/btn transition-all duration-300"
               >
-                <div className="flex items-center">
-                  <div className="bg-procarni-primary/10 p-2 rounded-full mr-3">
-                    <BarChart2 className="h-4 w-4 text-procarni-primary" />
+                <div className="flex items-center w-full">
+                  <div className="bg-blue-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/20 group-hover/btn:scale-110 transition-transform">
+                    <BarChart2 className="h-4 w-4 text-white" />
                   </div>
-                  <div>
-                    <span className="font-medium block">Comparar Precios</span>
-                    <span className="text-xs text-muted-foreground">Analizar cotizaciones</span>
+                  <div className="ml-4 text-left">
+                    <span className="font-extrabold text-white block text-sm">Analizar Cotizaciones</span>
+                    <span className="text-[10px] text-white/40 font-medium">Comparativa inteligente de ofertas</span>
                   </div>
                 </div>
               </Button>
             </div>
-          </CardContent>
+          </div>
+          {/* Decoración de fondo */}
+          <div className="absolute bottom-0 right-0 p-4 opacity-10">
+            <Zap className="h-64 w-64 -mr-16 -mb-16 rotate-12 text-white" />
+          </div>
         </Card>
 
-        {/* Search Widget */}
-        <SearchSuppliersWidget />
+        {/* Search Widget Container */}
+        <div className="lg:col-span-12 xl:col-span-7">
+          <SearchSuppliersWidget />
+        </div>
       </div>
 
 

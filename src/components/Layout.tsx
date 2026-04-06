@@ -91,47 +91,46 @@ const Layout = () => {
   }, [role, session, supabase]);
 
   const SidebarHeader = () => (
-    <NavLink to="/" className="h-16 flex items-center px-4 justify-start border-b border-border transition-all overflow-hidden hover:bg-muted/50">
-      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-transparent">
-        <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-full h-full object-contain" />
+    <NavLink to="/" className="h-16 flex items-center px-4 justify-start transition-all overflow-hidden hover:bg-procarni-primary/5">
+      <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+        <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-6 h-6 object-contain" />
       </div>
-      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-100 whitespace-nowrap ml-3 font-bold text-lg text-procarni-primary tracking-tight">
+      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 whitespace-nowrap ml-4 font-black text-lg text-procarni-blue tracking-tighter">
         Procarni
       </span>
     </NavLink>
   );
 
   const DesktopSidebar = () => (
-    <aside className="fixed left-0 top-0 h-full bg-background dark:bg-slate-900 border-r border-border z-50 flex flex-col justify-between group transition-all duration-300 w-16 hover:w-64 hover:shadow-xl overflow-hidden">
-      <div>
+    <aside className="fixed left-4 top-4 bottom-4 bg-white/80 backdrop-blur-2xl ring-1 ring-white shadow-2xl shadow-gray-300/50 z-50 flex flex-col justify-between group transition-all duration-500 ease-in-out w-[4.5rem] hover:w-64 rounded-[2rem] overflow-hidden border-none text-xs">
+      <div className="h-full flex flex-col">
         <SidebarHeader />
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none py-2">
           <SidebarNav />
         </div>
       </div>
-
     </aside>
   );
 
   const MobileHeader = () => (
-    <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6 shadow-sm">
+    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 bg-white/70 backdrop-blur-lg px-4 shadow-sm border-none ring-1 ring-black/5 mx-4 mt-4 rounded-2xl">
       <Sheet>
         <SheetTrigger asChild>
-          <Button variant="outline" size="icon" className="shrink-0 md:hidden">
-            <Menu className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="shrink-0 md:hidden hover:bg-procarni-primary/10 text-procarni-primary">
+            <Menu className="h-6 w-6" />
             <span className="sr-only">Toggle navigation menu</span>
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col w-72 bg-background p-0">
           <SheetClose asChild>
-            <NavLink to="/" className="h-16 flex items-center px-4 border-b border-border hover:bg-muted/50 transition-colors">
-              <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-transparent">
-                <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-full h-full object-contain" />
+            <NavLink to="/" className="h-20 flex items-center px-6 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+              <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-procarni-primary/10">
+                <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-6 h-6 object-contain" />
               </div>
-              <span className="ml-3 font-bold text-lg text-procarni-primary tracking-tight">Procarni</span>
+              <span className="ml-4 font-black text-xl text-procarni-blue tracking-tighter">Procarni</span>
             </NavLink>
           </SheetClose>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto scrollbar-none">
             {/* For mobile, we force the nav to look expanded */}
             <div className="group">
               <SidebarNav forceExpanded={true} />
@@ -143,7 +142,7 @@ const Layout = () => {
         </SheetContent>
       </Sheet>
       <div className="w-full flex-1 flex items-center justify-between">
-        <span className="font-bold text-lg text-procarni-primary tracking-tight md:hidden">Procarni</span>
+        <span className="font-black text-xl text-procarni-blue tracking-tighter md:hidden">Procarni</span>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -163,9 +162,9 @@ const Layout = () => {
 
   if (isMobile) {
     return (
-      <div className="flex h-screen w-full flex-col font-body bg-gray-50 dark:bg-slate-950 text-foreground">
+      <div className="flex h-screen w-full flex-col font-body bg-[#F8FAFC] dark:bg-slate-950 text-foreground">
         <MobileHeader />
-        <main ref={mainContentRef} className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 overflow-y-auto">
+        <main ref={mainContentRef} className="flex flex-1 flex-col gap-6 p-4 overflow-y-auto">
           <DynamicBreadcrumbs />
           <Outlet />
         </main>
@@ -175,10 +174,10 @@ const Layout = () => {
   }
 
   return (
-    <div className="flex h-screen w-full font-body bg-gray-50 dark:bg-slate-950 text-foreground overflow-hidden">
+    <div className="flex h-screen w-full font-body bg-[#F8FAFC] dark:bg-slate-950 text-foreground overflow-hidden">
       <DesktopSidebar />
-      <div className="flex-1 ml-16 flex flex-col h-screen overflow-hidden transition-all duration-300">
-        <header className="h-16 bg-background dark:bg-slate-900 border-b border-border flex items-center justify-between px-6 z-40 sticky top-0 shadow-sm">
+      <div className="flex-1 ml-[5.5rem] flex flex-col h-screen overflow-hidden transition-all duration-500 ease-in-out group-hover:ml-72">
+        <header className="h-[4.5rem] bg-white/60 backdrop-blur-xl border-none flex items-center justify-between px-6 z-40 sticky top-4 mx-4 mt-4 rounded-3xl shadow-2xl shadow-gray-200/50 ring-1 ring-white">
           <div className="flex items-center gap-3">
             <DynamicBreadcrumbs />
           </div>
@@ -187,22 +186,22 @@ const Layout = () => {
               <button
                 type="button"
                 onClick={() => setIsSearchOpen(true)}
-                className="flex items-center gap-2 pl-3 pr-4 py-2 h-9 text-sm rounded-full bg-gray-100 dark:bg-slate-800 border border-transparent hover:border-procarni-primary/30 hover:bg-gray-200 dark:hover:bg-slate-700 w-64 transition-all duration-200 text-muted-foreground group"
+                className="flex items-center gap-3 pl-4 pr-4 py-2 h-11 text-sm rounded-2xl bg-gray-100/50 dark:bg-slate-800 border-none ring-1 ring-gray-200/50 hover:ring-procarni-primary/30 hover:bg-white hover:shadow-lg transition-all duration-300 text-muted-foreground group w-72"
               >
                 <Search className="h-4 w-4 group-hover:text-procarni-primary transition-colors" />
-                <span>Buscar...</span>
-                <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                <span className="font-medium">Buscar en el sistema...</span>
+                <kbd className="pointer-events-none ml-auto inline-flex h-6 select-none items-center gap-1 rounded-lg border bg-white px-2 font-mono text-[10px] font-bold text-gray-400 opacity-100 shadow-sm">
                   <span className="text-xs">⌘</span>K
                 </kbd>
               </button>
             </div>
             <NotificationBell />
-            <div className="h-8 w-px bg-border/60 mx-1"></div>
+            <div className="h-6 w-px bg-border/60 mx-1"></div>
             <UserDropdown />
           </div>
         </header>
         <GlobalSearch open={isSearchOpen} onOpenChange={setIsSearchOpen} />
-        <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 scroll-smooth">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 scroll-smooth lg:p-8">
           <Outlet />
         </main>
         <ScrollToTopButton scrollContainerRef={mainContentRef} />

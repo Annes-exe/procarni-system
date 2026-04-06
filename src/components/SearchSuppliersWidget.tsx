@@ -31,44 +31,58 @@ const SearchSuppliersWidget = () => {
     };
 
     return (
-        <Card className="shadow-lg h-full">
-            <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-procarni-primary flex items-center">
-                    <Search className="mr-2 h-5 w-5" /> Buscar Proveedores
-                </CardTitle>
-                <CardDescription>
-                    Encuentra rápidamente qué proveedores ofrecen un material específico.
+        <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[1.75rem] overflow-hidden h-full">
+            <CardHeader className="pb-3 p-6 bg-gradient-to-br from-gray-50/50 to-transparent border-b border-gray-100/50">
+                <div className="flex items-center gap-3 mb-0.5">
+                    <div className="p-2 rounded-xl bg-procarni-primary/10 text-procarni-primary">
+                        <Search className="h-4 w-4" />
+                    </div>
+                    <CardTitle className="text-lg font-black text-procarni-blue tracking-tight">
+                        Buscar Proveedores
+                    </CardTitle>
+                </div>
+                <CardDescription className="text-xs text-gray-500 font-medium italic">
+                    Encuentra qué proveedores ofrecen un material específico.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
                 <div className="flex flex-col gap-4">
-                    <SmartSearch
-                        placeholder="Escribe el nombre del material..."
-                        onSelect={(item) => setSelectedMaterial(item)}
-                        fetchFunction={searchMaterials}
-                        displayValue={selectedMaterial?.name || ''}
-                        selectedId={selectedMaterial?.id}
-                    />
+                    <div className="space-y-1.5">
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Material Objetivo</label>
+                        <SmartSearch
+                            placeholder="Escribe el nombre del material..."
+                            onSelect={(item) => setSelectedMaterial(item)}
+                            fetchFunction={searchMaterials}
+                            displayValue={selectedMaterial?.name || ''}
+                            selectedId={selectedMaterial?.id}
+                        />
+                    </div>
+                    
                     <Button
                         onClick={() => handleSearch()}
                         disabled={!selectedMaterial}
-                        className="w-full bg-procarni-primary hover:bg-procarni-primary/90 text-white transition-colors"
+                        className="w-full h-11 rounded-xl bg-gradient-to-r from-procarni-primary to-procarni-blue hover:shadow-lg hover:shadow-procarni-primary/20 transition-all font-bold text-sm scale-[1.02] active:scale-[0.98]"
                     >
-                        Buscar Proveedores
+                        Localizar Proveedores
                     </Button>
 
                     {lastMaterial && (
-                        <div className="mt-2 pt-3 border-t border-gray-100 animate-in fade-in slide-in-from-top-1 duration-500">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 flex items-center">
-                                <Clock className="mr-1 h-3 w-3" /> Último material buscado
+                        <div className="mt-1 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2 duration-700">
+                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.2em] font-black mb-2 flex items-center">
+                                <Clock className="mr-2 h-3 w-3 text-procarni-secondary" /> Última búsqueda
                             </p>
                             <button
                                 onClick={() => handleSearch(lastMaterial)}
-                                className="text-sm font-medium text-procarni-primary hover:text-procarni-primary/80 transition-colors text-left flex items-center gap-2 w-full group"
+                                className="group w-full text-left transition-all"
                             >
-                                <span className="truncate flex-1 bg-gray-50 px-2 py-1.5 rounded border border-transparent group-hover:border-procarni-primary/20 group-hover:bg-procarni-primary/5 transition-all">
-                                    {lastMaterial.name}
-                                </span>
+                                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50/50 border border-transparent group-hover:border-procarni-primary/30 group-hover:bg-white group-hover:shadow-md transition-all">
+                                    <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                                        <Search className="h-3 w-3 text-gray-400 group-hover:text-procarni-primary transition-colors" />
+                                    </div>
+                                    <span className="text-xs font-bold text-gray-700 group-hover:text-procarni-blue transition-colors truncate">
+                                        {lastMaterial.name}
+                                    </span>
+                                </div>
                             </button>
                         </div>
                     )}
