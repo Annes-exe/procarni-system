@@ -87,6 +87,7 @@ const GenerateServiceOrder = () => {
   const [companyName, setCompanyName] = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
+  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'EUR'>('USD');
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
@@ -314,8 +315,8 @@ const GenerateServiceOrder = () => {
 
   const totals = calculateGrandTotals();
 
-  const totalInUSD = React.useMemo(() => {
-    if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
+  const totalInBaseCurrency = React.useMemo(() => {
+    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
       return (totals.total / exchangeRate).toFixed(2);
     }
     return null;
@@ -409,6 +410,7 @@ const GenerateServiceOrder = () => {
       destination_address: destinationAddress,
       observations: observations || null,
       currency,
+      base_currency: baseCurrency,
       exchange_rate: exchangeRate || null,
       status: 'Draft',
       user_id: userId,
@@ -507,6 +509,7 @@ const GenerateServiceOrder = () => {
             <ServiceOrderDetailsForm
               companyId={companyId}
               companyName={companyName}
+              baseCurrency={baseCurrency}
               currency={currency}
               exchangeRate={exchangeRate}
               issueDate={issueDate}
@@ -517,6 +520,7 @@ const GenerateServiceOrder = () => {
               destinationAddress={destinationAddress}
               observations={observations}
               onCompanySelect={handleCompanySelect}
+              onBaseCurrencyChange={setBaseCurrency}
               onCurrencyChange={setCurrency}
               onExchangeRateChange={setExchangeRate}
               onIssueDateChange={setIssueDate}
@@ -701,10 +705,10 @@ const GenerateServiceOrder = () => {
                 <span className="font-bold text-xl text-procarni-dark font-mono">{currency} {totals.total.toFixed(2)}</span>
               </div>
             </div>
-            {totalInUSD && (currency === 'VES' || currency === 'EUR') && (
+            {totalInBaseCurrency && currency === 'VES' && (
               <div className="flex justify-end pt-1">
                 <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  Ref. USD: {totalInUSD}
+                  Ref. {baseCurrency}: {totalInBaseCurrency}
                 </span>
               </div>
             )}
@@ -739,14 +743,12 @@ const GenerateServiceOrder = () => {
                 <p>
                   ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
                 </p>
-                {(currency === 'VES' || currency === 'EUR') && (
-                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                    <p>
-                      <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
-                    </p>
-                  </div>
-                )}
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
+                  </p>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

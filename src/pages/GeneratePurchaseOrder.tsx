@@ -42,6 +42,7 @@ const GeneratePurchaseOrder = () => {
   const [companyName, setCompanyName] = React.useState<string>('');
   const [supplierId, setSupplierId] = React.useState<string>('');
   const [supplierName, setSupplierName] = React.useState<string>('');
+  const [baseCurrency, setBaseCurrency] = React.useState<'USD' | 'EUR'>('USD');
   const [currency, setCurrency] = React.useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
   const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null);
@@ -81,7 +82,10 @@ const GeneratePurchaseOrder = () => {
         setCompanyName(quoteRequest.companies?.name || '');
         setSupplierId(quoteRequest.supplier_id);
         setSupplierName(quoteRequest.suppliers?.name || '');
-        setCurrency(quoteRequest.currency as 'USD' | 'VES' | 'EUR');
+        const qrCurrency = quoteRequest.currency as 'USD' | 'VES' | 'EUR';
+        setCurrency(qrCurrency);
+        if (qrCurrency === 'EUR') setBaseCurrency('EUR');
+        else setBaseCurrency('USD');
         setExchangeRate(quoteRequest.exchange_rate || undefined);
         setObservations(`Generado desde Solicitud de Cotización: ${quoteRequest.id.substring(0, 8)}`);
 
@@ -138,7 +142,9 @@ const GeneratePurchaseOrder = () => {
           setSupplierName(supplier.name);
         }
 
-        setCurrency(serviceOrder.currency as 'USD' | 'VES' | 'EUR' || 'USD');
+        const soCurrency = serviceOrder.currency as 'USD' | 'VES' | 'EUR' || 'USD';
+        setCurrency(soCurrency);
+        setBaseCurrency((serviceOrder.base_currency as 'USD' | 'EUR') || (soCurrency === 'EUR' ? 'EUR' : 'USD'));
         setObservations(`Generado desde Orden de Servicio #${serviceOrder.sequence_number || serviceOrder.id.substring(0, 8)}`);
 
         clearCart();
@@ -292,8 +298,8 @@ const GeneratePurchaseOrder = () => {
 
   const totals = calculateTotals(items);
 
-  const totalInUSD = React.useMemo(() => {
-    if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
+  const totalInBaseCurrency = React.useMemo(() => {
+    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
       return (totals.total / exchangeRate).toFixed(2);
     }
     return null;
@@ -381,6 +387,7 @@ const GeneratePurchaseOrder = () => {
     const orderData = {
       supplier_id: supplierId,
       company_id: companyId,
+      base_currency: baseCurrency,
       currency,
       exchange_rate: exchangeRate,
       status: 'Draft',
@@ -477,6 +484,7 @@ const GeneratePurchaseOrder = () => {
             companyName={companyName}
             supplierId={supplierId}
             supplierName={supplierName}
+            baseCurrency={baseCurrency}
             currency={currency}
             exchangeRate={exchangeRate}
             deliveryDate={deliveryDate}
@@ -485,6 +493,7 @@ const GeneratePurchaseOrder = () => {
             creditDays={creditDays}
             observations={observations}
             onCompanySelect={handleCompanySelect}
+            onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
             onExchangeRateChange={setExchangeRate}
             onDeliveryDateChange={setDeliveryDate}
@@ -580,10 +589,10 @@ const GeneratePurchaseOrder = () => {
                 <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
               </div>
 
-              {totalInUSD && currency === 'VES' && (
+              {totalInBaseCurrency && currency === 'VES' && (
                 <div className="flex justify-end pt-1">
                   <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                    Ref. USD {totalInUSD}
+                    Ref. {baseCurrency} {totalInBaseCurrency}
                   </span>
                 </div>
               )}
@@ -616,14 +625,12 @@ const GeneratePurchaseOrder = () => {
                 <p>
                   ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de compra?
                 </p>
-                {(currency === 'VES' || currency === 'EUR') && (
-                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                    <p>
-                      <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
-                    </p>
-                  </div>
-                )}
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
+                  </p>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

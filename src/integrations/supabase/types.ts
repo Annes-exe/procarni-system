@@ -76,6 +76,7 @@ export type PurchaseOrder = {
   sequence_number: number | null;
   supplier_id: string;
   currency: 'USD' | 'VES' | 'EUR';
+  base_currency: 'USD' | 'EUR';
   exchange_rate: number | null;
   status: string;
   created_at: string | null;
@@ -238,6 +239,7 @@ export type ServiceOrder = {
   destination_address: string;
   observations: string | null;
   currency: 'USD' | 'VES' | 'EUR';
+  base_currency: 'USD' | 'EUR';
   exchange_rate: number | null;
   status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
   user_id: string;

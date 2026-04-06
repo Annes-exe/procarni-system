@@ -26,6 +26,7 @@ interface Company {
 interface ServiceOrderDetailsFormProps {
   companyId: string;
   companyName: string;
+  baseCurrency: 'USD' | 'EUR';
   currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
   issueDate: Date;
@@ -37,6 +38,7 @@ interface ServiceOrderDetailsFormProps {
   observations: string;
 
   onCompanySelect: (company: Company) => void;
+  onBaseCurrencyChange: (value: 'USD' | 'EUR') => void;
   onCurrencyChange: (value: 'USD' | 'VES' | 'EUR') => void;
   onExchangeRateChange: (value: number | undefined) => void;
   onIssueDateChange: (date: Date | undefined) => void;
@@ -63,6 +65,7 @@ const DESTINATION_ADDRESSES = [
 const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   companyId,
   companyName,
+  baseCurrency,
   currency,
   exchangeRate,
   issueDate,
@@ -73,6 +76,7 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   destinationAddress,
   observations,
   onCompanySelect,
+  onBaseCurrencyChange,
   onCurrencyChange,
   onExchangeRateChange,
   onIssueDateChange,
@@ -273,38 +277,74 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
             </div>
           </div>
 
-          {/* Moneda Toggle (Updated to 3-way) */}
-          <div className="pt-2">
-            <Label className="block text-sm font-semibold text-gray-700 mb-2">
-              Moneda de la Orden
-            </Label>
-            <ToggleGroup
-              type="single"
-              value={currency}
-              onValueChange={(value) => {
-                if (value) onCurrencyChange(value as 'USD' | 'VES' | 'EUR');
-              }}
-              className="justify-start bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit"
-            >
-              <ToggleGroupItem value="USD" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
-                <DollarSign className="h-4 w-4 mr-1" /> USD
-              </ToggleGroupItem>
-              <ToggleGroupItem value="VES" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
-                <Coins className="h-4 w-4 mr-1" /> VES
-              </ToggleGroupItem>
-              {/* EUR temporalmente deshabilitado
-              <ToggleGroupItem value="EUR" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
-                <span className="font-bold mr-1">€</span> EUR
-              </ToggleGroupItem>
-              */}
-            </ToggleGroup>
+          {/* Toggles de Moneda Separados (Divisa Base y Moneda de la Orden) */}
+          <div className="bg-white border text-card-foreground shadow-sm rounded-lg p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Coins className="h-5 w-5 text-procarni-primary" />
+              <h3 className="font-semibold text-gray-800">Configuración de Moneda</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <Label className="block text-sm font-medium text-gray-700 mb-2">
+                  Divisa Base de Referencia
+                </Label>
+                <ToggleGroup
+                  type="single"
+                  value={baseCurrency}
+                  onValueChange={(value) => {
+                    if (value) {
+                      onBaseCurrencyChange(value as 'USD' | 'EUR');
+                      if (currency !== 'VES') {
+                        onCurrencyChange(value as 'USD' | 'EUR');
+                      }
+                    }
+                  }}
+                  className="justify-start bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit"
+                >
+                  <ToggleGroupItem value="USD" className="px-4 py-1.5 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                    USD ($)
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="EUR" className="px-4 py-1.5 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                    EUR (€)
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
 
-            <div className="mt-2">
-              <ExchangeRateInput
-                currency={currency}
-                exchangeRate={exchangeRate}
-                onExchangeRateChange={onExchangeRateChange}
-              />
+              <div>
+                <Label className="block text-sm font-medium text-gray-700 mb-2">
+                  Moneda de Ingreso de Ítems
+                </Label>
+                <ToggleGroup
+                  type="single"
+                  value={currency === 'VES' ? 'VES' : 'DIVISA'}
+                  onValueChange={(value) => {
+                    if (value) {
+                      if (value === 'VES') {
+                        onCurrencyChange('VES');
+                      } else {
+                        onCurrencyChange(baseCurrency);
+                      }
+                    }
+                  }}
+                  className="justify-start bg-gray-50 border border-gray-200 rounded-lg p-1 w-fit"
+                >
+                  <ToggleGroupItem value="DIVISA" className="px-4 py-1.5 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                    {baseCurrency} (Divisa)
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="VES" className="px-4 py-1.5 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
+                    Bolívares (VES)
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <ExchangeRateInput
+                  baseCurrency={baseCurrency}
+                  exchangeRate={exchangeRate}
+                  onExchangeRateChange={onExchangeRateChange}
+                />
+              </div>
             </div>
           </div>
         </div>

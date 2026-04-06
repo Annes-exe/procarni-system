@@ -3,8 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Info } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { searchMaterialsBySupplier, searchSuppliers, searchCompanies } from '@/integrations/supabase/data'; // Removed updatePurchaseOrder, getPurchaseOrderDetails
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { useQuery } from '@tanstack/react-query';
@@ -64,6 +74,7 @@ const EditPurchaseOrder = () => {
   const [companyName, setCompanyName] = useState<string>('');
   const [supplierId, setSupplierId] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
+  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'EUR'>('USD');
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
@@ -77,6 +88,7 @@ const EditPurchaseOrder = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false); // NEW STATE
+  const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
 
   const userId = session?.user?.id;
   const userEmail = session?.user?.email;
@@ -102,7 +114,10 @@ const EditPurchaseOrder = () => {
       setCompanyName(initialOrder.companies?.name || '');
       setSupplierId(initialOrder.supplier_id);
       setSupplierName(initialOrder.suppliers?.name || '');
-      setCurrency(initialOrder.currency as 'USD' | 'VES' | 'EUR');
+      
+      const savedCurrency = initialOrder.currency as 'USD' | 'VES' | 'EUR';
+      setCurrency(savedCurrency);
+      setBaseCurrency((initialOrder.base_currency as 'USD' | 'EUR') || (savedCurrency === 'EUR' ? 'EUR' : 'USD'));
       setExchangeRate(initialOrder.exchange_rate || undefined);
 
       if (initialOrder.delivery_date) {
@@ -186,8 +201,8 @@ const EditPurchaseOrder = () => {
 
   const totals = calculateTotals(items);
 
-  const totalInUSD = React.useMemo(() => {
-    if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
+  const totalInBaseCurrency = React.useMemo(() => {
+    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
       return (totals.total / exchangeRate).toFixed(2);
     }
     return null;
@@ -249,10 +264,16 @@ const EditPurchaseOrder = () => {
       return;
     }
 
+    setIsReminderDialogOpen(true);
+  };
+
+  const confirmSubmit = async () => {
+    setIsReminderDialogOpen(false);
     setIsSubmitting(true);
     const orderData = {
       supplier_id: supplierId,
       company_id: companyId,
+      base_currency: baseCurrency,
       currency,
       exchange_rate: exchangeRate,
       status: initialOrder.status,
@@ -370,6 +391,7 @@ const EditPurchaseOrder = () => {
             companyName={companyName}
             supplierId={supplierId}
             supplierName={supplierName}
+            baseCurrency={baseCurrency}
             currency={currency}
             exchangeRate={exchangeRate}
             deliveryDate={deliveryDate}
@@ -378,6 +400,7 @@ const EditPurchaseOrder = () => {
             creditDays={creditDays}
             observations={observations}
             onCompanySelect={handleCompanySelect}
+            onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
             onExchangeRateChange={setExchangeRate}
             onDeliveryDateChange={setDeliveryDate}
@@ -438,10 +461,10 @@ const EditPurchaseOrder = () => {
                 <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
               </div>
 
-              {totalInUSD && (currency === 'VES' || currency === 'EUR') && (
+              {totalInBaseCurrency && currency === 'VES' && (
                 <div className="flex justify-end pt-1">
-                  <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                    Ref. USD {totalInUSD}
+                  <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    Ref. {baseCurrency}: {totalInBaseCurrency}
                   </span>
                 </div>
               )}
@@ -454,6 +477,36 @@ const EditPurchaseOrder = () => {
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
       />
+
+      <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-gray-600 pt-2">
+                <p>
+                  ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de compra?
+                </p>
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSubmit}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+            >
+              Confirmar y Guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

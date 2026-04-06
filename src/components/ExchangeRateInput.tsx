@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface ExchangeRateInputProps {
-  currency: 'USD' | 'VES' | 'EUR';
+  baseCurrency: 'USD' | 'EUR';
   exchangeRate?: number;
   onExchangeRateChange: (value: number | undefined) => void;
 }
@@ -23,7 +23,7 @@ interface RateHistoryItem {
 }
 
 const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
-  currency,
+  baseCurrency,
   exchangeRate,
   onExchangeRateChange,
 }) => {
@@ -38,7 +38,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const fetchDailyRate = useCallback(async () => {
     setIsLoadingRate(true);
     try {
-      const endpoint = currency === 'EUR'
+      const endpoint = baseCurrency === 'EUR'
         ? 'https://ve.dolarapi.com/v1/euros/oficial'
         : 'https://ve.dolarapi.com/v1/dolares/oficial';
 
@@ -65,7 +65,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
           setIsStale(!isSameDay);
         }
 
-        showSuccess(`Tasa ${currency === 'EUR' ? 'Euro' : 'Dólar'} cargada: ${rate.toFixed(2)} VES/${currency === 'EUR' ? 'EUR' : 'USD'}`);
+        showSuccess(`Tasa ${baseCurrency === 'EUR' ? 'Euro' : 'Dólar'} cargada: ${rate.toFixed(2)} VES/${baseCurrency}`);
         return rate;
       } else {
         throw new Error('Formato de tasa de cambio inválido.');
@@ -79,12 +79,12 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     } finally {
       setIsLoadingRate(false);
     }
-  }, [currency]);
+  }, [baseCurrency]);
 
   const fetchHistory = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
-      const endpoint = currency === 'EUR'
+      const endpoint = baseCurrency === 'EUR'
         ? 'https://ve.dolarapi.com/v1/historicos/euros/oficial'
         : 'https://ve.dolarapi.com/v1/historicos/dolares/oficial';
       const response = await fetch(endpoint);
@@ -97,7 +97,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [currency]);
+  }, [baseCurrency]);
 
   // Effect to manage rate fetching and default selection when currency changes
   useEffect(() => {
@@ -110,7 +110,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         setRateSource('custom');
       }
     });
-  }, [currency, fetchDailyRate, onExchangeRateChange]);
+  }, [baseCurrency, fetchDailyRate, onExchangeRateChange]);
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {
@@ -143,7 +143,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const handleSelectHistoricalRate = (rate: number) => {
     setRateSource('custom');
     onExchangeRateChange(rate);
-    showWarning(`Se ha seleccionado una tasa de cambio anterior: ${rate.toFixed(2)} VES/${currency === 'EUR' ? 'EUR' : 'USD'}`);
+    showWarning(`Se ha seleccionado una tasa de cambio anterior: ${rate.toFixed(2)} VES/${baseCurrency}`);
     setIsDialogOpen(false);
   };
 
@@ -151,10 +151,9 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <Label htmlFor="exchangeRate">
-          Tasa de Cambio ({currency === 'EUR' ? 'EUR a VES' : 'USD a VES'})
+          Tasa de Cambio ({baseCurrency} a VES)
         </Label>
-        {(currency === 'VES' || currency === 'EUR' || currency === 'USD') && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
                 variant="ghost"
@@ -170,7 +169,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-procarni-primary" />
-                  Historial de Tasas ({currency === 'EUR' ? 'Euro' : 'Dólar'})
+                  Historial de Tasas ({baseCurrency === 'EUR' ? 'Euro' : 'Dólar'})
                 </DialogTitle>
               </DialogHeader>
               <div className="py-2">
@@ -215,7 +214,6 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
               </div>
             </DialogContent>
           </Dialog>
-        )}
       </div>
 
       <Select value={rateSource} onValueChange={handleRateSourceChange}>
@@ -224,7 +222,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="daily" disabled={dailyRate === undefined}>
-            Tasa oficial {dailyRate ? `(${dailyRate.toFixed(2)} VES/${currency === 'EUR' ? 'EUR' : 'USD'})` : '(Cargando...)'}
+            Tasa oficial {dailyRate ? `(${dailyRate.toFixed(2)} VES/${baseCurrency})` : '(Cargando...)'}
           </SelectItem>
           <SelectItem value="custom">Tasa personalizada</SelectItem>
         </SelectContent>

@@ -13,6 +13,16 @@ import {
     searchSuppliers
 } from '@/integrations/supabase/data';
 import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { format } from 'date-fns';
 import ServiceOrderDetailsForm from '@/components/ServiceOrderDetailsForm';
@@ -86,12 +96,14 @@ const EditServiceOrder = () => {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
 
     // Form State
     const [companyId, setCompanyId] = useState<string>('');
     const [companyName, setCompanyName] = useState<string>('');
     const [supplierId, setSupplierId] = useState<string>('');
     const [supplierName, setSupplierName] = useState<string>('');
+    const [baseCurrency, setBaseCurrency] = useState<'USD' | 'EUR'>('USD');
     const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
     const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
@@ -136,7 +148,9 @@ const EditServiceOrder = () => {
                 setCompanyName(order.companies?.name || '');
                 setSupplierId(order.supplier_id);
                 setSupplierName(order.suppliers?.name || '');
-                setCurrency(order.currency);
+                const savedCurrency = order.currency;
+                setCurrency(savedCurrency);
+                setBaseCurrency((order.base_currency as 'USD' | 'EUR') || (savedCurrency === 'EUR' ? 'EUR' : 'USD'));
                 setExchangeRate(order.exchange_rate || undefined);
                 setIssueDate(order.issue_date ? new Date(order.issue_date + 'T12:00:00') : new Date());
                 setServiceDate(order.service_date ? new Date(order.service_date + 'T12:00:00') : undefined);
@@ -343,8 +357,8 @@ const EditServiceOrder = () => {
     ];
 
     const totals = calculateTotals(itemsForCalculation);
-    const totalInUSD = React.useMemo(() => {
-        if ((currency === 'VES' || currency === 'EUR') && exchangeRate && exchangeRate > 0) {
+    const totalInBaseCurrency = React.useMemo(() => {
+        if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
             return (totals.total / exchangeRate).toFixed(2);
         }
         return null;
@@ -392,6 +406,11 @@ const EditServiceOrder = () => {
             return;
         }
 
+        setIsReminderDialogOpen(true);
+    };
+
+    const confirmSubmit = async () => {
+        setIsReminderDialogOpen(false);
         setIsSubmitting(true);
         const toastId = showLoading('Actualizando orden...');
 
@@ -407,16 +426,15 @@ const EditServiceOrder = () => {
                 destination_address: destinationAddress,
                 observations: observations || null,
                 currency,
+                base_currency: baseCurrency,
                 exchange_rate: exchangeRate,
-                // Do not update status here unless explicitly changing state workflow
-                // user_id is generally preserved from creation or updated to last editor? usually preserved.
             };
 
             const itemsForUpdate = items.map(({ id, ...rest }) => rest);
 
             const materialsForUpdate = sparePartsGroups.flatMap(group =>
                 group.items.map(item => ({
-                    supplier_id: group.supplierId, // Ensure it matches group
+                    supplier_id: group.supplierId,
                     material_id: item.material_id || null,
                     quantity: item.quantity,
                     unit_price: item.unit_price,
@@ -501,6 +519,7 @@ const EditServiceOrder = () => {
                         <ServiceOrderDetailsForm
                             companyId={companyId}
                             companyName={companyName}
+                            baseCurrency={baseCurrency}
                             currency={currency}
                             exchangeRate={exchangeRate}
                             issueDate={issueDate}
@@ -511,6 +530,7 @@ const EditServiceOrder = () => {
                             destinationAddress={destinationAddress}
                             observations={observations}
                             onCompanySelect={handleCompanySelect}
+                            onBaseCurrencyChange={setBaseCurrency}
                             onCurrencyChange={setCurrency}
                             onExchangeRateChange={setExchangeRate}
                             onIssueDateChange={setIssueDate}
@@ -688,22 +708,51 @@ const EditServiceOrder = () => {
                                 <span className="font-bold text-xl text-procarni-dark font-mono">{currency} {totals.total.toFixed(2)}</span>
                             </div>
                         </div>
-                        {totalInUSD && (currency === 'VES' || currency === 'EUR') && (
+                        {totalInBaseCurrency && currency === 'VES' && (
                             <div className="flex justify-end pt-1">
                                 <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                    Ref. USD: {totalInUSD}
+                                    Ref. {baseCurrency}: {totalInBaseCurrency}
                                 </span>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="flex justify-end pt-4 pb-8">
-
-                </div>
+                <div className="flex justify-end pt-4 pb-8" />
             </div>
+            
+            <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Verificar Moneda</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-3 text-gray-600 pt-2">
+                                <p>
+                                    ¿Has verificado que la moneda seleccionada (<strong>{currency}</strong>) es la correcta para esta orden de servicio?
+                                </p>
+                                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-xs flex items-start gap-2 animate-in fade-in slide-in-from-top-1">
+                                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                                    <p>
+                                        <strong>Nota sobre Feriados y Fin de Semana:</strong> En estos días la tasa oficial (BCV) no se suele actualizar. Asegúrate de que la tasa ingresada sea la correcta para el día de la transacción.
+                                    </p>
+                                </div>
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Revisar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmSubmit}
+                            className="bg-procarni-primary hover:bg-procarni-primary/90 text-white"
+                        >
+                            Confirmar y Guardar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
+
 
 export default EditServiceOrder;
