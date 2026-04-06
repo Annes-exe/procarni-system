@@ -31,22 +31,22 @@ const SearchSuppliersWidget = () => {
     };
 
     return (
-        <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[1.75rem] overflow-hidden h-full">
-            <CardHeader className="pb-3 p-6 bg-gradient-to-br from-gray-50/50 to-transparent border-b border-gray-100/50">
-                <div className="flex items-center gap-3 mb-0.5">
-                    <div className="p-2 rounded-xl bg-procarni-primary/10 text-procarni-primary">
-                        <Search className="h-4 w-4" />
+        <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden h-full">
+            <CardHeader className="pb-4 p-7 bg-gradient-to-br from-gray-50/50 to-transparent border-b border-gray-100/50">
+                <div className="flex items-center gap-3 mb-1">
+                    <div className="p-2.5 rounded-xl bg-procarni-primary/10 text-procarni-primary">
+                        <Search className="h-[18px] w-[18px]" />
                     </div>
-                    <CardTitle className="text-lg font-black text-procarni-blue tracking-tight">
+                    <CardTitle className="text-[21px] font-black text-procarni-blue tracking-tight">
                         Buscar Proveedores
                     </CardTitle>
                 </div>
-                <CardDescription className="text-xs text-gray-500 font-medium italic">
+                <CardDescription className="text-[13px] text-gray-500 font-medium italic">
                     Encuentra qué proveedores ofrecen un material específico.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="p-6">
-                <div className="flex flex-col gap-4">
+            <CardContent className="p-7">
+                <div className="flex flex-col gap-5">
                     <div className="space-y-1.5">
                         <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Material Objetivo</label>
                         <SmartSearch
@@ -61,7 +61,7 @@ const SearchSuppliersWidget = () => {
                     <Button
                         onClick={() => handleSearch()}
                         disabled={!selectedMaterial}
-                        className="w-full h-11 rounded-xl bg-gradient-to-r from-procarni-primary to-procarni-blue hover:shadow-lg hover:shadow-procarni-primary/20 transition-all font-bold text-sm scale-[1.02] active:scale-[0.98]"
+                        className="w-full h-[2.75rem] rounded-xl bg-gradient-to-r from-procarni-primary to-procarni-blue hover:shadow-lg hover:shadow-procarni-primary/20 transition-all font-bold text-[15px] scale-[1.02] active:scale-[0.98]"
                     >
                         Localizar Proveedores
                     </Button>

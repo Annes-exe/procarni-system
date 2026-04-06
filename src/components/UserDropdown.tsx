@@ -68,10 +68,10 @@ const UserDropdown = () => {
       <DropdownMenuTrigger asChild>
         <div className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-all group">
           <div className="text-right hidden sm:block">
-            <p className="text-[13px] font-black text-procarni-blue group-hover:text-procarni-primary transition-colors tracking-tight leading-tight">{displayName}</p>
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{email}</p>
+            <p className="text-[13.5px] font-black text-procarni-blue group-hover:text-procarni-primary transition-colors tracking-tight leading-tight">{displayName}</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{email}</p>
           </div>
-          <div className="w-9 h-9 rounded-[0.9rem] bg-gradient-to-tr from-procarni-primary to-procarni-blue flex items-center justify-center text-white shadow-xl shadow-procarni-primary/10 ring-2 ring-white group-hover:ring-procarni-primary/20 transition-all text-[11px] font-black">
+          <div className="w-[38px] h-[38px] rounded-[0.95rem] bg-gradient-to-tr from-procarni-primary to-procarni-blue flex items-center justify-center text-white shadow-xl shadow-procarni-primary/10 ring-2 ring-white group-hover:ring-procarni-primary/20 transition-all text-xs font-black">
             {initials}
           </div>
         </div>

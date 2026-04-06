@@ -102,7 +102,7 @@ const Layout = () => {
   );
 
   const DesktopSidebar = () => (
-    <aside className="fixed left-4 top-4 bottom-4 bg-white/80 backdrop-blur-2xl ring-1 ring-white shadow-2xl shadow-gray-300/50 z-50 flex flex-col justify-between group transition-all duration-500 ease-in-out w-[4.5rem] hover:w-64 rounded-[2rem] overflow-hidden border-none text-xs">
+    <aside className="fixed left-4 top-4 bottom-4 bg-white/80 backdrop-blur-2xl ring-1 ring-white shadow-2xl shadow-gray-300/50 z-50 flex flex-col justify-between group transition-all duration-500 ease-in-out w-[4.75rem] hover:w-64 rounded-[2.25rem] overflow-hidden border-none text-[13px]">
       <div className="h-full flex flex-col">
         <SidebarHeader />
         <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none py-2">
@@ -176,8 +176,8 @@ const Layout = () => {
   return (
     <div className="flex h-screen w-full font-body bg-[#F8FAFC] dark:bg-slate-950 text-foreground overflow-hidden">
       <DesktopSidebar />
-      <div className="flex-1 ml-[5.5rem] flex flex-col h-screen overflow-hidden transition-all duration-500 ease-in-out group-hover:ml-72">
-        <header className="h-[4.5rem] bg-white/60 backdrop-blur-xl border-none flex items-center justify-between px-6 z-40 sticky top-4 mx-4 mt-4 rounded-3xl shadow-2xl shadow-gray-200/50 ring-1 ring-white">
+      <div className="flex-1 ml-[5.75rem] flex flex-col h-screen overflow-hidden transition-all duration-500 ease-in-out group-hover:ml-[18.5rem]">
+        <header className="h-[4.75rem] bg-white/60 backdrop-blur-xl border-none flex items-center justify-between px-6 z-40 sticky top-4 mx-4 mt-4 rounded-[1.75rem] shadow-2xl shadow-gray-200/50 ring-1 ring-white">
           <div className="flex items-center gap-3">
             <DynamicBreadcrumbs />
           </div>

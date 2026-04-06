@@ -94,11 +94,11 @@ export const DynamicBreadcrumbs = () => {
     if (breadcrumbs.length <= 1) return null; // Don't show if only Home
 
     return (
-        <nav aria-label="Breadcrumb" className="mb-0 flex items-center text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-            <ol className="flex items-center space-x-0.5">
+        <nav aria-label="Breadcrumb" className="mb-0 flex items-center text-[11.5px] font-black uppercase tracking-[0.15em] text-gray-400">
+            <ol className="flex items-center space-x-1">
                 {breadcrumbs.map((crumb, index) => (
                     <li key={crumb.path ?? index} className="flex items-center">
-                        {index > 0 && <ChevronRight className="h-2.5 w-2.5 mx-1 text-gray-300" />}
+                        {index > 0 && <ChevronRight className="h-3 w-3 mx-1 text-gray-300" />}
                         {crumb.isCurrent ? (
                             <span className="text-procarni-blue font-black" aria-current="page">
                                 {crumb.label}
@@ -106,9 +106,9 @@ export const DynamicBreadcrumbs = () => {
                         ) : (
                             <Link
                                 to={crumb.path || '/'}
-                                className="hover:text-procarni-primary transition-colors py-0.5 px-1.5 rounded-lg hover:bg-procarni-primary/5 transition-all duration-200"
+                                className="hover:text-procarni-primary transition-colors py-0.5 px-2 rounded-lg hover:bg-procarni-primary/5 transition-all duration-200"
                             >
-                                {index === 0 ? <Home className="h-3 w-3" /> : crumb.label}
+                                {index === 0 ? <Home className="h-3.5 w-3.5" /> : crumb.label}
                             </Link>
                         )}
                     </li>

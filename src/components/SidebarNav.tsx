@@ -81,15 +81,15 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex flex-nowrap items-center h-11 px-2.5 rounded-xl transition-all duration-300 overflow-hidden ${isActive ? activeClasses : hoverClasses
+                  `flex flex-nowrap items-center h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden ${isActive ? activeClasses : hoverClasses
                   } justify-start group/item`
                 }
                 title={!forceExpanded ? item.label : undefined}
               >
-                <div className="flex-shrink-0 w-9 flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
-                  {React.cloneElement(item.icon as React.ReactElement, { className: 'h-4 w-4' })}
+                <div className="flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
+                  {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[18px] w-[18px]' })}
                 </div>
-                <span className={`transition-all duration-300 whitespace-nowrap ml-4 text-[13px] font-bold tracking-tight ${forceExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 group-hover:delay-200'}`}>
+                <span className={`transition-all duration-300 whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight ${forceExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 group-hover:delay-200'}`}>
                   {item.label}
                 </span>
               </NavLink>
