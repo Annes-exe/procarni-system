@@ -292,9 +292,11 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
               <ToggleGroupItem value="VES" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
                 <Coins className="h-4 w-4 mr-1" /> VES
               </ToggleGroupItem>
+              {/* EUR temporalmente deshabilitado
               <ToggleGroupItem value="EUR" className="px-3 py-1 data-[state=on]:bg-procarni-primary data-[state=on]:text-white">
                 <span className="font-bold mr-1">€</span> EUR
               </ToggleGroupItem>
+              */}
             </ToggleGroup>
 
             <div className="mt-2">
