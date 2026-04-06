@@ -251,8 +251,20 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
                         {items.map(renderDesktopAccordionItem)}
                     </Accordion>
+
+                    <Button
+                        variant="outline"
+                        onClick={onAddItem}
+                        className="w-full py-8 border-dashed border-gray-300 text-gray-500 hover:text-procarni-primary hover:border-procarni-primary/50 hover:bg-procarni-primary/5 transition-all mt-4 group"
+                    >
+                        <div className="flex flex-col items-center gap-1">
+                            <PlusCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
+                            <span className="text-sm font-medium">Añadir nueva línea de presupuesto</span>
+                        </div>
+                    </Button>
                 </>
             )}
+
         </div>
     );
 };

@@ -352,40 +352,6 @@ const EditPurchaseOrder = () => {
 
       <Card className="mb-6 border-gray-200 shadow-sm overflow-visible">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="md:col-span-1">
-              <Label htmlFor="company">Empresa de Origen</Label>
-              <SmartSearch
-                placeholder="Buscar empresa por RIF o nombre"
-                onSelect={handleCompanySelect}
-                fetchFunction={searchCompanies}
-                displayValue={companyName}
-              />
-              {companyName && <p className="text-sm text-muted-foreground mt-1 break-words">Empresa seleccionada: {companyName}</p>}
-            </div>
-            <div className="md:col-span-1">
-              <Label htmlFor="supplier">Proveedor</Label>
-              <div className="flex gap-2">
-                <SmartSearch
-                  placeholder="Buscar proveedor por RIF o nombre"
-                  onSelect={handleSupplierSelect}
-                  fetchFunction={searchSuppliers}
-                  displayValue={supplierName}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                  className="shrink-0"
-                  title="Añadir nuevo proveedor"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                </Button>
-              </div>
-              {supplierName && <p className="text-sm text-muted-foreground mt-1 break-words">Proveedor seleccionado: {supplierName}</p>}
-            </div>
-          </div>
-
           <PurchaseOrderDetailsForm
             companyId={companyId}
             companyName={companyName}
@@ -408,7 +374,10 @@ const EditPurchaseOrder = () => {
             onCustomPaymentTermsChange={setCustomPaymentTerms}
             onCreditDaysChange={setCreditDays}
             onObservationsChange={setObservations}
+            onSupplierSelect={handleSupplierSelect}
+            onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
           />
+
 
           <PurchaseOrderItemsTable
             items={items}

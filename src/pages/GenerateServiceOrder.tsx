@@ -661,7 +661,9 @@ const GenerateServiceOrder = () => {
                         onItemChange={(itemIndex, field, value) => handleSparePartItemChange(groupIndex, itemIndex, field as any, value)}
                         onMaterialSelect={(itemIndex, material) => handleSparePartMaterialSelect(groupIndex, itemIndex, material)}
                         hideHeader={true}
+                        showAddButton={false}
                       />
+
                       <div className="px-5 mt-2">
                         <Button
                           variant="secondary"

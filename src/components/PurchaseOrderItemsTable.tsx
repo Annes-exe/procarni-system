@@ -50,6 +50,7 @@ interface PurchaseOrderItemsTableProps {
   onItemChange: (index: number, field: keyof PurchaseOrderItemForm, value: PurchaseOrderItemForm[keyof PurchaseOrderItemForm]) => void;
   onMaterialSelect: (index: number, material: MaterialSearchResult) => void;
   hideHeader?: boolean;
+  showAddButton?: boolean;
 }
 
 const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
@@ -62,7 +63,9 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   onItemChange,
   onMaterialSelect,
   hideHeader = false,
+  showAddButton = true,
 }) => {
+
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -427,19 +430,24 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
       {isMobile ? (
         <div className="space-y-4">
           {items.map(renderMobileItem)}
-          {!hideHeader && (
-            <Button variant="outline" onClick={onAddItem} className="w-full h-12 border-dashed">
+          {showAddButton && (
+            <Button
+              variant="outline"
+              onClick={onAddItem}
+              className="w-full h-12 border-dashed border-gray-300 text-gray-500 hover:text-procarni-primary hover:border-procarni-primary/50 hover:bg-procarni-primary/5 transition-all mt-2"
+            >
               <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
             </Button>
           )}
+
         </div>
       ) : (
         <>
           <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
             {items.map(renderDesktopAccordionItem)}
           </Accordion>
-
-          {!hideHeader && (
+          
+          {showAddButton && (
             <Button
               variant="outline"
               onClick={onAddItem}
@@ -453,6 +461,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           )}
         </>
       )}
+
 
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}

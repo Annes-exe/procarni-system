@@ -664,7 +664,9 @@ const EditServiceOrder = () => {
                                                 supplierName={group.supplierName}
                                                 onMaterialSelect={(index, item) => handleSearchResultSelect(group.supplierId, index, item)}
                                                 hideHeader={true}
+                                                showAddButton={false}
                                             />
+
                                             <div className="px-5 mt-2">
                                                 <Button
                                                     variant="secondary"

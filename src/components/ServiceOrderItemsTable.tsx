@@ -315,18 +315,34 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
       {isMobile ? (
         <div className="space-y-4">
           {items.map(renderMobileItem)}
-          {items.length > 0 && (
-            <Button variant="outline" onClick={onAddItem} className="w-full h-12 border-dashed">
-              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={onAddItem}
+            className="w-full h-12 border-dashed border-gray-300 text-gray-500 hover:text-procarni-secondary hover:border-procarni-secondary/50 hover:bg-procarni-secondary/5 transition-all mt-2"
+          >
+            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem de Servicio
+          </Button>
         </div>
       ) : (
-        <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
-          {items.map(renderDesktopAccordionItem)}
-        </Accordion>
+        <>
+          <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
+            {items.map(renderDesktopAccordionItem)}
+          </Accordion>
+
+          <Button
+            variant="outline"
+            onClick={onAddItem}
+            className="w-full py-8 border-dashed border-gray-300 text-gray-500 hover:text-procarni-secondary hover:border-procarni-secondary/50 hover:bg-procarni-secondary/5 transition-all mt-4 group"
+          >
+            <div className="flex flex-col items-center gap-1">
+              <PlusCircle className="h-6 w-6 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium">Añadir nueva línea de servicio</span>
+            </div>
+          </Button>
+        </>
       )}
     </div>
+
   );
 };
 
