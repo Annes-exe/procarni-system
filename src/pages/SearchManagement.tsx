@@ -1,16 +1,40 @@
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button'; // Import Button
-import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2 } from 'lucide-react'; // Import new icons
+import { motion } from 'framer-motion';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllSuppliers } from '@/integrations/supabase/data';
 import { PurchaseOrder, Supplier } from '@/integrations/supabase/types';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useNavigate } from 'react-router-dom';
 import SearchSuppliersWidget from '@/components/SearchSuppliersWidget';
 
 const SearchManagement = () => {
-  const navigate = useNavigate(); // Initialize useNavigate hook
+  const navigate = useNavigate();
+
+  // Variantes para animaciones de Framer Motion
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.15,
+        delayChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.8,
+        ease: [0.4, 0, 0.2, 1],
+      },
+    },
+  };
 
   // 1. Fetch Purchase Orders for Pending Count
   const { data: purchaseOrders, isLoading: isLoadingOrders } = useQuery<PurchaseOrder[]>({
@@ -49,21 +73,30 @@ const SearchManagement = () => {
   ];
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 ease-out">
+    <motion.div 
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="space-y-10"
+    >
       {/* Header del Dashboard */}
-      <div className="flex flex-col gap-1.5">
+      <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
         <h1 className="text-[34px] font-black text-procarni-blue tracking-tighter">Bienvenido al Sistema</h1>
         <p className="text-[13px] text-gray-500 font-medium italic">Gestión integral de compras y servicios para Procarni</p>
-      </div>
+      </motion.div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {kpis.map((kpi, index) => (
-          <Card
-            key={index}
-            className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500 hover:scale-[1.02] hover:shadow-procarni-primary/10 cursor-pointer"
-            onClick={() => navigate(kpi.path)}
-          >
-            <div className="p-6">
+          <motion.div key={index} variants={itemVariants}>
+            <Card
+              className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500 cursor-pointer"
+              onClick={() => navigate(kpi.path)}
+            >
+              <motion.div 
+                whileHover={{ y: -8 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="p-7"
+              >
               <div className="flex items-center justify-between mb-4">
                 <div className="p-3 rounded-2xl bg-procarni-primary/5 text-procarni-primary group-hover:bg-procarni-primary group-hover:text-white transition-all duration-500">
                   <kpi.icon className="h-6 w-6" />
@@ -83,17 +116,18 @@ const SearchManagement = () => {
                   {kpi.description}
                 </p>
               </div>
-            </div>
+            </motion.div>
             {/* Decoración de fondo */}
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <kpi.icon className="h-24 w-24 -mr-8 -mt-8 rotate-12" />
             </div>
           </Card>
+          </motion.div>
         ))}
       </div>
 
       {/* Quick Actions & Search Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Quick Actions */}
         <Card className="lg:col-span-12 xl:col-span-5 border-none bg-procarni-blue shadow-2xl rounded-[2rem] overflow-hidden relative group">
           <div className="p-7 relative z-10 space-y-7">
@@ -167,12 +201,8 @@ const SearchManagement = () => {
         <div className="lg:col-span-12 xl:col-span-7">
           <SearchSuppliersWidget />
         </div>
-      </div>
-
-
-
-
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
