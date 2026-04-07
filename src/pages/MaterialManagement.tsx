@@ -21,21 +21,10 @@ import MaterialCategoryModal from '@/components/MaterialCategoryModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 
-// Componentes modales futuros (placeholders)
-// import MaterialFusionModal from '@/components/MaterialFusionModal';
-// import MaterialGroupModal from '@/components/MaterialGroupModal';
+import MaterialFusionModal from '@/components/MaterialFusionModal';
+import MaterialGroupModal from '@/components/MaterialGroupModal';
 
-interface Material {
-  id: string;
-  code: string;
-  name: string;
-  category?: string;
-  unit?: string;
-  is_exempt?: boolean;
-  base_material_id?: string | null;
-  search_aliases?: string[] | null;
-  user_id: string;
-}
+import { Material } from '@/integrations/supabase/types';
 
 
 const MaterialManagement = () => {
@@ -500,6 +489,26 @@ const MaterialManagement = () => {
         open={isCategoriesModalOpen}
         onOpenChange={setIsCategoriesModalOpen}
       />
+
+      {materials && (
+        <>
+          <MaterialGroupModal
+            open={isGroupModalOpen}
+            onOpenChange={setIsGroupModalOpen}
+            selectedIds={selectedMaterialIds}
+            materials={materials}
+            onSuccess={() => setSelectedMaterialIds([])}
+          />
+
+          <MaterialFusionModal
+            open={isFusionModalOpen}
+            onOpenChange={setIsFusionModalOpen}
+            selectedIds={selectedMaterialIds}
+            materials={materials}
+            onSuccess={() => setSelectedMaterialIds([])}
+          />
+        </>
+      )}
     </div>
   );
 };
