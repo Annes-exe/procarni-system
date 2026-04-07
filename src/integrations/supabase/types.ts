@@ -40,6 +40,8 @@ export type Material = {
   user_id: string | null;
   unit: string | null;
   is_exempt: boolean | null;
+  base_material_id?: string | null;
+  search_aliases?: string[] | null;
 };
 
 export type MaterialCategory = {
