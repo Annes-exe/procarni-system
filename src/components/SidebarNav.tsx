@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 
@@ -90,16 +89,13 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                 <div className="flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
                   {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[18px] w-[18px]' })}
                 </div>
-                <motion.span 
-                  initial={false}
-                  animate={{ 
-                    opacity: forceExpanded ? 1 : 0
-                  }}
-                  transition={{ duration: 0.2 }}
-                  className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block"
+                <span 
+                  className={`whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    forceExpanded ? "opacity-100 translate-x-0 delay-150" : "opacity-0 -translate-x-4"
+                  }`}
                 >
                   {item.label}
-                </motion.span>
+                </span>
               </NavLink>
             );
           })}
