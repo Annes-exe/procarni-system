@@ -330,10 +330,12 @@ const MaterialManagement = () => {
                         )}
                         {/* Indicadores de Grupo/Alias */}
                         {material.base_material_id && (
-                          <Badge variant="secondary" className="ml-2 text-[10px]" title="Forma parte de un grupo de materiales">Hijo de Grupo</Badge>
+                          <Badge variant="secondary" className="ml-2 text-[10px]" title="Forma parte de un grupo de materiales">Grupo</Badge>
                         )}
+                      </div>
+                      <div className="flex-1 mt-1">
                         {material.search_aliases && material.search_aliases.length > 0 && (
-                          <Badge variant="outline" className="ml-2 text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
+                          <Badge variant="outline" className="text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
                             {material.search_aliases.length} Alias
                           </Badge>
                         )}
@@ -405,20 +407,20 @@ const MaterialManagement = () => {
                         </TableCell>
                         <TableCell className="py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
                         <TableCell className="flex flex-col items-start justify-center font-medium py-3 text-procarni-dark">
-                          <div className="flex items-center">
-                            {material.name}
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span>{material.name}</span>
                             {material.is_exempt && (
-                              <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
+                              <span className="px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
                                 EXENTO
                               </span>
+                            )}
+                            {material.base_material_id && (
+                              <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
                             )}
                           </div>
                           
                           {/* Indicadores Base Group y Aliases en Subtítulo */}
                           <div className="flex gap-2 mt-1">
-                             {material.base_material_id && (
-                               <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Hijo de Grupo</Badge>
-                             )}
                              {material.search_aliases && material.search_aliases.length > 0 && (
                                 <Badge variant="outline" className="text-[9px] h-4 py-0 px-1.5 font-normal border-procarni-primary/40 text-procarni-primary" title={material.search_aliases.join(', ')}>
                                   {material.search_aliases.length} Alias

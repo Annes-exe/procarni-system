@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { updateMaterial, getAllUnits } from '@/integrations/supabase/data';
 import { mergeMaterials } from '@/integrations/supabase/services/materialService';
 import { showError, showSuccess } from '@/utils/toast';
 import { Combine, AlertTriangle } from 'lucide-react';
@@ -28,6 +28,11 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
 }) => {
   const queryClient = useQueryClient();
   
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
+  
   const [targetId, setTargetId] = useState<string>('');
   const [newName, setNewName] = useState<string>('');
   const [newUnit, setNewUnit] = useState<string>('');
@@ -39,7 +44,7 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
 
   const itemsToMerge = materials.filter(m => selectedIds.includes(m.id));
 
-  // Initialize form when targetId changes
+  // Initialize form ONLY when targetId fundamentally changes
   useEffect(() => {
     if (targetId) {
       const targetMat = itemsToMerge.find(m => m.id === targetId);
@@ -53,7 +58,7 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
       setNewUnit('');
       setIsExempt(false);
     }
-  }, [targetId, itemsToMerge]);
+  }, [targetId]); // ONLY run when targetId changes
 
   // Reset state when modal closes/opens
   useEffect(() => {
@@ -158,13 +163,16 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Unidad de Medida (Opcional)</label>
-                  <Input 
-                    value={newUnit} 
-                    onChange={(e) => setNewUnit(e.target.value)} 
-                    placeholder="Ej: KG"
-                    className="bg-white"
-                    disabled={fusionMutation.isPending || !targetId}
-                  />
+                  <Select value={newUnit} onValueChange={setNewUnit} disabled={fusionMutation.isPending || isLoadingUnits || !targetId}>
+                    <SelectTrigger className="w-full bg-white">
+                      <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona una unidad"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map(unit => (
+                        <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex flex-col justify-end pb-2">
                   <div className="flex items-center space-x-2 border rounded-md p-2 bg-white">

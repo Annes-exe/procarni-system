@@ -62,7 +62,18 @@ BEGIN
         UPDATE public.price_history SET material_id = p_target_material_id WHERE material_id = v_source_id;
         UPDATE public.quote_request_items SET material_id = p_target_material_id WHERE material_id = v_source_id;
         UPDATE public.service_order_materials SET material_id = p_target_material_id WHERE material_id = v_source_id;
-        UPDATE public.supplier_materials SET material_id = p_target_material_id WHERE material_id = v_source_id;
+        
+        -- supplier_materials (Handling UNIQUE constraint on supplier_id, material_id)
+        UPDATE public.supplier_materials sm1
+        SET material_id = p_target_material_id
+        WHERE material_id = v_source_id
+        AND NOT EXISTS (
+            SELECT 1 FROM public.supplier_materials sm2 
+            WHERE sm2.material_id = p_target_material_id AND sm2.supplier_id = sm1.supplier_id
+        );
+        -- Delete any remaining that couldn't be updated due to duplicates
+        DELETE FROM public.supplier_materials WHERE material_id = v_source_id;
+
         UPDATE public.quote_comparison_items SET material_id = p_target_material_id WHERE material_id = v_source_id;
 
         -- Update any base material references (if a group was pointing to this, point to the target)
