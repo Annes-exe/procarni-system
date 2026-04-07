@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info } from 'lucide-react';
 
 import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -18,6 +18,12 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import UnitOfMeasureModal from '@/components/UnitOfMeasureModal';
 import MaterialCategoryModal from '@/components/MaterialCategoryModal';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+
+// Componentes modales futuros (placeholders)
+// import MaterialFusionModal from '@/components/MaterialFusionModal';
+// import MaterialGroupModal from '@/components/MaterialGroupModal';
 
 interface Material {
   id: string;
@@ -26,6 +32,8 @@ interface Material {
   category?: string;
   unit?: string;
   is_exempt?: boolean;
+  base_material_id?: string | null;
+  search_aliases?: string[] | null;
   user_id: string;
 }
 
@@ -48,6 +56,10 @@ const MaterialManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [materialToDeleteId, setMaterialToDeleteId] = useState<string | null>(null);
+
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [isFusionModalOpen, setIsFusionModalOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['material_categories'],
@@ -138,6 +150,20 @@ const MaterialManagement = () => {
   const executeDeleteMaterial = async () => {
     if (materialToDeleteId) {
       await deleteMutation.mutateAsync(materialToDeleteId);
+    }
+  };
+
+  const toggleMaterialSelection = (id: string) => {
+    setSelectedMaterialIds(prev => 
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllSelections = () => {
+    if (selectedMaterialIds.length === filteredMaterials.length && filteredMaterials.length > 0) {
+      setSelectedMaterialIds([]);
+    } else {
+      setSelectedMaterialIds(filteredMaterials.map(m => m.id));
     }
   };
 
@@ -234,6 +260,37 @@ const MaterialManagement = () => {
         </div>
       </div>
 
+      {/* ActionBar para Multi-selección */}
+      {selectedMaterialIds.length > 0 && (
+        <div className="bg-procarni-primary/5 border border-procarni-primary/20 rounded-lg p-3 mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-4">
+          <div className="text-sm font-medium text-procarni-dark">
+            <span className="font-bold">{selectedMaterialIds.length}</span> materiales seleccionados
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGroupModalOpen(true)}
+              className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10"
+              disabled={selectedMaterialIds.length < 1}
+            >
+              <Network className="h-4 w-4 mr-2" />
+              Asignar Grupo Base
+            </Button>
+            <Button
+              variant={selectedMaterialIds.length >= 2 ? "destructive" : "outline"}
+              size="sm"
+              onClick={() => setIsFusionModalOpen(true)}
+              disabled={selectedMaterialIds.length < 2}
+              title={selectedMaterialIds.length < 2 ? "Selecciona al menos 2 materiales para fusionar" : "Fusionar materiales"}
+            >
+              <Combine className="h-4 w-4 mr-2" />
+              Fusionar
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
@@ -267,14 +324,31 @@ const MaterialManagement = () => {
             isMobile ? (
               <div className="grid gap-4">
                 {filteredMaterials.map((material) => (
-                  <Card key={material.id} className="p-4 shadow-md">
-                    <CardTitle className="text-lg mb-2 flex items-center">
-                      {material.name}
-                      {material.is_exempt && (
-                        <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-procarni-primary text-white rounded-full">
-                          EXENTO
-                        </span>
-                      )}
+                  <Card key={material.id} className={cn("p-4 shadow-md transition-all duration-200", selectedMaterialIds.includes(material.id) && "ring-2 ring-procarni-primary bg-procarni-primary/5")}>
+                    <CardTitle className="text-lg mb-2 flex items-start gap-2">
+                      <Checkbox 
+                        checked={selectedMaterialIds.includes(material.id)}
+                        onCheckedChange={() => toggleMaterialSelection(material.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        {material.name}
+                        {material.is_exempt && (
+                          <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-procarni-primary text-white rounded-full">
+                            EXENTO
+                          </span>
+                        )}
+                        {/* Indicadores de Grupo/Alias */}
+                        {material.base_material_id && (
+                          <Badge variant="secondary" className="ml-2 text-[10px]" title="Forma parte de un grupo de materiales">Hijo de Grupo</Badge>
+                        )}
+                        {material.search_aliases && material.search_aliases.length > 0 && (
+                          <Badge variant="outline" className="ml-2 text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
+                            {material.search_aliases.length} Alias
+                          </Badge>
+                        )}
+                      </div>
                     </CardTitle>
                     <CardDescription className="mb-2 flex items-center">
                       <Tag className="mr-1 h-3 w-3" /> Código: {material.code}
@@ -309,7 +383,13 @@ const MaterialManagement = () => {
                 <Table>
                   <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Código</TableHead>
+                      <TableHead className="w-12 pl-4 py-3">
+                        <Checkbox 
+                          checked={filteredMaterials.length > 0 && selectedMaterialIds.length === filteredMaterials.length}
+                          onCheckedChange={toggleAllSelections}
+                        />
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Código</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Categoría</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Unidad</TableHead>
@@ -319,15 +399,43 @@ const MaterialManagement = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredMaterials.map((material) => (
-                      <TableRow key={material.id} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
-                        <TableCell className="flex items-center font-medium py-3 text-procarni-dark">
-                          {material.name}
-                          {material.is_exempt && (
-                            <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
-                              EXENTO
-                            </span>
-                          )}
+                      <TableRow 
+                        key={material.id} 
+                        className={cn(
+                          "hover:bg-gray-50/50 transition-colors cursor-pointer",
+                          selectedMaterialIds.includes(material.id) && "bg-procarni-primary/5"
+                        )}
+                        onClick={() => toggleMaterialSelection(material.id)}
+                      >
+                        <TableCell className="pl-4 py-3">
+                           <Checkbox 
+                              checked={selectedMaterialIds.includes(material.id)}
+                              onCheckedChange={() => toggleMaterialSelection(material.id)}
+                              onClick={(e) => e.stopPropagation()}
+                           />
+                        </TableCell>
+                        <TableCell className="py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
+                        <TableCell className="flex flex-col items-start justify-center font-medium py-3 text-procarni-dark">
+                          <div className="flex items-center">
+                            {material.name}
+                            {material.is_exempt && (
+                              <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
+                                EXENTO
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Indicadores Base Group y Aliases en Subtítulo */}
+                          <div className="flex gap-2 mt-1">
+                             {material.base_material_id && (
+                               <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Hijo de Grupo</Badge>
+                             )}
+                             {material.search_aliases && material.search_aliases.length > 0 && (
+                                <Badge variant="outline" className="text-[9px] h-4 py-0 px-1.5 font-normal border-procarni-primary/40 text-procarni-primary" title={material.search_aliases.join(', ')}>
+                                  {material.search_aliases.length} Alias
+                                </Badge>
+                             )}
+                          </div>
                         </TableCell>
                         <TableCell className="py-3 text-gray-600">{material.category || 'N/A'}</TableCell>
                         <TableCell className="py-3 text-gray-600">{material.unit || 'N/A'}</TableCell>
@@ -336,7 +444,7 @@ const MaterialManagement = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleEditMaterial(material)}
+                            onClick={(e) => { e.stopPropagation(); handleEditMaterial(material); }}
                             disabled={deleteMutation.isPending}
                           >
                             <Edit className="h-4 w-4" />
@@ -344,7 +452,7 @@ const MaterialManagement = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => confirmDeleteMaterial(material.id)}
+                            onClick={(e) => { e.stopPropagation(); confirmDeleteMaterial(material.id); }}
                             disabled={deleteMutation.isPending}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
