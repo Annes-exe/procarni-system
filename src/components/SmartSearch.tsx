@@ -125,7 +125,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
+        <Command shouldFilter={false}>
           <CommandInput
             placeholder={placeholder}
             value={query}

@@ -40,11 +40,7 @@ export const searchService = {
             }
 
             // 2. Search Materials & Related Documents
-            const { data: materials } = await supabase
-                .from('materials')
-                .select('id, name, code')
-                .or(`name.ilike.${searchTerm},code.ilike.${searchTerm}`)
-                .limit(5);
+            const { data: materials } = await supabase.rpc('search_materials_by_substring', { search_query: query });
 
             if (materials && materials.length > 0) {
                 const materialIds = materials.map(m => m.id);

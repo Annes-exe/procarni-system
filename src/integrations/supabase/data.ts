@@ -213,7 +213,8 @@ export const getPurchaseHistoryReport = async ({
         name,
         code,
         category,
-        unit
+        unit,
+        search_aliases
       )
     `)
     .order('created_at', { ascending: false });

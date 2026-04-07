@@ -66,10 +66,12 @@ const MaterialManagement = () => {
 
     if (searchTerm) {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      currentMaterials = currentMaterials.filter(material =>
-        material.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        material.code.toLowerCase().includes(lowerCaseSearchTerm)
-      );
+      currentMaterials = currentMaterials.filter(material => {
+        const nameMatch = material.name.toLowerCase().includes(lowerCaseSearchTerm);
+        const codeMatch = material.code?.toLowerCase().includes(lowerCaseSearchTerm);
+        const aliasMatch = material.search_aliases?.some((alias: string) => alias.toLowerCase().includes(lowerCaseSearchTerm));
+        return nameMatch || codeMatch || aliasMatch;
+      });
     }
 
     if (selectedCategory !== 'all') {

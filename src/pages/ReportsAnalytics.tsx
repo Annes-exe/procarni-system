@@ -524,10 +524,12 @@ const ReportsAnalytics = () => {
         let results = filteredData;
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            results = results.filter((item: any) =>
-                (item.materials?.name || '').toLowerCase().includes(query) ||
-                (item.purchase_orders?.suppliers?.name || '').toLowerCase().includes(query)
-            );
+            results = results.filter((item: any) => {
+                const nameMatch = (item.materials?.name || '').toLowerCase().includes(query);
+                const supplierMatch = (item.purchase_orders?.suppliers?.name || '').toLowerCase().includes(query);
+                const aliasMatch = item.materials?.search_aliases?.some((alias: string) => alias.toLowerCase().includes(query));
+                return nameMatch || supplierMatch || aliasMatch;
+            });
         }
         return results;
     }, [filteredData, searchQuery]);
