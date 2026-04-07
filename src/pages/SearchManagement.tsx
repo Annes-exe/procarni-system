@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2 } from 'lucide-react';
@@ -73,26 +73,26 @@ const SearchManagement = () => {
   ];
 
   return (
-    <motion.div 
+    <m.div 
       initial="hidden"
       animate="visible"
       variants={containerVariants}
       className="space-y-10"
     >
       {/* Header del Dashboard */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-1.5">
+      <m.div variants={itemVariants} className="flex flex-col gap-1.5">
         <h1 className="text-[34px] font-black text-procarni-blue tracking-tighter">Bienvenido al Sistema</h1>
         <p className="text-[13px] text-gray-500 font-medium italic">Gestión integral de compras y servicios para Procarni</p>
-      </motion.div>
+      </m.div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {kpis.map((kpi, index) => (
-          <motion.div key={index} variants={itemVariants}>
+          <m.div key={index} variants={itemVariants}>
             <Card
               className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500 cursor-pointer"
               onClick={() => navigate(kpi.path)}
             >
-              <motion.div 
+              <m.div 
                 whileHover={{ y: -8 }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
                 className="p-7"
@@ -116,18 +116,18 @@ const SearchManagement = () => {
                   {kpi.description}
                 </p>
               </div>
-            </motion.div>
+            </m.div>
             {/* Decoración de fondo */}
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <kpi.icon className="h-24 w-24 -mr-8 -mt-8 rotate-12" />
             </div>
           </Card>
-          </motion.div>
+          </m.div>
         ))}
       </div>
 
       {/* Quick Actions & Search Section */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <m.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Quick Actions */}
         <Card className="lg:col-span-12 xl:col-span-5 border-none bg-procarni-blue shadow-2xl rounded-[2rem] overflow-hidden relative group">
           <div className="p-7 relative z-10 space-y-7">
@@ -201,8 +201,8 @@ const SearchManagement = () => {
         <div className="lg:col-span-12 xl:col-span-7">
           <SearchSuppliersWidget />
         </div>
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   );
 };
 

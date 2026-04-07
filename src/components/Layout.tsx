@@ -1,7 +1,6 @@
 import React, { useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,28 +12,18 @@ import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
 import { 
   Menu, 
-  X, 
   Search, 
-  Bell, 
-  Settings, 
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  ShieldCheck,
-  User as UserIcon,
-  HelpCircle,
-  Mail,
-  Zap
+  HelpCircle 
 } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { useSession } from './SessionContextProvider';
 import { notificationService } from '@/integrations/supabase/services/notificationService';
-import { format, nextSunday, isSunday, startOfDay } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { format, nextSunday, isSunday } from 'date-fns';
+import { m } from "framer-motion";
 
 const Layout = () => {
   const isMobile = useIsMobile();
-  const mainContentRef = useRef<HTMLElement>(null); // Ref para el contenido principal
+  const mainContentRef = useRef<HTMLElement>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -57,13 +46,10 @@ const Layout = () => {
       const nextSun = isSunday(today) ? today : nextSunday(today);
       const formattedDate = format(nextSun, 'dd-MM-yyyy');
       
-      // Mensaje en consola
       console.log(`%c Backup programado para el dia Domingo ${formattedDate}`, 'background: #222; color: #bada55; padding: 2px 5px; border-radius: 3px;');
 
-      // Verificar si ya existe una notificación para este domingo
       const checkAndCreateNotification = async () => {
         try {
-          // 1. Manejar "Backup programado"
           const { data: existingProgrammed } = await supabase
             .from('notifications')
             .select('id')
@@ -81,7 +67,6 @@ const Layout = () => {
             });
           }
 
-          // 2. Manejar "Backup creado" en consola (si existe para hoy)
           if (isSunday(today)) {
             const todayFormatted = format(today, 'dd-MM-yyyy');
             const { data: existingCreated } = await supabase
@@ -124,7 +109,6 @@ const Layout = () => {
             </NavLink>
           </SheetClose>
           <div className="flex-1 overflow-y-auto scrollbar-none">
-            {/* For mobile, we force the nav to look expanded */}
             <div className="group">
               <SidebarNav forceExpanded={true} />
             </div>
@@ -166,15 +150,18 @@ const Layout = () => {
     );
   }
 
+  const sidebarTransition = { type: "spring", damping: 25, stiffness: 200 };
+
   return (
     <div className="flex h-screen w-full font-body bg-[#F8FAFC] dark:bg-slate-950 text-foreground overflow-hidden">
       {/* Sidebar Desktop - Isla Flotante */}
-      <aside 
+      <m.aside 
         onMouseEnter={() => setIsExpanded(true)}
         onMouseLeave={() => setIsExpanded(false)}
-        className={`fixed left-4 top-4 bottom-4 bg-white/80 backdrop-blur-2xl ring-1 ring-white shadow-2xl shadow-gray-300/50 z-50 flex flex-col justify-between rounded-[2.25rem] overflow-hidden border-none text-[13px] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] ${
-          isExpanded ? "w-64" : "w-[76px]"
-        }`}
+        initial={false}
+        animate={{ width: isExpanded ? 256 : 76 }}
+        transition={sidebarTransition}
+        className="fixed left-4 top-4 bottom-4 bg-white/80 backdrop-blur-2xl ring-1 ring-white shadow-2xl shadow-gray-300/50 z-50 flex flex-col justify-between rounded-[2.25rem] overflow-hidden border-none text-[13px] will-change-[width]"
       >
         <div className="h-full flex flex-col">
           {/* Logo / Header Sidebar */}
@@ -182,13 +169,17 @@ const Layout = () => {
             <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-white shadow-sm ring-1 ring-black/5">
               <img src="/Sis-Prov.png" alt="Sis-Prov Logo" className="w-6 h-6 object-contain" />
             </div>
-            <span 
-              className={`ml-4 font-black text-lg text-procarni-blue tracking-tighter whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-10"
-              }`}
+            <m.span 
+              initial={false}
+              animate={{ 
+                opacity: isExpanded ? 1 : 0,
+                x: isExpanded ? 0 : -20 
+              }}
+              transition={sidebarTransition}
+              className="ml-4 font-black text-lg text-procarni-blue tracking-tighter whitespace-nowrap"
             >
               Procarni
-            </span>
+            </m.span>
           </NavLink>
 
           {/* Navegación Principal */}
@@ -200,23 +191,29 @@ const Layout = () => {
           <div className="p-4 mt-auto">
             <div className="flex items-center gap-3 px-2 py-2 text-muted-foreground hover:text-procarni-primary transition-colors cursor-pointer">
               <HelpCircle className="w-5 h-5 flex-shrink-0" />
-              <span 
-                className={`text-sm font-medium whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                  isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-5"
-                }`}
+              <m.span 
+                initial={false}
+                animate={{ 
+                  opacity: isExpanded ? 1 : 0,
+                  x: isExpanded ? 0 : -10 
+                }}
+                transition={sidebarTransition}
+                className="text-sm font-medium whitespace-nowrap"
               >
                 Ayuda
-              </span>
+              </m.span>
             </div>
           </div>
         </div>
-      </aside>
+      </m.aside>
 
-      {/* Contenido Principal con Margen Dinámico */}
-      <div 
-        className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[margin-left] ${
-          isExpanded ? "ml-[18.5rem]" : "ml-[5.75rem]"
-        }`}
+      {/* Contenido Principal con Desplazamiento GPU */}
+      <m.div 
+        initial={false}
+        animate={{ x: isExpanded ? 180 : 0 }}
+        transition={sidebarTransition}
+        style={{ width: 'calc(100% - 4.75rem)', marginLeft: '4.75rem' }}
+        className="flex-1 flex flex-col h-screen overflow-hidden will-change-transform"
       >
         <header className="h-[4.75rem] bg-white/60 backdrop-blur-xl border-none flex items-center justify-between px-6 z-40 sticky top-4 mx-4 mt-4 rounded-[1.75rem] shadow-2xl shadow-gray-200/50 ring-1 ring-white">
           <div className="flex items-center gap-3">
@@ -249,7 +246,7 @@ const Layout = () => {
         </main>
 
         <ScrollToTopButton scrollContainerRef={mainContentRef} />
-      </div>
+      </m.div>
     </div>
   );
 };

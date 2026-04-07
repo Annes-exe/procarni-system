@@ -49,6 +49,8 @@ interface SidebarNavProps {
   forceExpanded?: boolean;
 }
 
+import { m } from 'framer-motion';
+
 const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
   const { role } = useSession();
 
@@ -60,13 +62,23 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
     return true;
   });
 
+  const springTransition = { type: "spring", damping: 25, stiffness: 200 };
+
   return (
     <nav className="mt-2 flex flex-col gap-5 px-2">
       {filteredNavItems.map((category) => (
         <div key={category.category} className="flex flex-col gap-1">
-          <p className={`transition-all duration-300 text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 px-5 mb-1 whitespace-nowrap overflow-hidden ${forceExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 delay-200 translate-x-1'}`}>
+          <m.p 
+            initial={false}
+            animate={{ 
+              opacity: forceExpanded ? 1 : 0,
+              x: forceExpanded ? 5 : -10 
+            }}
+            transition={springTransition}
+            className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 px-5 mb-1 whitespace-nowrap overflow-hidden"
+          >
             {category.category}
-          </p>
+          </m.p>
           {category.items.map((item) => {
             const isOrdersCategory = category.category === 'Operaciones';
 
@@ -89,13 +101,17 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                 <div className="flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
                   {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[18px] w-[18px]' })}
                 </div>
-                <span 
-                  className={`whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                    forceExpanded ? "opacity-100 translate-x-0 delay-150" : "opacity-0 -translate-x-4"
-                  }`}
+                <m.span 
+                  initial={false}
+                  animate={{ 
+                    opacity: forceExpanded ? 1 : 0,
+                    x: forceExpanded ? 0 : -20 
+                  }}
+                  transition={springTransition}
+                  className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block"
                 >
                   {item.label}
-                </span>
+                </m.span>
               </NavLink>
             );
           })}
