@@ -25,7 +25,7 @@ export default defineConfig(() => ({
       manifest: {
         name: 'Procarni',
         short_name: 'Procarni',
-        theme_color: '#880a0a',
+        theme_color: '#1B294A',
         background_color: '#f8f9fa',
         display: 'standalone',
         icons: [
