@@ -145,6 +145,7 @@ const Layout = () => {
           <DynamicBreadcrumbs />
           <Outlet />
         </main>
+        <GlobalSearch open={isSearchOpen} onOpenChange={setIsSearchOpen} />
         <ScrollToTopButton scrollContainerRef={mainContentRef} />
       </div>
     );
