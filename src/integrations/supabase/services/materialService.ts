@@ -120,33 +120,15 @@ const MaterialService = {
       return data;
     }
 
-    // Usamos el cliente para buscar por nombre o código.
-    // Para buscar dentro del array de aliases con coincidencia parcial, lo ideal sería un RPC,
-    // pero temporalmente podemos traer más resultados y filtrar en cliente si es necesario,
-    // o hacer match exacto de alias.
-    const { data, error } = await supabase
-      .from('materials')
-      .select('*')
-      .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
-      .limit(20);
+    // Usamos el RPC custom que maneja tanto name, code como coincidencias parciales dentro del array search_aliases
+    const { data, error } = await supabase.rpc('search_materials_by_substring', { search_query: query });
 
     if (error) {
-      console.error('[MaterialService.search] Error:', error);
+      console.error('[MaterialService.search] Error calling search RPC:', error);
       return [];
     }
 
-    // Traer adicionalmente coincidencia exacta de aliases
-    const { data: aliasData } = await supabase
-      .from('materials')
-      .select('*')
-      .contains('search_aliases', [query.toUpperCase()])
-      .limit(5);
-
-    // Merge and deduplicate
-    const combined = [...(data || []), ...(aliasData || [])];
-    const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
-
-    return unique.slice(0, 10);
+    return (data as Material[]) || [];
   },
 
   mergeMaterials: async (targetId: string, sourceIds: string[]): Promise<boolean> => {

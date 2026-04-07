@@ -22,13 +22,45 @@ export interface PriceHistoryEntry {
 
 const PriceHistoryService = {
   getByMaterialId: async (materialId: string): Promise<PriceHistoryEntry[]> => {
+    // 1. Resolve all material IDs that belong to the same group
+    const { data: groupData } = await supabase
+      .from('materials')
+      .select('id, base_material_id')
+      .eq('id', materialId)
+      .single();
+
+    let materialIds = [materialId];
+
+    if (groupData) {
+      if (groupData.base_material_id) {
+        // It's a child. Get the base and all other children.
+        const { data: relatedData } = await supabase
+          .from('materials')
+          .select('id')
+          .or(`id.eq.${groupData.base_material_id},base_material_id.eq.${groupData.base_material_id}`);
+        if (relatedData) {
+          materialIds = Array.from(new Set(relatedData.map(r => r.id)));
+        }
+      } else {
+        // It might be a base. Get all its children.
+        const { data: relatedData } = await supabase
+          .from('materials')
+          .select('id')
+          .eq('base_material_id', materialId);
+        if (relatedData && relatedData.length > 0) {
+          materialIds = [materialId, ...relatedData.map(r => r.id)];
+        }
+      }
+    }
+
+    // 2. Fetch price history for all related materials
     const { data, error } = await supabase
       .from('price_history')
       .select(`
         *,
         suppliers (name, rif, code)
       `)
-      .eq('material_id', materialId)
+      .in('material_id', materialIds)
       .order('recorded_at', { ascending: false });
 
     if (error) {

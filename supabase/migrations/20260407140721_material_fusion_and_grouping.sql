@@ -91,3 +91,20 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create RPC function for Advanced Material Searching (incorporating aliases)
+CREATE OR REPLACE FUNCTION public.search_materials_by_substring(search_query text)
+RETURNS SETOF public.materials AS $$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM public.materials
+    WHERE name ILIKE '%' || search_query || '%'
+       OR code ILIKE '%' || search_query || '%'
+       OR EXISTS (
+          SELECT 1 FROM unnest(search_aliases) alias 
+          WHERE alias ILIKE '%' || search_query || '%'
+       )
+    ORDER BY name ASC
+    LIMIT 20;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
