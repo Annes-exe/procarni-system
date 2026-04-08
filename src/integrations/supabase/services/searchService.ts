@@ -66,7 +66,7 @@ export const searchService = {
                     .from('quote_request_items')
                     .select('request_id, quote_requests(id, suppliers(name))')
                     .in('material_id', materialIds)
-                    .limit(3);
+                    .limit(2);
 
                 if (qrItems) {
                     qrItems.forEach((item: any) => {
@@ -87,7 +87,7 @@ export const searchService = {
                     .from('purchase_order_items')
                     .select('order_id, purchase_orders(id, sequence_number, suppliers(name))')
                     .in('material_id', materialIds)
-                    .limit(3);
+                    .limit(2);
 
                 if (poItems) {
                     poItems.forEach((item: any) => {
@@ -108,7 +108,7 @@ export const searchService = {
                     .from('service_order_materials')
                     .select('service_order_id, service_orders(id, sequence_number, equipment_name)')
                     .in('material_id', materialIds)
-                    .limit(3);
+                    .limit(2);
 
                 if (soMaterials) {
                     soMaterials.forEach((item: any) => {
@@ -131,7 +131,7 @@ export const searchService = {
                         .from('quote_request_items')
                         .select('request_id, quote_requests(id, suppliers(name))')
                         .ilike('description', searchTerm)
-                        .limit(3);
+                        .limit(2);
 
                     if (qrItemsDesc) {
                         qrItemsDesc.forEach((item: any) => {
@@ -152,7 +152,7 @@ export const searchService = {
                         .from('purchase_order_items')
                         .select('order_id, purchase_orders(id, sequence_number, suppliers(name))')
                         .ilike('description', searchTerm)
-                        .limit(3);
+                        .limit(2);
 
                     if (poItemsDesc) {
                         poItemsDesc.forEach((item: any) => {
@@ -173,7 +173,7 @@ export const searchService = {
                         .from('service_order_items')
                         .select('order_id, service_orders(id, sequence_number, equipment_name)')
                         .ilike('description', searchTerm)
-                        .limit(3);
+                        .limit(2);
 
                     if (soItemsDesc) {
                         soItemsDesc.forEach((item: any) => {
@@ -192,28 +192,29 @@ export const searchService = {
             }
 
             // 3. Search Purchase Orders
-            const isNumeric = !isNaN(Number(query));
-            let poQuery = supabase
-                .from('purchase_orders')
-                .select('id, sequence_number, suppliers(name)')
-                .limit(5);
+            const isNumeric = !isNaN(Number(query)) && query.length > 0;
+            let poQuery = supabase.from('purchase_orders').select('id, sequence_number');
 
             let hasPoFilter = false;
+            let poSelect = 'id, sequence_number, suppliers(name)';
+
             if (isNumeric) {
-                poQuery = poQuery.eq('sequence_number', Number(query));
-                hasPoFilter = true;
-            } else if (foundSupplierIds.length > 0) {
-                // Search POs by found supplier IDs
-                poQuery = poQuery.in('supplier_id', foundSupplierIds);
+                const numQuery = Number(query);
+                if (query.length < 3) {
+                    poQuery = poQuery.eq('sequence_number', numQuery);
+                } else {
+                    poQuery = poQuery.or(`sequence_number.eq.${numQuery}`);
+                }
                 hasPoFilter = true;
             } else if (query.length > 3) {
-                // Search POs by supplier name
+                // Search POs by supplier name with inner join to enforce filtering
+                poSelect = 'id, sequence_number, suppliers!inner(name)';
                 poQuery = poQuery.ilike('suppliers.name', searchTerm);
                 hasPoFilter = true;
             }
 
             if (hasPoFilter) {
-                const { data: pos } = await poQuery;
+                const { data: pos } = await poQuery.select(poSelect).limit(5);
                 if (pos) {
                     pos.forEach((po: any) => {
                         if (!results.some(r => r.id === po.id)) {
@@ -230,26 +231,33 @@ export const searchService = {
             }
 
             // 4. Search Service Orders (by sequence or equipment)
-            let soQuery = supabase
-                .from('service_orders')
-                .select('id, sequence_number, equipment_name, service_type, suppliers(name)') // Added suppliers(name) for potential future use or consistency
-                .limit(5);
+            let soQuery = supabase.from('service_orders').select('id, sequence_number');
 
             let hasSoFilter = false;
+            let soSelect = 'id, sequence_number, equipment_name, service_type, suppliers(name)';
+
             if (isNumeric) {
-                soQuery = soQuery.eq('sequence_number', Number(query));
-                hasSoFilter = true;
-            } else if (foundSupplierIds.length > 0) {
-                // Search SOs by found supplier IDs
-                soQuery = soQuery.in('supplier_id', foundSupplierIds);
+                const numQuery = Number(query);
+                if (query.length < 3) {
+                    soQuery = soQuery.eq('sequence_number', numQuery);
+                } else {
+                    soQuery = soQuery.or(`sequence_number.eq.${numQuery}`);
+                }
                 hasSoFilter = true;
             } else if (query.length > 3) {
+                // For text search, use !inner to ensure supplier filter works parent-level if needed
+                // Note: since we also search equipment/service type, if those match but supplier doesn't,
+                // we might still want the parent. However, the user is seeing noise with suppliers.
+                // Let's use !inner ONLY if we primarily expect a supplier match in this section.
+                // Actually, let's just use !inner with the OR condition properly.
+                
+                soSelect = 'id, sequence_number, equipment_name, service_type, suppliers!inner(name)';
                 soQuery = soQuery.or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
                 hasSoFilter = true;
             }
 
             if (hasSoFilter) {
-                const { data: sos } = await soQuery;
+                const { data: sos } = await soQuery.select(soSelect).limit(5);
                 if (sos) {
                     sos.forEach((so: any) => {
                         if (!results.some(r => r.id === so.id)) {
@@ -266,24 +274,20 @@ export const searchService = {
             }
 
             // 5. Search Quote Requests
-            let qrQuery = supabase
-                .from('quote_requests')
-                .select('id, suppliers(name)')
-                .limit(5);
+            let qrQuery = supabase.from('quote_requests').select('id');
 
             let hasQrFilter = false;
-            if (foundSupplierIds.length > 0) {
-                // Search SCs by found supplier IDs
-                qrQuery = qrQuery.in('supplier_id', foundSupplierIds);
-                hasQrFilter = true;
-            } else if (query.length > 3) {
+            let qrSelect = 'id, suppliers(name)';
+
+            if (query.length > 3) {
                 // Search SCs by ID or supplier name
+                qrSelect = 'id, suppliers!inner(name)';
                 qrQuery = qrQuery.or(`id.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
                 hasQrFilter = true;
             }
 
             if (hasQrFilter) {
-                const { data: qrs } = await qrQuery;
+                const { data: qrs } = await qrQuery.select(qrSelect).limit(5);
                 if (qrs) {
                     qrs.forEach((qr: any) => {
                         if (!results.some(r => r.id === qr.id)) {
