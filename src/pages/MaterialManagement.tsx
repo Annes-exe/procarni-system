@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info, X } from 'lucide-react';
 
 import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -258,6 +258,15 @@ const MaterialManagement = () => {
             <span className="font-bold">{selectedMaterialIds.length}</span> materiales seleccionados
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedMaterialIds([])}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
             <Button
               variant="outline"
               size="sm"
