@@ -193,101 +193,83 @@ export const searchService = {
 
             // 3. Search Purchase Orders
             const isNumeric = !isNaN(Number(query)) && query.length > 0;
-            let poQuery = supabase.from('purchase_orders').select('id, sequence_number');
-
-            let hasPoFilter = false;
-            let poSelect = 'id, sequence_number, suppliers(name)';
+            let poResults: any[] = [];
 
             if (isNumeric) {
                 const numQuery = Number(query);
-                if (query.length < 3) {
-                    poQuery = poQuery.eq('sequence_number', numQuery);
-                } else {
-                    poQuery = poQuery.or(`sequence_number.eq.${numQuery}`);
-                }
-                hasPoFilter = true;
-            } else if (query.length > 3) {
+                const { data } = await supabase
+                    .from('purchase_orders')
+                    .select('id, sequence_number, suppliers(name)')
+                    .eq('sequence_number', numQuery)
+                    .limit(5);
+                if (data) poResults = data;
+            } else if (query.length >= 3) {
                 // Search POs by supplier name with inner join to enforce filtering
-                poSelect = 'id, sequence_number, suppliers!inner(name)';
-                poQuery = poQuery.ilike('suppliers.name', searchTerm);
-                hasPoFilter = true;
+                const { data } = await supabase
+                    .from('purchase_orders')
+                    .select('id, sequence_number, suppliers!inner(name)')
+                    .ilike('suppliers.name', searchTerm)
+                    .limit(5);
+                if (data) poResults = data;
             }
 
-            if (hasPoFilter) {
-                const { data: pos } = await poQuery.select(poSelect).limit(5);
-                if (pos) {
-                    pos.forEach((po: any) => {
-                        if (!results.some(r => r.id === po.id)) {
-                            results.push({
-                                id: po.id,
-                                title: `Orden de Compra #${po.sequence_number}`,
-                                subtitle: `Proveedor: ${po.suppliers?.name || 'Varios'}`,
-                                type: 'purchase_order',
-                                url: `/purchase-orders/${po.id}`
-                            });
-                        }
-                    });
-                }
+            if (poResults.length > 0) {
+                poResults.forEach((po: any) => {
+                    if (!results.some(r => r.id === po.id)) {
+                        results.push({
+                            id: po.id,
+                            title: `Orden de Compra #${po.sequence_number}`,
+                            subtitle: `Proveedor: ${po.suppliers?.name || 'Varios'}`,
+                            type: 'purchase_order',
+                            url: `/purchase-orders/${po.id}`
+                        });
+                    }
+                });
             }
 
-            // 4. Search Service Orders (by sequence or equipment)
-            let soQuery = supabase.from('service_orders').select('id, sequence_number');
-
-            let hasSoFilter = false;
-            let soSelect = 'id, sequence_number, equipment_name, service_type, suppliers(name)';
+            // 4. Search Service Orders (by sequence or equipment/supplier)
+            let soResults: any[] = [];
 
             if (isNumeric) {
                 const numQuery = Number(query);
-                if (query.length < 3) {
-                    soQuery = soQuery.eq('sequence_number', numQuery);
-                } else {
-                    soQuery = soQuery.or(`sequence_number.eq.${numQuery}`);
-                }
-                hasSoFilter = true;
-            } else if (query.length > 3) {
-                // For text search, use !inner to ensure supplier filter works parent-level if needed
-                // Note: since we also search equipment/service type, if those match but supplier doesn't,
-                // we might still want the parent. However, the user is seeing noise with suppliers.
-                // Let's use !inner ONLY if we primarily expect a supplier match in this section.
-                // Actually, let's just use !inner with the OR condition properly.
-                
-                soSelect = 'id, sequence_number, equipment_name, service_type, suppliers!inner(name)';
-                soQuery = soQuery.or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
-                hasSoFilter = true;
+                const { data } = await supabase
+                    .from('service_orders')
+                    .select('id, sequence_number, equipment_name, service_type, suppliers(name)')
+                    .eq('sequence_number', numQuery)
+                    .limit(5);
+                if (data) soResults = data;
+            } else if (query.length >= 3) {
+                const { data } = await supabase
+                    .from('service_orders')
+                    .select('id, sequence_number, equipment_name, service_type, suppliers!inner(name)')
+                    .or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`)
+                    .limit(5);
+                if (data) soResults = data;
             }
 
-            if (hasSoFilter) {
-                const { data: sos } = await soQuery.select(soSelect).limit(5);
-                if (sos) {
-                    sos.forEach((so: any) => {
-                        if (!results.some(r => r.id === so.id)) {
-                            results.push({
-                                id: so.id,
-                                title: `Orden de Servicio #${so.sequence_number}`,
-                                subtitle: `${so.service_type} - ${so.equipment_name}`,
-                                type: 'service_order',
-                                url: `/service-orders/${so.id}`
-                            });
-                        }
-                    });
-                }
+            if (soResults.length > 0) {
+                soResults.forEach((so: any) => {
+                    if (!results.some(r => r.id === so.id)) {
+                        results.push({
+                            id: so.id,
+                            title: `Orden de Servicio #${so.sequence_number}`,
+                            subtitle: `${so.service_type} - ${so.equipment_name}`,
+                            type: 'service_order',
+                            url: `/service-orders/${so.id}`
+                        });
+                    }
+                });
             }
 
             // 5. Search Quote Requests
-            let qrQuery = supabase.from('quote_requests').select('id');
+            if (query.length >= 3) {
+                // Search SCs by supplier name (ID is UUID, so no partial text search on it)
+                const { data: qrs } = await supabase
+                    .from('quote_requests')
+                    .select('id, suppliers!inner(name)')
+                    .ilike('suppliers.name', searchTerm)
+                    .limit(5);
 
-            let hasQrFilter = false;
-            let qrSelect = 'id, suppliers(name)';
-
-            if (query.length > 3) {
-                // Search SCs by ID or supplier name
-                qrSelect = 'id, suppliers!inner(name)';
-                qrQuery = qrQuery.or(`id.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
-                hasQrFilter = true;
-            }
-
-            if (hasQrFilter) {
-                const { data: qrs } = await qrQuery.select(qrSelect).limit(5);
                 if (qrs) {
                     qrs.forEach((qr: any) => {
                         if (!results.some(r => r.id === qr.id)) {
