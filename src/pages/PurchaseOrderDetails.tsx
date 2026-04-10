@@ -17,6 +17,7 @@ import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { OrderDocumentManager } from '@/components/OrderDocumentManager';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +113,7 @@ const PurchaseOrderDetails = () => {
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
 
   const pdfViewerRef = React.useRef<PurchaseOrderPDFViewerRef>(null);
 
@@ -502,6 +504,10 @@ const PurchaseOrderDetails = () => {
                     className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
                   />
                 </DropdownMenuItem>
+                
+                <DropdownMenuItem onSelect={() => setIsDocumentManagerOpen(true)}>
+                  <Paperclip className="mr-2 h-4 w-4" /> Documentos Adjuntos
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
@@ -794,6 +800,17 @@ const PurchaseOrderDetails = () => {
           secondary: order.suppliers?.phone_2 || null
         }}
       />
+
+      {order && (
+        <OrderDocumentManager
+          orderId={order.id}
+          orderType="PO"
+          supplierName={order.suppliers?.name || 'Proveedor'}
+          sequenceNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+          isOpen={isDocumentManagerOpen}
+          onOpenChange={setIsDocumentManagerOpen}
+        />
+      )}
     </div>
   );
 };
