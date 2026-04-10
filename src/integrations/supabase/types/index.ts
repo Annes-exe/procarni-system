@@ -145,6 +145,18 @@ export interface FichaTecnica {
   suppliers?: { name: string }; // For fetching list
 }
 
+export interface OrderDocument {
+  id: string;
+  purchase_order_id?: string | null;
+  service_order_id?: string | null;
+  document_type: 'Factura' | 'Nota de Entrega' | 'Otro';
+  file_url: string;
+  cloudinary_public_id?: string;
+  created_at: string;
+  user_id: string;
+  users?: { email: string };
+}
+
 export interface SupplierQuote {
   id: string;
   material_id: string;
