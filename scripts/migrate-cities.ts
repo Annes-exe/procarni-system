@@ -199,7 +199,7 @@ async function runMigration() {
 
     let updatedCount = 0;
     let skippedCount = 0;
-    const skippedDetails: { name: string, reason: string }[] = [];
+    const skippedDetails: { name: string, reason: string, isEmpty: boolean }[] = [];
 
     // 2. Evaluar y actualizar cada proveedor
     for (const supplier of suppliers) {
