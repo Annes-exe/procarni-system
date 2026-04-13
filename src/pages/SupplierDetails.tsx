@@ -393,16 +393,9 @@ const SupplierDetails = () => {
                 
                 {(supplier.city || supplier.state) && (
                   <div className="flex flex-wrap gap-2">
-                    {supplier.city && (
-                      <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
-                        <span className="font-semibold text-gray-400 mr-1">Ciudad:</span> {supplier.city}
-                      </div>
-                    )}
-                    {supplier.state && (
-                      <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
-                        <span className="font-semibold text-gray-400 mr-1">Estado:</span> {supplier.state}
-                      </div>
-                    )}
+                    <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
+                      <span className="font-semibold text-gray-400 mr-1">Ubicación:</span> {supplier.city}{supplier.city && supplier.state ? ', ' : ''}{supplier.state}
+                    </div>
                   </div>
                 )}
               </div>

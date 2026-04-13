@@ -81,3 +81,12 @@ export const VENEZUELA_LOCATIONS = {
 };
 
 export const VENEZUELAN_STATES = Object.keys(VENEZUELA_LOCATIONS).sort();
+
+// Helper to get all cities and their states for a flattened searchable list
+export const VENEZUELAN_MUNICIPALITIES_FLAT = Object.entries(VENEZUELA_LOCATIONS).flatMap(([state, cities]) => 
+  cities.map(city => ({
+    city,
+    state,
+    label: `${city}, ${state}`
+  }))
+).sort((a, b) => a.city.localeCompare(b.city));

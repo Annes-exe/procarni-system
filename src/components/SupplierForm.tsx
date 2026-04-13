@@ -10,13 +10,17 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Plus, X, PlusCircle, Info } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
-import { validateRif } from '@/utils/validators'; // Importar el validador de RIF
-import MaterialCreationDialog from '@/components/MaterialCreationDialog'; // NEW IMPORT
-import { VENEZUELA_LOCATIONS, VENEZUELAN_STATES } from '@/constants/venezuela-locations';
+import { validateRif } from '@/utils/validators';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import { VENEZUELAN_MUNICIPALITIES_FLAT } from '@/constants/venezuela-locations';
+import { detectLocation } from '@/utils/location-detector';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 // Esquema de validación - reestructurado para evitar problemas con ctx.parent
 const supplierFormSchema = z.object({
@@ -120,36 +124,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
 
   useEffect(() => {
     if (currentAddress) {
-      const addressLower = currentAddress.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      
-      let detectedState = '';
-      let detectedCity = '';
-
-      // 1. Intentar detectar el estado primero
-      for (const state of VENEZUELAN_STATES) {
-        const stateNormalized = state.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (addressLower.includes(stateNormalized)) {
-          detectedState = state;
-          break;
-        }
-      }
-
-      // 2. Intentar detectar la ciudad/municipio
-      for (const [state, cities] of Object.entries(VENEZUELA_LOCATIONS)) {
-        for (const city of cities) {
-          const cityNormalized = city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          if (addressLower.includes(cityNormalized)) {
-            // Si ya detectamos un estado, preferimos ciudades de ese estado
-            // Si no detectamos estado, tomamos la primera ciudad que coincida y asignamos su estado
-            if (!detectedState || detectedState === state) {
-              detectedCity = city;
-              if (!detectedState) detectedState = state;
-              break;
-            }
-          }
-        }
-        if (detectedCity) break;
-      }
+      const { state: detectedState, city: detectedCity } = detectLocation(currentAddress);
 
       if (detectedState && form.getValues('state') !== detectedState) {
         form.setValue('state', detectedState, { shouldDirty: true });
@@ -397,63 +372,68 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
             </FormItem>
           )}
         />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="state"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Estado</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || undefined}>
+        <FormField
+          control={form.control}
+          name="city"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>Ciudad / Municipio</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione estado" />
-                    </SelectTrigger>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value
+                        ? VENEZUELAN_MUNICIPALITIES_FLAT.find(
+                            (m) => m.city === field.value && m.state === form.getValues('state')
+                          )?.label || field.value
+                        : "Seleccionar ciudad..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
                   </FormControl>
-                  <SelectContent className="max-h-[250px]">
-                    {VENEZUELAN_STATES.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="city"
-            render={({ field }) => {
-              const currentState = form.watch('state');
-              const availableCities = currentState ? (VENEZUELA_LOCATIONS[currentState as keyof typeof VENEZUELA_LOCATIONS] || []) : [];
-              
-              return (
-                <FormItem>
-                  <FormLabel>Ciudad / Municipio</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    value={field.value || undefined}
-                    disabled={!currentState}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={currentState ? "Seleccione ciudad" : "Primero elija un estado"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-[250px]">
-                      {availableCities.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              );
-            }}
-          />
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-1">La ubicación puede detectarse automáticamente si escribe el nombre en la dirección</p>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar ciudad o estado..." />
+                    <CommandList>
+                      <CommandEmpty>No se encontró la ciudad.</CommandEmpty>
+                      <CommandGroup>
+                        {VENEZUELAN_MUNICIPALITIES_FLAT.map((m) => (
+                          <CommandItem
+                            value={m.label}
+                            key={`${m.city}-${m.state}`}
+                            onSelect={() => {
+                              form.setValue("city", m.city);
+                              form.setValue("state", m.state);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                m.city === field.value && m.state === form.getValues('state')
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                                )}
+                            />
+                            {m.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">La ubicación se detectará automáticamente al escribir la dirección, pero puedes cambiarla aquí.</p>
         <FormField
           control={form.control}
           name="payment_terms"
