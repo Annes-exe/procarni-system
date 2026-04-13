@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2 } from 'lucide-react';
+import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search } from 'lucide-react';
 
 import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
 import SupplierForm from '@/components/SupplierForm'; // Import SupplierForm
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 
 interface MaterialAssociation {
   id: string; // ID of supplier_materials entry
@@ -69,6 +70,7 @@ const SupplierDetails = () => {
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
   const [isEditOpen, setIsEditOpen] = useState(false); // New state for edit dialog
+  const [searchTerm, setSearchTerm] = useState('');
 
   const { data: supplier, isLoading, error } = useQuery<SupplierDetailsData | null>({
     queryKey: ['supplierDetails', id],
@@ -92,6 +94,28 @@ const SupplierDetails = () => {
 
   const fichaStatusResults = useQueries({ queries: materialQueries });
   const isLoadingFichaStatus = fichaStatusResults.some(result => result.isLoading);
+
+  // Combine materials with their ficha status to survive filtering
+  const materialsWithStatus = useMemo(() => {
+    if (!supplier?.materials) return [];
+    return supplier.materials.map((sm, index) => ({
+      ...sm,
+      hasFichaResult: fichaStatusResults[index]?.data as boolean,
+      isLoadingFicha: fichaStatusResults[index]?.isLoading
+    }));
+  }, [supplier?.materials, fichaStatusResults]);
+
+  const filteredMaterials = useMemo(() => {
+    if (!materialsWithStatus) return [];
+    if (!searchTerm.trim()) return materialsWithStatus;
+
+    const lowerSearch = searchTerm.toLowerCase();
+    return materialsWithStatus.filter(sm =>
+      sm.materials.name.toLowerCase().includes(lowerSearch) ||
+      sm.materials.code?.toLowerCase().includes(lowerSearch) ||
+      sm.materials.category?.toLowerCase().includes(lowerSearch)
+    );
+  }, [materialsWithStatus, searchTerm]);
   // --------------------------------------------------------------------
 
   // Mutation for updating supplier
@@ -407,23 +431,34 @@ const SupplierDetails = () => {
       {/* PHASE 3: MATERIALS CARD */}
       <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
         <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
-          <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
-            Materiales Ofrecidos
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+              Materiales Ofrecidos
+            </CardTitle>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar material..."
+                className="pl-8 h-9 text-xs bg-white border-gray-200"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {supplier.materials && supplier.materials.length > 0 ? (
             isMobile ? (
               <div className="divide-y divide-gray-100">
-                {supplier.materials.map((sm, index) => {
-                  const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
-                  return (
+                {filteredMaterials.length > 0 ? (
+                  filteredMaterials.map((sm, index) => (
                     <div key={sm.id || index} className="p-4 bg-white">
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-semibold text-procarni-dark">{sm.materials.name}</span>
-                        {isLoadingFicha ? (
+                        {sm.isLoadingFicha ? (
                           <span className="text-[10px] text-gray-400 italic">Cargando...</span>
-                        ) : hasFicha ? (
+                        ) : sm.hasFichaResult ? (
                           <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} className="h-6 w-6">
                             <FileText className="h-3.5 w-3.5 text-procarni-secondary" />
                           </Button>
@@ -444,8 +479,12 @@ const SupplierDetails = () => {
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-gray-400 italic">
+                    No se encontraron materiales que coincidan con la búsqueda.
+                  </div>
+                )}
               </div>
             ) : (
               <Table>
@@ -459,18 +498,17 @@ const SupplierDetails = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {supplier.materials.map((sm, index) => {
-                    const { data: hasFicha, isLoading: isLoadingFicha } = fichaStatusResults[index];
-                    return (
+                  {filteredMaterials.length > 0 ? (
+                    filteredMaterials.map((sm, index) => (
                       <TableRow key={sm.id || index} className="border-b border-gray-50 hover:bg-gray-50/30">
                         <TableCell className="pl-6 font-mono text-[13px] text-gray-500">{sm.materials.code || 'N/A'}</TableCell>
                         <TableCell className="font-medium text-procarni-dark">{sm.materials.name}</TableCell>
                         <TableCell className="text-gray-500">{sm.materials.category || 'N/A'}</TableCell>
                         <TableCell className="text-gray-500 italic text-sm truncate max-w-[200px]">{sm.specification || 'N/A'}</TableCell>
                         <TableCell className="text-center pr-6">
-                          {isLoadingFicha ? (
+                          {sm.isLoadingFicha ? (
                             <span className="text-[10px] text-gray-400">...</span>
-                          ) : hasFicha ? (
+                          ) : sm.hasFichaResult ? (
                             <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} className="hover:bg-green-50 rounded-full">
                               <FileText className="h-4 w-4 text-procarni-secondary" />
                             </Button>
@@ -479,8 +517,14 @@ const SupplierDetails = () => {
                           )}
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-gray-400 italic">
+                        No se encontraron materiales que coincidan con la búsqueda.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             )

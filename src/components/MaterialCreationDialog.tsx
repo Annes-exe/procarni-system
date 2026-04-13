@@ -108,16 +108,41 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               setUnit(bestMatch.unit || (units[0]?.name || ''));
               // Use existing material's exemption status
               setIsExempt(bestMatch.is_exempt || false);
-            } else {
-              // If it's just a suggestion, keep current form values but show suggestion
-              // We only reset fields if the user accepts the suggestion
+            } else if (trimmedName.toLowerCase().startsWith('tripa')) {
+              // Apply "tripa" auto-fill logic for new material candidate even if there are suggests
+              const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+              const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+              
+              const isDefaultCategory = category === (categories[0]?.name || '');
+              const isDefaultUnit = unit === (units[0]?.name || '');
+
+              if (empCategory && isDefaultCategory) setCategory(empCategory.name);
+              if (mtUnit && isDefaultUnit) setUnit(mtUnit.name);
             }
           } else {
             setSuggestedMaterial(null);
-            // Reset fields to default if no match found, respecting FRESCA rule
-            setCategory(categories[0]?.name || '');
-            setUnit(units[0]?.name || '');
-            setIsExempt((categories[0]?.name || '') === 'FRESCA');
+            
+            // Apply "tripa" auto-fill logic if no match found
+            if (trimmedName.toLowerCase().startsWith('tripa')) {
+              const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+              const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+              
+              const isDefaultCategory = category === (categories[0]?.name || '');
+              const isDefaultUnit = unit === (units[0]?.name || '');
+
+              if (empCategory && isDefaultCategory) setCategory(empCategory.name);
+              if (mtUnit && isDefaultUnit) setUnit(mtUnit.name);
+              
+              // If we set category to EMPAQUE, we might want to update isExempt too if it was default
+              if (empCategory && isDefaultCategory) {
+                  setIsExempt(empCategory.name === 'FRESCA');
+              }
+            } else {
+              // Reset fields to default if no match found and not "tripa", respecting FRESCA rule
+              setCategory(categories[0]?.name || '');
+              setUnit(units[0]?.name || '');
+              setIsExempt((categories[0]?.name || '') === 'FRESCA');
+            }
           }
         } catch (e) {
           console.error("Error checking material existence:", e);

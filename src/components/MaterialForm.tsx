@@ -55,6 +55,24 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
   });
 
   const watchedCategory = form.watch('category');
+  const watchedName = form.watch('name');
+
+  // Effect to auto-fill category and unit for "tripa" materials
+  React.useEffect(() => {
+    if (!initialData && watchedName.toLowerCase().startsWith('tripa')) {
+      // Find category that matches "EMPAQUE" (case-insensitive)
+      const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+      if (empCategory) {
+        form.setValue('category', empCategory.name, { shouldDirty: true });
+      }
+
+      // Find unit that matches "mt" (case-insensitive)
+      const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+      if (mtUnit) {
+        form.setValue('unit', mtUnit.name, { shouldDirty: true });
+      }
+    }
+  }, [watchedName, initialData, categories, units, form]);
 
   // Set form values when initialData changes (for editing)
   React.useEffect(() => {
@@ -72,7 +90,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
         is_exempt: (categories[0]?.name || '') === 'FRESCA',
       });
     }
-  }, [initialData, form]);
+  }, [initialData, form, categories]);
 
   // Set default unit if it's empty and we have units
   React.useEffect(() => {
