@@ -197,17 +197,20 @@ async function runMigration() {
         process.exit(1);
     }
 
-    console.log(`Encontrados ${suppliers.length} proveedores. Evaluando cambios...`);
-
     let updatedCount = 0;
     let skippedCount = 0;
+    const skippedDetails: { name: string, reason: string }[] = [];
 
     // 2. Evaluar y actualizar cada proveedor
     for (const supplier of suppliers) {
         const { state: newState, city: newCity } = detectLocation(supplier.address || '');
 
+        const hasChanges = newState !== (supplier.state || '') || newCity !== (supplier.city || '');
+        const currentHasLocation = !!supplier.state || !!supplier.city;
+        const detectionFoundSomething = !!newState || !!newCity;
+
         // Solo actualizar si hay cambios
-        if (newState !== (supplier.state || '') || newCity !== (supplier.city || '')) {
+        if (hasChanges) {
             console.log(`\n[PROVEEDOR: ${supplier.name}]`);
             console.log(`  - Dirección: "${supplier.address}"`);
             console.log(`  - Cambio detectado:`);
@@ -231,6 +234,17 @@ async function runMigration() {
             }
         } else {
             skippedCount++;
+            let reason = 'Ya tiene la ubicación cargada correctamente.';
+            
+            if (!detectionFoundSomething && !currentHasLocation) {
+                reason = 'FALLO DE DETECCIÓN: Sigue sin ciudad/estado (dirección vacía o ilegible).';
+            } else if (!detectionFoundSomething && currentHasLocation) {
+                reason = 'No se detectó nada nuevo, pero ya tiene datos previos en DB.';
+            } else if (detectionFoundSomething && currentHasLocation) {
+                reason = 'Los datos en DB ya coinciden perfectamente con lo detectado.';
+            }
+            
+            skippedDetails.push({ name: supplier.name, reason, isEmpty: !currentHasLocation });
         }
     }
 
@@ -240,6 +254,23 @@ async function runMigration() {
     console.log(`Proveedores actualizados: ${updatedCount}`);
     console.log(`Proveedores sin cambios: ${skippedCount}`);
     console.log('----------------------------------------\n');
+
+    if (skippedDetails.length > 0) {
+        const failedDetection = skippedDetails.filter(s => s.isEmpty);
+        const alreadyCorrect = skippedDetails.filter(s => !s.isEmpty);
+
+        if (failedDetection.length > 0) {
+            console.log(`PROVEEDORES QUE SIGUEN VACÍOS (${failedDetection.length}) - NECESITAN REVISIÓN MANUAL:`);
+            failedDetection.forEach(s => console.log(`- [${s.name}]`));
+            console.log('----------------------------------------\n');
+        }
+
+        if (alreadyCorrect.length > 0) {
+            console.log(`PROVEEDORES YA NORMALIZADOS (${alreadyCorrect.length}):`);
+            alreadyCorrect.forEach(s => console.log(`- [${s.name}]`));
+            console.log('----------------------------------------\n');
+        }
+    }
 }
 
 runMigration().catch(console.error);
