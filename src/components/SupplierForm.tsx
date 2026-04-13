@@ -16,14 +16,7 @@ import { getAllMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { validateRif } from '@/utils/validators'; // Importar el validador de RIF
 import MaterialCreationDialog from '@/components/MaterialCreationDialog'; // NEW IMPORT
-
-const VENEZUELAN_CITIES = [
-  'Caracas', 'Maracaibo', 'Valencia', 'Barquisimeto', 'Maracay',
-  'Ciudad Guayana', 'San Cristóbal', 'Maturín', 'Barinas', 'Barcelona',
-  'Mérida', 'Coro', 'Cumaná', 'Ciudad Bolívar', 'San Felipe',
-  'Guanare', 'San Carlos', 'San Juan de los Morros', 'Tucupita',
-  'Puerto Ayacucho', 'La Asunción', 'La Guaira'
-].sort((a, b) => a.localeCompare(b));
+import { VENEZUELA_LOCATIONS, VENEZUELAN_STATES } from '@/constants/venezuela-locations';
 
 // Esquema de validación - reestructurado para evitar problemas con ctx.parent
 const supplierFormSchema = z.object({
@@ -38,6 +31,7 @@ const supplierFormSchema = z.object({
   instagram: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
   payment_terms: z.enum(['Contado', 'Crédito', 'Otro'], { message: 'Términos de pago son requeridos y deben ser Contado, Crédito u Otro.' }), // Opciones limitadas
   // Eliminamos las validaciones condicionales que dependen de ctx.parent
   custom_payment_terms: z.string().optional().nullable(),
@@ -68,6 +62,7 @@ interface SupplierFormProps {
     instagram?: string;
     address?: string;
     city?: string | null;
+    state?: string | null;
     payment_terms: 'Contado' | 'Crédito' | 'Otro';
     custom_payment_terms?: string | null;
     credit_days: number;
@@ -109,6 +104,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       instagram: '',
       address: '',
       city: '',
+      state: '',
       payment_terms: 'Contado',
       custom_payment_terms: '',
       credit_days: 0,
@@ -125,14 +121,41 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
   useEffect(() => {
     if (currentAddress) {
       const addressLower = currentAddress.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      for (const city of VENEZUELAN_CITIES) {
-        const cityNormalized = city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (addressLower.includes(cityNormalized)) {
-          if (form.getValues('city') !== city) {
-            form.setValue('city', city, { shouldDirty: true });
-          }
+      
+      let detectedState = '';
+      let detectedCity = '';
+
+      // 1. Intentar detectar el estado primero
+      for (const state of VENEZUELAN_STATES) {
+        const stateNormalized = state.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (addressLower.includes(stateNormalized)) {
+          detectedState = state;
           break;
         }
+      }
+
+      // 2. Intentar detectar la ciudad/municipio
+      for (const [state, cities] of Object.entries(VENEZUELA_LOCATIONS)) {
+        for (const city of cities) {
+          const cityNormalized = city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          if (addressLower.includes(cityNormalized)) {
+            // Si ya detectamos un estado, preferimos ciudades de ese estado
+            // Si no detectamos estado, tomamos la primera ciudad que coincida y asignamos su estado
+            if (!detectedState || detectedState === state) {
+              detectedCity = city;
+              if (!detectedState) detectedState = state;
+              break;
+            }
+          }
+        }
+        if (detectedCity) break;
+      }
+
+      if (detectedState && form.getValues('state') !== detectedState) {
+        form.setValue('state', detectedState, { shouldDirty: true });
+      }
+      if (detectedCity && form.getValues('city') !== detectedCity) {
+        form.setValue('city', detectedCity, { shouldDirty: true });
       }
     }
   }, [currentAddress, form]);
@@ -158,6 +181,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         instagram: initialData.instagram || '',
         address: initialData.address || '',
         city: initialData.city || '',
+        state: initialData.state || '',
         payment_terms: initialData.payment_terms,
         custom_payment_terms: initialData.custom_payment_terms || '',
         credit_days: initialData.credit_days || 0,
@@ -175,6 +199,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         instagram: '',
         address: '',
         city: '',
+        state: '',
         payment_terms: 'Contado',
         custom_payment_terms: '',
         credit_days: 0,
@@ -269,6 +294,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       ...data,
       rif: normalizedRif,
       city: data.city || null,
+      state: data.state || null,
       name: data.name.toUpperCase(), // Ensure name is uppercase before submission
       credit_days: data.payment_terms === 'Crédito' ? data.credit_days : 0,
       custom_payment_terms: data.payment_terms === 'Otro' ? data.custom_payment_terms : null,
@@ -371,30 +397,63 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="city"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Ciudad (Ubicación)</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Autodetectado o seleccione" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent className="max-h-[250px]">
-                  <SelectItem value="none" disabled className="hidden">Seleccione ciudad</SelectItem>
-                  {VENEZUELAN_CITIES.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground mt-1">Puede detectarse automáticamente desde la dirección</p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="state"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estado</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || undefined}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccione estado" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="max-h-[250px]">
+                    {VENEZUELAN_STATES.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="city"
+            render={({ field }) => {
+              const currentState = form.watch('state');
+              const availableCities = currentState ? (VENEZUELA_LOCATIONS[currentState as keyof typeof VENEZUELA_LOCATIONS] || []) : [];
+              
+              return (
+                <FormItem>
+                  <FormLabel>Ciudad / Municipio</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value || undefined}
+                    disabled={!currentState}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={currentState ? "Seleccione ciudad" : "Primero elija un estado"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="max-h-[250px]">
+                      {availableCities.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1">La ubicación puede detectarse automáticamente si escribe el nombre en la dirección</p>
         <FormField
           control={form.control}
           name="payment_terms"

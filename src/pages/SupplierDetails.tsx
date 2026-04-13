@@ -49,6 +49,8 @@ interface SupplierDetailsData {
   phone_2?: string;
   instagram?: string;
   address?: string;
+  city?: string | null;
+  state?: string | null;
   payment_terms: string;
   custom_payment_terms?: string | null;
   credit_days: number;
@@ -387,7 +389,22 @@ const SupplierDetails = () => {
               <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
               <div>
                 <span className={microLabelClass}>Dirección Fiscal</span>
-                <p className="text-gray-600 text-sm leading-relaxed">{supplier.address || 'N/A'}</p>
+                <p className="text-gray-600 text-sm leading-relaxed mb-2">{supplier.address || 'N/A'}</p>
+                
+                {(supplier.city || supplier.state) && (
+                  <div className="flex flex-wrap gap-2">
+                    {supplier.city && (
+                      <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
+                        <span className="font-semibold text-gray-400 mr-1">Ciudad:</span> {supplier.city}
+                      </div>
+                    )}
+                    {supplier.state && (
+                      <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
+                        <span className="font-semibold text-gray-400 mr-1">Estado:</span> {supplier.state}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

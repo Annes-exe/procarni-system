@@ -10,6 +10,8 @@ export interface Supplier {
   phone_2?: string;
   instagram?: string;
   address?: string;
+  city?: string | null;
+  state?: string | null;
   payment_terms: string;
   custom_payment_terms?: string | null;
   credit_days: number;
