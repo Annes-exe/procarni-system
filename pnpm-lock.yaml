@@ -170,6 +170,9 @@ importers:
       update-browserslist-db:
         specifier: ^1.2.3
         version: 1.2.3(browserslist@4.28.1)
+      use-debounce:
+        specifier: ^10.1.1
+        version: 10.1.1(react@18.3.1)
       vaul:
         specifier: ^0.9.3
         version: 0.9.9(@types/react-dom@18.3.6(@types/react@18.3.20))(@types/react@18.3.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3777,6 +3780,12 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  use-debounce@10.1.1:
+    resolution: {integrity: sha512-kvds8BHR2k28cFsxW8k3nc/tRga2rs1RHYCqmmGqb90MEeE++oALwzh2COiuBLO1/QXiOuShXoSN2ZpWnMmvuQ==}
+    engines: {node: '>= 16.0.0'}
+    peerDependencies:
+      react: '*'
 
   use-sidecar@1.1.3:
     resolution: {integrity: sha512-Fedw0aZvkhynoPYlA5WXrMCAMm+nSWdZt6lzJQ7Ok8S6Q+VsHmHpRWndVRJ8Be0ZbkfPc5LRYH+5XrzXcEeLRQ==}
@@ -7764,6 +7773,10 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 18.3.20
+
+  use-debounce@10.1.1(react@18.3.1):
+    dependencies:
+      react: 18.3.1
 
   use-sidecar@1.1.3(@types/react@18.3.20)(react@18.3.1):
     dependencies:

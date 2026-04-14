@@ -146,6 +146,40 @@ const MaterialService = {
     }
     return data;
   },
+
+  getPaginated: async (
+    page: number,
+    pageSize: number,
+    searchTerm: string = '',
+    category: string = 'all'
+  ) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from('materials')
+      .select('*', { count: 'exact' });
+
+    if (searchTerm) {
+      const searchPattern = `%${searchTerm}%`;
+      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern}`);
+    }
+
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
+
+    const { data, count, error } = await query
+      .range(from, to)
+      .order('name', { ascending: true }); // Orden alfabético
+
+    if (error) {
+      console.error('[MaterialService.getPaginated] Error:', error);
+      throw error;
+    }
+    
+    return { data: data as Material[], totalCount: count || 0 };
+  },
 };
 
 export const {
@@ -155,4 +189,5 @@ export const {
   delete: deleteMaterial,
   search: searchMaterials,
   getByName: getMaterialByName,
+  getPaginated: getPaginatedMaterials,
 } = MaterialService;

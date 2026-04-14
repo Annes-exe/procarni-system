@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,17 +7,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag } from 'lucide-react';
 
-import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialForm from '@/components/MaterialForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import UnitOfMeasureModal from '@/components/UnitOfMeasureModal';
 import MaterialCategoryModal from '@/components/MaterialCategoryModal';
+import { useDebounce } from 'use-debounce';
+import PaginationControls from '@/components/PaginationControls';
 
 interface Material {
   id: string;
@@ -36,16 +38,17 @@ const MaterialManagement = () => {
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const initialSearch = queryParams.get('search') || '';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 25;
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [debouncedSearch] = useDebounce(searchInput, 500);
+  const selectedCategory = searchParams.get('category') || 'all';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
-  const [searchTerm, setSearchTerm] = useState(initialSearch);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [materialToDeleteId, setMaterialToDeleteId] = useState<string | null>(null);
 
@@ -54,35 +57,47 @@ const MaterialManagement = () => {
     queryFn: getAllMaterialCategories,
   });
 
-  const { data: materials, isLoading, error } = useQuery<Material[]>({
-    queryKey: ['materials'],
-    queryFn: getAllMaterials,
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['materials_paginated', page, pageSize, debouncedSearch, selectedCategory],
+    queryFn: () => getPaginatedMaterials(page, pageSize, debouncedSearch, selectedCategory),
+    placeholderData: keepPreviousData,
   });
 
-  const filteredMaterials = useMemo(() => {
-    if (!materials) return [];
-    let currentMaterials = materials;
+  const materialsList = data?.data || [];
+  const totalCount = data?.totalCount || 0;
 
-    if (searchTerm) {
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      currentMaterials = currentMaterials.filter(material =>
-        material.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        material.code.toLowerCase().includes(lowerCaseSearchTerm)
-      );
-    }
+  const setPage = (newPage: number) => {
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
 
-    if (selectedCategory !== 'all') {
-      currentMaterials = currentMaterials.filter(material => material.category === selectedCategory);
-    }
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    setSearchParams(prev => {
+      if (value) prev.set('search', value);
+      else prev.delete('search');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
-    return currentMaterials;
-  }, [materials, searchTerm, selectedCategory]);
+  const handleCategoryChange = (val: string) => {
+    setSearchParams(prev => {
+      if (val !== 'all') prev.set('category', val);
+      else prev.delete('category');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: (newMaterial: Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>) =>
       createMaterial({ ...newMaterial, user_id: userId! } as any),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       setIsFormOpen(false);
       showSuccess('Material creado exitosamente.');
     },
@@ -95,7 +110,7 @@ const MaterialManagement = () => {
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>> }) =>
       updateMaterial(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       setIsFormOpen(false);
       setEditingMaterial(null);
       showSuccess('Material actualizado exitosamente.');
@@ -108,7 +123,7 @@ const MaterialManagement = () => {
   const deleteMutation = useMutation({
     mutationFn: deleteMaterial,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       showSuccess('Material eliminado exitosamente.');
       setIsDeleteDialogOpen(false);
       setMaterialToDeleteId(null);
@@ -240,16 +255,15 @@ const MaterialManagement = () => {
             <div className="relative w-full md:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                type="text"
-                placeholder="Buscar material por código o nombre..."
-                className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar material..."
+                value={searchInput}
+                onChange={handleSearchChange}
+                className="w-full pl-10 bg-white"
               />
             </div>
             <div className="relative w-full md:w-72">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="w-full pl-8 h-9 text-sm">
                   <SelectValue placeholder="Filtrar por categoría" />
                 </SelectTrigger>
@@ -263,10 +277,17 @@ const MaterialManagement = () => {
             </div>
           </div>
 
-          {filteredMaterials && filteredMaterials.length > 0 ? (
+          <div className={cn("transition-opacity duration-200", isFetching && "opacity-50 pointer-events-none")}>
+          {isLoading && materialsList.length === 0 ? (
+            <div className="flex justify-center p-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-procarni-primary border-t-transparent"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center text-red-500 p-4">Error cargando materiales</div>
+          ) : materialsList.length > 0 ? (
             isMobile ? (
-              <div className="grid gap-4">
-                {filteredMaterials.map((material) => (
+              <div className="space-y-4">
+                {materialsList.map((material) => (
                   <Card key={material.id} className="p-4 shadow-md">
                     <CardTitle className="text-lg mb-2 flex items-center">
                       {material.name}
@@ -318,7 +339,7 @@ const MaterialManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMaterials.map((material) => (
+                    {materialsList.map((material) => (
                       <TableRow key={material.id} className="hover:bg-gray-50/50 transition-colors">
                         <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
                         <TableCell className="flex items-center font-medium py-3 text-procarni-dark">
@@ -361,6 +382,14 @@ const MaterialManagement = () => {
               No hay materiales registrados o no se encontraron resultados para tu búsqueda/filtro.
             </div>
           )}
+        </div>
+        
+        <PaginationControls
+          currentPage={page}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
         </CardContent>
       </Card>
 
