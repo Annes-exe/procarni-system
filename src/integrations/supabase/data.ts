@@ -310,6 +310,7 @@ export {
   archiveServiceOrder,
   unarchiveServiceOrder,
   updateServiceOrderStatus,
+  getMaterialByName,
   getAllUnits,
   createUnit,
   deleteUnit,
