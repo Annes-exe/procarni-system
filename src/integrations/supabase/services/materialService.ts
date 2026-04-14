@@ -132,6 +132,20 @@ const MaterialService = {
     }
     return data;
   },
+
+  getByName: async (name: string): Promise<Material | null> => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('name', name.toUpperCase())
+      .maybeSingle();
+
+    if (error) {
+      console.error('[MaterialService.getByName] Error:', error);
+      return null;
+    }
+    return data;
+  },
 };
 
 export const {
@@ -140,4 +154,5 @@ export const {
   update: updateMaterial,
   delete: deleteMaterial,
   search: searchMaterials,
+  getByName: getMaterialByName,
 } = MaterialService;

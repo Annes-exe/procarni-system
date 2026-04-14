@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { showError, showSuccess } from '@/utils/toast';
-import { createMaterial, createSupplierMaterialRelation, searchMaterials, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { createMaterial, createSupplierMaterialRelation, searchMaterials, getMaterialByName, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
 import { useQuery } from '@tanstack/react-query';
 import { Material } from '@/integrations/supabase/types';
@@ -191,10 +191,8 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       let materialToAssociate: Material | null = null;
       let isNewMaterial = false;
 
-      // 1. Check if the final name matches an existing material (case insensitive)
-      // We re-fetch to be absolutely sure, relying on the service which handles searching.
-      const existingMaterials = await searchMaterials(trimmedMaterialName);
-      const exactMatch = existingMaterials.find(m => m.name.toUpperCase() === trimmedMaterialName);
+      // 1. Check if the final name matches an existing material (exact check without limit)
+      const exactMatch = await getMaterialByName(trimmedMaterialName);
 
       // Determine final is_exempt status (forced true if FRESCA)
       const finalIsExempt = category === 'FRESCA' ? true : isExempt;

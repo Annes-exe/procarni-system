@@ -60,7 +60,7 @@ BEGIN
     IF TG_TABLE_NAME = 'quote_comparisons' THEN
         doc_code := '[' || COALESCE(doc_display_name, 'Sin Nombre') || ']';
     ELSIF target_seq IS NOT NULL THEN
-        doc_code := '[' || doc_abbr || '-' || to_char(target_date, 'YYYY-MM-') || LPAD(target_seq::text, 3, '0') || ']';
+        doc_code := '[' || doc_abbr || '-' || to_char(target_date, 'YYYY-MM-') || TO_CHAR(target_seq, 'FM000') || ']';
     ELSE
         doc_code := '[' || (CASE WHEN TG_OP = 'DELETE' THEN OLD.id::text ELSE NEW.id::text END) || ']';
     END IF;

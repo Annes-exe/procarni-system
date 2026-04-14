@@ -20,6 +20,7 @@ import {
   updateMaterial,
   deleteMaterial,
   searchMaterials,
+  getMaterialByName,
   getAllCompanies,
   createCompany,
   updateCompany,

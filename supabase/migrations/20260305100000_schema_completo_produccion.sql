@@ -262,7 +262,7 @@ LANGUAGE PLPGSQL
 AS $$
 BEGIN
   IF NEW.code IS NULL OR NEW.code = '' THEN
-    NEW.code = 'P' || LPAD(NEXTVAL('public.supplier_code_sequence')::TEXT, 3, '0');
+    NEW.code = 'P' || TO_CHAR(NEXTVAL('public.supplier_code_sequence'), 'FM000');
   END IF;
   RETURN NEW;
 END;
@@ -274,7 +274,7 @@ LANGUAGE PLPGSQL
 AS $$
 BEGIN
   IF NEW.code IS NULL OR NEW.code = '' THEN
-    NEW.code = 'MP' || LPAD(NEXTVAL('public.material_code_sequence')::TEXT, 3, '0');
+    NEW.code = 'MP' || TO_CHAR(NEXTVAL('public.material_code_sequence'), 'FM000');
   END IF;
   RETURN NEW;
 END;
