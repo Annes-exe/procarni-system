@@ -49,7 +49,7 @@ export const purchaseOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'All' = 'Active'
     ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;

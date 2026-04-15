@@ -52,7 +52,7 @@ const ServiceOrderManagement = () => {
   const pageSize = 25;
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [debouncedSearch] = useDebounce(searchInput, 500);
-  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected';
+  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
 
   const updateSearchParams = (key: string, value: string | null) => {
     setSearchParams(prev => {
@@ -91,6 +91,7 @@ const ServiceOrderManagement = () => {
       case 'approved': return 'Approved';
       case 'archived': return 'Archived';
       case 'rejected': return 'Rejected';
+      case 'all': return 'All';
       default: return 'Active';
     }
   };
@@ -452,6 +453,7 @@ const ServiceOrderManagement = () => {
                   </>
                 ) : (
                   <>
+                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
                     <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
                     <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                   </>

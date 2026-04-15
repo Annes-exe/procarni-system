@@ -52,7 +52,7 @@ const PurchaseOrderManagement = () => {
   const pageSize = 25;
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [debouncedSearch] = useDebounce(searchInput, 500);
-  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected';
+  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
 
   // Helper function to update search params
   const updateSearchParams = (key: string, value: string | null) => {
@@ -82,6 +82,7 @@ const PurchaseOrderManagement = () => {
       case 'approved': return 'Approved';
       case 'archived': return 'Archived';
       case 'rejected': return 'Rejected';
+      case 'all': return 'All';
       default: return 'Active';
     }
   };
@@ -472,6 +473,7 @@ const PurchaseOrderManagement = () => {
                   </>
                 ) : (
                   <>
+                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
                     <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
                     <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                   </>

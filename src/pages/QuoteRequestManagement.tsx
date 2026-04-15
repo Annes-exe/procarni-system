@@ -40,7 +40,7 @@ const QuoteRequestManagement = () => {
   const [isHistoryMode, setIsHistoryMode] = useState(false);
 
   // Tabs state depends on mode
-  const [activeTab, setActiveTab] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>('Draft');
 
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -435,8 +435,9 @@ const QuoteRequestManagement = () => {
           <Button
             variant={isHistoryMode ? "secondary" : "outline"}
             onClick={() => {
-              setIsHistoryMode(!isHistoryMode);
-              setActiveTab('all');
+              const newHistoryMode = !isHistoryMode;
+              setIsHistoryMode(newHistoryMode);
+              setActiveTab(newHistoryMode ? 'all' : 'Draft');
             }}
             className="gap-2"
             size="sm"
@@ -461,17 +462,17 @@ const QuoteRequestManagement = () => {
         <CardContent className="p-0 md:p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className="grid w-full md:w-auto grid-cols-3 md:flex h-9">
-                <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
+              <TabsList className="grid w-full md:w-auto grid-cols-2 md:flex h-9">
                 {isHistoryMode ? (
                   <>
-                    <TabsTrigger value="Approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
                     <TabsTrigger value="Rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                     <TabsTrigger value="Archived" className="text-xs md:text-sm hidden md:flex">Archivadas</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Borradores</TabsTrigger>
+                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="Approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
                   </>
                 )}
               </TabsList>

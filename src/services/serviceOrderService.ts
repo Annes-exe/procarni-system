@@ -48,7 +48,7 @@ export const serviceOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'All' = 'Active'
     ): Promise<{ data: ServiceOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
