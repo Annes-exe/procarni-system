@@ -45,6 +45,72 @@ export const purchaseOrderService = {
         return data as unknown as PurchaseOrderWithRelations[];
     },
 
+    getPaginated: async (
+      page: number,
+      pageSize: number,
+      searchTerm: string = '',
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'
+    ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+  
+      // Use standard join
+      const selectQuery = '*, suppliers(name), companies(name)';
+  
+      let query = supabase
+        .from('purchase_orders')
+        .select(selectQuery, { count: 'exact' });
+  
+      if (statusFilter === 'Active') {
+        query = query.in('status', ['Draft']);
+      } else if (statusFilter === 'Approved') {
+        query = query.eq('status', 'Approved');
+      } else if (statusFilter === 'Archived') {
+        query = query.eq('status', 'Archived');
+      } else if (statusFilter === 'Rejected') {
+        query = query.eq('status', 'Rejected');
+      }
+  
+      if (searchTerm) {
+        const searchPattern = `%${searchTerm}%`;
+        
+        // Fetch matching supplier IDs first to avoid PostgREST foreign table OR syntax errors
+        const { data: matchedSuppliers } = await supabase
+          .from('suppliers')
+          .select('id')
+          .ilike('name', searchPattern);
+          
+        const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+        const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== '';
+        
+        const orConditions: string[] = [];
+        if (isNumericSearch) {
+          orConditions.push(`sequence_number.eq.${Number(searchTerm)}`);
+        }
+        if (supplierIds.length > 0) {
+          orConditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        }
+        
+        if (orConditions.length > 0) {
+          query = query.or(orConditions.join(','));
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty result
+        }
+      }
+  
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+  
+      if (error) {
+        console.error('[purchaseOrderService.getPaginated] Error:', error);
+        showError('Error al cargar órdenes de compra (paginadas).');
+        return { data: [], count: 0 };
+      }
+  
+      return { data: data as unknown as PurchaseOrderWithRelations[], count: count || 0 };
+    },
+
     getById: async (id: string): Promise<PurchaseOrder | null> => {
         const { data, error } = await supabase
             .from('purchase_orders')

@@ -1,7 +1,7 @@
 // src/pages/ServiceOrderManagement.tsx
 
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,7 +12,9 @@ import { serviceOrderService, ServiceOrderWithRelations } from '@/services/servi
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useDebounce } from 'use-debounce';
+import PaginationControls from '@/components/PaginationControls';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -45,8 +47,22 @@ const ServiceOrderManagement = () => {
   const isTablet = useIsTablet();
   const isMobileView = isMobile || isTablet;
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved' | 'rejected'>('active');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 25;
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [debouncedSearch] = useDebounce(searchInput, 500);
+  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected';
+
+  const updateSearchParams = (key: string, value: string | null) => {
+    setSearchParams(prev => {
+      if (value) prev.set(key, value);
+      else prev.delete(key);
+      if (key !== 'page') prev.set('page', '1');
+      return prev;
+    });
+  };
+
   const [showHistory, setShowHistory] = useState(false);
 
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
@@ -63,65 +79,37 @@ const ServiceOrderManagement = () => {
   const [isBulkRestoreDialogOpen, setIsBulkRestoreDialogOpen] = useState(false);
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
-  // Fetch active orders
-  const { data: activeServiceOrders, isLoading: isLoadingActive, error: activeError } = useQuery<ServiceOrderWithRelations[]>({
-    queryKey: ['serviceOrders', 'Active'],
-    queryFn: async () => await serviceOrderService.getAll('Active'),
-    enabled: !!session && activeTab === 'active',
-  });
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    updateSearchParams('search', value);
+  };
 
-  // Fetch approved orders
-  const { data: approvedServiceOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<ServiceOrderWithRelations[]>({
-    queryKey: ['serviceOrders', 'Approved'],
-    queryFn: async () => await serviceOrderService.getAll('Approved'),
-    enabled: !!session && activeTab === 'approved',
-  });
-
-  // Fetch archived orders
-  const { data: archivedServiceOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<ServiceOrderWithRelations[]>({
-    queryKey: ['serviceOrders', 'Archived'],
-    queryFn: async () => await serviceOrderService.getAll('Archived'),
-    enabled: !!session && activeTab === 'archived',
-  });
-
-  // Fetch rejected orders
-  const { data: rejectedServiceOrders, isLoading: isLoadingRejected, error: rejectedError } = useQuery<ServiceOrderWithRelations[]>({
-    queryKey: ['serviceOrders', 'Rejected'],
-    queryFn: async () => await serviceOrderService.getAll('Rejected'),
-    enabled: !!session && activeTab === 'rejected',
-  });
-
-  const currentOrders = useMemo(() => {
-    switch (activeTab) {
-      case 'active': return activeServiceOrders;
-      case 'approved': return approvedServiceOrders;
-      case 'archived': return archivedServiceOrders;
-      case 'rejected': return rejectedServiceOrders;
-      default: return [];
+  const translateTabToStatus = (tab: string) => {
+    switch (tab) {
+      case 'active': return 'Active';
+      case 'approved': return 'Approved';
+      case 'archived': return 'Archived';
+      case 'rejected': return 'Rejected';
+      default: return 'Active';
     }
-  }, [activeTab, activeServiceOrders, approvedServiceOrders, archivedServiceOrders, rejectedServiceOrders]);
+  };
 
-  const isLoading = activeTab === 'active' ? isLoadingActive : (activeTab === 'approved' ? isLoadingApproved : (activeTab === 'rejected' ? isLoadingRejected : isLoadingArchived));
-  const error = activeTab === 'active' ? activeError : (activeTab === 'approved' ? approvedError : (activeTab === 'rejected' ? rejectedError : archivedError));
+  // Centralized query for all tabs with pagination
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['serviceOrders_paginated', page, pageSize, debouncedSearch, activeTab],
+    queryFn: () => serviceOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any),
+    enabled: !!session,
+    placeholderData: keepPreviousData,
+  });
 
-  const filteredServiceOrders = useMemo(() => {
-    if (!currentOrders) return [];
-    if (!searchTerm) return currentOrders;
-
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return currentOrders.filter(order =>
-      formatSequenceNumber(order.sequence_number, order.created_at).toLowerCase().includes(lowerCaseSearchTerm) ||
-      order.suppliers.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      order.companies.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      order.equipment_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (STATUS_TRANSLATIONS[order.status] || order.status).toLowerCase().includes(lowerCaseSearchTerm)
-    );
-  }, [currentOrders, searchTerm]);
+  const currentOrders = data?.data || [];
+  const totalCount = data?.count || 0;
 
   const archiveMutation = useMutation({
     mutationFn: (id: string) => serviceOrderService.updateStatus(id, 'Archived'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess('Orden de servicio archivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -136,7 +124,7 @@ const ServiceOrderManagement = () => {
   const unarchiveMutation = useMutation({
     mutationFn: (id: string) => serviceOrderService.updateStatus(id, 'Draft'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess('Orden de servicio desarchivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -151,7 +139,7 @@ const ServiceOrderManagement = () => {
   const deleteMutation = useMutation({
     mutationFn: serviceOrderService.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess('Orden de servicio eliminada permanentemente.');
       setIsDeleteDialogOpen(false);
       setOrderToModify(null);
@@ -166,7 +154,7 @@ const ServiceOrderManagement = () => {
   const rejectMutation = useMutation({
     mutationFn: (id: string) => serviceOrderService.updateStatus(id, 'Rejected'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess('Orden de servicio rechazada exitosamente.');
       setIsRejectDialogOpen(false);
       setOrderToReject(null);
@@ -219,17 +207,17 @@ const ServiceOrderManagement = () => {
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === filteredServiceOrders.length) {
+    if (selectedIds.size === currentOrders.length && currentOrders.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredServiceOrders.map(o => o.id)));
+      setSelectedIds(new Set(currentOrders.map(o => o.id)));
     }
   };
 
   const executeBulkApprove = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => serviceOrderService.updateStatus(id, 'Approved')));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes aprobadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkApproveDialogOpen(false);
@@ -242,7 +230,7 @@ const ServiceOrderManagement = () => {
   const executeBulkReject = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => serviceOrderService.updateStatus(id, 'Rejected')));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes rechazadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkRejectDialogOpen(false);
@@ -255,7 +243,7 @@ const ServiceOrderManagement = () => {
   const executeBulkArchive = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => serviceOrderService.updateStatus(id, 'Archived')));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes archivadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkArchiveDialogOpen(false);
@@ -268,7 +256,7 @@ const ServiceOrderManagement = () => {
   const executeBulkRestore = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => serviceOrderService.updateStatus(id, 'Draft')));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes restauradas a borrador.`);
       setSelectedIds(new Set());
       setIsBulkRestoreDialogOpen(false);
@@ -281,7 +269,7 @@ const ServiceOrderManagement = () => {
   const executeBulkDelete = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => serviceOrderService.delete(id)));
-      queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['serviceOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes eliminadas permanentemente.`);
       setSelectedIds(new Set());
       setIsBulkDeleteDialogOpen(false);
@@ -431,7 +419,7 @@ const ServiceOrderManagement = () => {
             onClick={() => {
               const newMode = !showHistory;
               setShowHistory(newMode);
-              setActiveTab(newMode ? 'archived' : 'active');
+              updateSearchParams('tab', newMode ? 'archived' : 'active');
             }}
             className="gap-2"
             size="sm"
@@ -454,7 +442,7 @@ const ServiceOrderManagement = () => {
 
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+          <Tabs value={activeTab} onValueChange={(value) => updateSearchParams('tab', value)} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
               <TabsList className="grid w-full md:w-auto grid-cols-2 md:flex h-9">
                 {!showHistory ? (
@@ -476,8 +464,8 @@ const ServiceOrderManagement = () => {
                   type="text"
                   placeholder="Buscar orden..."
                   className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchInput}
+                  onChange={handleSearchChange}
                 />
               </div>
             </div>
@@ -581,15 +569,15 @@ const ServiceOrderManagement = () => {
                   </div>
                 </div>
               )}
-              {isLoading ? (
+              <div className={cn("transition-opacity duration-200 mt-4", isFetching && "opacity-50 pointer-events-none")}>
+              {(!isLoading && currentOrders.length === 0) ? (
                 <div className="text-center text-muted-foreground p-12 flex flex-col items-center">
-                  <div className="h-8 w-8 border-4 border-procarni-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p>Cargando órdenes...</p>
+                  <p>No se encontraron órdenes para esta vista o búsqueda.</p>
                 </div>
-              ) : filteredServiceOrders.length > 0 ? (
+              ) : (
                 isMobileView ? (
                   <div className="grid gap-3">
-                    {filteredServiceOrders.map(renderMobileCard)}
+                    {currentOrders.map(renderMobileCard)}
                   </div>
                 ) : (
                   <div className="rounded-md border border-gray-100 overflow-hidden">
@@ -598,7 +586,7 @@ const ServiceOrderManagement = () => {
                         <TableRow>
                           <TableHead className="w-[40px] pl-4">
                             <Checkbox
-                              checked={filteredServiceOrders.length > 0 && selectedIds.size === filteredServiceOrders.length}
+                              checked={currentOrders.length > 0 && selectedIds.size === currentOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
@@ -612,7 +600,7 @@ const ServiceOrderManagement = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredServiceOrders.map((order) => (
+                        {currentOrders.map((order) => (
                           <TableRow key={order.id} className="hover:bg-gray-50/50 transition-colors">
                             <TableCell className="pl-4 py-3">
                               <Checkbox
@@ -693,24 +681,17 @@ const ServiceOrderManagement = () => {
                     </Table>
                   </div>
                 )
-              ) : (
-                <div className="text-center p-12 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                  <div className="bg-white p-3 rounded-full w-fit mx-auto shadow-sm mb-3">
-                    <Search className="h-6 w-6 text-gray-300" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">No se encontraron órdenes</h3>
-                  <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                    {searchTerm
-                      ? `No hay resultados para "${searchTerm}" en esta vista.`
-                      : "No tienes órdenes de servicio en esta categoría."}
-                  </p>
-                  {!searchTerm && !showHistory && (
-                    <Button variant="outline" className="mt-4" asChild>
-                      <Link to="/generate-so">Crear nueva orden</Link>
-                    </Button>
-                  )}
-                </div>
               )}
+              </div>
+
+              <div className="mt-6 flex justify-center w-full">
+                <PaginationControls
+                  currentPage={page}
+                  totalCount={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={(newPage) => updateSearchParams('page', newPage.toString())}
+                />
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,7 +11,9 @@ import { purchaseOrderService, PurchaseOrderWithRelations } from '@/services/pur
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useDebounce } from 'use-debounce';
+import PaginationControls from '@/components/PaginationControls';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -45,8 +47,23 @@ const PurchaseOrderManagement = () => {
   const isTablet = useIsTablet();
   const isMobileView = isMobile || isTablet;
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'active' | 'archived' | 'approved' | 'rejected'>('active');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 25;
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [debouncedSearch] = useDebounce(searchInput, 500);
+  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected';
+
+  // Helper function to update search params
+  const updateSearchParams = (key: string, value: string | null) => {
+    setSearchParams(prev => {
+      if (value) prev.set(key, value);
+      else prev.delete(key);
+      if (key !== 'page') prev.set('page', '1'); // Reset to page 1 on search or tab change
+      return prev;
+    });
+  };
+
   const [showHistory, setShowHistory] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
@@ -59,65 +76,31 @@ const PurchaseOrderManagement = () => {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [orderToReject, setOrderToReject] = useState<string | null>(null);
 
-  // Fetch active orders
-  const { data: activePurchaseOrders, isLoading: isLoadingActive, error: activeError } = useQuery<PurchaseOrderWithRelations[]>({
-    queryKey: ['purchaseOrders', 'Active'],
-    queryFn: async () => await purchaseOrderService.getAll('Active'),
-    enabled: !!session && activeTab === 'active',
-  });
-
-  // Fetch approved orders
-  const { data: approvedPurchaseOrders, isLoading: isLoadingApproved, error: approvedError } = useQuery<PurchaseOrderWithRelations[]>({
-    queryKey: ['purchaseOrders', 'Approved'],
-    queryFn: async () => await purchaseOrderService.getAll('Approved'),
-    enabled: !!session && activeTab === 'approved',
-  });
-
-  // Fetch archived orders
-  const { data: archivedPurchaseOrders, isLoading: isLoadingArchived, error: archivedError } = useQuery<PurchaseOrderWithRelations[]>({
-    queryKey: ['purchaseOrders', 'Archived'],
-    queryFn: async () => await purchaseOrderService.getAll('Archived'),
-    enabled: !!session && activeTab === 'archived',
-  });
-
-  // Fetch rejected orders
-  const { data: rejectedPurchaseOrders, isLoading: isLoadingRejected, error: rejectedError } = useQuery<PurchaseOrderWithRelations[]>({
-    queryKey: ['purchaseOrders', 'Rejected'],
-    queryFn: async () => await purchaseOrderService.getAll('Rejected'),
-    enabled: !!session && activeTab === 'rejected',
-  });
-
-  const currentOrders = useMemo(() => {
-    switch (activeTab) {
-      case 'active': return activePurchaseOrders;
-      case 'approved': return approvedPurchaseOrders;
-      case 'archived': return archivedPurchaseOrders;
-      case 'rejected': return rejectedPurchaseOrders;
-      default: return [];
+  const translateTabToStatus = (tab: string) => {
+    switch (tab) {
+      case 'active': return 'Active';
+      case 'approved': return 'Approved';
+      case 'archived': return 'Archived';
+      case 'rejected': return 'Rejected';
+      default: return 'Active';
     }
-  }, [activeTab, activePurchaseOrders, approvedPurchaseOrders, archivedPurchaseOrders, rejectedPurchaseOrders]);
+  };
 
-  const isLoading = activeTab === 'active' ? isLoadingActive : (activeTab === 'approved' ? isLoadingApproved : (activeTab === 'rejected' ? isLoadingRejected : isLoadingArchived));
-  const error = activeTab === 'active' ? activeError : (activeTab === 'approved' ? approvedError : (activeTab === 'rejected' ? rejectedError : archivedError));
+  // Centralized query for all tabs with pagination
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab],
+    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any),
+    enabled: !!session,
+    placeholderData: keepPreviousData,
+  });
 
-  const filteredPurchaseOrders = useMemo(() => {
-    if (!currentOrders) return [];
-    if (!searchTerm) return currentOrders;
-
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return currentOrders.filter(order =>
-      formatSequenceNumber(order.sequence_number, order.created_at).toLowerCase().includes(lowerCaseSearchTerm) ||
-      order.suppliers.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      order.companies.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      order.currency.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (STATUS_TRANSLATIONS[order.status] || order.status).toLowerCase().includes(lowerCaseSearchTerm)
-    );
-  }, [currentOrders, searchTerm]);
+  const currentOrders = data?.data || [];
+  const totalCount = data?.count || 0;
 
   const archiveMutation = useMutation({
     mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Archived'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess('Orden de compra archivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -132,7 +115,7 @@ const PurchaseOrderManagement = () => {
   const unarchiveMutation = useMutation({
     mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Draft'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess('Orden de compra desarchivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -147,7 +130,7 @@ const PurchaseOrderManagement = () => {
   const rejectMutation = useMutation({
     mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Rejected'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess('Orden de compra rechazada exitosamente.');
       setIsRejectDialogOpen(false);
       setOrderToReject(null);
@@ -197,17 +180,17 @@ const PurchaseOrderManagement = () => {
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === filteredPurchaseOrders.length) {
+    if (selectedIds.size === currentOrders.length && currentOrders.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredPurchaseOrders.map(o => o.id)));
+      setSelectedIds(new Set(currentOrders.map(o => o.id)));
     }
   };
 
   const executeBulkApprove = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Approved')));
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes aprobadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkApproveDialogOpen(false);
@@ -220,7 +203,7 @@ const PurchaseOrderManagement = () => {
   const executeBulkArchive = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Archived')));
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes archivadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkArchiveDialogOpen(false);
@@ -233,7 +216,7 @@ const PurchaseOrderManagement = () => {
   const executeBulkReject = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Rejected')));
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes rechazadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkRejectDialogOpen(false);
@@ -246,7 +229,7 @@ const PurchaseOrderManagement = () => {
   const executeBulkRestore = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Draft')));
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes restauradas a borrador.`);
       setSelectedIds(new Set());
       setIsBulkRestoreDialogOpen(false);
@@ -259,7 +242,7 @@ const PurchaseOrderManagement = () => {
   const executeBulkDelete = async () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.delete(id)));
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       showSuccess(`${selectedIds.size} órdenes eliminadas permanentemente.`);
       setSelectedIds(new Set());
       setIsBulkDeleteDialogOpen(false);
@@ -456,7 +439,7 @@ const PurchaseOrderManagement = () => {
             onClick={() => {
               const newMode = !showHistory;
               setShowHistory(newMode);
-              setActiveTab(newMode ? 'archived' : 'active');
+              updateSearchParams('tab', newMode ? 'archived' : 'active');
             }}
             className="gap-2"
             size="sm"
@@ -479,7 +462,7 @@ const PurchaseOrderManagement = () => {
 
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); setSelectedIds(new Set()); }} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
               <TabsList className="grid w-full md:w-auto grid-cols-2 md:flex h-9">
                 {!showHistory ? (
@@ -501,8 +484,11 @@ const PurchaseOrderManagement = () => {
                   type="text"
                   placeholder="Buscar orden..."
                   className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    updateSearchParams('search', e.target.value);
+                  }}
                 />
               </div>
             </div>
@@ -608,15 +594,15 @@ const PurchaseOrderManagement = () => {
                 </div>
               )}
 
-              {isLoading ? (
-                <div className="text-center text-muted-foreground p-12 flex flex-col items-center">
-                  <div className="h-8 w-8 border-4 border-procarni-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p>Cargando órdenes...</p>
+              <div className={cn("transition-opacity duration-200 mt-4", isFetching && "opacity-50 pointer-events-none")}>
+              {(!isLoading && currentOrders.length === 0) ? (
+                <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
+                  <p className="text-gray-500 text-lg">No se encontraron órdenes para esta vista o búsqueda.</p>
                 </div>
-              ) : filteredPurchaseOrders.length > 0 ? (
+              ) : (
                 isMobileView ? (
                   <div className="grid gap-3">
-                    {filteredPurchaseOrders.map(renderMobileCard)}
+                    {currentOrders.map(renderMobileCard)}
                   </div>
                 ) : (
                   <div className="rounded-md border border-gray-100 overflow-hidden">
@@ -625,7 +611,7 @@ const PurchaseOrderManagement = () => {
                         <TableRow>
                           <TableHead className="w-[40px] pl-4">
                             <Checkbox
-                              checked={filteredPurchaseOrders.length > 0 && selectedIds.size === filteredPurchaseOrders.length}
+                              checked={currentOrders.length > 0 && selectedIds.size === currentOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
@@ -640,7 +626,7 @@ const PurchaseOrderManagement = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredPurchaseOrders.map((order) => (
+                        {currentOrders.map((order) => (
                           <TableRow key={order.id} className="hover:bg-gray-50/50 transition-colors">
                             <TableCell className="pl-4 py-3">
                               <Checkbox
@@ -666,24 +652,16 @@ const PurchaseOrderManagement = () => {
                     </Table>
                   </div>
                 )
-              ) : (
-                <div className="text-center p-12 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                  <div className="bg-white p-3 rounded-full w-fit mx-auto shadow-sm mb-3">
-                    <Search className="h-6 w-6 text-gray-300" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">No se encontraron órdenes</h3>
-                  <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                    {searchTerm
-                      ? `No hay resultados para "${searchTerm}" en esta vista.`
-                      : "No tienes órdenes de compra en esta categoría."}
-                  </p>
-                  {!searchTerm && !showHistory && (
-                    <Button variant="outline" className="mt-4" asChild>
-                      <Link to="/generate-po">Crear nueva orden</Link>
-                    </Button>
-                  )}
-                </div>
               )}
+              </div>
+              <div className="mt-6 flex justify-center w-full">
+                <PaginationControls
+                  currentPage={page}
+                  totalCount={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={(newPage) => updateSearchParams('page', newPage.toString())}
+                />
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

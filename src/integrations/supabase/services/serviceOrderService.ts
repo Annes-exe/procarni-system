@@ -33,6 +33,69 @@ const ServiceOrderService = {
     return data as ServiceOrder[];
   },
 
+  getPaginated: async (
+    page: number,
+    pageSize: number,
+    searchTerm: string = '',
+    statusFilter: 'Active' | 'Archived' | 'Approved' = 'Active'
+  ): Promise<{ data: ServiceOrder[], count: number }> => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    // Use standard join
+    const selectQuery = '*, suppliers(name), companies(name)';
+
+    let query = supabase
+      .from('service_orders')
+      .select(selectQuery, { count: 'exact' });
+
+    if (statusFilter === 'Active') {
+      query = query.in('status', ['Draft', 'Sent', 'Rejected']);
+    } else if (statusFilter === 'Approved') {
+      query = query.eq('status', 'Approved');
+    } else if (statusFilter === 'Archived') {
+      query = query.eq('status', 'Archived');
+    }
+
+    if (searchTerm) {
+      const searchPattern = `%${searchTerm}%`;
+      
+      const { data: matchedSuppliers } = await supabase
+        .from('suppliers')
+        .select('id')
+        .ilike('name', searchPattern);
+        
+      const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+      const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== '';
+      
+      const orConditions: string[] = [];
+      if (isNumericSearch) {
+        orConditions.push(`sequence_number.eq.${Number(searchTerm)}`);
+      }
+      if (supplierIds.length > 0) {
+        orConditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+      }
+      
+      if (orConditions.length > 0) {
+        query = query.or(orConditions.join(','));
+      } else {
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty result
+      }
+    }
+
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      console.error('[ServiceOrderService.getPaginated] Error:', error);
+      showError('Error al cargar órdenes de servicio (paginadas).');
+      return { data: [], count: 0 };
+    }
+
+    return { data: data as ServiceOrder[], count: count || 0 };
+  },
+
   create: async (orderData: Omit<ServiceOrder, 'id' | 'created_at' | 'sequence_number'>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[], materials?: Omit<ServiceOrderMaterial, 'id' | 'service_order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
     const { data: newOrder, error: orderError } = await supabase
       .from('service_orders')
