@@ -283,6 +283,41 @@ const SupplierService = {
     }
     return data;
   },
+
+  getPaginated: async (
+    page: number,
+    pageSize: number,
+    searchTerm: string = '',
+    statusFilter: string = 'All'
+  ) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from('suppliers')
+      .select('*', { count: 'exact' });
+
+    if (searchTerm) {
+      const sanitizedSearch = searchTerm.replace(/[,.]/g, ' ');
+      const searchPattern = `%${sanitizedSearch}%`;
+      query = query.or(`name.ilike.${searchPattern},rif.ilike.${searchPattern},code.ilike.${searchPattern},email.ilike.${searchPattern}`); // Included email as per old client side logic
+    }
+
+    if (statusFilter !== 'All') {
+      query = query.eq('status', statusFilter);
+    }
+
+    const { data, count, error } = await query
+      .range(from, to)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[SupplierService.getPaginated] Error:', error);
+      throw error;
+    }
+
+    return { data: data as Supplier[], totalCount: count || 0 };
+  },
 };
 
 export const {
@@ -292,4 +327,5 @@ export const {
   delete: deleteSupplier,
   search: searchSuppliers,
   getById: getSupplierDetails,
+  getPaginated: getPaginatedSuppliers,
 } = SupplierService;

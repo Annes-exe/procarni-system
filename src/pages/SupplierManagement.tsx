@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,16 +7,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp } from 'lucide-react';
 
-import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
+import { getPaginatedSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import SupplierForm from '@/components/SupplierForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useDebounce } from 'use-debounce';
+import PaginationControls from '@/components/PaginationControls';
 
 interface MaterialAssociation {
   id?: string;
@@ -78,48 +80,62 @@ const SupplierManagement = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 25;
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [debouncedSearch] = useDebounce(searchInput, 500);
+  const selectedStatus = (searchParams.get('status') || 'Active') as 'All' | 'Active' | 'Inactive';
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<'All' | 'Active' | 'Inactive'>('Active'); // NEW STATE for status filter
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [supplierToDeleteId, setSupplierToDeleteId] = useState<string | null>(null);
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
-  const { data: suppliers, isLoading, error } = useQuery<Supplier[]>({
-    queryKey: ['suppliers'],
-    queryFn: getAllSuppliers,
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus],
+    queryFn: () => getPaginatedSuppliers(page, pageSize, debouncedSearch, selectedStatus),
     enabled: !!session,
+    placeholderData: keepPreviousData,
   });
 
-  const filteredSuppliers = useMemo(() => {
-    if (!suppliers) return [];
-    let currentSuppliers = suppliers;
+  const suppliersList = data?.data || [];
+  const totalCount = data?.totalCount || 0;
 
-    // 1. Filter by Status
-    if (selectedStatus !== 'All') {
-      currentSuppliers = currentSuppliers.filter(supplier => supplier.status === selectedStatus);
-    }
+  const setPage = (newPage: number) => {
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
 
-    // 2. Filter by Search Term
-    if (searchTerm) {
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      currentSuppliers = currentSuppliers.filter(supplier =>
-        supplier.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        supplier.rif.toLowerCase().includes(lowerCaseSearchTerm) ||
-        (supplier.email && supplier.email.toLowerCase().includes(lowerCaseSearchTerm))
-      );
-    }
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    setSearchParams(prev => {
+      if (value) prev.set('search', value);
+      else prev.delete('search');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
-    return currentSuppliers;
-  }, [suppliers, searchTerm, selectedStatus]);
+  const handleStatusChange = (value: string) => {
+    setSearchParams(prev => {
+      if (value !== 'All') prev.set('status', value);
+      else prev.delete('status');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: ({ supplierData, materials }: { supplierData: any; materials: any }) =>
       createSupplier(supplierData, materials),
-    onSuccess: (data) => {
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    onSuccess: (responseData) => {
+      if (responseData) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
         setIsFormOpen(false);
         showSuccess('Proveedor creado exitosamente.');
       }
@@ -132,9 +148,9 @@ const SupplierManagement = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: any; materials: any }) =>
       updateSupplier(id, supplierData, materials),
-    onSuccess: (data) => {
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    onSuccess: (responseData) => {
+      if (responseData) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
         setIsFormOpen(false);
         setEditingSupplier(null);
         showSuccess('Proveedor actualizado exitosamente.');
@@ -148,7 +164,7 @@ const SupplierManagement = () => {
   const deleteMutation = useMutation({
     mutationFn: deleteSupplier,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
       showSuccess('Proveedor eliminado exitosamente.');
       setIsDeleteDialogOpen(false);
       setSupplierToDeleteId(null);
@@ -227,13 +243,7 @@ const SupplierManagement = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando proveedores...
-      </div>
-    );
-  }
+  // No loading static return to allow keepPreviousData rendering
 
   if (error) {
     showError(error.message);
@@ -306,16 +316,15 @@ const SupplierManagement = () => {
             <div className="relative w-full md:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                type="text"
                 placeholder="Buscar proveedor por RIF, nombre o email..."
-                className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={handleSearchChange}
+                className="w-full pl-10 bg-white"
               />
             </div>
             <div className="relative w-full md:w-72">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as 'All' | 'Active' | 'Inactive')}>
+              <Select value={selectedStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-full pl-8 h-9 text-sm">
                   <SelectValue placeholder="Filtrar por estado" />
                 </SelectTrigger>
@@ -328,10 +337,17 @@ const SupplierManagement = () => {
             </div>
           </div>
 
-          {filteredSuppliers.length > 0 ? (
+          <div className={cn("transition-opacity duration-200", isFetching && "opacity-50 pointer-events-none")}>
+          {isLoading && suppliersList.length === 0 ? (
+            <div className="flex justify-center p-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-procarni-primary border-t-transparent"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center text-red-500 p-4">Error cargando proveedores</div>
+          ) : suppliersList.length > 0 ? (
             isMobile ? (
               <div className="grid gap-4">
-                {filteredSuppliers.map((supplier) => (
+                {suppliersList.map((supplier) => (
                   <Card key={supplier.id} className="p-4 w-full shadow-md">
                     <div className="flex justify-between items-start mb-2">
                       {/* Título del proveedor */}
@@ -414,7 +430,7 @@ const SupplierManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSuppliers.map((supplier) => (
+                    {suppliersList.map((supplier) => (
                       <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors">
                         <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
                         <TableCell className="py-3 font-medium text-procarni-dark">{supplier.name}</TableCell>
@@ -478,6 +494,14 @@ const SupplierManagement = () => {
               No hay proveedores registrados o no se encontraron resultados para tu búsqueda.
             </div>
           )}
+          </div>
+          
+          <PaginationControls
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
 
