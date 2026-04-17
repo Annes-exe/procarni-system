@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getAllMaterials } from '@/integrations/supabase/data';
+import { getAllMaterials, searchMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { validateRif } from '@/utils/validators';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
@@ -245,7 +245,8 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
   // Search materials when searchTerm changes
   useEffect(() => {
     const search = async () => {
-      if (searchTerm.trim().length === 0) {
+      // If searchTerm is empty, no need to search, but perhaps show a default list or empty
+      if (!searchTerm.trim()) {
         setSearchResults([]);
         return;
       }
@@ -253,9 +254,10 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       setIsSearching(true);
       try {
         const results = await searchMaterials(searchTerm);
-        setSearchResults(results);
+        setSearchResults(results || []);
       } catch (error) {
         console.error('Error searching materials:', error);
+        setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
