@@ -9,7 +9,8 @@ import { showError, showSuccess } from '@/utils/toast';
 import { createMaterial, createSupplierMaterialRelation, searchMaterials, getMaterialByName, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
 import { useQuery } from '@tanstack/react-query';
-import { Material } from '@/integrations/supabase/types';
+import { Material, MaterialCategory } from '@/integrations/supabase/types';
+import { UnitOfMeasure } from '@/integrations/supabase/services/unitService';
 import { Loader2, Check } from 'lucide-react';
 
 interface MaterialCreationDialogProps {
@@ -34,12 +35,12 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery<UnitOfMeasure[]>({
     queryKey: ['units_of_measure'],
     queryFn: getAllUnits,
   });
 
-  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<MaterialCategory[]>({
     queryKey: ['material_categories'],
     queryFn: getAllMaterialCategories,
   });
