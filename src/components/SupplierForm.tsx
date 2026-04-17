@@ -239,11 +239,31 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     form.setValue('materials', updatedMaterials, { shouldDirty: true });
   };
 
-  const filteredMaterials = allMaterials?.filter(material =>
-    material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (material.code && material.code.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (material.category && material.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  ) || [];
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  // Search materials when searchTerm changes
+  useEffect(() => {
+    const search = async () => {
+      if (searchTerm.trim().length === 0) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const results = await searchMaterials(searchTerm);
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Error searching materials:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timeoutId = setTimeout(search, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleFormSubmit = (data: SupplierFormValues) => {
     const normalizedRif = validateRif(data.rif);
@@ -557,12 +577,15 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
               className="mb-2"
             />
 
-            {isLoadingMaterials ? (
-              <div className="text-sm text-muted-foreground">Cargando materiales...</div>
+            {isLoadingMaterials || isSearching ? (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando materiales...
+              </div>
             ) : (
               <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                {filteredMaterials.length > 0 ? (
-                  filteredMaterials.map((material) => (
+                {searchResults.length > 0 ? (
+                  searchResults.map((material) => (
                     <div
                       key={material.id}
                       className="p-2 hover:bg-muted rounded cursor-pointer flex justify-between items-center"
@@ -579,9 +602,13 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                       </Button>
                     </div>
                   ))
+                ) : searchTerm.trim().length > 0 ? (
+                  <div className="text-sm text-muted-foreground p-2">
+                    No se encontraron materiales para "{searchTerm}"
+                  </div>
                 ) : (
                   <div className="text-sm text-muted-foreground p-2">
-                    No se encontraron materiales
+                    Escribe para buscar materiales...
                   </div>
                 )}
               </div>
