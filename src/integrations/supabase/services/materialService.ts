@@ -10,7 +10,8 @@ const MaterialService = {
     const { data, error } = await supabase
       .from('materials')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(10000); // Override PostgREST's default 1000-row cap
 
     if (error) {
       console.error('[MaterialService.getAll] Error:', error);
