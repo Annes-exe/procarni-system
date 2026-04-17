@@ -3,9 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle } from 'lucide-react';
+import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier } from '@/integrations/supabase/data';
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -95,6 +96,11 @@ const SupplierDetails = () => {
   const fichaStatusResults = useQueries({ queries: materialQueries });
   const isLoadingFichaStatus = fichaStatusResults.some(result => result.isLoading);
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ['material_categories'],
+    queryFn: getAllMaterialCategories,
+  });
+
   // Combine materials with their ficha status to survive filtering
   const materialsWithStatus = useMemo(() => {
     if (!supplier?.materials) return [];
@@ -124,7 +130,7 @@ const SupplierDetails = () => {
       updateSupplier(id, supplierData, materials),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] }); // Also update list
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
       setIsEditOpen(false);
       showSuccess('Proveedor actualizado exitosamente.');
     },
@@ -132,6 +138,70 @@ const SupplierDetails = () => {
       showError(`Error al actualizar proveedor: ${err.message}`);
     },
   });
+
+  // Inline-only mutation: patches a single field directly, never touches supplier_materials.
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ field, value }: { field: string; value: string }) => {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const payload = (field === 'name' || field === 'rif') ? { [field]: value.toUpperCase() } : { [field]: value };
+      const { error } = await supabase
+        .from('suppliers')
+        .update(payload)
+        .eq('id', id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
+      showSuccess('Campo actualizado.');
+    },
+    onError: (err: any) => {
+      if (err?.code === '23505') {
+        showError('El RIF ingresado ya pertenece a otro proveedor. Verifícalo e intenta de nuevo.');
+      } else {
+        showError('No se pudo actualizar el campo. Intenta de nuevo.');
+      }
+    },
+  });
+
+  const handleInlineSave = (field: string) => async (newValue: string) => {
+    await inlineUpdateMutation.mutateAsync({ field, value: newValue });
+  };
+
+  // Mutation for inline editing of materials in the list (with tripa logic)
+  const materialInlineUpdateMutation = useMutation({
+    mutationFn: async ({ materialId, field, value }: { materialId: string; field: string; value: string }) => {
+      const updates: Record<string, string> = { [field]: value };
+
+      // Apply tripa auto-fill: if renaming to "tripa...", force EMPAQUE + mt
+      if (field === 'name' && value.toLowerCase().startsWith('tripa')) {
+        const empaqueCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+        const { getAllUnits } = await import('@/integrations/supabase/data');
+        const allUnits = await getAllUnits();
+        const mtUnitObj = allUnits.find((u: any) => u.name.toLowerCase() === 'mt');
+        if (empaqueCategory) updates['category'] = empaqueCategory.name;
+        if (mtUnitObj) updates['unit'] = mtUnitObj.name;
+      }
+
+      await updateMaterial(materialId, updates as any);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
+      showSuccess('Material actualizado.');
+    },
+    onError: (err: any) => {
+      if (err?.code === '23505') {
+        showError('Ya existe un material con ese nombre o código. Revisa los datos e intenta de nuevo.');
+      } else {
+        showError('No se pudo actualizar el material. Intenta de nuevo.');
+      }
+    },
+  });
+
+  const handleMaterialInlineSave = (materialId: string, field: string) => async (newValue: string) => {
+    await materialInlineUpdateMutation.mutateAsync({ materialId, field, value: newValue });
+  };
 
   const handleEditSubmit = async (data: any) => {
     if (!supplier) return;
@@ -243,7 +313,13 @@ const SupplierDetails = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-2xl font-bold text-procarni-dark tracking-tight">
-              {supplier.name}
+              <InlineEditableCell
+                value={supplier.name}
+                onSave={handleInlineSave('name')}
+                alwaysShowIcon={isMobile}
+                displayClassName="font-bold text-2xl text-procarni-dark tracking-tight whitespace-normal break-words"
+                placeholder="Nombre del proveedor"
+              />
             </h1>
             <Badge className={cn(
               "ml-2 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-none border",
@@ -325,29 +401,54 @@ const SupplierDetails = () => {
           {/* RIF */}
           <div className="space-y-1">
             <span className={microLabelClass}>RIF</span>
-            <p className={cn(valueClass, isGenericRif(supplier.rif) && "text-procarni-alert flex items-center")}>
-              {isGenericRif(supplier.rif) ? (
-                <>
-                  <TriangleAlert className="mr-1 h-3 w-3" /> Faltante
-                </>
-              ) : supplier.rif}
-            </p>
+            <InlineEditableCell
+              value={isGenericRif(supplier.rif) ? '' : supplier.rif}
+              onSave={handleInlineSave('rif')}
+              alwaysShowIcon={isMobile}
+              displayClassName={cn(valueClass, isGenericRif(supplier.rif) && 'text-procarni-alert')}
+              placeholder="RIF"
+              renderDisplay={(v) => isGenericRif(supplier.rif) ? (
+                <span className="flex items-center gap-1 text-procarni-alert">
+                  <AlertTriangle className="h-3 w-3" /> Faltante
+                </span>
+              ) : <span>{String(v)}</span>}
+            />
           </div>
 
           {/* Email */}
           <div className="space-y-1">
             <span className={microLabelClass}>Email</span>
-            <p className={cn(valueClass, "truncate max-w-full")}>{supplier.email || 'N/A'}</p>
+            <InlineEditableCell
+              value={supplier.email || ''}
+              onSave={handleInlineSave('email')}
+              type="email"
+              alwaysShowIcon={isMobile}
+              displayClassName={cn(valueClass, 'max-w-full')}
+              placeholder="Sin email"
+            />
           </div>
 
           {/* Phone */}
           <div className="space-y-1">
             <span className={microLabelClass}>Teléfono</span>
-            {supplier.phone ? (
-              <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center text-sm font-medium">
-                {supplier.phone} <Phone className="ml-1.5 h-3 w-3" />
-              </a>
-            ) : <p className={valueClass}>N/A</p>}
+            <InlineEditableCell
+              value={supplier.phone || ''}
+              onSave={handleInlineSave('phone')}
+              alwaysShowIcon={isMobile}
+              displayClassName={valueClass}
+              placeholder="Sin teléfono"
+              renderDisplay={(v) => supplier.phone ? (
+                <a
+                  href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline flex items-center text-sm font-medium"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {supplier.phone} <Phone className="ml-1.5 h-3 w-3" />
+                </a>
+              ) : <span className={valueClass}>N/A</span>}
+            />
           </div>
         </div>
 
@@ -455,7 +556,13 @@ const SupplierDetails = () => {
                   filteredMaterials.map((sm, index) => (
                     <div key={sm.id || index} className="p-4 bg-white">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="font-semibold text-procarni-dark">{sm.materials.name}</span>
+                        <InlineEditableCell
+                          value={sm.materials.name}
+                          onSave={handleMaterialInlineSave(sm.materials.id, 'name')}
+                          alwaysShowIcon
+                          displayClassName="font-semibold text-procarni-dark"
+                          placeholder="Nombre"
+                        />
                         {sm.isLoadingFicha ? (
                           <span className="text-[10px] text-gray-400 italic">Cargando...</span>
                         ) : sm.hasFichaResult ? (
@@ -467,11 +574,19 @@ const SupplierDetails = () => {
                       <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
                         <div>
                           <span className="text-[10px] uppercase text-gray-400 block">Código</span>
-                          {sm.materials.code || 'N/A'}
+                          <span className="text-xs font-mono">{sm.materials.code || 'N/A'}</span>
                         </div>
                         <div className="text-right">
                           <span className="text-[10px] uppercase text-gray-400 block">Categoría</span>
-                          {sm.materials.category || 'N/A'}
+                          <InlineEditableCell
+                            value={sm.materials.category || ''}
+                            onSave={handleMaterialInlineSave(sm.materials.id, 'category')}
+                            type="select"
+                            options={categories.map(c => ({ value: c.name, label: c.name }))}
+                            alwaysShowIcon
+                            displayClassName="text-xs"
+                            placeholder="Sin categoría"
+                          />
                         </div>
                         <div className="col-span-2 pt-1 border-t border-gray-50 mt-1">
                           <span className="text-[10px] uppercase text-gray-400 block">Especificación</span>
@@ -500,10 +615,28 @@ const SupplierDetails = () => {
                 <TableBody>
                   {filteredMaterials.length > 0 ? (
                     filteredMaterials.map((sm, index) => (
-                      <TableRow key={sm.id || index} className="border-b border-gray-50 hover:bg-gray-50/30">
-                        <TableCell className="pl-6 font-mono text-[13px] text-gray-500">{sm.materials.code || 'N/A'}</TableCell>
-                        <TableCell className="font-medium text-procarni-dark">{sm.materials.name}</TableCell>
-                        <TableCell className="text-gray-500">{sm.materials.category || 'N/A'}</TableCell>
+                      <TableRow key={sm.id || index} className="border-b border-gray-50 hover:bg-gray-50/30 group">
+                        <TableCell className="pl-6 font-mono text-[13px] text-gray-500">
+                          {sm.materials.code || 'N/A'}
+                        </TableCell>
+                        <TableCell className="max-w-[180px]">
+                          <InlineEditableCell
+                            value={sm.materials.name}
+                            onSave={handleMaterialInlineSave(sm.materials.id, 'name')}
+                            displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
+                            placeholder="Nombre"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <InlineEditableCell
+                            value={sm.materials.category || ''}
+                            onSave={handleMaterialInlineSave(sm.materials.id, 'category')}
+                            type="select"
+                            options={categories.map(c => ({ value: c.name, label: c.name }))}
+                            displayClassName="text-gray-500"
+                            placeholder="Sin categoría"
+                          />
+                        </TableCell>
                         <TableCell className="text-gray-500 italic text-sm truncate max-w-[200px]">{sm.specification || 'N/A'}</TableCell>
                         <TableCell className="text-center pr-6">
                           {sm.isLoadingFicha ? (

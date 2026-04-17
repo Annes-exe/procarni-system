@@ -239,12 +239,25 @@ export const searchService = {
                     .limit(5);
                 if (data) soResults = data;
             } else if (query.length >= 3) {
-                const { data } = await supabase
+                // Query 1: search by own fields (equipment_name, service_type)
+                const { data: soByFields } = await supabase
+                    .from('service_orders')
+                    .select('id, sequence_number, equipment_name, service_type, suppliers(name)')
+                    .or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm}`)
+                    .limit(5);
+
+                // Query 2: search by supplier name via inner join (separate filter — PostgREST requirement)
+                const { data: soBySupplier } = await supabase
                     .from('service_orders')
                     .select('id, sequence_number, equipment_name, service_type, suppliers!inner(name)')
-                    .or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`)
+                    .ilike('suppliers.name', searchTerm)
                     .limit(5);
-                if (data) soResults = data;
+
+                // Merge deduplicating by id
+                const seen = new Set<string>();
+                for (const row of [...(soByFields ?? []), ...(soBySupplier ?? [])]) {
+                    if (!seen.has(row.id)) { seen.add(row.id); soResults.push(row); }
+                }
             }
 
             if (soResults.length > 0) {

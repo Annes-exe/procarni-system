@@ -6,8 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag } from 'lucide-react';
+import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories, getAllUnits } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialForm from '@/components/MaterialForm';
 import { useSession } from '@/components/SessionContextProvider';
@@ -55,6 +56,11 @@ const MaterialManagement = () => {
   const { data: categories = [] } = useQuery({
     queryKey: ['material_categories'],
     queryFn: getAllMaterialCategories,
+  });
+
+  const { data: units = [] } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
   });
 
   const { data, isLoading, isFetching, error } = useQuery({
@@ -115,10 +121,29 @@ const MaterialManagement = () => {
       setEditingMaterial(null);
       showSuccess('Material actualizado exitosamente.');
     },
-    onError: (err) => {
-      showError(`Error al actualizar material: ${err.message}`);
+    onError: (err: any) => {
+      if (err?.code === '23505') {
+        showError('Ya existe un material con ese código o nombre. Verifica los datos e intenta de nuevo.');
+      } else {
+        showError('No se pudo actualizar el material. Intenta de nuevo.');
+      }
     },
   });
+
+  // Inline save: updates a single field, applying tripa logic when saving the name
+  const handleInlineSave = async (material: Material, field: keyof Material, newValue: string) => {
+    const updates: Partial<Material> = { [field]: newValue } as any;
+
+    // If renaming to something that starts with "tripa", auto-assign category and unit
+    if (field === 'name' && newValue.toLowerCase().startsWith('tripa')) {
+      const empaqueCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+      const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+      if (empaqueCategory) updates.category = empaqueCategory.name;
+      if (mtUnit) updates.unit = mtUnit.name;
+    }
+
+    await updateMutation.mutateAsync({ id: material.id, updates });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: deleteMaterial,
@@ -289,22 +314,53 @@ const MaterialManagement = () => {
               <div className="space-y-4">
                 {materialsList.map((material) => (
                   <Card key={material.id} className="p-4 shadow-md">
-                    <CardTitle className="text-lg mb-2 flex items-center">
-                      {material.name}
-                      {material.is_exempt && (
-                        <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-procarni-primary text-white rounded-full">
-                          EXENTO
-                        </span>
-                      )}
-                    </CardTitle>
-                    <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3" /> Código: {material.code}
-                    </CardDescription>
-                    <div className="text-sm space-y-1 mt-2 w-full">
-                      <p><strong>Categoría:</strong> {material.category || 'N/A'}</p>
-                      <p><strong>Unidad:</strong> {material.unit || 'N/A'}</p>
+                    <div className="mb-2">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
+                      <InlineEditableCell
+                        value={material.name}
+                        onSave={(v) => handleInlineSave(material, 'name', v)}
+                        alwaysShowIcon
+                        displayClassName="font-semibold text-base text-procarni-dark"
+                        placeholder="Nombre del material"
+                        renderDisplay={(v) => (
+                          <span className="flex items-center gap-1.5">
+                            {String(v)}
+                            {material.is_exempt && (
+                              <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
+                            )}
+                          </span>
+                        )}
+                      />
                     </div>
-                    <div className="flex justify-end gap-2 mt-4 border-t pt-3">
+                    <div className="mb-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Código</p>
+                      <span className="font-mono text-xs text-gray-600">{material.code}</span>
+                    </div>
+                    <div className="mb-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Categoría</p>
+                      <InlineEditableCell
+                        value={material.category || ''}
+                        onSave={(v) => handleInlineSave(material, 'category', v)}
+                        type="select"
+                        options={categories.map(c => ({ value: c.name, label: c.name }))}
+                        alwaysShowIcon
+                        displayClassName="text-gray-600"
+                        placeholder="Sin categoría"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Unidad</p>
+                      <InlineEditableCell
+                        value={material.unit || ''}
+                        onSave={(v) => handleInlineSave(material, 'unit', v)}
+                        type="select"
+                        options={units.map(u => ({ value: u.name, label: u.name }))}
+                        alwaysShowIcon
+                        displayClassName="text-gray-600"
+                        placeholder="Sin unidad"
+                      />
+                    </div>
+                    <div className="flex justify-start gap-2 mt-4 border-t pt-3">
                       <Button
                         variant="outline"
                         size="sm"
@@ -340,25 +396,54 @@ const MaterialManagement = () => {
                   </TableHeader>
                   <TableBody>
                     {materialsList.map((material) => (
-                      <TableRow key={material.id} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
-                        <TableCell className="flex items-center font-medium py-3 text-procarni-dark">
-                          {material.name}
-                          {material.is_exempt && (
-                            <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
-                              EXENTO
-                            </span>
-                          )}
+                      <TableRow key={material.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <TableCell className="pl-4 py-2">
+                          <span className="font-mono text-xs text-gray-600">{material.code}</span>
                         </TableCell>
-                        <TableCell className="py-3 text-gray-600">{material.category || 'N/A'}</TableCell>
-                        <TableCell className="py-3 text-gray-600">{material.unit || 'N/A'}</TableCell>
-                        <TableCell className="py-3 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
-                        <TableCell className="text-right pr-4 py-3">
+                        <TableCell className="py-2 max-w-[220px]">
+                          <InlineEditableCell
+                            value={material.name}
+                            onSave={(v) => handleInlineSave(material, 'name', v)}
+                            displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
+                            placeholder="Nombre"
+                            renderDisplay={(v) => (
+                              <span className="flex items-center gap-1.5 flex-wrap">
+                                {String(v)}
+                                {material.is_exempt && (
+                                  <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
+                                )}
+                              </span>
+                            )}
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={material.category || ''}
+                            onSave={(v) => handleInlineSave(material, 'category', v)}
+                            type="select"
+                            options={categories.map(c => ({ value: c.name, label: c.name }))}
+                            displayClassName="text-gray-600"
+                            placeholder="Sin categoría"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={material.unit || ''}
+                            onSave={(v) => handleInlineSave(material, 'unit', v)}
+                            type="select"
+                            options={units.map(u => ({ value: u.name, label: u.name }))}
+                            displayClassName="text-gray-600"
+                            placeholder="Sin unidad"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
+                        <TableCell className="text-right pr-4 py-2">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEditMaterial(material)}
                             disabled={deleteMutation.isPending}
+                            title="Editar completo"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>

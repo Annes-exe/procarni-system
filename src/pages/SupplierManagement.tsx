@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp } from 'lucide-react';
+import InlineEditableCell from '@/components/InlineEditableCell';
 
 import { getPaginatedSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -161,6 +162,31 @@ const SupplierManagement = () => {
     },
   });
 
+  // Mutation exclusive for inline field edits — patches ONLY the suppliers table,
+  // never touches supplier_materials so associated materials are preserved.
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: string }) => {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const payload = (field === 'name' || field === 'rif') ? { [field]: value.toUpperCase() } : { [field]: value };
+      const { error } = await supabase
+        .from('suppliers')
+        .update(payload)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
+      showSuccess('Campo actualizado.');
+    },
+    onError: (err: any) => {
+      if (err?.code === '23505') {
+        showError('El RIF ingresado ya pertenece a otro proveedor. Verifícalo e intenta de nuevo.');
+      } else {
+        showError('No se pudo actualizar el campo. Intenta de nuevo.');
+      }
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteSupplier,
     onSuccess: () => {
@@ -200,6 +226,12 @@ const SupplierManagement = () => {
 
   const handleViewSupplier = (supplierId: string) => {
     navigate(`/suppliers/${supplierId}`);
+  };
+
+  // Inline save: patches a single field directly in the suppliers table.
+  // Uses inlineUpdateMutation (NOT updateMutation) to avoid wiping supplier_materials.
+  const handleInlineSave = async (supplierId: string, field: string, newValue: string) => {
+    await inlineUpdateMutation.mutateAsync({ id: supplierId, field, value: newValue });
   };
 
   const confirmDeleteSupplier = (id: string) => {
@@ -349,39 +381,66 @@ const SupplierManagement = () => {
               <div className="grid gap-4">
                 {suppliersList.map((supplier) => (
                   <Card key={supplier.id} className="p-4 w-full shadow-md">
-                    <div className="flex justify-between items-start mb-2">
-                      {/* Título del proveedor */}
-                      <CardTitle className="text-lg break-words max-w-[60%]">{supplier.name}</CardTitle>
-                      {/* Espacio vacío donde estaba el badge de estado */}
-                      <div className="w-[30%] text-right"></div>
+                    <div className="mb-2">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
+                      <InlineEditableCell
+                        value={supplier.name}
+                        onSave={(v) => handleInlineSave(supplier.id, 'name', v)}
+                        alwaysShowIcon
+                        displayClassName="font-semibold text-base text-procarni-dark"
+                        placeholder="Nombre del proveedor"
+                      />
                     </div>
-                    <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3" /> Cód: {supplier.code || 'N/A'} | RIF: {isGenericRif(supplier.rif) ? (
-                        <span className="text-procarni-alert flex items-center">
-                          <AlertTriangle className="mr-1 h-3 w-3" /> Faltante
-                        </span>
-                      ) : supplier.rif}
-                    </CardDescription>
-                    <div className="text-sm space-y-1 mt-2 w-full">
-                      {/* Eliminado el email para ahorrar espacio */}
-                      {supplier.phone ? (
-                        <p className="flex items-center"><Phone className="mr-1 h-3 w-3" /> Teléfono: {supplier.phone}</p>
-                      ) : (
-                        <p className="flex items-center text-procarni-alert">
-                          <AlertTriangle className="mr-1 h-3 w-3" /> Teléfono: Faltante
-                        </p>
-                      )}
-                      <p>
-                        <strong>Términos:</strong> {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms ? supplier.custom_payment_terms : supplier.payment_terms}
-                      </p>
-                      {/* Etiqueta de estado movida aquí */}
-                      <p>
-                        <strong>Estado:</strong>
-                        <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
-                          {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </p>
+                    <div className="mb-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">RIF</p>
+                      <InlineEditableCell
+                        value={isGenericRif(supplier.rif) ? '' : supplier.rif}
+                        onSave={(v) => handleInlineSave(supplier.id, 'rif', v)}
+                        alwaysShowIcon
+                        displayClassName={isGenericRif(supplier.rif) ? 'text-procarni-alert' : 'font-mono text-xs text-gray-600'}
+                        placeholder="RIF"
+                        renderDisplay={(v) => isGenericRif(supplier.rif) ? (
+                          <span className="flex items-center gap-1 text-procarni-alert">
+                            <AlertTriangle className="h-3 w-3" /> Faltante
+                          </span>
+                        ) : <span>{String(v)}</span>}
+                      />
                     </div>
+                    <div className="mb-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Teléfono</p>
+                      <InlineEditableCell
+                        value={supplier.phone || ''}
+                        onSave={(v) => handleInlineSave(supplier.id, 'phone', v)}
+                        alwaysShowIcon
+                        displayClassName={supplier.phone ? '' : 'text-procarni-alert'}
+                        placeholder="Teléfono"
+                        renderDisplay={(v) => !v ? (
+                          <span className="flex items-center gap-1 text-procarni-alert">
+                            <AlertTriangle className="h-3 w-3" /> Faltante
+                          </span>
+                        ) : <span>{String(v)}</span>}
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Email</p>
+                      <InlineEditableCell
+                        value={supplier.email || ''}
+                        onSave={(v) => handleInlineSave(supplier.id, 'email', v)}
+                        type="email"
+                        alwaysShowIcon
+                        displayClassName="text-gray-600"
+                        placeholder="Sin email"
+                      />
+                    </div>
+                    <p className="text-sm mb-1">
+                      <strong>Términos:</strong> {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms ? supplier.custom_payment_terms : supplier.payment_terms}
+                    </p>
+                    <p className="text-sm mb-3">
+                      <strong>Estado:</strong>
+                      <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
+                        {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </p>
                     <div className="flex justify-start gap-2 mt-4 border-t pt-3">
                       <Button
                         variant="outline"
@@ -431,35 +490,58 @@ const SupplierManagement = () => {
                   </TableHeader>
                   <TableBody>
                     {suppliersList.map((supplier) => (
-                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
-                        <TableCell className="py-3 font-medium text-procarni-dark">{supplier.name}</TableCell>
-                        <TableCell className={cn("py-3", isGenericRif(supplier.rif) ? "text-procarni-alert font-medium" : "")}>
-                          {isGenericRif(supplier.rif) ? (
-                            <span className="flex items-center">
-                              <AlertTriangle className="h-3 w-3 mr-1" /> Faltante
-                            </span>
-                          ) : supplier.rif}
+                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <TableCell className="pl-4 py-2 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
+                        <TableCell className="py-2 max-w-[200px]">
+                          <InlineEditableCell
+                            value={supplier.name}
+                            onSave={(v) => handleInlineSave(supplier.id, 'name', v)}
+                            displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
+                            placeholder="Nombre"
+                          />
                         </TableCell>
-                        <TableCell className="py-3 text-gray-600">{supplier.email || 'N/A'}</TableCell>
-                        <TableCell className={cn("py-3", supplier.phone ? '' : 'text-procarni-alert font-medium')}>
-                          {supplier.phone || (
-                            <span className="flex items-center">
-                              <AlertTriangle className="h-3 w-3 mr-1" /> Faltante
-                            </span>
-                          )}
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={isGenericRif(supplier.rif) ? '' : supplier.rif}
+                            onSave={(v) => handleInlineSave(supplier.id, 'rif', v)}
+                            displayClassName={isGenericRif(supplier.rif) ? 'text-procarni-alert font-medium' : ''}
+                            placeholder="RIF"
+                            renderDisplay={(v) => isGenericRif(supplier.rif) ? (
+                              <span className="flex items-center gap-1 text-procarni-alert">
+                                <AlertTriangle className="h-3 w-3" /> Faltante
+                              </span>
+                            ) : <span>{String(v)}</span>}
+                          />
                         </TableCell>
-                        <TableCell className="py-3">
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={supplier.email || ''}
+                            onSave={(v) => handleInlineSave(supplier.id, 'email', v)}
+                            type="email"
+                            displayClassName="text-gray-600"
+                            placeholder="Sin email"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={supplier.phone || ''}
+                            onSave={(v) => handleInlineSave(supplier.id, 'phone', v)}
+                            displayClassName={supplier.phone ? '' : 'text-procarni-alert font-medium'}
+                            placeholder="Teléfono"
+                            renderDisplay={(v) => !v ? (
+                              <span className="flex items-center gap-1 text-procarni-alert">
+                                <AlertTriangle className="h-3 w-3" /> Faltante
+                              </span>
+                            ) : <span>{String(v)}</span>}
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
                           <span className={cn("px-2 py-0.5 text-xs font-medium rounded-md border", getStatusBadgeClass(supplier.status))}>
                             {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right pr-4 py-3">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => { e.stopPropagation(); handleViewSupplier(supplier.id); }}
-                          >
+                        <TableCell className="text-right pr-4 py-2">
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewSupplier(supplier.id); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button
@@ -467,6 +549,7 @@ const SupplierManagement = () => {
                             size="icon"
                             onClick={(e) => { e.stopPropagation(); handleEditSupplier(supplier.id); }}
                             disabled={deleteMutation.isPending || isLoadingEditData}
+                            title="Editar completo"
                           >
                             {isLoadingEditData && editingSupplier?.id === supplier.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
