@@ -111,7 +111,7 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
-        .order('name', { ascending: true }); // Removed limit(10)
+        .order('name', { ascending: true });
 
       if (error) {
         console.error('[MaterialService.search] Error fetching default materials:', error);
@@ -120,18 +120,45 @@ const MaterialService = {
       return data;
     }
 
-    const { data, error } = await supabase
+    const searchPattern = `%${query}%`;
+
+    // First search by name and code
+    const { data: directMatches, error } = await supabase
       .from('materials')
       .select('*')
-      .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
-      .limit(10);
+      .or(`name.ilike.${searchPattern},code.ilike.${searchPattern}`)
+      .order('name', { ascending: true });
 
     if (error) {
       console.error('[MaterialService.search] Error:', error);
       return [];
     }
-    return data;
+
+    // Also search by alias to find materials with alternative names
+    const { data: aliasMatches } = await supabase
+      .from('material_aliases')
+      .select('material_id')
+      .ilike('alias', searchPattern);
+
+    if (aliasMatches && aliasMatches.length > 0) {
+      const aliasedMaterialIds = aliasMatches.map(a => a.material_id);
+      const directIds = new Set((directMatches || []).map(m => m.id));
+      const newIds = aliasedMaterialIds.filter(id => !directIds.has(id));
+
+      if (newIds.length > 0) {
+        const { data: aliasedMaterials } = await supabase
+          .from('materials')
+          .select('*')
+          .in('id', newIds)
+          .order('name', { ascending: true });
+
+        return [...(directMatches || []), ...(aliasedMaterials || [])];
+      }
+    }
+
+    return directMatches || [];
   },
+
 
   getByName: async (name: string): Promise<Material | null> => {
     const { data, error } = await supabase
