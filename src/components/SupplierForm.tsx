@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllMaterials, searchMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -21,6 +22,157 @@ import { detectLocation } from '@/utils/location-detector';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DragStartEvent,
+  DragOverEvent,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
+import { m, AnimatePresence } from 'framer-motion';
+import { useDroppable } from '@dnd-kit/core';
+import { rectIntersection, closestCorners } from '@dnd-kit/core';
+
+// --- Sub-componentes para DND ---
+
+interface DroppableZoneProps {
+  id: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const DroppableZone = ({ id, children, className }: DroppableZoneProps) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div 
+      ref={setNodeRef} 
+      className={cn(className, isOver && "ring-2 ring-procarni-secondary ring-inset bg-procarni-secondary/5")}
+    >
+      {children}
+    </div>
+  );
+};
+
+interface DraggableItemProps {
+  id: string;
+  name: string;
+  category?: string;
+  code?: string;
+  specification?: string;
+  onSpecificationChange?: (val: string) => void;
+  onRemove?: () => void;
+  onClick?: () => void;
+  isOverlay?: boolean;
+  type: 'available' | 'selected';
+  disabled?: boolean;
+}
+
+const DraggableMaterialItem = ({ 
+  id, 
+  name, 
+  category, 
+  code, 
+  specification, 
+  onSpecificationChange, 
+  onRemove,
+  onClick,
+  isOverlay,
+  type,
+  disabled
+}: DraggableItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id, disabled });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging && !isOverlay ? 0.4 : 1,
+  };
+
+  const handleItemClick = (e: React.MouseEvent) => {
+    // Si estamos arrastrando, no disparamos el click
+    if (isDragging) return;
+    if (onClick) onClick();
+  };
+
+  const content = (
+    <div 
+      className={cn(
+        "p-2 mb-2 bg-white border rounded-lg shadow-sm transition-all group relative",
+        !disabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+        isOverlay ? "shadow-lg border-procarni-secondary pointer-events-none opacity-90" : "hover:border-procarni-secondary/50",
+        type === 'selected' ? "bg-white" : "bg-gray-50/50"
+      )}
+      onClick={handleItemClick}
+    >
+      <div className="flex justify-between items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-[11px] text-procarni-dark truncate">{name}</div>
+          <div className="text-[9px] text-muted-foreground truncate uppercase tracking-tighter">
+            {code} {category && `• ${category}`}
+          </div>
+        </div>
+        {!isOverlay && type === 'selected' && onRemove && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-gray-400 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
+        <div className="text-gray-300 group-hover:text-gray-400 transition-colors">
+           <ChevronsUpDown className="h-3.5 w-3.5" />
+        </div>
+      </div>
+      
+      {type === 'selected' && onSpecificationChange && (
+        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <Input
+            value={specification || ''}
+            onChange={(e) => onSpecificationChange(e.target.value)}
+            placeholder="Especificación..."
+            className="h-7 text-[10px] bg-gray-50/30"
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {content}
+    </div>
+  );
+};
 
 // Esquema de validación - reestructurado para evitar problemas con ctx.parent
 const supplierFormSchema = z.object({
@@ -118,7 +270,24 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     },
   });
 
-  const currentMaterialsInForm = form.watch('materials');
+  const isMobile = useIsMobile();
+
+  // --- DND Sensors ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Sensibilidad al arrastrar para no disparar clicks accidentales
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeItem, setActiveItem] = useState<any>(null);
+
+  const currentMaterialsInForm = form.watch('materials') || [];
   const currentPaymentTerms = form.watch('payment_terms');
   const currentAddress = form.watch('address');
 
@@ -299,116 +468,231 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     onSubmit(finalData);
   };
 
+  // --- DND Handlers ---
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+    
+    // Encontrar el item activo ya sea en resultados o en seleccionados
+    const itemInResults = searchResults.find(m => m.id === active.id);
+    const itemInSelected = currentMaterialsInForm.find(m => m.material_id === active.id);
+    
+    if (itemInResults) {
+      setActiveItem({ ...itemInResults, type: 'available' });
+    } else if (itemInSelected) {
+      setActiveItem({ 
+        id: itemInSelected.material_id, 
+        name: itemInSelected.material_name, 
+        code: '', 
+        category: itemInSelected.material_category, 
+        specification: itemInSelected.specification,
+        type: 'selected' 
+      });
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    setActiveItem(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Caso 1: Agregar (Disponibles -> Seleccionados)
+    if (activeItem?.type === 'available' && (overId === 'selected-zone' || currentMaterialsInForm.some(m => m.material_id === overId))) {
+      const material = searchResults.find(m => m.id === activeId);
+      if (material) {
+        handleAddMaterial(material);
+      }
+    }
+    
+    // Caso 2: Quitar (Seleccionados -> Disponibles)
+    if (activeItem?.type === 'selected' && (overId === 'available-zone' || searchResults.some(m => m.id === overId))) {
+      handleRemoveMaterial(activeId);
+    }
+
+    // Caso 3: Reordenar dentro de Seleccionados
+    if (activeItem?.type === 'selected' && currentMaterialsInForm.some(m => m.material_id === overId)) {
+      if (activeId !== overId) {
+        const oldIndex = currentMaterialsInForm.findIndex(m => m.material_id === activeId);
+        const newIndex = currentMaterialsInForm.findIndex(m => m.material_id === overId);
+        form.setValue('materials', arrayMove(currentMaterialsInForm, oldIndex, newIndex), { shouldDirty: true });
+      }
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 items-start">
           
-          {/* Columna Derecha: Materiales Asociados (en desktop) */}
+          {/* Columna Derecha: Materiales Asociados (DND) */}
           <div className="order-2 md:order-2 space-y-4">
-            <div className="p-4 bg-gray-50/50 border rounded-xl overflow-hidden">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 flex justify-between items-center">
-                Materiales Asociados
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs bg-white"
-                  onClick={() => setIsMaterialCreationDialogOpen(true)}
+            <DndContext 
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="grid grid-cols-1 gap-4">
+                
+                {/* Zona de Búsqueda / Disponibles */}
+                <DroppableZone 
+                  id="available-zone"
+                  className="p-4 bg-gray-50/50 border rounded-xl"
                 >
-                  <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Crear
-                </Button>
-              </h3>
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3 flex justify-between items-center">
+                    Buscador de Materiales
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-[10px] bg-white border-dashed"
+                      onClick={() => setIsMaterialCreationDialogOpen(true)}
+                    >
+                      <PlusCircle className="mr-1.5 h-3 w-3" /> Nuevo
+                    </Button>
+                  </h3>
 
-              <div className="space-y-4">
-                <div className="relative">
-                  <Input
-                    placeholder="Buscar materiales para asociar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pr-10 bg-white"
-                  />
-                  {(isLoadingMaterials || isSearching) && (
-                    <div className="absolute right-3 top-2.5">
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                      <Input
+                        placeholder="Escribe para buscar..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 h-9 text-xs bg-white"
+                      />
+                      {(isLoadingMaterials || isSearching) && (
+                        <div className="absolute right-3 top-2.5">
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {!isLoadingMaterials && !isSearching && (
-                  <div className="max-h-48 overflow-y-auto border bg-white rounded-md p-1 shadow-sm">
-                    {searchResults.length > 0 ? (
-                      searchResults.map((material) => (
-                        <div
-                          key={material.id}
-                          className="p-2 hover:bg-procarni-light/30 rounded cursor-pointer flex justify-between items-center group transition-colors"
-                          onClick={() => handleAddMaterial(material)}
-                        >
-                          <div className="min-w-0 pr-2">
-                            <div className="font-medium text-xs truncate">{material.name}</div>
-                            <div className="text-[10px] text-muted-foreground truncate">
-                              {material.code} {material.category && `• ${material.category}`}
+                    <div className="max-h-56 overflow-y-auto pr-1">
+                      <SortableContext 
+                        id="available-zone"
+                        items={searchResults.map(m => m.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <AnimatePresence>
+                          {searchResults.length > 0 ? (
+                            searchResults.map((material) => (
+                              <m.div
+                                key={material.id}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                              >
+                                <DraggableMaterialItem 
+                                  id={material.id}
+                                  name={material.name}
+                                  category={material.category}
+                                  code={material.code}
+                                  type="available"
+                                  onClick={() => handleAddMaterial(material)}
+                                  disabled={isMobile}
+                                />
+                              </m.div>
+                            ))
+                          ) : searchTerm.trim() ? (
+                            <div className="text-[11px] text-center text-muted-foreground py-10 bg-white/50 rounded-lg border border-dashed">
+                              Sin coincidencias para "{searchTerm}"
                             </div>
-                          </div>
-                          <Button type="button" size="xs" variant="ghost" className="h-6 w-6 p-0 group-hover:bg-procarni-secondary group-hover:text-white">
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))
-                    ) : searchTerm.trim().length > 0 ? (
-                      <div className="text-[11px] text-center text-muted-foreground py-4">
-                        Sin resultados para "{searchTerm}"
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-center text-muted-foreground py-4">
-                        Escribe para buscar y añadir...
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="space-y-3 pt-2">
-                  {currentMaterialsInForm && currentMaterialsInForm.length > 0 ? (
-                    currentMaterialsInForm.map((material) => (
-                      <div key={material.material_id} className="p-3 bg-white border rounded-lg shadow-sm flex flex-col gap-2 group relative">
-                        <div className="flex justify-between items-start">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-xs text-procarni-dark truncate pr-6">{material.material_name}</div>
-                            {material.material_category && (
-                              <div className="text-[10px] text-muted-foreground">
-                                {material.material_category}
-                              </div>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 absolute right-2 top-2 text-gray-400 hover:text-red-500"
-                            onClick={() => handleRemoveMaterial(material.material_id)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <div>
-                          <Input
-                            value={material.specification || ''}
-                            onChange={(e) => handleSpecificationChange(material.material_id, e.target.value)}
-                            placeholder="Especificación (ej: Marca, Grosor...)"
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-[11px] text-center text-gray-400 border border-dashed rounded-lg py-8">
-                      No hay materiales asociados aún
+                          ) : (
+                            <div className="text-[11px] text-center text-gray-400 py-10 bg-white/30 rounded-lg border border-dashed flex flex-col items-center gap-2">
+                              <Info className="h-4 w-4 opacity-30" />
+                              Arrastra resultados aquí abajo para agregar
+                            </div>
+                          )}
+                        </AnimatePresence>
+                      </SortableContext>
                     </div>
+                  </div>
+                </DroppableZone>
+
+                {/* Zona de Seleccionados / Drop Zone */}
+                <DroppableZone 
+                  id="selected-zone"
+                  className={cn(
+                    "p-4 border-2 rounded-xl transition-all min-h-[200px]",
+                    activeId ? "border-procarni-secondary border-dashed" : "bg-white border-gray-100 shadow-inner"
                   )}
-                </div>
+                >
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary mb-3 flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5" /> Vinculados al Proveedor
+                    {currentMaterialsInForm.length > 0 && (
+                      <span className="bg-procarni-secondary text-white px-1.5 py-0.5 rounded-full text-[9px]">
+                        {currentMaterialsInForm.length}
+                      </span>
+                    )}
+                  </h3>
+
+                  <div className="space-y-1">
+                    <SortableContext 
+                      id="selected-zone"
+                      items={currentMaterialsInForm.map(m => m.material_id)} 
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <AnimatePresence>
+                        {currentMaterialsInForm.length > 0 ? (
+                          currentMaterialsInForm.map((material) => (
+                            <m.div
+                              key={material.material_id}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                            >
+                              <DraggableMaterialItem 
+                                id={material.material_id}
+                                name={material.material_name}
+                                category={material.material_category}
+                                specification={material.specification}
+                                onSpecificationChange={(val) => handleSpecificationChange(material.material_id, val)}
+                                onRemove={() => handleRemoveMaterial(material.material_id)}
+                                type="selected"
+                                disabled={isMobile}
+                              />
+                            </m.div>
+                          ))
+                        ) : (
+                          <div className="text-[11px] text-center text-gray-400 py-16 flex flex-col items-center gap-2">
+                            <Plus className="h-6 w-6 opacity-10" />
+                            Arrastra materiales aquí para seleccionarlos
+                          </div>
+                        )}
+                      </AnimatePresence>
+                    </SortableContext>
+                  </div>
+                </DroppableZone>
               </div>
-            </div>
+
+              {/* Overlay simple portado al body para evitar desfases por el Modal */}
+              {!isMobile && createPortal(
+                <DragOverlay adjustScale={false}>
+                  {activeId && activeItem ? (
+                    <div className="w-[300px] pointer-events-none z-[9999]">
+                      <DraggableMaterialItem 
+                        id={activeId}
+                        name={activeItem.name}
+                        category={activeItem.category}
+                        code={activeItem.code}
+                        specification={activeItem.specification}
+                        type={activeItem.type}
+                        isOverlay
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body
+              )}
+            </DndContext>
           </div>
+
 
           {/* Columna Izquierda: Datos del Proveedor (en desktop) */}
           <div className="order-1 md:order-1 space-y-6">
