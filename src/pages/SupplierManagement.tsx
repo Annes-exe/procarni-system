@@ -87,6 +87,7 @@ const SupplierManagement = () => {
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [debouncedSearch] = useDebounce(searchInput, 500);
   const selectedStatus = (searchParams.get('status') || 'Active') as 'All' | 'Active' | 'Inactive';
+  const dataQualityFilter = searchParams.get('quality') || 'All';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -95,8 +96,8 @@ const SupplierManagement = () => {
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus],
-    queryFn: () => getPaginatedSuppliers(page, pageSize, debouncedSearch, selectedStatus),
+    queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter],
+    queryFn: () => getPaginatedSuppliers(page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -126,6 +127,15 @@ const SupplierManagement = () => {
     setSearchParams(prev => {
       if (value !== 'All') prev.set('status', value);
       else prev.delete('status');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
+
+  const handleQualityChange = (value: string) => {
+    setSearchParams(prev => {
+      if (value !== 'All') prev.set('quality', value);
+      else prev.delete('quality');
       prev.set('page', '1');
       return prev;
     });
@@ -354,16 +364,30 @@ const SupplierManagement = () => {
                 className="w-full pl-10 bg-white"
               />
             </div>
-            <div className="relative w-full md:w-72">
+            <div className="relative w-full md:w-48">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Select value={selectedStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-full pl-8 h-9 text-sm">
-                  <SelectValue placeholder="Filtrar por estado" />
+                  <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">Todos los Estados</SelectItem>
                   <SelectItem value="Active">Activo</SelectItem>
                   <SelectItem value="Inactive">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="relative w-full md:w-64">
+              <AlertTriangle className={cn("absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground", dataQualityFilter !== 'All' && "text-amber-500")} />
+              <Select value={dataQualityFilter} onValueChange={handleQualityChange}>
+                <SelectTrigger className={cn("w-full pl-8 h-9 text-sm", dataQualityFilter !== 'All' && "ring-1 ring-amber-400 bg-amber-50")}>
+                  <SelectValue placeholder="Calidad de Datos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">Calidad: Todos</SelectItem>
+                  <SelectItem value="MissingCritical">Datos Críticos Faltantes</SelectItem>
+                  <SelectItem value="MissingSecondary">Datos Secundarios Faltantes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -493,12 +517,20 @@ const SupplierManagement = () => {
                       <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors group">
                         <TableCell className="pl-4 py-2 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
                         <TableCell className="py-2 max-w-[200px]">
-                          <InlineEditableCell
-                            value={supplier.name}
-                            onSave={(v) => handleInlineSave(supplier.id, 'name', v)}
-                            displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
-                            placeholder="Nombre"
-                          />
+                          <div className="flex flex-col">
+                            <InlineEditableCell
+                              value={supplier.name}
+                              onSave={(v) => handleInlineSave(supplier.id, 'name', v)}
+                              displayClassName="font-semibold text-procarni-dark whitespace-normal break-words"
+                              placeholder="Nombre"
+                            />
+                            {/* Alerta de Datos Críticos Faltantes (Estilo suave en Azul) */}
+                            {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
+                              <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-1" title="Falta RIF, Teléfono o Dirección">
+                                <Search className="h-3 w-3" /> Info incompleta
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="py-2">
                           <InlineEditableCell

@@ -288,7 +288,8 @@ const SupplierService = {
     page: number,
     pageSize: number,
     searchTerm: string = '',
-    statusFilter: string = 'All'
+    statusFilter: string = 'All',
+    dataQualityFilter: string = 'All'
   ) => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -300,11 +301,19 @@ const SupplierService = {
     if (searchTerm) {
       const sanitizedSearch = searchTerm.replace(/[,.]/g, ' ');
       const searchPattern = `%${sanitizedSearch}%`;
-      query = query.or(`name.ilike.${searchPattern},rif.ilike.${searchPattern},code.ilike.${searchPattern},email.ilike.${searchPattern}`); // Included email as per old client side logic
+      query = query.or(`name.ilike.${searchPattern},rif.ilike.${searchPattern},code.ilike.${searchPattern},email.ilike.${searchPattern}`);
     }
 
     if (statusFilter !== 'All') {
       query = query.eq('status', statusFilter);
+    }
+
+    if (dataQualityFilter === 'MissingCritical') {
+      // Datos Críticos: rif, phone, address
+      query = query.or('rif.is.null,rif.eq."",phone.is.null,phone.eq."",address.is.null,address.eq.""');
+    } else if (dataQualityFilter === 'MissingSecondary') {
+      // Datos Secundarios: email, instagram, phone_2, payment_terms
+      query = query.or('email.is.null,email.eq."",instagram.is.null,instagram.eq."",phone_2.is.null,phone_2.eq."",payment_terms.is.null,payment_terms.eq.""');
     }
 
     const { data, count, error } = await query
