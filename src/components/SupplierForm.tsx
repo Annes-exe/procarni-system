@@ -301,385 +301,427 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
-        {/* El campo de código ha sido eliminado */}
-        <FormField
-          control={form.control}
-          name="rif"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>RIF</FormLabel>
-              <FormControl>
-                <Input placeholder="RIF del proveedor" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nombre</FormLabel>
-              <FormControl>
-                <Input placeholder="Nombre del proveedor" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input placeholder="Email del proveedor" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Teléfono 1</FormLabel>
-              <FormControl>
-                <Input placeholder="Teléfono principal" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone_2"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Teléfono 2</FormLabel>
-              <FormControl>
-                <Input placeholder="Teléfono secundario" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="instagram"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Instagram</FormLabel>
-              <FormControl>
-                <Input placeholder="@usuario" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dirección</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Dirección del proveedor" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="city"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Ciudad / Municipio</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className={cn(
-                        "w-full justify-between",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value
-                        ? VENEZUELAN_MUNICIPALITIES_FLAT.find(
-                            (m) => m.city === field.value && m.state === form.getValues('state')
-                          )?.label || field.value
-                        : "Seleccionar ciudad..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Buscar ciudad o estado..." />
-                    <CommandList>
-                      <CommandEmpty>No se encontró la ciudad.</CommandEmpty>
-                      <CommandGroup>
-                        {VENEZUELAN_MUNICIPALITIES_FLAT.map((m) => (
-                          <CommandItem
-                            value={m.label}
-                            key={`${m.city}-${m.state}`}
-                            onSelect={() => {
-                              form.setValue("city", m.city);
-                              form.setValue("state", m.state);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                m.city === field.value && m.state === form.getValues('state')
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                                )}
-                            />
-                            {m.label}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <p className="text-[10px] text-muted-foreground mt-1">La ubicación se detectará automáticamente al escribir la dirección, pero puedes cambiarla aquí.</p>
-        <FormField
-          control={form.control}
-          name="payment_terms"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Términos de Pago</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione términos de pago" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Contado">Contado</SelectItem>
-                  <SelectItem value="Crédito">Crédito</SelectItem>
-                  <SelectItem value="Otro">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {currentPaymentTerms === 'Crédito' && (
-          <FormField
-            control={form.control}
-            name="credit_days"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Días de Crédito</FormLabel>
-                <FormControl>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 items-start">
+          
+          {/* Columna Derecha: Materiales Asociados (en desktop) */}
+          <div className="order-2 md:order-2 space-y-4">
+            <div className="p-4 bg-gray-50/50 border rounded-xl overflow-hidden">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 flex justify-between items-center">
+                Materiales Asociados
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs bg-white"
+                  onClick={() => setIsMaterialCreationDialogOpen(true)}
+                >
+                  <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Crear
+                </Button>
+              </h3>
+
+              <div className="space-y-4">
+                <div className="relative">
                   <Input
-                    type="number"
-                    placeholder="Días de crédito"
-                    {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                    placeholder="Buscar materiales para asociar..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pr-10 bg-white"
                   />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        {currentPaymentTerms === 'Otro' && (
-          <FormField
-            control={form.control}
-            name="custom_payment_terms"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Términos de Pago Personalizados</FormLabel>
-                <FormControl>
-                  <Input placeholder="Describa los términos de pago" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Estado</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione estado" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Active">Activo</SelectItem>
-                  <SelectItem value="Inactive">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="alert_comment"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-procarni-alert flex items-center gap-2">
-                <Info className="h-4 w-4" /> Aviso / Comentario Especial
-              </FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Este comentario aparecerá como una alerta cuando este proveedor sea seleccionado en una Orden o Documento."
-                  className="bg-red-50/10 border-procarni-alert/30 focus:border-procarni-alert min-h-[100px]"
-                  {...field}
-                  value={field.value || ''}
-                />
-              </FormControl>
-              <p className="text-[10px] text-gray-500">Útil para alertar sobre condiciones de crédito especiales, advertencias de cobros o acuerdos específicos.</p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Sección de materiales asociados */}
-        <div className="mt-6 p-4 border rounded-lg">
-          <h3 className="text-lg font-semibold mb-4 flex justify-between items-center">
-            Materiales Asociados
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMaterialCreationDialogOpen(true)} // NEW BUTTON
-            >
-              <PlusCircle className="mr-2 h-4 w-4" /> Crear Material
-            </Button>
-          </h3>
-
-          <div className="mb-4">
-            <Input
-              placeholder="Buscar materiales existentes para asociar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-2"
-            />
-
-            {isLoadingMaterials || isSearching ? (
-              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Buscando materiales...
-              </div>
-            ) : (
-              <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                {searchResults.length > 0 ? (
-                  searchResults.map((material) => (
-                    <div
-                      key={material.id}
-                      className="p-2 hover:bg-muted rounded cursor-pointer flex justify-between items-center"
-                      onClick={() => handleAddMaterial(material)}
-                    >
-                      <div>
-                        <div className="font-medium">{material.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {material.code} {material.category && `- ${material.category}`}
-                        </div>
-                      </div>
-                      <Button type="button" size="sm" variant="ghost">
-                        <Plus className="h-4 w-4" />
-                      </Button>
+                  {(isLoadingMaterials || isSearching) && (
+                    <div className="absolute right-3 top-2.5">
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                     </div>
-                  ))
-                ) : searchTerm.trim().length > 0 ? (
-                  <div className="text-sm text-muted-foreground p-2">
-                    No se encontraron materiales para "{searchTerm}"
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground p-2">
-                    Escribe para buscar materiales...
+                  )}
+                </div>
+
+                {!isLoadingMaterials && !isSearching && (
+                  <div className="max-h-48 overflow-y-auto border bg-white rounded-md p-1 shadow-sm">
+                    {searchResults.length > 0 ? (
+                      searchResults.map((material) => (
+                        <div
+                          key={material.id}
+                          className="p-2 hover:bg-procarni-light/30 rounded cursor-pointer flex justify-between items-center group transition-colors"
+                          onClick={() => handleAddMaterial(material)}
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="font-medium text-xs truncate">{material.name}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {material.code} {material.category && `• ${material.category}`}
+                            </div>
+                          </div>
+                          <Button type="button" size="xs" variant="ghost" className="h-6 w-6 p-0 group-hover:bg-procarni-secondary group-hover:text-white">
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))
+                    ) : searchTerm.trim().length > 0 ? (
+                      <div className="text-[11px] text-center text-muted-foreground py-4">
+                        Sin resultados para "{searchTerm}"
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-center text-muted-foreground py-4">
+                        Escribe para buscar y añadir...
+                      </div>
+                    )}
                   </div>
                 )}
+
+                <div className="space-y-3 pt-2">
+                  {currentMaterialsInForm && currentMaterialsInForm.length > 0 ? (
+                    currentMaterialsInForm.map((material) => (
+                      <div key={material.material_id} className="p-3 bg-white border rounded-lg shadow-sm flex flex-col gap-2 group relative">
+                        <div className="flex justify-between items-start">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-xs text-procarni-dark truncate pr-6">{material.material_name}</div>
+                            {material.material_category && (
+                              <div className="text-[10px] text-muted-foreground">
+                                {material.material_category}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 absolute right-2 top-2 text-gray-400 hover:text-red-500"
+                            onClick={() => handleRemoveMaterial(material.material_id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        <div>
+                          <Input
+                            value={material.specification || ''}
+                            onChange={(e) => handleSpecificationChange(material.material_id, e.target.value)}
+                            placeholder="Especificación (ej: Marca, Grosor...)"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[11px] text-center text-gray-400 border border-dashed rounded-lg py-8">
+                      No hay materiales asociados aún
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
-          {currentMaterialsInForm && currentMaterialsInForm.length > 0 ? (
-            <div className="space-y-3">
-              {currentMaterialsInForm.map((material) => (
-                <div key={material.material_id} className="p-3 border rounded-md flex flex-col gap-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-medium">{material.material_name}</div>
-                      {material.material_category && (
-                        <div className="text-sm text-muted-foreground">
-                          Categoría: {material.material_category}
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveMaterial(material.material_id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Especificación</label>
-                    <Input
-                      value={material.specification || ''}
-                      onChange={(e) => handleSpecificationChange(material.material_id, e.target.value)}
-                      placeholder="Especificación del material (opcional)"
-                    />
-                  </div>
-                </div>
-              ))}
+          {/* Columna Izquierda: Datos del Proveedor (en desktop) */}
+          <div className="order-1 md:order-1 space-y-6">
+            
+            {/* Sección: Datos Básicos */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Identificación</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="rif"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">RIF</FormLabel>
+                      <FormControl>
+                        <Input placeholder="J123456789" {...field} className="h-9" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Estado</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Estado" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Active">Activo</SelectItem>
+                          <SelectItem value="Inactive">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Nombre / Razón Social</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nombre del proveedor" {...field} className="h-9" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              No hay materiales asociados a este proveedor
+
+            {/* Sección: Contacto */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Contacto</h4>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="proveedor@ejemplo.com" {...field} value={field.value || ''} className="h-9" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Teléfono Principal</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0412-1234567" {...field} value={field.value || ''} className="h-9" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone_2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Teléfono Secundario</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Opcional" {...field} value={field.value || ''} className="h-9" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="instagram"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Instagram</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 h-4 w-4">@</span>
+                        <Input placeholder="usuario" {...field} value={field.value || ''} className="h-9 pl-8" />
+                      </div>
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
             </div>
-          )}
+
+            {/* Sección: Ubicación */}
+            <div className="space-y-4 pt-2">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Ubicación</h4>
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Dirección Fiscal</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Dirección completa..." {...field} value={field.value || ''} className="min-h-[80px] resize-none" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel className="text-xs">Ciudad / Municipio</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between h-9 text-xs font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value
+                              ? VENEZUELAN_MUNICIPALITIES_FLAT.find(
+                                  (m) => m.city === field.value && m.state === form.getValues('state')
+                                )?.label || field.value
+                              : "Seleccionar ciudad..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar ciudad o estado..." />
+                          <CommandList className="max-h-48">
+                            <CommandEmpty>No se encontró la ciudad.</CommandEmpty>
+                            <CommandGroup>
+                              {VENEZUELAN_MUNICIPALITIES_FLAT.map((m) => (
+                                <CommandItem
+                                  value={m.label}
+                                  key={`${m.city}-${m.state}`}
+                                  className="text-xs"
+                                  onSelect={() => {
+                                    form.setValue("city", m.city);
+                                    form.setValue("state", m.state);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-3.5 w-3.5",
+                                      m.city === field.value && m.state === form.getValues('state')
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                      )}
+                                  />
+                                  {m.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <p className="text-[10px] text-muted-foreground italic">La ubicación se detecta automáticamente al escribir la dirección.</p>
+            </div>
+
+            {/* Sección: Términos y Pagos */}
+            <div className="space-y-4 pt-2">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Pago y Comentarios</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="payment_terms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Términos de Pago</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Términos" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Contado">Contado</SelectItem>
+                          <SelectItem value="Crédito">Crédito</SelectItem>
+                          <SelectItem value="Otro">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+
+                {currentPaymentTerms === 'Crédito' && (
+                  <FormField
+                    control={form.control}
+                    name="credit_days"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Días de Crédito</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="Ej: 30"
+                            className="h-9"
+                            {...field}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {currentPaymentTerms === 'Otro' && (
+                  <FormField
+                    control={form.control}
+                    name="custom_payment_terms"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Pago Personalizado</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Describa los términos" {...field} value={field.value || ''} className="h-9" />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+
+              <FormField
+                control={form.control}
+                name="alert_comment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-procarni-alert flex items-center gap-2">
+                      <Info className="h-3 w-3" /> Aviso Especial
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Aviso que aparecerá al seleccionar este proveedor..."
+                        className="bg-red-50/10 border-procarni-alert/30 focus:border-procarni-alert min-h-[100px] text-xs resize-none"
+                        {...field}
+                        value={field.value || ''}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="mt-6">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <DialogFooter className="sticky bottom-0 bg-white pt-4 border-t gap-2 flex-col sm:flex-row">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="h-10">
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="bg-procarni-secondary hover:bg-green-700">
+          <Button type="submit" disabled={isSubmitting} className="h-10 bg-procarni-secondary hover:bg-green-700 sm:min-w-[120px]">
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Guardando...
               </>
             ) : (
-              'Guardar'
+              'Guardar Cambios'
             )}
           </Button>
         </DialogFooter>
       </form>
 
-      {/* NEW DIALOG */}
       <MaterialCreationDialog
         isOpen={isMaterialCreationDialogOpen}
         onClose={() => setIsMaterialCreationDialogOpen(false)}
         onMaterialCreated={handleMaterialCreatedFromDialog}
-        supplierId={currentSupplierId} // Pass ID if editing, undefined if creating
+        supplierId={currentSupplierId}
         supplierName={initialData?.name}
       />
     </Form>

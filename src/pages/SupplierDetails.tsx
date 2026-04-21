@@ -8,6 +8,7 @@ import InlineEditableCell from '@/components/InlineEditableCell';
 
 import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
+import { detectLocation } from '@/utils/location-detector';
 import { isGenericRif } from '@/utils/validators';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -141,13 +142,27 @@ const SupplierDetails = () => {
 
   // Inline-only mutation: patches a single field directly, never touches supplier_materials.
   const inlineUpdateMutation = useMutation({
-    mutationFn: async ({ field, value }: { field: string; value: string }) => {
+    mutationFn: async ({ field, value }: { field: string; value: string | number }) => {
       const { supabase } = await import('@/integrations/supabase/client');
-      const payload = (field === 'name' || field === 'rif') ? { [field]: value.toUpperCase() } : { [field]: value };
+      
+      let payload: any = { [field]: value };
+      
+      if (field === 'name' || field === 'rif') {
+        payload[field] = String(value).toUpperCase();
+      }
+      
+      // Auto-detect location when address changes
+      if (field === 'address') {
+        const { state, city } = detectLocation(String(value));
+        if (state) payload.state = state;
+        if (city) payload.city = city;
+      }
+
       const { error } = await supabase
         .from('suppliers')
         .update(payload)
         .eq('id', id!);
+        
       if (error) throw error;
     },
     onSuccess: () => {
@@ -164,7 +179,7 @@ const SupplierDetails = () => {
     },
   });
 
-  const handleInlineSave = (field: string) => async (newValue: string) => {
+  const handleInlineSave = (field: string) => async (newValue: string | number) => {
     await inlineUpdateMutation.mutateAsync({ field, value: newValue });
   };
 
@@ -459,24 +474,38 @@ const SupplierDetails = () => {
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <span className={microLabelClass}>Teléfono Secundario</span>
-                  {supplier.phone_2 ? (
-                    <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone_2)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
-                      {supplier.phone_2}
-                    </a>
-                  ) : <p className={valueClass}>N/A</p>}
+                  <InlineEditableCell
+                    value={supplier.phone_2 || ''}
+                    onSave={handleInlineSave('phone_2')}
+                    alwaysShowIcon={isMobile}
+                    displayClassName="text-sm font-medium"
+                    placeholder="N/A"
+                    renderDisplay={(v) => v ? (
+                      <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(String(v))}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {String(v)}
+                      </a>
+                    ) : <p className={valueClass}>N/A</p>}
+                  />
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Instagram className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <span className={microLabelClass}>Instagram</span>
-                  {supplier.instagram ? (
-                    <a href={`https://instagram.com/${supplier.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm font-medium">
-                      {supplier.instagram}
-                    </a>
-                  ) : <p className={valueClass}>N/A</p>}
+                  <InlineEditableCell
+                    value={supplier.instagram || ''}
+                    onSave={handleInlineSave('instagram')}
+                    alwaysShowIcon={isMobile}
+                    displayClassName="text-sm font-medium"
+                    placeholder="N/A"
+                    renderDisplay={(v) => v ? (
+                      <a href={`https://instagram.com/${String(v).replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {String(v)}
+                      </a>
+                    ) : <p className={valueClass}>N/A</p>}
+                  />
                 </div>
               </div>
             </div>
@@ -488,20 +517,41 @@ const SupplierDetails = () => {
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <CreditCard className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <span className={microLabelClass}>Términos de Pago</span>
-                  <p className={valueClass}>
-                    {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms
-                      ? supplier.custom_payment_terms
-                      : supplier.payment_terms}
-                  </p>
+                  <InlineEditableCell
+                    value={supplier.payment_terms}
+                    onSave={handleInlineSave('payment_terms')}
+                    type="select"
+                    options={[
+                      { value: 'Contado', label: 'Contado' },
+                      { value: 'Crédito', label: 'Crédito' },
+                      { value: 'Otro', label: 'Otro' }
+                    ]}
+                    alwaysShowIcon={isMobile}
+                    displayClassName="text-sm font-medium text-procarni-dark"
+                    renderDisplay={(v) => (
+                      <p className={valueClass}>
+                        {v === 'Otro' && supplier.custom_payment_terms
+                          ? supplier.custom_payment_terms
+                          : String(v)}
+                      </p>
+                    )}
+                  />
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Calendar className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <span className={microLabelClass}>Días de Crédito</span>
-                  <p className={valueClass}>{supplier.credit_days} días</p>
+                  <InlineEditableCell
+                    value={supplier.credit_days}
+                    onSave={handleInlineSave('credit_days')}
+                    type="number"
+                    alwaysShowIcon={isMobile}
+                    displayClassName="text-sm font-medium text-procarni-dark"
+                    renderDisplay={(v) => <p className={valueClass}>{v} días</p>}
+                  />
                 </div>
               </div>
             </div>
@@ -512,12 +562,18 @@ const SupplierDetails = () => {
             <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Ubicación</h4>
             <div className="flex items-start gap-3">
               <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
-              <div>
+              <div className="min-w-0 flex-1">
                 <span className={microLabelClass}>Dirección Fiscal</span>
-                <p className="text-gray-600 text-sm leading-relaxed mb-2">{supplier.address || 'N/A'}</p>
+                <InlineEditableCell
+                  value={supplier.address || ''}
+                  onSave={handleInlineSave('address')}
+                  alwaysShowIcon={isMobile}
+                  displayClassName="text-gray-600 text-sm leading-relaxed mb-2 block"
+                  placeholder="Sin dirección"
+                />
                 
                 {(supplier.city || supplier.state) && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mt-2">
                     <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
                       <span className="font-semibold text-gray-400 mr-1">Ubicación:</span> {supplier.city}{supplier.city && supplier.state ? ', ' : ''}{supplier.state}
                     </div>
@@ -687,7 +743,7 @@ const SupplierDetails = () => {
 
       {/* NEW EDIT DIALOG */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[425px] md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Proveedor</DialogTitle>
           </DialogHeader>
