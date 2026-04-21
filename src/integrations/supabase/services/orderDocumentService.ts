@@ -53,7 +53,7 @@ export const OrderDocumentService = {
     try {
       const { data, error } = await supabase
         .from('order_documents')
-        .select('*, users(email)')
+        .select('*, profiles(email)')
         .eq(column, orderId)
         .order('created_at', { ascending: false });
 

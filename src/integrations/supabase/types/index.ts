@@ -156,7 +156,7 @@ export interface OrderDocument {
   cloudinary_public_id?: string;
   created_at: string;
   user_id: string;
-  users?: { email: string };
+  profiles?: { email: string };
 }
 
 export interface SupplierQuote {

@@ -104,7 +104,7 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
         .replace(/\s+/g, '_')
         .replace(/-+/g, '_');
       
-      const folderPath = `fac_ne/${sanitizedSupplier}/${sequenceNumber}`;
+      const folderPath = `procarni_system/docs_oc_os/${sanitizedSupplier}/${sequenceNumber}`;
 
       // 2. Upload to Cloudinary
       const cloudinaryResponse = await uploadToCloudinary(selectedFile, folderPath);
@@ -296,7 +296,7 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
                             </Badge>
                           </div>
                           <p className="text-xs text-gray-500 mt-1 truncate">
-                            Subido por: <span className="font-medium text-gray-700">{doc.users?.email || 'Usuario'}</span>
+                            Subido por: <span className="font-medium text-gray-700">{doc.profiles?.email || 'Usuario'}</span>
                           </p>
                         </div>
                       </div>
