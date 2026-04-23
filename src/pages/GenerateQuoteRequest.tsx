@@ -41,6 +41,7 @@ interface Supplier {
   name: string;
   email?: string;
   phone?: string;
+  phone_2?: string;
 }
 
 const GenerateQuoteRequest = () => {
