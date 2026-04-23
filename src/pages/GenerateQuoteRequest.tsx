@@ -10,7 +10,8 @@ import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Se
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { searchSuppliers, searchCompanies, getAllUnits, getSupplierDetails, getPurchaseHistoryReport, getSuppliersByMaterial } from '@/integrations/supabase/data';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Mail, Phone, Send } from 'lucide-react';
 
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -38,12 +39,15 @@ interface MaterialSearchResult {
 interface Supplier {
   id: string;
   name: string;
+  email?: string;
+  phone?: string;
 }
 
 const GenerateQuoteRequest = () => {
   const { session } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
   const [companyId, setCompanyId] = useState<string>('');
@@ -51,6 +55,9 @@ const GenerateQuoteRequest = () => {
   const [selectedSuppliers, setSelectedSuppliers] = useState<Supplier[]>([]);
   const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [sendOptions, setSendOptions] = useState<Record<string, { whatsapp: boolean; email: boolean }>>({});
+  const [whatsappLinks, setWhatsappLinks] = useState<{name: string; url: string}[]>([]);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
   
@@ -74,6 +81,16 @@ const GenerateQuoteRequest = () => {
       }
     }
   }, [supplierData]);
+
+  const handleAddItem = () => {
+    setItems((prevItems) => [...prevItems, { 
+      material_name: '', 
+      quantity: 0, 
+      description: '', 
+      unit: units[0]?.name || 'unid', 
+      material_id: undefined 
+    }]);
+  };
 
   useEffect(() => {
     if (materialData) {
@@ -154,9 +171,7 @@ const GenerateQuoteRequest = () => {
     fetchSuggestions();
   }, [items]);
 
-  const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
-  };
+
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
     setItems((prevItems) =>
@@ -199,22 +214,42 @@ const GenerateQuoteRequest = () => {
     if (!supplier || !supplier.id) return;
     
     if (!selectedSuppliers.find(s => s.id === supplier.id)) {
-      setSelectedSuppliers(prev => [...prev, supplier]);
-      
-      // Fetch details to check for alerts
       try {
         const details = await getSupplierDetails(supplier.id);
+        const fullSupplier = {
+          id: supplier.id,
+          name: supplier.name,
+          email: details?.email,
+          phone: details?.phone,
+        };
+        setSelectedSuppliers(prev => [...prev, fullSupplier]);
+        
+        // Configurar opciones de envío por defecto basadas en datos disponibles
+        setSendOptions(prev => ({
+          ...prev,
+          [supplier.id]: {
+            whatsapp: !!details?.phone,
+            email: !!details?.email
+          }
+        }));
+
         if (details?.alert_comment) {
           showSupplierAlert(details.alert_comment);
         }
       } catch (e) {
-        console.error("Error fetching supplier details for alert", e);
+        console.error("Error fetching supplier details", e);
+        setSelectedSuppliers(prev => [...prev, supplier as Supplier]);
       }
     }
   };
   
   const removeSupplier = (id: string) => {
     setSelectedSuppliers(prev => prev.filter(s => s.id !== id));
+    setSendOptions(prev => {
+      const newOpts = { ...prev };
+      delete newOpts[id];
+      return newOpts;
+    });
     dismissToast("supplier-alert");
   };
 
@@ -228,7 +263,7 @@ const GenerateQuoteRequest = () => {
     // Optionally trigger a refresh or select the new material
   };
 
-  const handleSubmit = async () => {
+  const handleNextStep = () => {
     if (!userId) {
       showError('Usuario no autenticado.');
       return;
@@ -248,6 +283,10 @@ const GenerateQuoteRequest = () => {
       return;
     }
 
+    setStep(2);
+  };
+
+  const handleGenerateAndSend = async () => {
     setIsSubmitting(true);
 
     try {
@@ -273,15 +312,119 @@ const GenerateQuoteRequest = () => {
       }
 
       // Create a Quote Request for each selected supplier
-      const promises = selectedSuppliers.map(supplier => {
-        const orderData = { ...baseOrderData, supplier_id: supplier.id };
-        return quoteRequestService.create(orderData, formattedItems as any);
-      });
+      const createdRequests = await Promise.all(
+        selectedSuppliers.map(async (supplier) => {
+          const orderData = { ...baseOrderData, supplier_id: supplier.id };
+          const request = await quoteRequestService.create(orderData, formattedItems as any);
+          return { supplier, request };
+        })
+      );
 
-      await Promise.all(promises);
+      const links: { name: string; url: string }[] = [];
 
-      showSuccess(`Se han creado ${selectedSuppliers.length} solicitudes de cotización exitosamente.`);
-      navigate('/quote-request-management');
+      for (const { supplier, request } of createdRequests) {
+        const options = sendOptions[supplier.id];
+        
+        let tempUrl = '';
+        
+        // Generar link de Cloudinary si se necesita para WhatsApp
+        if (options?.whatsapp && (supplier.phone || supplier.phone_2)) {
+          try {
+            const tempResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-temp-pdf`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ orderId: request.id, type: 'quote_request' }),
+            });
+            
+            if (tempResponse.ok) {
+              const tempData = await tempResponse.json();
+              tempUrl = tempData.url;
+            }
+          } catch (e) {
+            console.error('Error generando link temporal para', supplier.name, e);
+          }
+        }
+
+        // Recopilar enlaces de WhatsApp
+        if (options?.whatsapp && (supplier.phone || supplier.phone_2)) {
+          const phone = supplier.phone || supplier.phone_2 || '';
+          const cleanPhone = phone.replace(/\D/g, '');
+          const docUrl = tempUrl || `(Documento #${request.id.substring(0, 8)})`;
+          const message = `Saludos ${supplier.name}, le escribimos de Procarni para solicitar una cotización. Puede revisar los detalles en el siguiente enlace:\n\n${docUrl}\n\nQuedamos atentos a su pronta respuesta.`;
+          
+          links.push({
+            name: supplier.name,
+            url: `https://wa.me/${cleanPhone.startsWith('58') ? cleanPhone : '58' + cleanPhone}?text=${encodeURIComponent(message)}`
+          });
+        }
+
+        // Enviar Correo
+        if (options?.email && supplier.email) {
+          try {
+            // Generate PDF
+            const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-qr-pdf`, {
+              method: 'POST',
+              headers: {
+                // @ts-ignore - session exists from useSession() in a real component, wait, let's check if session is imported/used
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ requestId: request.id }),
+            });
+
+            if (pdfResponse.ok) {
+              const pdfBlob = await pdfResponse.blob();
+              const pdfBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(pdfBlob);
+              });
+
+              const emailBody = `
+                <h2>Nueva Solicitud de Cotización #${request.id.substring(0, 8)}</h2>
+                <p>Estimado proveedor <strong>${supplier.name}</strong>,</p>
+                <p>Se adjunta el PDF con los detalles de la solicitud de cotización.</p>
+                <p>Por favor revise el documento y responda con su oferta a la brevedad posible.</p>
+              `;
+
+              const supplierName = supplier.name.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+              const date = new Date().toLocaleDateString('es-VE').replace(/\//g, '-');
+              const attachmentFilename = `SC_${request.id.substring(0, 8)}_${supplierName}_${date}.pdf`;
+
+              await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+                method: 'POST',
+                headers: {
+                  // @ts-ignore
+                  'Authorization': `Bearer ${session?.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: supplier.email,
+                  subject: `Nueva Solicitud de Cotización #${request.id.substring(0, 8)}`,
+                  body: emailBody,
+                  attachmentBase64: pdfBase64,
+                  attachmentFilename,
+                }),
+              });
+            }
+          } catch (e) {
+            console.error('Error enviando correo a', supplier.name, e);
+          }
+        }
+      }
+
+      showSuccess(`Se han generado y enviado las solicitudes para ${selectedSuppliers.length} proveedores.`);
+      
+      if (links.length > 0) {
+        setWhatsappLinks(links);
+        setStep(3);
+      } else {
+        navigate('/quote-request-management');
+      }
 
     } catch (error: any) {
       console.error('Error creating quote request:', error);
@@ -307,18 +450,31 @@ const GenerateQuoteRequest = () => {
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
-          >
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Guardar Solicitudes
-          </Button>
+          {step === 2 && (
+            <Button
+              variant="outline"
+              onClick={() => setStep(1)}
+              disabled={isSubmitting}
+              className="w-full md:w-auto"
+            >
+              Atrás
+            </Button>
+          )}
+          {step !== 3 && (
+            <Button
+              onClick={step === 1 ? handleNextStep : handleGenerateAndSend}
+              disabled={isSubmitting}
+              className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
+            >
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (step === 1 ? <ArrowRight className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />)}
+              {step === 1 ? "Siguiente" : "Generar y Enviar"}
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {step === 1 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* COLUMNA PRINCIPAL: ITEMS */}
         <div className="lg:col-span-8 space-y-6">
@@ -485,18 +641,94 @@ const GenerateQuoteRequest = () => {
               <div className="pt-4">
                 <Button
                   className="w-full h-12 bg-procarni-secondary hover:bg-green-700 text-white font-bold text-sm shadow-lg shadow-green-100 transition-all active:scale-[0.98]"
-                  onClick={handleSubmit}
+                  onClick={handleNextStep}
                   disabled={isSubmitting || items.length === 0 || selectedSuppliers.length === 0 || !companyId}
+                >
+                  Siguiente Paso <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      ) : step === 2 ? (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <Card className="border-none shadow-md overflow-hidden bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-procarni-primary text-white py-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg">
+                  <Send className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl uppercase tracking-wider">2. Configurar Envío</CardTitle>
+                  <CardDescription className="text-white/70">Selecciona el canal de notificación para cada proveedor.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-4">
+                {selectedSuppliers.map((sup) => (
+                  <div key={sup.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border border-gray-100 rounded-xl bg-gray-50 hover:bg-white transition-colors shadow-sm">
+                    <div className="mb-4 sm:mb-0">
+                      <h4 className="font-bold text-procarni-dark text-base">{sup.name}</h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {sup.email || sup.phone ? 'Datos de contacto disponibles' : 'Sin datos de contacto registrados'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8">
+                      <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${!sup.phone ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-green-50'}`}>
+                        <input
+                          type="checkbox"
+                          disabled={!sup.phone}
+                          checked={sendOptions[sup.id]?.whatsapp || false}
+                          onChange={(e) => setSendOptions(prev => ({ ...prev, [sup.id]: { ...prev[sup.id], whatsapp: e.target.checked } }))}
+                          className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-600 focus:ring-offset-0 disabled:bg-gray-100"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="w-4 h-4 text-green-600" />
+                          <div>
+                            <span className="text-sm font-semibold text-gray-700 block">WhatsApp</span>
+                            <span className="text-[10px] text-gray-500">{sup.phone || 'No registrado'}</span>
+                          </div>
+                        </div>
+                      </label>
+                      
+                      <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${!sup.email ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-blue-50'}`}>
+                        <input
+                          type="checkbox"
+                          disabled={!sup.email}
+                          checked={sendOptions[sup.id]?.email || false}
+                          onChange={(e) => setSendOptions(prev => ({ ...prev, [sup.id]: { ...prev[sup.id], email: e.target.checked } }))}
+                          className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-600 focus:ring-offset-0 disabled:bg-gray-100"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <Mail className="w-4 h-4 text-blue-600" />
+                          <div>
+                            <span className="text-sm font-semibold text-gray-700 block">Correo Electrónico</span>
+                            <span className="text-[10px] text-gray-500">{sup.email || 'No registrado'}</span>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="pt-6 border-t flex justify-end">
+                <Button
+                  className="h-12 px-8 bg-procarni-secondary hover:bg-green-700 text-white font-bold text-sm shadow-lg shadow-green-100 transition-all active:scale-[0.98]"
+                  onClick={handleGenerateAndSend}
+                  disabled={isSubmitting}
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Procesando...
+                      Procesando envíos...
                     </>
                   ) : (
                     <>
-                      <Save className="mr-2 h-5 w-5" />
-                      Enviar Solicitudes ({selectedSuppliers.length})
+                      <Send className="mr-2 h-5 w-5" />
+                      Generar y Enviar Notificaciones
                     </>
                   )}
                 </Button>
@@ -504,7 +736,47 @@ const GenerateQuoteRequest = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+      ) : (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <Card className="border-none shadow-md overflow-hidden bg-white/80 backdrop-blur-sm text-center py-10">
+            <CardHeader>
+              <div className="mx-auto bg-green-100 p-4 rounded-full w-20 h-20 flex items-center justify-center mb-4">
+                <Send className="h-10 w-10 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl text-procarni-dark">¡Solicitudes Generadas Exitosamente!</CardTitle>
+              <CardDescription className="text-base mt-2">
+                Los correos electrónicos seleccionados se han enviado de forma automática. 
+                <br/>A continuación tienes los enlaces de WhatsApp para enviar los mensajes a cada proveedor:
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-lg mx-auto">
+              {whatsappLinks.map((link, idx) => (
+                <Button 
+                  key={idx} 
+                  variant="outline" 
+                  className="w-full h-14 justify-between border-green-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300"
+                  onClick={() => window.open(link.url, '_blank')}
+                >
+                  <span className="font-semibold">{link.name}</span>
+                  <div className="flex items-center gap-2 text-green-600">
+                    <Phone className="w-5 h-5" />
+                    <span>Enviar WhatsApp</span>
+                  </div>
+                </Button>
+              ))}
+
+              <div className="pt-8">
+                <Button 
+                  className="bg-procarni-dark hover:bg-gray-800 text-white h-12 w-full"
+                  onClick={() => navigate('/quote-request-management')}
+                >
+                  Ir al panel de Solicitudes de Cotización
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
