@@ -6,6 +6,7 @@ interface SaveDocumentPayload {
   purchase_order_id?: string;
   service_order_id?: string;
   document_type: 'Factura' | 'Nota de Entrega' | 'Otro';
+  document_number?: string;
   file_url: string;
   cloudinary_public_id?: string;
 }
@@ -31,6 +32,7 @@ export const OrderDocumentService = {
           purchase_order_id: payload.purchase_order_id || null,
           service_order_id: payload.service_order_id || null,
           document_type: payload.document_type,
+          document_number: payload.document_number,
           file_url: payload.file_url,
           cloudinary_public_id: payload.cloudinary_public_id,
         })

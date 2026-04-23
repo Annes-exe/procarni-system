@@ -291,6 +291,7 @@ export type OrderDocument = {
   purchase_order_id?: string | null;
   service_order_id?: string | null;
   document_type: 'Factura' | 'Nota de Entrega' | 'Otro';
+  document_number?: string | null;
   file_url: string;
   cloudinary_public_id?: string | null;
   created_at: string;

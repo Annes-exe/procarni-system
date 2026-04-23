@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Trash2, ExternalLink, FileText, UploadCloud, FileImage, FileCode2, Image as ImageIcon, CheckCircle2, Loader2, Camera, FolderOpen } from 'lucide-react';
 import { uploadToCloudinary } from '@/services/cloudinaryService';
@@ -56,6 +57,7 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [documentType, setDocumentType] = useState<DocumentType>('Factura');
+  const [documentNumber, setDocumentNumber] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -114,6 +116,7 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
         purchase_order_id: orderType === 'PO' ? orderId : undefined,
         service_order_id: orderType === 'SO' ? orderId : undefined,
         document_type: documentType,
+        document_number: documentNumber,
         file_url: cloudinaryResponse.secure_url,
         cloudinary_public_id: cloudinaryResponse.public_id
       });
@@ -121,6 +124,7 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
       if (result) {
         showSuccess('Documento subido correctamente.');
         setSelectedFile(null);
+        setDocumentNumber('');
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (cameraInputRef.current) cameraInputRef.current.value = '';
         queryClient.invalidateQueries({ queryKey });
@@ -138,6 +142,7 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
     if (!isOpen) {
       setSelectedFile(null);
       setDocumentType('Factura');
+      setDocumentNumber('');
     }
   }, [isOpen]);
 
@@ -177,6 +182,19 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
                     <SelectItem value="Otro">Otro Documento</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-500 uppercase">
+                  Nro. de {documentType === 'Otro' ? 'Documento' : documentType}
+                </Label>
+                <Input 
+                  placeholder="Ej: 001-2345" 
+                  value={documentNumber}
+                  onChange={(e) => setDocumentNumber(e.target.value)}
+                  disabled={isUploading}
+                  className="h-10"
+                />
               </div>
 
               {/* Action Buttons for Selection */}
@@ -288,9 +306,9 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
                         <div className="shrink-0 p-2 bg-gray-50 rounded-md">
                           {getDocumentTypeIcon(doc.document_type)}
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900 leading-none">{doc.document_type}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-bold text-gray-900 leading-none">{doc.document_type}</span>
                             <Badge variant="outline" className={`h-5 text-[10px] px-1.5 font-medium border-0 ${getDocumentTypeColor(doc.document_type)}`}>
                               {format(new Date(doc.created_at), 'dd/MM/yyyy HH:mm')}
                             </Badge>
@@ -298,6 +316,13 @@ export const OrderDocumentManager: React.FC<OrderDocumentManagerProps> = ({
                           <p className="text-xs text-gray-500 mt-1 truncate">
                             Subido por: <span className="font-medium text-gray-700">{doc.profiles?.email || 'Usuario'}</span>
                           </p>
+                          {doc.document_number && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="text-[11px] font-bold text-procarni-primary bg-procarni-primary/10 px-2 py-0.5 rounded-md border border-procarni-primary/20">
+                                Nro: {doc.document_number}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
