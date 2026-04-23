@@ -11,7 +11,7 @@ import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { searchSuppliers, searchCompanies, getAllUnits, getSupplierDetails, getPurchaseHistoryReport, getSuppliersByMaterial } from '@/integrations/supabase/data';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Mail, Phone, Send } from 'lucide-react';
+import { ArrowRight, Mail, Phone, Send, AlertCircle } from 'lucide-react';
 
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -42,6 +42,7 @@ interface Supplier {
   email?: string;
   phone?: string;
   phone_2?: string;
+  alert_comment?: string;
 }
 
 const GenerateQuoteRequest = () => {
@@ -671,7 +672,17 @@ const GenerateQuoteRequest = () => {
                 {selectedSuppliers.map((sup) => (
                   <div key={sup.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border border-gray-100 rounded-xl bg-gray-50 hover:bg-white transition-colors shadow-sm">
                     <div className="mb-4 sm:mb-0">
-                      <h4 className="font-bold text-procarni-dark text-base">{sup.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-procarni-dark text-base">{sup.name}</h4>
+                        {sup.alert_comment && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] py-0 px-2 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" /> Alerta
+                          </Badge>
+                        )}
+                      </div>
+                      {sup.alert_comment && (
+                        <p className="text-[10px] text-amber-600 mt-1 italic font-medium">"{sup.alert_comment}"</p>
+                      )}
                       <p className="text-xs text-gray-500 mt-1">
                         {sup.email || sup.phone ? 'Datos de contacto disponibles' : 'Sin datos de contacto registrados'}
                       </p>
