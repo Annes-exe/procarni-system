@@ -3,7 +3,7 @@
 import { supabase } from '../client';
 import { showError } from '@/utils/toast';
 import { Supplier } from '../types';
-import { SupplierMaterialPayload } from '../types/index';
+import { SupplierMaterialPayload } from '../types';
 import { logAudit } from './auditLogService';
 import { bulkArchiveQuoteRequestsBySupplier } from './quoteRequestService'; // Import bulk archive QR
 import { purchaseOrderService } from '@/services/purchaseOrderService'; // Import new service

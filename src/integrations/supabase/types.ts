@@ -285,3 +285,20 @@ export type ServiceOrderMaterial = {
   };
   created_at: string | null;
 };
+
+export type OrderDocument = {
+  id: string;
+  purchase_order_id?: string | null;
+  service_order_id?: string | null;
+  document_type: 'Factura' | 'Nota de Entrega' | 'Otro';
+  file_url: string;
+  cloudinary_public_id?: string | null;
+  created_at: string;
+  user_id: string;
+  profiles?: { email: string | null } | null;
+};
+
+export type SupplierMaterialPayload = {
+  material_id: string;
+  specification?: string;
+};

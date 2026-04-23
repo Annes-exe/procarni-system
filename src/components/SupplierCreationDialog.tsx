@@ -13,7 +13,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { createSupplier } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
 import { validateRif } from '@/utils/validators';
-import { Supplier } from '@/integrations/supabase/types/index';
+import { Supplier } from '@/integrations/supabase/types';
 
 interface SupplierCreationDialogProps {
   isOpen: boolean;

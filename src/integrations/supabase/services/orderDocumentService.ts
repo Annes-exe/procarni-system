@@ -71,7 +71,14 @@ export const OrderDocumentService = {
 
   deleteDocument: async (documentId: string, cloudinaryPublicId?: string): Promise<boolean> => {
     try {
-      // 1. Delete from DB
+      // 1. Get document info first (to know the URL and resource type)
+      const { data: document } = await supabase
+        .from('order_documents')
+        .select('file_url, cloudinary_public_id')
+        .eq('id', documentId)
+        .single();
+
+      // 2. Delete from DB
       const { error } = await supabase
         .from('order_documents')
         .delete()
@@ -79,19 +86,20 @@ export const OrderDocumentService = {
 
       if (error) throw error;
 
-      // 2. Delete from Cloudinary if exists
-      if (cloudinaryPublicId) {
-        console.log(`[OrderDocumentService] Deleting from Cloudinary: ${cloudinaryPublicId}`);
+      // 3. Delete from Cloudinary if exists
+      if (document?.cloudinary_public_id) {
+        const resourceType = document.file_url?.toLowerCase().endsWith('.pdf') ? 'raw' : 'image';
+
+        console.log(`[OrderDocumentService] Deleting from Cloudinary: ${document.cloudinary_public_id} (${resourceType})`);
         try {
           await supabase.functions.invoke('delete-cloudinary-asset', {
             body: { 
-              public_id: cloudinaryPublicId,
-              resource_type: 'image' // O 'raw' si es un PDF (cloudinary borra ambos con 'image' a menos que sea video, y delete-cloudinary-asset se adapta).
+              public_id: document.cloudinary_public_id,
+              resource_type: resourceType
             }
           });
         } catch (cloudinaryError) {
           console.error('[OrderDocumentService] Cloudinary delete failed:', cloudinaryError);
-          // Don't throw, DB delete succeeded
         }
       }
 
