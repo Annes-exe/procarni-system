@@ -104,6 +104,12 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
       credit_days: data.payment_terms === 'Crédito' ? data.credit_days : 0,
       status: data.status,
       user_id: session.user.id,
+      phone_2: null,
+      instagram: null,
+      address: null,
+      code: null,
+      city: null,
+      alert_comment: null,
     };
 
     try {
