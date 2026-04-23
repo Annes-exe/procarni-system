@@ -207,6 +207,7 @@ export const getPurchaseHistoryReport = async ({
         exchange_rate,
         supplier_id,
         suppliers (
+          id,
           name,
           rif
         )
