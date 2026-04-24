@@ -21,7 +21,7 @@ interface QuoteEntry {
     supplierId: string;
     supplierName: string;
     unitPrice: number;
-    currency: 'USD' | 'VES';
+    currency: 'USD' | 'VES' | 'EUR';
     exchangeRate?: number;
     convertedPrice: number | null;
     isValid: boolean;
@@ -43,7 +43,7 @@ interface ExportToPurchaseOrdersDialogProps {
     isOpen: boolean;
     onClose: () => void;
     comparisonResults: ComparisonResult[];
-    baseCurrency: 'USD' | 'VES';
+    baseCurrency: 'USD' | 'VES' | 'EUR';
     globalExchangeRate?: number;
     onExportSuccess: () => void;
 }

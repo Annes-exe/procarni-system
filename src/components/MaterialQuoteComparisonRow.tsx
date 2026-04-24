@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSuppliersByMaterial } from '@/integrations/supabase/data';
+import ExchangeRateInput from './ExchangeRateInput';
 import { isGenericRif } from '@/utils/validators';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 
@@ -28,7 +29,7 @@ interface QuoteEntry {
   supplierId: string;
   supplierName: string;
   unitPrice: number;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
 }
 
@@ -40,8 +41,9 @@ interface ComparisonResult {
 
 interface MaterialQuoteComparisonRowProps {
   comparisonData: ComparisonResult;
-  baseCurrency: 'USD' | 'VES'; // This will now always be 'USD' from the parent
+  baseCurrency: 'USD' | 'VES' | 'EUR'; // This will now always be 'USD' from the parent
   globalExchangeRate?: number;
+  globalEurRate?: number;
   onAddQuoteEntry: (materialId: string) => void;
   onRemoveQuoteEntry: (materialId: string, quoteIndex: number) => void;
   // Updated signature to include optional supplierName for supplierId changes
@@ -53,6 +55,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   comparisonData,
   baseCurrency,
   globalExchangeRate,
+  globalEurRate,
   onAddQuoteEntry,
   onRemoveQuoteEntry,
   onQuoteChange,
@@ -81,6 +84,22 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     if (price === null || isNaN(price)) return 'N/A';
     return `${currency} ${price.toFixed(2)}`;
   };
+
+  const handleQuoteUpdate = React.useCallback((index: number, field: keyof QuoteEntry, value: any) => {
+    onQuoteChange(material.id, index, field, value);
+  }, [material.id, onQuoteChange]);
+
+  const handlePriceChange = React.useCallback((index: number, value: string) => {
+    handleQuoteUpdate(index, 'unitPrice', parseFloat(value) || 0);
+  }, [handleQuoteUpdate]);
+
+  const handleCurrencyChange = React.useCallback((index: number, value: string) => {
+    handleQuoteUpdate(index, 'currency', value as 'USD' | 'VES' | 'EUR');
+  }, [handleQuoteUpdate]);
+
+  const handleExchangeRateChange = React.useCallback((index: number, value: number | undefined) => {
+    handleQuoteUpdate(index, 'exchangeRate', value);
+  }, [handleQuoteUpdate]);
 
   const supplierOptions = useMemo(() => {
     if (isLoadingSuppliers) {
@@ -205,7 +224,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Moneda</label>
                         <Select
                           value={quote.currency}
-                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
+                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES' | 'EUR')}
                         >
                           <SelectTrigger className="h-10 text-sm bg-gray-50/50 font-medium">
                             <SelectValue />
@@ -213,19 +232,17 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <SelectContent>
                             <SelectItem value="USD">USD</SelectItem>
                             <SelectItem value="VES">VES</SelectItem>
+                            <SelectItem value="EUR">EUR</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="w-[120px] shrink-0">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Tasa de Cambio</label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={quote.exchangeRate || globalExchangeRate || ''}
-                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          className="h-10 text-sm bg-gray-50/50"
-                          placeholder="Tasa"
+                      <div className="w-[140px] shrink-0">
+                        <ExchangeRateInput
+                          compact
+                          baseCurrency={quote.currency === 'EUR' ? 'EUR' : 'USD'}
+                          exchangeRate={quote.exchangeRate || globalExchangeRate}
+                          onExchangeRateChange={(val) => onQuoteChange(material.id, index, 'exchangeRate', val)}
+                          disableAutoFetch={true}
                         />
                       </div>
                       <div className={cn(
@@ -266,7 +283,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Moneda</label>
                           <Select
                             value={quote.currency}
-                            onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
+                            onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES' | 'EUR')}
                           >
                             <SelectTrigger className="h-10 w-full bg-gray-50/50">
                               <SelectValue placeholder="Moneda" />
@@ -274,6 +291,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                             <SelectContent>
                               <SelectItem value="USD">USD</SelectItem>
                               <SelectItem value="VES">VES</SelectItem>
+                              <SelectItem value="EUR">EUR</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -299,7 +317,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         <span className="text-xs font-semibold text-gray-500 uppercase">Precio Comparado (USD)</span>
                         <div className="text-right">
                           <span className={cn(
-                            "text-lg font-bold block",
+                            "text-base font-bold block",
                             isBestPrice ? "text-procarni-secondary" : "text-procarni-dark"
                           )}>
                             {formatPrice(quote.convertedPrice, 'USD')}
@@ -329,8 +347,8 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                   <TableHead className="w-[35%] min-w-[240px] text-xs font-semibold text-gray-500 uppercase tracking-wider pl-3 sm:pl-4">Proveedor</TableHead>
                   <TableHead className="w-[22%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
                   <TableHead className="w-[8%] min-w-[80px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
-                  <TableHead className="w-[16%] min-w-[130px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa</TableHead>
-                  <TableHead className="w-[18%] min-w-[140px] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
+                  <TableHead className="w-[20%] min-w-[200px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa</TableHead>
+                  <TableHead className="w-[18%] min-w-[160px] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
                   <TableHead className="w-[5%] min-w-[50px] text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acción</TableHead>
                 </TableRow>
               </TableHeader>
@@ -386,7 +404,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       <TableCell>
                         <Select
                           value={quote.currency}
-                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
+                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES' | 'EUR')}
                         >
                           <SelectTrigger className="h-9">
                             <SelectValue placeholder="Moneda" />
@@ -394,18 +412,17 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <SelectContent>
                             <SelectItem value="USD">USD</SelectItem>
                             <SelectItem value="VES">VES</SelectItem>
+                            {/* <SelectItem value="EUR">EUR</SelectItem> */}
                           </SelectContent>
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={quote.exchangeRate || globalExchangeRate || ''}
-                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
-                          className="h-9"
+                        <ExchangeRateInput
+                          compact
+                          baseCurrency={'USD' /* quote.currency === 'EUR' ? 'EUR' : 'USD' */}
+                          exchangeRate={quote.exchangeRate || globalExchangeRate /* (quote.currency === 'EUR' ? globalEurRate : globalExchangeRate) */}
+                          onExchangeRateChange={(val) => handleExchangeRateChange(index, val)}
+                          disableAutoFetch={true}
                         />
                       </TableCell>
                       <TableCell className={cn("text-right py-3", isBestPrice ? "font-bold text-procarni-secondary" : "font-semibold text-gray-700")}>

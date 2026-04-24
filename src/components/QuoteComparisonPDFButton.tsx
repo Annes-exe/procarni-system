@@ -14,7 +14,7 @@ interface QuoteEntry {
   supplierId: string;
   supplierName: string;
   unitPrice: number;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
 }
 
@@ -32,7 +32,7 @@ interface ComparisonResult {
 
 interface QuoteComparisonPDFButtonProps {
   comparisonResults: ComparisonResult[];
-  baseCurrency: 'USD' | 'VES';
+  baseCurrency: 'USD' | 'VES' | 'EUR';
   globalExchangeRate?: number;
   label?: string;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;

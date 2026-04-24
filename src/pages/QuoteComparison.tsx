@@ -9,6 +9,7 @@ import { searchMaterials, createQuoteComparison, updateQuoteComparison, getQuote
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialQuoteComparisonRow from '@/components/MaterialQuoteComparisonRow';
@@ -33,7 +34,7 @@ interface QuoteEntry {
   supplierId: string;
   supplierName: string;
   unitPrice: number;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
 }
 
@@ -51,8 +52,9 @@ const QuoteComparison = () => {
   const [comparisonId, setComparisonId] = useState<string | null>(null);
   const [comparisonName, setComparisonName] = useState<string>('Nueva Comparación');
   const [materialsToCompare, setMaterialsToCompare] = useState<MaterialComparison[]>([]);
-  const [globalInputCurrency, setGlobalInputCurrency] = useState<'USD' | 'VES'>('USD');
+  const [globalInputCurrency, setGlobalInputCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
+  const [eurExchangeRate, setEurExchangeRate] = useState<number | undefined>(undefined);
 
   const [newMaterialQuery, setNewMaterialQuery] = useState('');
   const [selectedMaterialToAdd, setSelectedMaterialToAdd] = useState<MaterialSearchResult | null>(null);
@@ -60,6 +62,7 @@ const QuoteComparison = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   // --- Data Loading from URL ---
   const comparisonIdFromUrl = searchParams.get('loadId');
@@ -74,7 +77,7 @@ const QuoteComparison = () => {
     if (loadedComparison) {
       setComparisonId(loadedComparison.id);
       setComparisonName(loadedComparison.name);
-      setGlobalInputCurrency(loadedComparison.base_currency as 'USD' | 'VES');
+      setGlobalInputCurrency(loadedComparison.base_currency as 'USD' | 'VES' | 'EUR');
       setExchangeRate(loadedComparison.global_exchange_rate || undefined);
 
       const loadedMaterials: MaterialComparison[] = loadedComparison.items?.map(item => ({
@@ -94,9 +97,20 @@ const QuoteComparison = () => {
     }
   }, [loadedComparison, navigate]);
   // -----------------------------
-
-
-
+  const renderExchangeRateInput = (currency: 'USD' | 'EUR', currentVal: number | undefined, setter: (val: number | undefined) => void) => (
+    <div className="flex flex-col gap-2">
+      <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tasa {currency}/VES</Label>
+      <ExchangeRateInput
+        baseCurrency={currency}
+        exchangeRate={currentVal}
+        onExchangeRateChange={(val) => {
+          setter(val);
+          setIsDirty(true);
+        }}
+        disableAutoFetch={!!comparisonIdFromUrl && !isDirty}
+      />
+    </div>
+  );
 
   const handleMaterialSelect = (material: MaterialSearchResult) => {
     setSelectedMaterialToAdd(material);
@@ -119,10 +133,12 @@ const QuoteComparison = () => {
     ]);
     setSelectedMaterialToAdd(null);
     setNewMaterialQuery('');
+    setIsDirty(true);
   };
 
   const handleRemoveMaterial = (materialId: string) => {
     setMaterialsToCompare(prev => prev.filter(m => m.material.id !== materialId));
+    setIsDirty(true);
   };
 
   const handleAddQuoteEntry = (materialId: string) => {
@@ -135,12 +151,13 @@ const QuoteComparison = () => {
             supplierName: '',
             unitPrice: 0,
             currency: globalInputCurrency,
-            exchangeRate: exchangeRate
+            exchangeRate: globalInputCurrency === 'EUR' ? eurExchangeRate : exchangeRate
           }]
         };
       }
       return m;
     }));
+    setIsDirty(true);
   };
 
   const handleRemoveQuoteEntry = (materialId: string, quoteIndex: number) => {
@@ -153,6 +170,7 @@ const QuoteComparison = () => {
       }
       return m;
     }));
+    setIsDirty(true);
   };
 
   const handleImportQuoteRequests = (importedRequests: QuoteRequest[]) => {
@@ -228,6 +246,7 @@ const QuoteComparison = () => {
     });
 
     setIsImportModalOpen(false);
+    setIsDirty(true);
     showSuccess(`${importedRequests.length} SC(s) importadas exitosamente.`);
   };
 
@@ -250,6 +269,7 @@ const QuoteComparison = () => {
       }
       return m;
     }));
+    setIsDirty(true);
   };
 
   // --- Core Comparison Logic (Memoized) ---
@@ -282,6 +302,22 @@ const QuoteComparison = () => {
           } else {
             return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para VES a USD.' };
           }
+        } else if (quote.currency === 'EUR' && comparisonBaseCurrency === 'USD') {
+          // Convert EUR to VES first, then VES to USD
+          /* EUR SUPPORT TEMPORARILY DISABLED
+          const eurRate = quote.exchangeRate || eurExchangeRate; // Use row rate or fallback to global default
+          const usdRate = exchangeRate; // This is USD/VES
+
+          if (eurRate && eurRate > 0 && usdRate && usdRate > 0) {
+            convertedPrice = (quote.unitPrice * eurRate) / usdRate;
+            finalRate = eurRate;
+          } else if (!eurRate || eurRate <= 0) {
+            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para EUR a VES.' };
+          } else {
+            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio Global (USD/VES) para conversión.' };
+          }
+          */
+          return { ...quote, convertedPrice: null, isValid: false, error: 'Soporte para EUR temporalmente deshabilitado.' };
         }
 
         if (convertedPrice === null || isNaN(convertedPrice)) {
@@ -320,7 +356,7 @@ const QuoteComparison = () => {
 
       const itemsPayload = materialsToCompare.map(m => ({
         material_id: m.material.id,
-        material_name: m.material.name,
+        material_name: m.material.name || 'Material sin nombre',
         quotes: m.quotes,
       }));
 
@@ -331,11 +367,17 @@ const QuoteComparison = () => {
       }
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['quoteComparisons'] });
-      setComparisonId(data?.id || null);
-      setComparisonName(variables.name);
-      setIsSaveDialogOpen(false);
-      showSuccess(`Comparación "${variables.name}" ${variables.isUpdate ? 'actualizada' : 'guardada'} exitosamente.`);
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ['quoteComparisons'] });
+        setComparisonId(data.id);
+        setComparisonName(variables.name);
+        setIsSaveDialogOpen(false);
+        setIsDirty(false);
+        showSuccess(`Comparación "${variables.name}" ${variables.isUpdate ? 'actualizada' : 'guardada'} exitosamente.`);
+      } else {
+        // Error is already handled by service showError
+        console.error('Save mutation returned null data');
+      }
     },
     onError: (error: any) => {
       showError(error.message || 'Error al guardar la comparación.');
@@ -355,16 +397,6 @@ const QuoteComparison = () => {
     navigate('/quote-comparison', { replace: true });
   };
 
-  const renderExchangeRateInput = () => {
-    return (
-      <ExchangeRateInput
-        baseCurrency="USD"
-        exchangeRate={exchangeRate}
-        onExchangeRateChange={setExchangeRate}
-        disableAutoFetch={!!comparisonIdFromUrl}
-      />
-    );
-  };
 
   const renderComparisonTable = () => {
     if (materialsToCompare.length === 0) {
@@ -380,6 +412,7 @@ const QuoteComparison = () => {
                 comparisonData={materialComp}
                 baseCurrency={comparisonBaseCurrency}
                 globalExchangeRate={exchangeRate}
+                globalEurRate={eurExchangeRate}
                 onAddQuoteEntry={handleAddQuoteEntry}
                 onRemoveQuoteEntry={handleRemoveQuoteEntry}
                 onQuoteChange={handleQuoteChange}
@@ -503,20 +536,30 @@ const QuoteComparison = () => {
             <CardContent className="p-5 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="global-input-currency" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda de Ingreso</Label>
-                <Select value={globalInputCurrency} onValueChange={(value) => setGlobalInputCurrency(value as 'USD' | 'VES')}>
+                <Select value={globalInputCurrency} onValueChange={(value) => setGlobalInputCurrency(value as 'USD' | 'VES' | 'EUR')}>
                   <SelectTrigger id="global-input-currency" className="bg-gray-50 focus:ring-procarni-primary/20">
                     <SelectValue placeholder="Selecciona moneda" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USD">USD (Dólares)</SelectItem>
                     <SelectItem value="VES">VES (Bolívares)</SelectItem>
+                    {/* <SelectItem value="EUR">EUR (Euros)</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="exchange-rate" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa Global (USD/VES)</Label>
-                {renderExchangeRateInput()}
-              </div>
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="rates" className="border-none">
+                  <AccordionTrigger className="text-[10px] font-bold py-1 px-0 hover:no-underline text-blue-600 hover:text-blue-700 uppercase tracking-widest">
+                    Tasas de Cambio (VES)
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-2 pb-0">
+                    <div className="grid grid-cols-1 gap-4">
+                      {renderExchangeRateInput('USD', exchangeRate, setExchangeRate)}
+                      {/* {renderExchangeRateInput('EUR', eurExchangeRate, setEurExchangeRate)} */}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </CardContent>
           </Card>
         </div>

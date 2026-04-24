@@ -7,7 +7,7 @@ import { logAudit } from './auditLogService';
 
 interface QuoteComparisonPayload {
   name: string;
-  base_currency: 'USD' | 'VES';
+  base_currency: 'USD' | 'VES' | 'EUR';
   global_exchange_rate?: number | null;
   user_id: string;
 }
@@ -95,7 +95,7 @@ const QuoteComparisonService = {
       const comparisonItems = items.map(item => ({
         comparison_id: newComparison.id,
         material_id: item.material_id,
-        material_name: item.material_name,
+        material_name: item.material_name || 'Material sin nombre',
         quotes: item.quotes,
       }));
 
@@ -106,7 +106,9 @@ const QuoteComparisonService = {
       if (itemsError) {
         console.error('[QuoteComparisonService.create] Error inserting items:', itemsError);
         showError('Error al guardar los ítems de la comparación.');
-        // Note: We keep the comparison header even if items fail
+        // Clean up the header to avoid partial saves showing up in the list
+        await supabase.from('quote_comparisons').delete().eq('id', newComparison.id);
+        return null;
       }
     }
 
@@ -157,7 +159,7 @@ const QuoteComparisonService = {
       const comparisonItems = items.map(item => ({
         comparison_id: id,
         material_id: item.material_id,
-        material_name: item.material_name,
+        material_name: item.material_name || 'Material sin nombre',
         quotes: item.quotes,
       }));
 
