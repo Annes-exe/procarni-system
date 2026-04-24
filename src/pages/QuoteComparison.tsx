@@ -412,7 +412,7 @@ const QuoteComparison = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-7xl pb-24">
+    <div className="container mx-auto p-4 md:p-8 max-w-[1600px] pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
           <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">
@@ -434,7 +434,7 @@ const QuoteComparison = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-8 mb-8">
 
         {/* Lado Izquierdo: Configuración y Añadir Materiales (1 columna en desktop grande) */}
         <div className="lg:col-span-1 space-y-6">
@@ -521,8 +521,8 @@ const QuoteComparison = () => {
           </Card>
         </div>
 
-        {/* Lado Derecho: Contenido Principal de Comparación (3 columnas en desktop grande) */}
-        <div className="lg:col-span-3 space-y-6">
+        {/* Lado Derecho: Contenido Principal de Comparación (3 columnas en desktop, 4 en xl) */}
+        <div className="lg:col-span-3 xl:col-span-4 space-y-6">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden ring-1 ring-black/5">
             <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>

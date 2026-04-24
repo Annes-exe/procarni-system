@@ -326,8 +326,8 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
             <Table>
               <TableHeader className="bg-gray-50/80">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[33%] min-w-[280px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</TableHead>
-                  <TableHead className="w-[20%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
+                  <TableHead className="w-[35%] min-w-[240px] text-xs font-semibold text-gray-500 uppercase tracking-wider pl-3 sm:pl-4">Proveedor</TableHead>
+                  <TableHead className="w-[22%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
                   <TableHead className="w-[8%] min-w-[80px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
                   <TableHead className="w-[16%] min-w-[130px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa</TableHead>
                   <TableHead className="w-[18%] min-w-[140px] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
