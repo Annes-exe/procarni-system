@@ -19,6 +19,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem } from '@/integrations/supabase/types';
 import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
 import ExportToPurchaseOrdersDialog from '@/components/ExportToPurchaseOrdersDialog';
+import ExchangeRateInput from '@/components/ExchangeRateInput';
 
 interface MaterialSearchResult {
   id: string;
@@ -52,10 +53,6 @@ const QuoteComparison = () => {
   const [materialsToCompare, setMaterialsToCompare] = useState<MaterialComparison[]>([]);
   const [globalInputCurrency, setGlobalInputCurrency] = useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
-
-  const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
-  const [rateSource, setRateSource] = useState<'custom' | 'daily'>('custom');
-  const [isLoadingRate, setIsLoadingRate] = useState(false);
 
   const [newMaterialQuery, setNewMaterialQuery] = useState('');
   const [selectedMaterialToAdd, setSelectedMaterialToAdd] = useState<MaterialSearchResult | null>(null);
@@ -98,53 +95,7 @@ const QuoteComparison = () => {
   }, [loadedComparison, navigate]);
   // -----------------------------
 
-  const fetchDailyRate = useCallback(async () => {
-    setIsLoadingRate(true);
-    try {
-      const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-      if (!response.ok) {
-        throw new Error('Failed to fetch daily rate');
-      }
-      const data = await response.json();
 
-      const rate = data.promedio || data.valor;
-
-      if (typeof rate === 'number' && rate > 0) {
-        setDailyRate(rate);
-        showSuccess(`Tasa del día cargada: ${rate.toFixed(2)} VES/USD`);
-      } else {
-        throw new Error('Formato de tasa de cambio inválido.');
-      }
-      return rate;
-    } catch (e: any) {
-      console.error('[QuoteComparison] Error fetching daily rate:', e);
-      showError(`Error al cargar la tasa del día: ${e.message}`);
-      setDailyRate(undefined);
-      return undefined;
-    } finally {
-      setIsLoadingRate(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!comparisonIdFromUrl) {
-      fetchDailyRate().then(rate => {
-        if (rate) {
-          setRateSource('daily');
-          setExchangeRate(rate);
-        } else {
-          setRateSource('custom');
-          setExchangeRate(undefined);
-        }
-      });
-    }
-  }, [fetchDailyRate, comparisonIdFromUrl]);
-
-  useEffect(() => {
-    if (rateSource === 'daily' && dailyRate !== undefined) {
-      setExchangeRate(dailyRate);
-    }
-  }, [rateSource, dailyRate]);
 
 
   const handleMaterialSelect = (material: MaterialSearchResult) => {
@@ -401,63 +352,17 @@ const QuoteComparison = () => {
     setMaterialsToCompare([]);
     setGlobalInputCurrency('USD');
     setExchangeRate(undefined);
-    setRateSource('custom');
     navigate('/quote-comparison', { replace: true });
   };
 
   const renderExchangeRateInput = () => {
-
     return (
-      <div className="space-y-2">
-        <Select value={rateSource} onValueChange={(value) => setRateSource(value as 'custom' | 'daily')}>
-          <SelectTrigger id="rate-source">
-            <SelectValue placeholder="Selecciona fuente de tasa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="daily" disabled={dailyRate === undefined}>
-              Tasa del día {dailyRate ? `(${dailyRate.toFixed(2)} VES/USD)` : '(Cargando...)'}
-            </SelectItem>
-            <SelectItem value="custom">Tasa personalizada</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {rateSource === 'daily' && (
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              value={exchangeRate || dailyRate || ''}
-              placeholder="Tasa del día"
-              disabled
-              onWheel={(e) => (e.target as HTMLElement).blur()}
-              className="bg-gray-100 dark:bg-gray-700"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={fetchDailyRate}
-              disabled={isLoadingRate}
-            >
-              {isLoadingRate ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </Button>
-          </div>
-        )}
-
-        {rateSource === 'custom' && (
-          <Input
-            id="exchange-rate"
-            type="number"
-            step="0.01"
-            placeholder="Ingresa tasa personalizada"
-            value={exchangeRate || ''}
-            onChange={(e) => setExchangeRate(parseFloat(e.target.value) || undefined)}
-            onWheel={(e) => (e.target as HTMLElement).blur()}
-          />
-        )}
-        <p className="text-xs text-muted-foreground mt-1">
-          Tasa actual utilizada: {exchangeRate ? exchangeRate.toFixed(4) : 'N/A'} VES/USD
-        </p>
-      </div>
+      <ExchangeRateInput
+        baseCurrency="USD"
+        exchangeRate={exchangeRate}
+        onExchangeRateChange={setExchangeRate}
+        disableAutoFetch={!!comparisonIdFromUrl}
+      />
     );
   };
 

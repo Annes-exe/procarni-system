@@ -15,6 +15,7 @@ interface ExchangeRateInputProps {
   baseCurrency: 'USD' | 'EUR';
   exchangeRate?: number;
   onExchangeRateChange: (value: number | undefined) => void;
+  disableAutoFetch?: boolean;
 }
 
 interface RateHistoryItem {
@@ -26,6 +27,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   baseCurrency,
   exchangeRate,
   onExchangeRateChange,
+  disableAutoFetch = false,
 }) => {
   const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
   const [rateSource, setRateSource] = useState<'custom' | 'daily'>('custom');
@@ -101,16 +103,26 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
 
   // Effect to manage rate fetching and default selection when currency changes
   useEffect(() => {
-    // We always try to fetch the daily rate and default to it (even for USD, we fetch USD rate)
+    // We always try to fetch the daily rate so it's available in the dropdown
     fetchDailyRate().then(rate => {
       if (rate) {
-        setRateSource('daily');
-        onExchangeRateChange(rate);
+        if (!disableAutoFetch) {
+          setRateSource('daily');
+          onExchangeRateChange(rate);
+        } else {
+          // If auto fetch is disabled (e.g. loading an existing record),
+          // we just set the rate source based on if it matches the daily rate or not.
+          // Note: Since exchangeRate might be from props, we leave rateSource as 'custom' 
+          // initially, unless we want to try and match it. For simplicity, we just 
+          // do nothing to the external state.
+        }
       } else {
-        setRateSource('custom');
+        if (!disableAutoFetch) {
+          setRateSource('custom');
+        }
       }
     });
-  }, [baseCurrency, fetchDailyRate, onExchangeRateChange]);
+  }, [baseCurrency, fetchDailyRate, onExchangeRateChange, disableAutoFetch]);
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {
