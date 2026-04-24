@@ -9,6 +9,7 @@ import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTr
 import { cn } from '@/lib/utils';
 import { getSuppliersByMaterial } from '@/integrations/supabase/data';
 import { isGenericRif } from '@/utils/validators';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 
 interface MaterialSearchResult {
   id: string;
@@ -57,6 +58,8 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   onQuoteChange,
   onRemoveMaterial,
 }) => {
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const { material, results, bestPrice } = comparisonData;
 
   // Fetch suppliers associated with this specific material ID
@@ -130,40 +133,32 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
       </div>
 
       <div className="pt-4">
-        <div className="overflow-x-auto rounded-lg border border-gray-100">
-          <Table>
-            <TableHeader className="bg-gray-50/80">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[25%] text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</TableHead>
-                <TableHead className="w-[15%] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
-                <TableHead className="w-[10%] text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
-                <TableHead className="w-[15%] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa (si VES)</TableHead>
-                <TableHead className="w-[20%] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
-                <TableHead className="w-[10%] text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {results.map((quote, index) => {
-                const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
-
-                return (
-                  <TableRow
-                    key={index}
-                    className={cn(
-                      "transition-colors",
-                      isBestPrice
-                        ? "bg-green-50/40 hover:bg-green-50/60 border-l-4 border-procarni-secondary shadow-sm relative z-10"
-                        : "hover:bg-gray-50/50 bg-white",
-                      !quote.isValid && "bg-red-50/40 text-muted-foreground opacity-75"
-                    )}
-                  >
-                    <TableCell className="pl-3 sm:pl-4 py-3">
+        {isTablet ? (
+          <div className="flex flex-col gap-4 w-full">
+            {results.map((quote, index) => {
+              const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
+              return (
+                <Card key={index} className={cn(
+                  "border shadow-sm relative overflow-hidden transition-all",
+                  isBestPrice ? "border-procarni-secondary bg-green-50/20 ring-1 ring-procarni-secondary/30" : "border-gray-100 bg-white",
+                  !isMobile ? "p-3" : "p-4"
+                )}>
+                  {isBestPrice && (
+                    <div className="absolute top-0 right-0 bg-procarni-secondary text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1 z-10">
+                      <CheckCircle2 className="h-3 w-3" /> MEJOR PRECIO
+                    </div>
+                  )}
+                  
+                  {/* Row 1: Supplier and Delete Button */}
+                  <div className={cn("flex items-end gap-2", !isMobile ? "mb-3" : "mb-4")}>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Proveedor</label>
                       <Select
                         value={quote.supplierId}
                         onValueChange={(value) => handleSupplierChange(material.id, index, value)}
                         disabled={isLoadingSuppliers}
                       >
-                        <SelectTrigger className="h-9">
+                        <SelectTrigger className={cn("bg-gray-50/50", !isMobile ? "h-9" : "h-10")}>
                           <SelectValue placeholder="Selecciona proveedor" />
                         </SelectTrigger>
                         <SelectContent>
@@ -176,78 +171,281 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           )}
                         </SelectContent>
                       </Select>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-2 text-gray-400 text-sm">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={quote.unitPrice || ''}
-                          onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          className="h-9 pl-7 bg-white/50 focus:bg-white transition-colors"
-                          placeholder="0.00"
-                        />
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => onRemoveQuoteEntry(material.id, index)} 
+                      className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Row 2: Price Inputs and Result */}
+                  {!isMobile ? (
+                    // Compact Tablet Layout (Row 2)
+                    <div className="flex flex-wrap items-end gap-4 w-full">
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Precio Original</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-gray-400 text-sm">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={quote.unitPrice || ''}
+                            onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="h-10 pl-8 text-base bg-gray-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full font-semibold"
+                            placeholder="0.00"
+                          />
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={quote.currency}
-                        onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Moneda" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD</SelectItem>
-                          <SelectItem value="VES">VES</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
+                      <div className="w-[100px] shrink-0">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Moneda</label>
+                        <Select
+                          value={quote.currency}
+                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
+                        >
+                          <SelectTrigger className="h-10 text-sm bg-gray-50/50 font-medium">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="VES">VES</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       {quote.currency === 'VES' && (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={quote.exchangeRate || globalExchangeRate || ''}
-                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
-                          className="h-9"
-                        />
+                        <div className="w-[120px] shrink-0">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Tasa de Cambio</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={quote.exchangeRate || globalExchangeRate || ''}
+                            onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="h-10 text-sm bg-gray-50/50"
+                            placeholder="Tasa"
+                          />
+                        </div>
                       )}
-                    </TableCell>
-                    <TableCell className={cn("text-right py-3", isBestPrice ? "font-bold text-procarni-secondary" : "font-semibold text-gray-700")}>
-                      <div className="flex items-center justify-end gap-2">
-                        {isBestPrice && <CheckCircle2 className="h-4 w-4 text-procarni-secondary fill-procarni-secondary/20" />}
-                        <span className="text-base">{formatPrice(quote.convertedPrice, 'USD')}</span>
+                      <div className={cn(
+                        "flex-1 min-w-[150px] flex items-center justify-between px-3 h-10 rounded-lg border",
+                        isBestPrice ? "bg-procarni-secondary/10 border-procarni-secondary/30" : "bg-gray-50 border-gray-100"
+                      )}>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Total USD</span>
+                        <div className="text-right">
+                          <span className={cn(
+                            "text-base font-bold block",
+                            isBestPrice ? "text-procarni-secondary" : "text-procarni-dark"
+                          )}>
+                            {formatPrice(quote.convertedPrice, '')}
+                          </span>
+                        </div>
                       </div>
-                      {!quote.isValid && quote.error && (
-                        <p className="text-[10px] text-red-500 mt-1 font-medium">{quote.error}</p>
+                    </div>
+                  ) : (
+                    // Standard Mobile Layout (Rows 2, 3, 4)
+                    <>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Precio Original</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-2.5 text-gray-400 text-xs">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={quote.unitPrice || ''}
+                              onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLElement).blur()}
+                              className="h-10 pl-8 bg-gray-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Moneda</label>
+                          <Select
+                            value={quote.currency}
+                            onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
+                          >
+                            <SelectTrigger className="h-10 w-full bg-gray-50/50">
+                              <SelectValue placeholder="Moneda" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="USD">USD</SelectItem>
+                              <SelectItem value="VES">VES</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {quote.currency === 'VES' && (
+                        <div className="mb-4 space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tasa de Cambio</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={quote.exchangeRate || globalExchangeRate || ''}
+                            onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
+                            className="h-10 bg-gray-50/50 w-full"
+                          />
+                        </div>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right py-3 pr-3 sm:pr-4">
-                      <Button variant="ghost" size="icon" onClick={() => onRemoveQuoteEntry(material.id, index)} className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onAddQuoteEntry(material.id)}
-            className="text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Oferta
-          </Button>
-        </div>
+
+                      <div className={cn(
+                        "flex items-center justify-between p-3 rounded-lg",
+                        isBestPrice ? "bg-procarni-secondary/10" : "bg-gray-100/50"
+                      )}>
+                        <span className="text-xs font-semibold text-gray-500 uppercase">Precio Comparado (USD)</span>
+                        <div className="text-right">
+                          <span className={cn(
+                            "text-lg font-bold block",
+                            isBestPrice ? "text-procarni-secondary" : "text-procarni-dark"
+                          )}>
+                            {formatPrice(quote.convertedPrice, 'USD')}
+                          </span>
+                          {!quote.isValid && quote.error && (
+                            <p className="text-[10px] text-red-500 mt-0.5 font-medium">{quote.error}</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {!quote.isValid && quote.error && isMobile && (
+                    <p className="text-[10px] text-red-500 mt-2 font-medium">{quote.error}</p>
+                  )}
+                  {!quote.isValid && quote.error && !isMobile && (
+                    <p className="text-[10px] text-red-500 mt-1 font-medium text-right">{quote.error}</p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-100">
+            <Table>
+              <TableHeader className="bg-gray-50/80">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[35%] min-w-[280px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</TableHead>
+                  <TableHead className="w-[22%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
+                  <TableHead className="w-[8%] min-w-[80px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
+                  <TableHead className="w-[12%] min-w-[110px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa (si VES)</TableHead>
+                  <TableHead className="w-[18%] min-w-[140px] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
+                  <TableHead className="w-[5%] min-w-[50px] text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {results.map((quote, index) => {
+                  const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
+
+                  return (
+                    <TableRow
+                      key={index}
+                      className={cn(
+                        "transition-colors",
+                        isBestPrice
+                          ? "bg-green-50/40 hover:bg-green-50/60 border-l-4 border-procarni-secondary shadow-sm relative z-10"
+                          : "hover:bg-gray-50/50 bg-white",
+                        !quote.isValid && "bg-red-50/40 text-muted-foreground opacity-75"
+                      )}
+                    >
+                      <TableCell className="pl-3 sm:pl-4 py-3">
+                        <Select
+                          value={quote.supplierId}
+                          onValueChange={(value) => handleSupplierChange(material.id, index, value)}
+                          disabled={isLoadingSuppliers}
+                        >
+                          <SelectTrigger className="h-9 w-full">
+                            <SelectValue placeholder="Selecciona proveedor" className="truncate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__placeholder__" disabled>Selecciona proveedor</SelectItem>
+                            {supplierOptions}
+                            {quote.supplierId && !associatedSuppliers?.some(s => s.id === quote.supplierId) && (
+                              <SelectItem value={quote.supplierId}>
+                                {quote.supplierName || 'Proveedor Importado'}
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-2 text-gray-400 text-sm">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={quote.unitPrice || ''}
+                            onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="h-9 pl-10 bg-white/50 focus:bg-white transition-colors w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={quote.currency}
+                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES')}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Moneda" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="VES">VES</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {quote.currency === 'VES' && (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={quote.exchangeRate || globalExchangeRate || ''}
+                            onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
+                            className="h-9"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell className={cn("text-right py-3", isBestPrice ? "font-bold text-procarni-secondary" : "font-semibold text-gray-700")}>
+                        <div className="flex items-center justify-end gap-2">
+                          {isBestPrice && <CheckCircle2 className="h-4 w-4 text-procarni-secondary fill-procarni-secondary/20" />}
+                          <span className="text-sm font-bold">{formatPrice(quote.convertedPrice, 'USD')}</span>
+                        </div>
+                        {!quote.isValid && quote.error && (
+                          <p className="text-[10px] text-red-500 mt-1 font-medium">{quote.error}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right py-3 pr-3 sm:pr-4">
+                        <Button variant="ghost" size="icon" onClick={() => onRemoveQuoteEntry(material.id, index)} className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onAddQuoteEntry(material.id)}
+          className="text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10"
+        >
+          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Oferta
+        </Button>
       </div>
     </div>
   );

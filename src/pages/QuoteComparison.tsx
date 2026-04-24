@@ -677,7 +677,7 @@ const QuoteComparison = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="p-0 sm:p-6 bg-gray-50/30">
+            <CardContent className="p-2 sm:p-6 bg-gray-50/30">
               {renderComparisonTable()}
             </CardContent>
           </Card>
