@@ -127,7 +127,7 @@ const QuoteComparison = () => {
   }, []);
 
   useEffect(() => {
-    if (globalInputCurrency === 'VES' && !comparisonIdFromUrl) {
+    if (!comparisonIdFromUrl) {
       fetchDailyRate().then(rate => {
         if (rate) {
           setRateSource('daily');
@@ -137,22 +137,14 @@ const QuoteComparison = () => {
           setExchangeRate(undefined);
         }
       });
-    } else if (globalInputCurrency === 'USD') {
-      setDailyRate(undefined);
-      setRateSource('custom');
-      setExchangeRate(undefined);
     }
-  }, [globalInputCurrency, fetchDailyRate, comparisonIdFromUrl]);
+  }, [fetchDailyRate, comparisonIdFromUrl]);
 
   useEffect(() => {
-    if (globalInputCurrency === 'VES') {
-      if (rateSource === 'daily' && dailyRate !== undefined) {
-        setExchangeRate(dailyRate);
-      }
-    } else {
-      setExchangeRate(undefined);
+    if (rateSource === 'daily' && dailyRate !== undefined) {
+      setExchangeRate(dailyRate);
     }
-  }, [globalInputCurrency, rateSource, dailyRate]);
+  }, [rateSource, dailyRate]);
 
 
   const handleMaterialSelect = (material: MaterialSearchResult) => {
@@ -192,7 +184,7 @@ const QuoteComparison = () => {
             supplierName: '',
             unitPrice: 0,
             currency: globalInputCurrency,
-            exchangeRate: globalInputCurrency === 'VES' ? exchangeRate : undefined
+            exchangeRate: exchangeRate
           }]
         };
       }
@@ -271,7 +263,7 @@ const QuoteComparison = () => {
                     supplierName: req.suppliers?.name || 'Desconocido',
                     unitPrice: 0, // Prepopulate with 0, user will fill it
                     currency: globalInputCurrency,
-                    exchangeRate: globalInputCurrency === 'VES' ? exchangeRate : undefined
+                    exchangeRate: exchangeRate
                   }]
                 };
               }
@@ -294,10 +286,6 @@ const QuoteComparison = () => {
         const updatedQuotes = m.quotes.map((q, i) => {
           if (i === quoteIndex) {
             const newQuote = { ...q, [field]: value };
-
-            if (field === 'currency' && value === 'USD') {
-              newQuote.exchangeRate = undefined;
-            }
 
             if (field === 'supplierId' && supplierName) {
               newQuote.supplierName = supplierName;
@@ -418,13 +406,6 @@ const QuoteComparison = () => {
   };
 
   const renderExchangeRateInput = () => {
-    if (globalInputCurrency === 'USD') {
-      return (
-        <div className="text-sm text-muted-foreground mt-1">
-          Tasa no requerida si la moneda de ingreso es USD.
-        </div>
-      );
-    }
 
     return (
       <div className="space-y-2">

@@ -216,20 +216,18 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           </SelectContent>
                         </Select>
                       </div>
-                      {quote.currency === 'VES' && (
-                        <div className="w-[120px] shrink-0">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Tasa de Cambio</label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={quote.exchangeRate || globalExchangeRate || ''}
-                            onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                            onWheel={(e) => (e.target as HTMLElement).blur()}
-                            className="h-10 text-sm bg-gray-50/50"
-                            placeholder="Tasa"
-                          />
-                        </div>
-                      )}
+                      <div className="w-[120px] shrink-0">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Tasa de Cambio</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={quote.exchangeRate || globalExchangeRate || ''}
+                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                          className="h-10 text-sm bg-gray-50/50"
+                          placeholder="Tasa"
+                        />
+                      </div>
                       <div className={cn(
                         "flex-1 min-w-[150px] flex items-center justify-between px-3 h-10 rounded-lg border",
                         isBestPrice ? "bg-procarni-secondary/10 border-procarni-secondary/30" : "bg-gray-50 border-gray-100"
@@ -281,20 +279,18 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         </div>
                       </div>
 
-                      {quote.currency === 'VES' && (
-                        <div className="mb-4 space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tasa de Cambio</label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={quote.exchangeRate || globalExchangeRate || ''}
-                            onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                            onWheel={(e) => (e.target as HTMLElement).blur()}
-                            placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
-                            className="h-10 bg-gray-50/50 w-full"
-                          />
-                        </div>
-                      )}
+                      <div className="mb-4 space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tasa de Cambio</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={quote.exchangeRate || globalExchangeRate || ''}
+                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                          placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
+                          className="h-10 bg-gray-50/50 w-full"
+                        />
+                      </div>
 
                       <div className={cn(
                         "flex items-center justify-between p-3 rounded-lg",
@@ -330,10 +326,10 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
             <Table>
               <TableHeader className="bg-gray-50/80">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[35%] min-w-[280px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</TableHead>
-                  <TableHead className="w-[22%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
+                  <TableHead className="w-[33%] min-w-[280px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</TableHead>
+                  <TableHead className="w-[20%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
                   <TableHead className="w-[8%] min-w-[80px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
-                  <TableHead className="w-[12%] min-w-[110px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa (si VES)</TableHead>
+                  <TableHead className="w-[16%] min-w-[130px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa</TableHead>
                   <TableHead className="w-[18%] min-w-[140px] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
                   <TableHead className="w-[5%] min-w-[50px] text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acción</TableHead>
                 </TableRow>
@@ -402,17 +398,15 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         </Select>
                       </TableCell>
                       <TableCell>
-                        {quote.currency === 'VES' && (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={quote.exchangeRate || globalExchangeRate || ''}
-                            onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                            onWheel={(e) => (e.target as HTMLElement).blur()}
-                            placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
-                            className="h-9"
-                          />
-                        )}
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={quote.exchangeRate || globalExchangeRate || ''}
+                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                          placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
+                          className="h-9"
+                        />
                       </TableCell>
                       <TableCell className={cn("text-right py-3", isBestPrice ? "font-bold text-procarni-secondary" : "font-semibold text-gray-700")}>
                         <div className="flex items-center justify-end gap-2">
