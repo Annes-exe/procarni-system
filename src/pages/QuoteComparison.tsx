@@ -21,6 +21,8 @@ import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem 
 import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
 import ExportToPurchaseOrdersDialog from '@/components/ExportToPurchaseOrdersDialog';
 import ExchangeRateInput from '@/components/ExchangeRateInput';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import { Material } from '@/integrations/supabase/types';
 
 interface MaterialSearchResult {
   id: string;
@@ -62,7 +64,22 @@ const QuoteComparison = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
+  const handleMaterialCreated = (material: Material & { specification?: string }) => {
+    // Check if it's already added
+    if (materialsToCompare.some(m => m.material.id === material.id)) {
+      showError('Este material ya está en la lista de comparación.');
+    } else {
+      setMaterialsToCompare(prev => [
+        ...prev,
+        { material: { id: material.id, name: material.name, code: material.code || 'N/A' }, quotes: [] }
+      ]);
+      setIsDirty(true);
+      showSuccess(`Material "${material.name}" añadido a la comparación.`);
+    }
+  };
 
   // --- Data Loading from URL ---
   const comparisonIdFromUrl = searchParams.get('loadId');
@@ -501,8 +518,18 @@ const QuoteComparison = () => {
 
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="material-search" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar Material</Label>
-                  <div className="mt-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <Label htmlFor="material-search" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar Material</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2 text-xs text-procarni-secondary hover:text-procarni-secondary hover:bg-procarni-secondary/10"
+                      onClick={() => setIsMaterialDialogOpen(true)}
+                    >
+                      <PlusCircle className="mr-1 h-3 w-3" /> Nuevo
+                    </Button>
+                  </div>
+                  <div>
                     <SmartSearch
                       placeholder="Nombre o código..."
                       onSelect={handleMaterialSelect}
@@ -642,6 +669,12 @@ const QuoteComparison = () => {
           // Optional: redirect to PO management or clear the comparison
           navigate('/purchase-order-management');
         }}
+      />
+
+      <MaterialCreationDialog
+        isOpen={isMaterialDialogOpen}
+        onClose={() => setIsMaterialDialogOpen(false)}
+        onMaterialCreated={handleMaterialCreated}
       />
     </div>
   );
