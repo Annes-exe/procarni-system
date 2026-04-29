@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,6 +12,7 @@ import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTr
 import { cn } from '@/lib/utils';
 import { getSuppliersByMaterial, getAllSuppliers } from '@/integrations/supabase/data';
 import ExchangeRateInput from './ExchangeRateInput';
+import SupplierCreationDialog from './SupplierCreationDialog';
 import { isGenericRif } from '@/utils/validators';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 
@@ -133,9 +134,9 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     };
   }, [associatedSuppliers, allSuppliers, isLoadingSuppliers]);
 
-  const handleSupplierChange = (materialId: string, quoteIndex: number, supplierId: string) => {
+  const handleSupplierChange = (materialId: string, quoteIndex: number, supplierId: string, directName?: string) => {
     const selectedSupplier = associatedSuppliers?.find(s => s.id === supplierId) || allSuppliers?.find(s => s.id === supplierId);
-    const supplierName = selectedSupplier?.name || '';
+    const supplierName = directName || selectedSupplier?.name || '';
 
     // Pass both ID and Name back to the parent
     onQuoteChange(materialId, quoteIndex, 'supplierId', supplierId, supplierName);
@@ -150,9 +151,19 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     index: number 
   }) => {
     const [open, setOpen] = useState(false);
+    const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false);
+    const queryClient = useQueryClient();
+
+    const handleSupplierCreated = async (newSupplier: any) => {
+      await queryClient.invalidateQueries({ queryKey: ['allSuppliers'] });
+      handleSupplierChange(material.id, index, newSupplier.id, newSupplier.name);
+      setIsSupplierDialogOpen(false);
+      setOpen(false);
+    };
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <>
+        <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -234,9 +245,30 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                 </CommandGroup>
               )}
             </CommandList>
+            <div className="p-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-procarni-primary hover:text-procarni-primary/80 hover:bg-procarni-primary/10"
+                onClick={() => {
+                  setIsSupplierDialogOpen(true);
+                  setOpen(false); // Cierra el popover al abrir el modal
+                }}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Nuevo Proveedor
+              </Button>
+            </div>
           </Command>
         </PopoverContent>
       </Popover>
+
+      <SupplierCreationDialog
+        isOpen={isSupplierDialogOpen}
+        onClose={() => setIsSupplierDialogOpen(false)}
+        onSupplierCreated={handleSupplierCreated}
+      />
+      </>
     );
   };
 
