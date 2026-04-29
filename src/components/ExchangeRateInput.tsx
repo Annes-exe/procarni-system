@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,8 @@ interface ExchangeRateInputProps {
   baseCurrency: 'USD' | 'EUR';
   exchangeRate?: number;
   onExchangeRateChange: (value: number | undefined) => void;
+  disableAutoFetch?: boolean;
+  compact?: boolean;
 }
 
 interface RateHistoryItem {
@@ -26,6 +29,8 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   baseCurrency,
   exchangeRate,
   onExchangeRateChange,
+  disableAutoFetch = false,
+  compact = false,
 }) => {
   const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
   const [rateSource, setRateSource] = useState<'custom' | 'daily'>('custom');
@@ -65,7 +70,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
           setIsStale(!isSameDay);
         }
 
-        showSuccess(`Tasa ${baseCurrency === 'EUR' ? 'Euro' : 'Dólar'} cargada: ${rate.toFixed(2)} VES/${baseCurrency}`);
+        // showSuccess removed from here to avoid noise on auto-fetch
         return rate;
       } else {
         throw new Error('Formato de tasa de cambio inválido.');
@@ -101,20 +106,32 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
 
   // Effect to manage rate fetching and default selection when currency changes
   useEffect(() => {
-    // We always try to fetch the daily rate and default to it (even for USD, we fetch USD rate)
+    // We always try to fetch the daily rate so it's available in the dropdown
     fetchDailyRate().then(rate => {
       if (rate) {
-        setRateSource('daily');
-        onExchangeRateChange(rate);
+        if (!disableAutoFetch) {
+          setRateSource('daily');
+          if (rate !== exchangeRate) {
+            onExchangeRateChange(rate);
+          }
+        } else {
+          // If auto fetch is disabled (e.g. loading an existing record),
+          // we just set the rate source based on if it matches the daily rate or not.
+          // Note: Since exchangeRate might be from props, we leave rateSource as 'custom' 
+          // initially, unless we want to try and match it. For simplicity, we just 
+          // do nothing to the external state.
+        }
       } else {
-        setRateSource('custom');
+        if (!disableAutoFetch) {
+          setRateSource('custom');
+        }
       }
     });
-  }, [baseCurrency, fetchDailyRate, onExchangeRateChange]);
+  }, [baseCurrency, fetchDailyRate, onExchangeRateChange, disableAutoFetch]);
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {
-    if (rateSource === 'daily' && dailyRate !== undefined) {
+    if (rateSource === 'daily' && dailyRate !== undefined && dailyRate !== exchangeRate) {
       onExchangeRateChange(dailyRate);
     }
   }, [rateSource, dailyRate, exchangeRate, onExchangeRateChange]);
@@ -134,8 +151,11 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
 
   const handleRefreshRate = async () => {
     const rate = await fetchDailyRate();
-    if (rate && rateSource === 'daily') {
-      onExchangeRateChange(rate);
+    if (rate) {
+      showSuccess(`Tasa ${baseCurrency === 'EUR' ? 'Euro' : 'Dólar'} cargada: ${rate.toFixed(2)} VES/${baseCurrency}`);
+      if (rateSource === 'daily') {
+        onExchangeRateChange(rate);
+      }
     }
   };
 
@@ -148,63 +168,102 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-center">
-        <Label htmlFor="exchangeRate">
-          Tasa de Cambio ({baseCurrency} a VES)
-        </Label>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <div className={cn("space-y-3", compact && "space-y-2")}>
+      {!compact && (
+        <div className="flex justify-between items-center">
+          <Label htmlFor="exchangeRate">
+            Tasa de Cambio ({baseCurrency} a VES)
+          </Label>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs flex items-center gap-1 text-muted-foreground hover:text-procarni-primary"
+                  onClick={fetchHistory}
+                >
+                  <History className="h-3 w-3" />
+                  Historial
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-procarni-primary" />
+                    Historial de Tasas ({baseCurrency === 'EUR' ? 'Euro' : 'Dólar'})
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="py-2">
+                  {isLoadingHistory ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[300px] pr-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead className="text-right">Tasa (BCV)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {history.map((item, idx) => (
+                            <TableRow 
+                              key={idx} 
+                              className="cursor-pointer hover:bg-gray-100 transition-colors"
+                              onClick={() => handleSelectHistoricalRate(item.promedio)}
+                            >
+                              <TableCell className="font-medium">
+                                {(() => {
+                                  // Extract just the date part (YYYY-MM-DD) to avoid timezone shifts
+                                  const dateStr = item.fecha.split('T')[0];
+                                  const [year, month, day] = dateStr.split('-');
+                                  const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+                                  return format(localDate, "PPP", { locale: es });
+                                })()}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {item.promedio.toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+        </div>
+      )}
+
+      {compact && (
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tasa</label>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs flex items-center gap-1 text-muted-foreground hover:text-procarni-primary"
-                onClick={fetchHistory}
-              >
+              <Button variant="ghost" size="icon" className="h-4 w-4 text-gray-400 hover:text-procarni-primary" onClick={fetchHistory}>
                 <History className="h-3 w-3" />
-                Historial
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-procarni-primary" />
-                  Historial de Tasas ({baseCurrency === 'EUR' ? 'Euro' : 'Dólar'})
-                </DialogTitle>
+                <DialogTitle>Historial de Tasas</DialogTitle>
               </DialogHeader>
               <div className="py-2">
                 {isLoadingHistory ? (
-                  <div className="flex justify-center p-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
-                  </div>
+                  <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-procarni-primary" /></div>
                 ) : (
-                  <ScrollArea className="h-[300px] pr-4">
+                  <ScrollArea className="h-[250px]">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Fecha</TableHead>
-                          <TableHead className="text-right">Tasa (BCV)</TableHead>
-                        </TableRow>
-                      </TableHeader>
                       <TableBody>
                         {history.map((item, idx) => (
-                          <TableRow 
-                            key={idx} 
-                            className="cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => handleSelectHistoricalRate(item.promedio)}
-                          >
-                            <TableCell className="font-medium">
-                              {(() => {
-                                // Extract just the date part (YYYY-MM-DD) to avoid timezone shifts
-                                const dateStr = item.fecha.split('T')[0];
-                                const [year, month, day] = dateStr.split('-');
-                                const localDate = new Date(Number(year), Number(month) - 1, Number(day));
-                                return format(localDate, "PPP", { locale: es });
-                              })()}
+                          <TableRow key={idx} className="cursor-pointer hover:bg-gray-50" onClick={() => handleSelectHistoricalRate(item.promedio)}>
+                            <TableCell className="text-xs">
+                              {item.fecha.split('T')[0]}
                             </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {item.promedio.toFixed(2)}
-                            </TableCell>
+                            <TableCell className="text-right text-xs font-mono">{item.promedio.toFixed(2)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -214,10 +273,11 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
               </div>
             </DialogContent>
           </Dialog>
-      </div>
+        </div>
+      )}
 
       <Select value={rateSource} onValueChange={handleRateSourceChange}>
-        <SelectTrigger id="rate-source">
+        <SelectTrigger id="rate-source" className={cn(compact && "h-8 text-xs")}>
           <SelectValue placeholder="Selecciona fuente de tasa" />
         </SelectTrigger>
         <SelectContent>
@@ -236,11 +296,12 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
             value={exchangeRate || dailyRate || ''}
             placeholder="Tasa oficial"
             disabled
-            className="bg-gray-100 dark:bg-gray-700"
+            className={cn("bg-gray-100 dark:bg-gray-700", compact && "h-8 text-xs")}
           />
           <Button
             variant="outline"
             size="icon"
+            className={cn(compact && "h-8 w-8")}
             onClick={handleRefreshRate}
             disabled={isLoadingRate}
           >
@@ -257,10 +318,11 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
           value={exchangeRate || ''}
           onChange={(e) => onExchangeRateChange(parseFloat(e.target.value) || undefined)}
           placeholder="Ej: 36.50"
+          className={cn(compact && "h-8 text-xs")}
         />
       )}
 
-      {isStale && (
+      {!compact && isStale && (
         <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-1 flex items-start gap-1">
           <Info className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
           <span>
@@ -269,7 +331,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         </p>
       )}
 
-      {!isStale && (
+      {!compact && !isStale && (
         <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1">
           <Info className="h-3 w-3 inline mr-1 text-blue-500" />
           Tasa oficial actualizada para el cierre del día.
