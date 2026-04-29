@@ -1,13 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getSuppliersByMaterial } from '@/integrations/supabase/data';
+import { getSuppliersByMaterial, getAllSuppliers } from '@/integrations/supabase/data';
 import ExchangeRateInput from './ExchangeRateInput';
 import { isGenericRif } from '@/utils/validators';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
@@ -66,7 +69,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   const { material, results, bestPrice } = comparisonData;
 
   // Fetch suppliers associated with this specific material ID
-  const { data: associatedSuppliers, isLoading: isLoadingSuppliers } = useQuery<SupplierResult[]>({
+  const { data: associatedSuppliers, isLoading: isLoadingAssociated } = useQuery<SupplierResult[]>({
     queryKey: ['suppliersByMaterial', material.id],
     queryFn: async () => {
       const fetchedResults = await getSuppliersByMaterial(material.id);
@@ -79,6 +82,21 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     },
     enabled: !!material.id,
   });
+
+  const { data: allSuppliers, isLoading: isLoadingAll } = useQuery({
+    queryKey: ['allSuppliers'],
+    queryFn: async () => {
+      const fetchedResults = await getAllSuppliers();
+      return fetchedResults.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        rif: s.rif,
+        code: s.code,
+      }));
+    },
+  });
+
+  const isLoadingSuppliers = isLoadingAssociated || isLoadingAll;
 
   const formatPrice = (price: number | null, currency: string) => {
     if (price === null || isNaN(price)) return 'N/A';
@@ -103,31 +121,123 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
 
   const supplierOptions = useMemo(() => {
     if (isLoadingSuppliers) {
-      return <SelectItem value="__loading__" disabled>Cargando proveedores...</SelectItem>;
+      return { associated: [], others: [] };
     }
-    if (!associatedSuppliers || associatedSuppliers.length === 0) {
-      return <SelectItem value="__no_suppliers__" disabled>No hay proveedores asociados</SelectItem>;
-    }
-    return associatedSuppliers.map(supplier => (
-      <SelectItem key={supplier.id} value={supplier.id}>
-        <div className="flex items-center justify-between w-full gap-2">
-          <span>{supplier.name} ({supplier.code || supplier.rif})</span>
-          {isGenericRif(supplier.rif) && (
-            <span className="flex items-center text-[10px] text-procarni-alert font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 uppercase tracking-tighter ml-auto">
-              <AlertTriangle className="h-2.5 w-2.5 mr-1 shrink-0" /> Rif Faltante
-            </span>
-          )}
-        </div>
-      </SelectItem>
-    ));
-  }, [associatedSuppliers, isLoadingSuppliers]);
+    
+    const associatedIds = new Set(associatedSuppliers?.map(s => s.id) || []);
+    const otherSuppliers = allSuppliers?.filter(s => !associatedIds.has(s.id)) || [];
+
+    return {
+      associated: associatedSuppliers || [],
+      others: otherSuppliers
+    };
+  }, [associatedSuppliers, allSuppliers, isLoadingSuppliers]);
 
   const handleSupplierChange = (materialId: string, quoteIndex: number, supplierId: string) => {
-    const selectedSupplier = associatedSuppliers?.find(s => s.id === supplierId);
+    const selectedSupplier = associatedSuppliers?.find(s => s.id === supplierId) || allSuppliers?.find(s => s.id === supplierId);
     const supplierName = selectedSupplier?.name || '';
 
     // Pass both ID and Name back to the parent
     onQuoteChange(materialId, quoteIndex, 'supplierId', supplierId, supplierName);
+  };
+
+  // Sub-component for supplier selection to handle local popover state
+  const SupplierSelector = ({ 
+    quote, 
+    index 
+  }: { 
+    quote: any, 
+    index: number 
+  }) => {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "w-full justify-between h-9 px-3 text-left font-normal bg-white/50 focus:bg-white transition-colors",
+              !quote.supplierId && "text-muted-foreground"
+            )}
+            disabled={isLoadingSuppliers}
+          >
+            <span className="truncate">
+              {quote.supplierId 
+                ? (quote.supplierName || "Proveedor seleccionado") 
+                : "Selecciona proveedor..."}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Buscar proveedor..." />
+            <CommandList className="max-h-[300px]">
+              <CommandEmpty>No se encontró proveedor.</CommandEmpty>
+              
+              {supplierOptions.associated.length > 0 && (
+                <CommandGroup heading="Proveedores Sugeridos">
+                  {supplierOptions.associated.map((supplier) => (
+                    <CommandItem
+                      key={supplier.id}
+                      value={supplier.name}
+                      onSelect={() => {
+                        handleSupplierChange(material.id, index, supplier.id);
+                        setOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          quote.supplierId === supplier.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span>{supplier.name}</span>
+                        {isGenericRif(supplier.rif) && (
+                          <span className="text-[10px] text-amber-600 font-medium">Rif Faltante</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+
+              {supplierOptions.others.length > 0 && (
+                <CommandGroup heading="Otros Proveedores">
+                  {supplierOptions.others.map((supplier) => (
+                    <CommandItem
+                      key={supplier.id}
+                      value={supplier.name}
+                      onSelect={() => {
+                        handleSupplierChange(material.id, index, supplier.id);
+                        setOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          quote.supplierId === supplier.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span>{supplier.name}</span>
+                        {isGenericRif(supplier.rif) && (
+                          <span className="text-[10px] text-amber-600 font-medium">Rif Faltante</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
   };
 
   return (
@@ -172,33 +282,18 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                   <div className={cn("flex items-end gap-2", !isMobile ? "mb-3" : "mb-4")}>
                     <div className="flex-1">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Proveedor</label>
-                      <Select
-                        value={quote.supplierId}
-                        onValueChange={(value) => handleSupplierChange(material.id, index, value)}
-                        disabled={isLoadingSuppliers}
-                      >
-                        <SelectTrigger className={cn("bg-gray-50/50", !isMobile ? "h-9" : "h-10")}>
-                          <SelectValue placeholder="Selecciona proveedor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__placeholder__" disabled>Selecciona proveedor</SelectItem>
-                          {supplierOptions}
-                          {quote.supplierId && !associatedSuppliers?.some(s => s.id === quote.supplierId) && (
-                            <SelectItem value={quote.supplierId}>
-                              {quote.supplierName || 'Proveedor Importado'}
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <SupplierSelector quote={quote} index={index} />
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => onRemoveQuoteEntry(material.id, index)} 
-                      className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {results.length > 1 && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => onRemoveQuoteEntry(material.id, index)} 
+                        className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
 
                   {/* Row 2: Price Inputs and Result */}
@@ -368,24 +463,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       )}
                     >
                       <TableCell className="pl-3 sm:pl-4 py-3">
-                        <Select
-                          value={quote.supplierId}
-                          onValueChange={(value) => handleSupplierChange(material.id, index, value)}
-                          disabled={isLoadingSuppliers}
-                        >
-                          <SelectTrigger className="h-9 w-full">
-                            <SelectValue placeholder="Selecciona proveedor" className="truncate" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__placeholder__" disabled>Selecciona proveedor</SelectItem>
-                            {supplierOptions}
-                            {quote.supplierId && !associatedSuppliers?.some(s => s.id === quote.supplierId) && (
-                              <SelectItem value={quote.supplierId}>
-                                {quote.supplierName || 'Proveedor Importado'}
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <SupplierSelector quote={quote} index={index} />
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="relative">
