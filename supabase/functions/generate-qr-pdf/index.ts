@@ -77,6 +77,19 @@ serve(async (req) => {
       });
     }
 
+    // --- Update Print Date ---
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabaseClient
+      .from('quote_requests')
+      .update({ print_date: now })
+      .eq('id', requestId);
+
+    if (updateError) {
+      console.warn('[generate-qr-pdf] Could not update print_date:', updateError);
+    } else {
+      request.print_date = now; // Update local object for PDF rendering
+    }
+
     // --- Generación de PDF con pdf-lib ---
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage();
@@ -198,7 +211,13 @@ serve(async (req) => {
     drawText('SOLICITUD DE COTIZACIÓN', width / 2 - 100, y, { font: boldFont, size: 16, color: PROC_RED });
     y -= lineHeight * 2;
     drawText(`Nº: ${request.id.substring(0, 8)}`, width - margin - 100, y, { font: boldFont, size: 10 });
-    drawText(`Fecha: ${new Date(request.created_at).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight);
+    
+    const docDate = request.issue_date || request.created_at;
+    drawText(`Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight);
+    
+    if (request.print_date) {
+      drawText(`Fecha Impresión: ${new Date(request.print_date).toLocaleString('es-VE')}`, width - margin - 100, y - lineHeight * 2.5, { size: 8, color: DARK_GRAY });
+    }
     y -= lineHeight * 3;
 
     // --- Detalles del Proveedor ---

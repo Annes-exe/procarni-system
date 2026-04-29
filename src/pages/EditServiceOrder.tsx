@@ -382,6 +382,10 @@ const EditServiceOrder = () => {
             showError('Fecha de servicio requerida.');
             return;
         }
+        if (serviceDate < issueDate) {
+            showError('La fecha de servicio no puede ser anterior a la fecha de emisión.');
+            return;
+        }
         if (!equipmentName.trim()) {
             showError('Nombre del equipo requerido.');
             return;

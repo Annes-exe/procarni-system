@@ -19,6 +19,7 @@ import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
+import DocumentDatePicker from '@/components/DocumentDatePicker';
 
 interface Company {
   id: string;
@@ -64,6 +65,8 @@ const GenerateQuoteRequest = () => {
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
   
   const [suggestedSuppliers, setSuggestedSuppliers] = useState<any[]>([]);
+  const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [deadlineDate, setDeadlineDate] = useState<string>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
 
   const { data: units = [], isLoading: isLoadingUnits } = useQuery({
     queryKey: ['units_of_measure'],
@@ -285,6 +288,11 @@ const GenerateQuoteRequest = () => {
       return;
     }
 
+    if (deadlineDate < issueDate) {
+      showError('La fecha de entrega no puede ser anterior a la fecha de emisión.');
+      return;
+    }
+
     setStep(2);
   };
 
@@ -295,8 +303,8 @@ const GenerateQuoteRequest = () => {
       const baseOrderData = {
         company_id: companyId,
         currency: 'USD' as const,
-        issue_date: new Date().toISOString(),
-        deadline_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        issue_date: issueDate,
+        deadline_date: deadlineDate,
         status: 'Draft' as const,
       };
 
@@ -543,6 +551,21 @@ const GenerateQuoteRequest = () => {
                 className="w-full text-sm"
                 icon={<Building2 className="h-4 w-4 text-gray-400" />}
               />
+
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <DocumentDatePicker
+                  label="Fecha Emisión"
+                  value={issueDate}
+                  onChange={setIssueDate}
+                  className="w-full"
+                />
+                <DocumentDatePicker
+                  label="Fecha Entrega"
+                  value={deadlineDate}
+                  onChange={setDeadlineDate}
+                  className="w-full"
+                />
+              </div>
             </CardContent>
           </Card>
 

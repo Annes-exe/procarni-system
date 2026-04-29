@@ -46,7 +46,7 @@ const GeneratePurchaseOrder = () => {
   const [currency, setCurrency] = React.useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = React.useState<number | undefined>(undefined);
   const [serviceOrderId, setServiceOrderId] = React.useState<string | null>(null);
-
+  const [issueDate, setIssueDate] = React.useState<Date | undefined>(new Date());
   const [deliveryDate, setDeliveryDate] = React.useState<Date | undefined>(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -376,6 +376,14 @@ const GeneratePurchaseOrder = () => {
       showError('Debe seleccionar una fecha de entrega.');
       return;
     }
+    if (!issueDate) {
+      showError('Debe seleccionar una fecha de emisión.');
+      return;
+    }
+    if (deliveryDate < issueDate) {
+      showError('La fecha de entrega no puede ser anterior a la fecha de emisión.');
+      return;
+    }
 
     // Open reminder dialog before proceeding
     setIsReminderDialogOpen(true);
@@ -393,6 +401,7 @@ const GeneratePurchaseOrder = () => {
       status: 'Draft',
       created_by: userEmail || 'unknown',
       user_id: userId,
+      issue_date: issueDate ? format(issueDate, 'yyyy-MM-dd') : undefined,
       delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
       payment_terms: paymentTerms,
       custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
@@ -422,6 +431,7 @@ const GeneratePurchaseOrder = () => {
       setSupplierId('');
       setSupplierName('');
       setExchangeRate(undefined);
+      setIssueDate(new Date());
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setDeliveryDate(tomorrow);
@@ -487,6 +497,7 @@ const GeneratePurchaseOrder = () => {
             baseCurrency={baseCurrency}
             currency={currency}
             exchangeRate={exchangeRate}
+            issueDate={issueDate}
             deliveryDate={deliveryDate}
             paymentTerms={paymentTerms}
             customPaymentTerms={customPaymentTerms}
@@ -496,6 +507,7 @@ const GeneratePurchaseOrder = () => {
             onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
             onExchangeRateChange={setExchangeRate}
+            onIssueDateChange={setIssueDate}
             onDeliveryDateChange={setDeliveryDate}
             onPaymentTermsChange={setPaymentTerms}
             onCustomPaymentTermsChange={setCustomPaymentTerms}

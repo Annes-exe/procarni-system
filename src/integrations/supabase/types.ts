@@ -82,7 +82,9 @@ export type PurchaseOrder = {
   created_at: string | null;
   created_by: string | null;
   user_id: string;
+  issue_date: string | null; // Added
   delivery_date: string | null;
+  print_date: string | null; // Added
   payment_terms: string | null;
   custom_payment_terms: string | null;
   credit_days: number | null;
@@ -121,6 +123,9 @@ export type QuoteRequest = {
   created_at: string | null;
   created_by: string | null;
   user_id: string;
+  issue_date: string | null;
+  deadline_date: string | null;
+  print_date: string | null; // Added
 };
 
 export type QuoteRequestItem = {
@@ -231,6 +236,7 @@ export type ServiceOrder = {
   sequence_number: number | null;
   issue_date: string;
   service_date: string;
+  print_date: string | null; // Added
   supplier_id: string;
   company_id: string;
   equipment_name: string;

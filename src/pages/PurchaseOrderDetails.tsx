@@ -74,7 +74,9 @@ interface PurchaseOrderDetailsData {
   created_by?: string;
   user_id: string;
   purchase_order_items: PurchaseOrderItem[];
+  issue_date?: string;
   delivery_date?: string;
+  print_date?: string;
   payment_terms?: string;
   custom_payment_terms?: string | null;
   credit_days?: number;
@@ -581,11 +583,25 @@ const PurchaseOrderDetails = () => {
             <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
           </div>
 
-          {/* Delivery Date */}
+          {/* Dates */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Emisión</span>
+            <p className={valueClass}>
+              {order.issue_date ? format(parseDateForDisplay(order.issue_date), 'PPP', { locale: es }) : format(new Date(order.created_at), 'PPP', { locale: es })}
+            </p>
+          </div>
+
           <div className="space-y-1">
             <span className={microLabelClass}>Fecha de Entrega</span>
             <p className={valueClass}>
               {order.delivery_date ? format(parseDateForDisplay(order.delivery_date), 'PPP', { locale: es }) : 'N/A'}
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Impresión</span>
+            <p className={valueClass}>
+              {order.print_date ? format(new Date(order.print_date), 'PPP', { locale: es }) : 'No impreso'}
             </p>
           </div>
 

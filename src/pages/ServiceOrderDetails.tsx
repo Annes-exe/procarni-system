@@ -554,11 +554,25 @@ const ServiceOrderDetails = () => {
             <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
           </div>
 
-          {/* Service Date */}
+          {/* Dates */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Emisión</span>
+            <p className={valueClass}>
+              {order.issue_date ? format(parseDateForDisplay(order.issue_date), 'PPP', { locale: es }) : format(new Date(order.created_at || new Date()), 'PPP', { locale: es })}
+            </p>
+          </div>
+
           <div className="space-y-1">
             <span className={microLabelClass}>Fecha de Servicio</span>
             <p className={valueClass}>
               {order.service_date ? format(parseDateForDisplay(order.service_date), 'PPP', { locale: es }) : 'N/A'}
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Impresión</span>
+            <p className={valueClass}>
+              {order.print_date ? format(new Date(order.print_date), 'PPP', { locale: es }) : 'No impreso'}
             </p>
           </div>
 
