@@ -36,7 +36,13 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
   onRemoveItem,
   onItemChange,
 }) => {
+  const [expandedItems, setExpandedItems] = React.useState<string[]>([]);
   const isMobile = useIsMobile();
+
+  // Sincronizar items expandidos cuando cambia la longitud de la lista (como en Solicitudes de Cotización)
+  React.useEffect(() => {
+    setExpandedItems(items.map((_, i) => `item-${i}`));
+  }, [items.length]);
 
   const calculateItemTotals = (item: ServiceOrderItemForm) => {
     const quantity = item.quantity ?? 0;
@@ -406,7 +412,12 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
         </div>
       ) : (
         <>
-          <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
+          <Accordion 
+            type="multiple" 
+            className="w-full" 
+            value={expandedItems}
+            onValueChange={setExpandedItems}
+          >
             {items.map(renderDesktopAccordionItem)}
           </Accordion>
 

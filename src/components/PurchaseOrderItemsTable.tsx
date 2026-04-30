@@ -68,7 +68,13 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 }) => {
 
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const isMobile = useIsMobile();
+
+  // Sincronizar items expandidos cuando cambia la longitud de la lista (como en Solicitudes de Cotización)
+  React.useEffect(() => {
+    setExpandedItems(items.map((_, i) => `item-${i}`));
+  }, [items.length]);
 
   const { data: units = [], isLoading: isLoadingUnits } = useQuery({
     queryKey: ['units_of_measure'],
@@ -524,7 +530,12 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         </div>
       ) : (
         <>
-          <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
+          <Accordion 
+            type="multiple" 
+            className="w-full" 
+            value={expandedItems}
+            onValueChange={setExpandedItems}
+          >
             {items.map(renderDesktopAccordionItem)}
           </Accordion>
           
