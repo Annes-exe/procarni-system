@@ -555,14 +555,16 @@ const GenerateQuoteRequest = () => {
               <div className="mt-4 grid grid-cols-2 gap-4">
                 <DocumentDatePicker
                   label="Fecha Emisión"
-                  value={issueDate}
-                  onChange={setIssueDate}
+                  id="issue_date"
+                  date={issueDate ? new Date(issueDate + 'T12:00:00') : undefined}
+                  onDateChange={(d) => setIssueDate(d ? d.toISOString().split('T')[0] : '')}
                   className="w-full"
                 />
                 <DocumentDatePicker
                   label="Fecha Entrega"
-                  value={deadlineDate}
-                  onChange={setDeadlineDate}
+                  id="deadline_date"
+                  date={deadlineDate ? new Date(deadlineDate + 'T12:00:00') : undefined}
+                  onDateChange={(d) => setDeadlineDate(d ? d.toISOString().split('T')[0] : '')}
                   className="w-full"
                 />
               </div>

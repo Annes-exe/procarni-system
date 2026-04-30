@@ -198,6 +198,9 @@ serve(async (req) => {
       y -= lineHeight * 2;
     }
 
+    // Add a small padding to avoid overlapping with company details
+    y -= 5;
+
     // Separator line (Red, 2pt)
     page.drawLine({
       start: { x: margin, y: y },

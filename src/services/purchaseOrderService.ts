@@ -5,7 +5,7 @@ import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError } from '@/utils/toast';
 
 // Define strict input types for creation/updating to avoid 'any'
-export type CreatePurchaseOrderInput = Omit<PurchaseOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number'>;
+export type CreatePurchaseOrderInput = Omit<PurchaseOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number' | 'print_date'>;
 export type CreatePurchaseOrderItemInput = Omit<PurchaseOrderItem, 'id' | 'order_id' | 'created_at' | 'updated_at'>;
 
 // Type for the list view which includes joined table data

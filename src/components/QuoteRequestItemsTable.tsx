@@ -35,6 +35,8 @@ interface MaterialSearchResult {
 
 interface QuoteRequestItemsTableProps {
     items: QuoteRequestItemForm[];
+    supplierId?: string;
+    supplierName?: string;
     onAddItem: () => void;
     onRemoveItem: (index: number) => void;
     onItemChange: (index: number, field: keyof QuoteRequestItemForm, value: any) => void;
@@ -43,6 +45,8 @@ interface QuoteRequestItemsTableProps {
 
 const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     items,
+    supplierId,
+    supplierName,
     onAddItem,
     onRemoveItem,
     onItemChange,

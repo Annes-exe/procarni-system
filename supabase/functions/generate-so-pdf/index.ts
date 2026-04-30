@@ -437,6 +437,9 @@ serve(async (req) => {
             // Update Y position based on the tallest element in the header
             state.y -= Math.max(companyLogoImage ? LOGO_SIZE : LINE_HEIGHT * 3, LINE_HEIGHT * 3);
 
+            // Add a small padding to avoid overlapping with print date and logo
+            state.y -= 5;
+
             // Separator line (Red, 2pt)
             state.page.drawLine({
                 start: { x: MARGIN, y: state.y },

@@ -502,13 +502,6 @@ const QuoteRequestDetails = () => {
             </p>
           </div>
 
-          {/* Print Date */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Fecha Impresión</span>
-            <p className={valueClass}>
-              {request.print_date ? format(new Date(request.print_date), 'PPP', { locale: es }) : 'No impreso'}
-            </p>
-          </div>
 
           {/* Created By */}
           <div className="space-y-1">

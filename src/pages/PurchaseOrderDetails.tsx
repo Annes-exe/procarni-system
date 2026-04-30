@@ -598,12 +598,6 @@ const PurchaseOrderDetails = () => {
             </p>
           </div>
 
-          <div className="space-y-1">
-            <span className={microLabelClass}>Fecha Impresión</span>
-            <p className={valueClass}>
-              {order.print_date ? format(new Date(order.print_date), 'PPP', { locale: es }) : 'No impreso'}
-            </p>
-          </div>
 
           {/* Payment Conditions */}
           <div className="space-y-1">

@@ -1,10 +1,9 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { ServiceOrder, ServiceOrderItem, ServiceOrderMaterial } from '@/integrations/supabase/types';
 import { showError } from '@/utils/toast';
 
 // Define strict input types
-export type CreateServiceOrderInput = Omit<ServiceOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number' | 'service_order_items' | 'service_order_materials'>;
+export type CreateServiceOrderInput = Omit<ServiceOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number' | 'service_order_items' | 'service_order_materials' | 'print_date'>;
 export type CreateServiceOrderItemInput = Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>;
 export type CreateServiceOrderMaterialInput = Omit<ServiceOrderMaterial, 'id' | 'service_order_id' | 'created_at' | 'suppliers' | 'materials'>;
 
