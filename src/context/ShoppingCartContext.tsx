@@ -12,6 +12,7 @@ interface ShoppingCartItem {
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
+  was_recalculated?: boolean;
 }
 
 interface ShoppingCartContextType {

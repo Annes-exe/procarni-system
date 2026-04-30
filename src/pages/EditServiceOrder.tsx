@@ -47,6 +47,7 @@ interface ServiceOrderItemForm {
     is_exempt: boolean;
     sales_percentage: number | null;
     discount_percentage: number | null;
+    was_recalculated?: boolean;
 }
 
 // Interface correctly matching the joined response from Supabase
@@ -72,6 +73,7 @@ interface ServiceOrderMaterialForm {
     description?: string;
     sales_percentage: number | null;
     discount_percentage: number | null;
+    was_recalculated?: boolean;
 }
 
 interface SparePartsGroup {
