@@ -211,6 +211,11 @@ serve(async (req: Request) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
       console.error('[generate-po-pdf] Auth Error:', authError);
@@ -257,14 +262,16 @@ serve(async (req: Request) => {
 
     // --- Update Print Date ---
     const now = new Date().toISOString();
-    const { error: updateError } = await supabaseClient
+    console.log(`[generate-po-pdf] Updating print_date for ${orderId} to ${now}`);
+    const { error: updateError } = await supabaseAdmin
       .from('purchase_orders')
       .update({ print_date: now })
       .eq('id', orderId);
     
     if (updateError) {
-      console.warn('[generate-po-pdf] Could not update print_date:', updateError);
+      console.error('[generate-po-pdf] CRITICAL: Could not update print_date:', updateError);
     } else {
+      console.log('[generate-po-pdf] print_date updated successfully');
       order.print_date = now; // Update local object for PDF rendering
     }
 
@@ -427,7 +434,7 @@ serve(async (req: Request) => {
       drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
       if (order.print_date) {
-        drawText(state, `Fecha Impresión: ${new Date(order.print_date).toLocaleString('es-VE')}`, titleX, state.y - LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
+        drawText(state, `Fecha Impresión: ${new Date(order.print_date).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
       }
 
       // Update Y position based on the tallest element in the header
