@@ -35,10 +35,11 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
 
   const groupMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedParentId) throw new Error("Debes seleccionar un material padre");
+      const parentId = selectedParentId === 'none' ? null : selectedParentId;
+      if (selectedParentId === '' ) throw new Error("Debes seleccionar una opción");
       
       const promises = selectedIds.map(id => 
-        updateMaterial(id, { base_material_id: selectedParentId })
+        updateMaterial(id, { base_material_id: parentId })
       );
       await Promise.all(promises);
     },
@@ -82,6 +83,9 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
                 <SelectValue placeholder="Seleccione un material existente" />
               </SelectTrigger>
               <SelectContent className="max-h-[200px]">
+                <SelectItem value="none" className="text-destructive font-medium">
+                  -- Sin Grupo (Desagrupar) --
+                </SelectItem>
                 {availableParents.map((material) => (
                   <SelectItem key={material.id} value={material.id}>
                     {material.name} <span className="text-muted-foreground text-xs">({material.code})</span>

@@ -36,6 +36,7 @@ import EditServiceOrder from "./pages/EditServiceOrder";
 import ReportsAnalytics from "./pages/ReportsAnalytics"; // NEW IMPORT
 import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
 import Notifications from "./pages/Notifications";
+import GroupManagement from "./pages/GroupManagement";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -86,6 +87,7 @@ const App = () => (
                   <Route path="/quote-comparison" element={<QuoteComparison />} />
                   <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
                   <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/group-management" element={<GroupManagement />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -8,7 +8,7 @@ import { useSession } from '@/components/SessionContextProvider';
 
 import PinConfirmationDialog from '@/components/PinConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Cog } from 'lucide-react';
+import { ArrowLeft, Cog, FolderTree } from 'lucide-react';
 
 const Settings = () => {
   const { session, role, isLoadingSession } = useSession();
@@ -152,6 +152,25 @@ const Settings = () => {
                   className="bg-procarni-secondary hover:bg-green-700"
                 >
                   {isConfirming && sequenceTypeToUpdate === 'SO' ? 'Actualizando...' : 'Actualizar Secuencia OS'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Material Groups Management */}
+            <div className="border p-4 rounded-lg border-blue-100 bg-blue-50/20">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-procarni-primary">Gestión de Grupos de Materiales</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Administra las jerarquías de materiales y variantes para los reportes consolidados.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => navigate('/group-management')}
+                  className="bg-procarni-primary hover:bg-procarni-primary/90"
+                >
+                  <FolderTree className="h-4 w-4 mr-2" />
+                  Ir al Gestor de Grupos
                 </Button>
               </div>
             </div>
