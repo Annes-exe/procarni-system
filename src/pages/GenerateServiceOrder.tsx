@@ -339,6 +339,10 @@ const GenerateServiceOrder = () => {
       showError('Por favor, selecciona una fecha de servicio.');
       return;
     }
+    if (serviceDate < issueDate) {
+      showError('La fecha de servicio no puede ser anterior a la fecha de emisión.');
+      return;
+    }
     if (!equipmentName.trim()) {
       showError('El nombre del equipo o maquinaria es requerido.');
       return;

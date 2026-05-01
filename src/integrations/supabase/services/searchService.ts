@@ -62,7 +62,7 @@ export const searchService = {
                     .from('quote_request_items')
                     .select('request_id, quote_requests(id, suppliers(name))')
                     .in('material_id', materialIds)
-                    .limit(3);
+                    .limit(2);
 
                 if (qrItems) {
                     qrItems.forEach((item: any) => {
@@ -83,7 +83,7 @@ export const searchService = {
                     .from('purchase_order_items')
                     .select('order_id, purchase_orders(id, sequence_number, suppliers(name))')
                     .in('material_id', materialIds)
-                    .limit(3);
+                    .limit(2);
 
                 if (poItems) {
                     poItems.forEach((item: any) => {
@@ -104,7 +104,7 @@ export const searchService = {
                     .from('service_order_materials')
                     .select('service_order_id, service_orders(id, sequence_number, equipment_name)')
                     .in('material_id', materialIds)
-                    .limit(3);
+                    .limit(2);
 
                 if (soMaterials) {
                     soMaterials.forEach((item: any) => {
@@ -127,7 +127,7 @@ export const searchService = {
                         .from('quote_request_items')
                         .select('request_id, quote_requests(id, suppliers(name))')
                         .ilike('description', searchTerm)
-                        .limit(3);
+                        .limit(2);
 
                     if (qrItemsDesc) {
                         qrItemsDesc.forEach((item: any) => {
@@ -148,7 +148,7 @@ export const searchService = {
                         .from('purchase_order_items')
                         .select('order_id, purchase_orders(id, sequence_number, suppliers(name))')
                         .ilike('description', searchTerm)
-                        .limit(3);
+                        .limit(2);
 
                     if (poItemsDesc) {
                         poItemsDesc.forEach((item: any) => {
@@ -169,7 +169,7 @@ export const searchService = {
                         .from('service_order_items')
                         .select('order_id, service_orders(id, sequence_number, equipment_name)')
                         .ilike('description', searchTerm)
-                        .limit(3);
+                        .limit(2);
 
                     if (soItemsDesc) {
                         soItemsDesc.forEach((item: any) => {
@@ -188,98 +188,97 @@ export const searchService = {
             }
 
             // 3. Search Purchase Orders
-            const isNumeric = !isNaN(Number(query));
-            let poQuery = supabase
-                .from('purchase_orders')
-                .select('id, sequence_number, suppliers(name)')
-                .limit(5);
+            const isNumeric = !isNaN(Number(query)) && query.length > 0;
+            let poResults: any[] = [];
 
-            let hasPoFilter = false;
             if (isNumeric) {
-                poQuery = poQuery.eq('sequence_number', Number(query));
-                hasPoFilter = true;
-            } else if (foundSupplierIds.length > 0) {
-                // Search POs by found supplier IDs
-                poQuery = poQuery.in('supplier_id', foundSupplierIds);
-                hasPoFilter = true;
-            } else if (query.length > 3) {
-                // Search POs by supplier name
-                poQuery = poQuery.ilike('suppliers.name', searchTerm);
-                hasPoFilter = true;
+                const numQuery = Number(query);
+                const { data } = await supabase
+                    .from('purchase_orders')
+                    .select('id, sequence_number, suppliers(name)')
+                    .eq('sequence_number', numQuery)
+                    .limit(5);
+                if (data) poResults = data;
+            } else if (query.length >= 3) {
+                // Search POs by supplier name with inner join to enforce filtering
+                const { data } = await supabase
+                    .from('purchase_orders')
+                    .select('id, sequence_number, suppliers!inner(name)')
+                    .ilike('suppliers.name', searchTerm)
+                    .limit(5);
+                if (data) poResults = data;
             }
 
-            if (hasPoFilter) {
-                const { data: pos } = await poQuery;
-                if (pos) {
-                    pos.forEach((po: any) => {
-                        if (!results.some(r => r.id === po.id)) {
-                            results.push({
-                                id: po.id,
-                                title: `Orden de Compra #${po.sequence_number}`,
-                                subtitle: `Proveedor: ${po.suppliers?.name || 'Varios'}`,
-                                type: 'purchase_order',
-                                url: `/purchase-orders/${po.id}`
-                            });
-                        }
-                    });
+            if (poResults.length > 0) {
+                poResults.forEach((po: any) => {
+                    if (!results.some(r => r.id === po.id)) {
+                        results.push({
+                            id: po.id,
+                            title: `Orden de Compra #${po.sequence_number}`,
+                            subtitle: `Proveedor: ${po.suppliers?.name || 'Varios'}`,
+                            type: 'purchase_order',
+                            url: `/purchase-orders/${po.id}`
+                        });
+                    }
+                });
+            }
+
+            // 4. Search Service Orders (by sequence or equipment/supplier)
+            let soResults: any[] = [];
+
+            if (isNumeric) {
+                const numQuery = Number(query);
+                const { data } = await supabase
+                    .from('service_orders')
+                    .select('id, sequence_number, equipment_name, service_type, suppliers(name)')
+                    .eq('sequence_number', numQuery)
+                    .limit(5);
+                if (data) soResults = data;
+            } else if (query.length >= 3) {
+                // Query 1: search by own fields (equipment_name, service_type)
+                const { data: soByFields } = await supabase
+                    .from('service_orders')
+                    .select('id, sequence_number, equipment_name, service_type, suppliers(name)')
+                    .or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm}`)
+                    .limit(5);
+
+                // Query 2: search by supplier name via inner join (separate filter — PostgREST requirement)
+                const { data: soBySupplier } = await supabase
+                    .from('service_orders')
+                    .select('id, sequence_number, equipment_name, service_type, suppliers!inner(name)')
+                    .ilike('suppliers.name', searchTerm)
+                    .limit(5);
+
+                // Merge deduplicating by id
+                const seen = new Set<string>();
+                for (const row of [...(soByFields ?? []), ...(soBySupplier ?? [])]) {
+                    if (!seen.has(row.id)) { seen.add(row.id); soResults.push(row); }
                 }
             }
 
-            // 4. Search Service Orders (by sequence or equipment)
-            let soQuery = supabase
-                .from('service_orders')
-                .select('id, sequence_number, equipment_name, service_type, suppliers(name)') // Added suppliers(name) for potential future use or consistency
-                .limit(5);
-
-            let hasSoFilter = false;
-            if (isNumeric) {
-                soQuery = soQuery.eq('sequence_number', Number(query));
-                hasSoFilter = true;
-            } else if (foundSupplierIds.length > 0) {
-                // Search SOs by found supplier IDs
-                soQuery = soQuery.in('supplier_id', foundSupplierIds);
-                hasSoFilter = true;
-            } else if (query.length > 3) {
-                soQuery = soQuery.or(`equipment_name.ilike.${searchTerm},service_type.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
-                hasSoFilter = true;
-            }
-
-            if (hasSoFilter) {
-                const { data: sos } = await soQuery;
-                if (sos) {
-                    sos.forEach((so: any) => {
-                        if (!results.some(r => r.id === so.id)) {
-                            results.push({
-                                id: so.id,
-                                title: `Orden de Servicio #${so.sequence_number}`,
-                                subtitle: `${so.service_type} - ${so.equipment_name}`,
-                                type: 'service_order',
-                                url: `/service-orders/${so.id}`
-                            });
-                        }
-                    });
-                }
+            if (soResults.length > 0) {
+                soResults.forEach((so: any) => {
+                    if (!results.some(r => r.id === so.id)) {
+                        results.push({
+                            id: so.id,
+                            title: `Orden de Servicio #${so.sequence_number}`,
+                            subtitle: `${so.service_type} - ${so.equipment_name}`,
+                            type: 'service_order',
+                            url: `/service-orders/${so.id}`
+                        });
+                    }
+                });
             }
 
             // 5. Search Quote Requests
-            let qrQuery = supabase
-                .from('quote_requests')
-                .select('id, suppliers(name)')
-                .limit(5);
+            if (query.length >= 3) {
+                // Search SCs by supplier name (ID is UUID, so no partial text search on it)
+                const { data: qrs } = await supabase
+                    .from('quote_requests')
+                    .select('id, suppliers!inner(name)')
+                    .ilike('suppliers.name', searchTerm)
+                    .limit(5);
 
-            let hasQrFilter = false;
-            if (foundSupplierIds.length > 0) {
-                // Search SCs by found supplier IDs
-                qrQuery = qrQuery.in('supplier_id', foundSupplierIds);
-                hasQrFilter = true;
-            } else if (query.length > 3) {
-                // Search SCs by ID or supplier name
-                qrQuery = qrQuery.or(`id.ilike.${searchTerm},suppliers.name.ilike.${searchTerm}`);
-                hasQrFilter = true;
-            }
-
-            if (hasQrFilter) {
-                const { data: qrs } = await qrQuery;
                 if (qrs) {
                     qrs.forEach((qr: any) => {
                         if (!results.some(r => r.id === qr.id)) {

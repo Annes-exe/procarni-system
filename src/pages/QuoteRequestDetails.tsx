@@ -488,11 +488,20 @@ const QuoteRequestDetails = () => {
 
           {/* Date */}
           <div className="space-y-1">
-            <span className={microLabelClass}>Fecha Solicitud</span>
+            <span className={microLabelClass}>Fecha Emisión</span>
             <p className={valueClass}>
-              {format(new Date(request.created_at), 'PPP', { locale: es })}
+              {request.issue_date ? format(new Date(request.issue_date), 'PPP', { locale: es }) : format(new Date(request.created_at), 'PPP', { locale: es })}
             </p>
           </div>
+
+          {/* Delivery Date */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Entrega</span>
+            <p className={valueClass}>
+              {request.deadline_date ? format(new Date(request.deadline_date), 'PPP', { locale: es }) : 'No definida'}
+            </p>
+          </div>
+
 
           {/* Created By */}
           <div className="space-y-1">

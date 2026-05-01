@@ -10,7 +10,8 @@ const MaterialService = {
     const { data, error } = await supabase
       .from('materials')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(10000); // Override PostgREST's default 1000-row cap
 
     if (error) {
       console.error('[MaterialService.getAll] Error:', error);
@@ -111,7 +112,7 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
-        .order('name', { ascending: true }); // Removed limit(10)
+        .order('name', { ascending: true });
 
       if (error) {
         console.error('[MaterialService.search] Error fetching default materials:', error);
@@ -154,6 +155,54 @@ const MaterialService = {
     
     return true;
   },
+
+  getByName: async (name: string): Promise<Material | null> => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('name', name.toUpperCase())
+      .maybeSingle();
+
+    if (error) {
+      console.error('[MaterialService.getByName] Error:', error);
+      return null;
+    }
+    return data;
+  },
+
+  getPaginated: async (
+    page: number,
+    pageSize: number,
+    searchTerm: string = '',
+    category: string = 'all'
+  ) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from('materials')
+      .select('*', { count: 'exact' });
+
+    if (searchTerm) {
+      const searchPattern = `%${searchTerm}%`;
+      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern}`);
+    }
+
+    if (category && category !== 'all') {
+      query = query.eq('category', category);
+    }
+
+    const { data, count, error } = await query
+      .range(from, to)
+      .order('name', { ascending: true }); // Orden alfabético
+
+    if (error) {
+      console.error('[MaterialService.getPaginated] Error:', error);
+      throw error;
+    }
+    
+    return { data: data as Material[], totalCount: count || 0 };
+  },
 };
 
 export const {
@@ -163,4 +212,6 @@ export const {
   delete: deleteMaterial,
   search: searchMaterials,
   mergeMaterials,
+  getByName: getMaterialByName,
+  getPaginated: getPaginatedMaterials,
 } = MaterialService;

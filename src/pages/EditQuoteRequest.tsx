@@ -17,6 +17,7 @@ import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
+import DocumentDatePicker from '@/components/DocumentDatePicker';
 
 interface Company {
   id: string;
@@ -50,6 +51,8 @@ const EditQuoteRequest = () => {
   const [supplierId, setSupplierId] = useState<string>('');
   const [supplierName, setSupplierName] = useState<string>('');
   const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
+  const [issueDate, setIssueDate] = useState<string>('');
+  const [deadlineDate, setDeadlineDate] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: units = [], isLoading: isLoadingUnits } = useQuery({
@@ -95,6 +98,13 @@ const EditQuoteRequest = () => {
       })) || [];
 
       setItems(mappedItems);
+      
+      if (initialRequest.issue_date) {
+        setIssueDate(new Date(initialRequest.issue_date).toISOString().split('T')[0]);
+      }
+      if (initialRequest.deadline_date) {
+        setDeadlineDate(new Date(initialRequest.deadline_date).toISOString().split('T')[0]);
+      }
     }
   }, [initialRequest]);
 
@@ -187,6 +197,11 @@ const EditQuoteRequest = () => {
       return;
     }
 
+    if (deadlineDate < issueDate) {
+      showError('La fecha de entrega no puede ser anterior a la fecha de emisión.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -194,9 +209,8 @@ const EditQuoteRequest = () => {
         supplier_id: supplierId,
         company_id: companyId,
         currency: 'USD' as const,
-        // status: initialRequest.status, // Keep existing status or allow update?
-        // Usually editing resets to Draft if significant changes, or stays same.
-        // Let's keep it same for now unless we add status dropdown.
+        issue_date: issueDate,
+        deadline_date: deadlineDate,
       };
 
       const formattedItems = items.map(item => ({
@@ -308,6 +322,23 @@ const EditQuoteRequest = () => {
                     displayValue={companyName}
                     className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
                     icon={<Building2 className="h-4 w-4 text-gray-400" />}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <DocumentDatePicker
+                    label="Fecha Emisión"
+                    id="issue_date"
+                    date={issueDate ? new Date(issueDate + 'T12:00:00') : undefined}
+                    onDateChange={(d) => setIssueDate(d ? d.toISOString().split('T')[0] : '')}
+                    className="w-full"
+                  />
+                  <DocumentDatePicker
+                    label="Fecha Entrega"
+                    id="deadline_date"
+                    date={deadlineDate ? new Date(deadlineDate + 'T12:00:00') : undefined}
+                    onDateChange={(d) => setDeadlineDate(d ? d.toISOString().split('T')[0] : '')}
+                    className="w-full"
                   />
                 </div>
               </div>

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, Search, StickyNote, Hash } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterialsBySupplier, getAllUnits } from '@/integrations/supabase/data';
+import { searchMaterials, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -19,6 +19,7 @@ export interface QuoteRequestItemForm {
     unit?: string;
     description?: string;
     material_id?: string; // Added for name update propagation
+    last_price_info?: string; // NEW: information about last purchase price
 }
 
 interface MaterialSearchResult {
@@ -34,8 +35,8 @@ interface MaterialSearchResult {
 
 interface QuoteRequestItemsTableProps {
     items: QuoteRequestItemForm[];
-    supplierId: string;
-    supplierName: string;
+    supplierId?: string;
+    supplierName?: string;
     onAddItem: () => void;
     onRemoveItem: (index: number) => void;
     onItemChange: (index: number, field: keyof QuoteRequestItemForm, value: any) => void;
@@ -58,10 +59,9 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
         queryFn: getAllUnits,
     });
 
-    const searchSupplierMaterials = React.useCallback(async (query: string) => {
-        if (!supplierId) return [];
-        return searchMaterialsBySupplier(supplierId, query);
-    }, [supplierId]);
+    const fetchMaterials = React.useCallback(async (query: string) => {
+        return searchMaterials(query);
+    }, []);
 
     const handleMaterialAdded = (material: any) => {
         // Lógica post-creación si es necesaria
@@ -75,13 +75,17 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     <div className="w-[85%]">
                         <label className="text-xs font-bold text-muted-foreground uppercase mb-1 block">Material</label>
                         <SmartSearch
-                            placeholder={supplierId ? "Buscar material..." : "Selecciona prov."}
+                            placeholder="Buscar material..."
                             onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
-                            fetchFunction={searchSupplierMaterials}
+                            fetchFunction={fetchMaterials}
                             displayValue={item.material_name}
-                            disabled={!supplierId}
                             className="w-full"
                         />
+                        {item.last_price_info && (
+                            <p className="text-[10px] text-procarni-secondary font-medium mt-1">
+                                {item.last_price_info}
+                            </p>
+                        )}
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => onRemoveItem(index)} className="text-destructive h-8 w-8 -mr-2">
                         <Trash2 className="h-5 w-5" />
@@ -133,6 +137,11 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                                 <span className={`font-semibold text-sm truncate max-w-[400px] ${!item.material_name && 'text-muted-foreground italic'}`}>
                                     {item.material_name || "Seleccionar material..."}
                                 </span>
+                                {item.last_price_info && (
+                                    <span className="text-[10px] text-procarni-secondary font-medium animate-in fade-in slide-in-from-left-1">
+                                        {item.last_price_info}
+                                    </span>
+                                )}
                                 {item.material_name && (
                                     <div className="flex gap-2 text-[10px] text-muted-foreground">
                                         {item.quantity > 0 && <span>{item.quantity} {item.unit}</span>}
@@ -163,7 +172,7 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                             </label>
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-dashed border-gray-300 hover:border-procarni-primary hover:text-procarni-primary" disabled={!supplierId}>
+                                    <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-dashed border-gray-300 hover:border-procarni-primary hover:text-procarni-primary">
                                         <Search className="h-4 w-4" />
                                     </Button>
                                 </PopoverTrigger>
@@ -173,9 +182,8 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                                         <SmartSearch
                                             placeholder="Escribe para buscar..."
                                             onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
-                                            fetchFunction={searchSupplierMaterials}
+                                            fetchFunction={fetchMaterials}
                                             displayValue=""
-                                            disabled={!supplierId}
                                             autoFocus={true}
                                             className="w-full"
                                         />
@@ -237,6 +245,13 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
         );
     };
 
+    const [expandedItems, setExpandedItems] = React.useState<string[]>([]);
+
+    // Sincronizar items expandidos cuando cambia la longitud de la lista
+    React.useEffect(() => {
+        setExpandedItems(items.map((_, i) => `item-${i}`));
+    }, [items.length]);
+
     return (
         <div className="space-y-4">
             {isMobile ? (
@@ -248,7 +263,12 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                 </div>
             ) : (
                 <>
-                    <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
+                    <Accordion 
+                        type="multiple" 
+                        className="w-full" 
+                        value={expandedItems}
+                        onValueChange={setExpandedItems}
+                    >
                         {items.map(renderDesktopAccordionItem)}
                     </Accordion>
 
@@ -264,7 +284,6 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     </Button>
                 </>
             )}
-
         </div>
     );
 };

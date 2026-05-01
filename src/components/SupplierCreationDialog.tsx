@@ -13,7 +13,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { createSupplier } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
 import { validateRif } from '@/utils/validators';
-import { Supplier } from '@/integrations/supabase/types/index';
+import { Supplier } from '@/integrations/supabase/types';
 
 interface SupplierCreationDialogProps {
   isOpen: boolean;
@@ -104,6 +104,12 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
       credit_days: data.payment_terms === 'Crédito' ? data.credit_days : 0,
       status: data.status,
       user_id: session.user.id,
+      phone_2: null,
+      instagram: null,
+      address: null,
+      code: null,
+      city: null,
+      alert_comment: null,
     };
 
     try {
@@ -124,136 +130,175 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[450px]">
-        <DialogHeader>
-          <DialogTitle>Añadir Nuevo Proveedor</DialogTitle>
-          <DialogDescription>
-            Crea un nuevo proveedor rápidamente. Puedes añadir materiales asociados más tarde en la gestión de proveedores.
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader className="mb-4">
+          <DialogTitle className="text-xl font-bold text-procarni-primary">Añadir Nuevo Proveedor</DialogTitle>
+          <DialogDescription className="text-xs">
+            Crea un registro rápido. Podrás añadir materiales asociados luego en la gestión de proveedores.
           </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nombre del proveedor" {...field} disabled={isSubmitting} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="rif"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>RIF *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: J123456789" {...field} disabled={isSubmitting} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Teléfono Principal</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: +584121234567" {...field} value={field.value || ''} disabled={isSubmitting} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="email@proveedor.com" {...field} value={field.value || ''} disabled={isSubmitting} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="payment_terms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Términos de Pago *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione términos de pago" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Contado">Contado</SelectItem>
-                      <SelectItem value="Crédito">Crédito</SelectItem>
-                      <SelectItem value="Otro">Otro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {currentPaymentTerms === 'Crédito' && (
-              <FormField
-                control={form.control}
-                name="credit_days"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Días de Crédito *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="Días de crédito"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        disabled={isSubmitting}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {currentPaymentTerms === 'Otro' && (
-              <FormField
-                control={form.control}
-                name="custom_payment_terms"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Términos de Pago Personalizados *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Describa los términos de pago" {...field} value={field.value || ''} disabled={isSubmitting} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+          <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              
+              {/* Información Básica */}
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b pb-1">Identificación</h4>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Nombre / Razón Social *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nombre comercial" {...field} disabled={isSubmitting} className="h-9 text-sm" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="rif"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">RIF *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="J123456789" {...field} disabled={isSubmitting} className="h-9 text-sm" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Estado inicial</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                        <FormControl>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Activo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Active">Activo</SelectItem>
+                          <SelectItem value="Inactive">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              {/* Contacto y Términos */}
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b pb-1">Contacto y Pagos</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Teléfono</FormLabel>
+                        <FormControl>
+                          <Input placeholder="0412..." {...field} value={field.value || ''} disabled={isSubmitting} className="h-9 text-sm" />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="ejemplo@mail.com" {...field} value={field.value || ''} disabled={isSubmitting} className="h-9 text-sm" />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="payment_terms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Términos de Pago *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                        <FormControl>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Seleccione términos" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Contado">Contado</SelectItem>
+                          <SelectItem value="Crédito">Crédito</SelectItem>
+                          <SelectItem value="Otro">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                
+                {currentPaymentTerms === 'Crédito' && (
+                  <FormField
+                    control={form.control}
+                    name="credit_days"
+                    render={({ field }) => (
+                      <FormItem className="animate-in slide-in-from-top-2 duration-200">
+                        <FormLabel className="text-xs">Días de Crédito *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="Ej: 30"
+                            {...field}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            disabled={isSubmitting}
+                            className="h-9 text-sm"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                
+                {currentPaymentTerms === 'Otro' && (
+                  <FormField
+                    control={form.control}
+                    name="custom_payment_terms"
+                    render={({ field }) => (
+                      <FormItem className="animate-in slide-in-from-top-2 duration-200">
+                        <FormLabel className="text-xs">Especificar Términos *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ej: 50% inicial, 50% entrega" {...field} value={field.value || ''} disabled={isSubmitting} className="h-9 text-sm" />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="mt-8 border-t pt-4">
+              <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting} className="text-xs">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-procarni-secondary hover:bg-green-700">
+              <Button type="submit" disabled={isSubmitting} className="bg-procarni-secondary hover:bg-green-700 text-white font-bold px-6 shadow-sm shadow-green-100">
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creando...
+                    Guardando...
                   </>
                 ) : (
                   'Crear Proveedor'

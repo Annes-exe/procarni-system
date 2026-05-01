@@ -6,8 +6,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar as CalendarIcon, Info, Search, Building2, PlusCircle, DollarSign, Coins } from 'lucide-react';
 import { format } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { getSupplierDetails, searchCompanies, searchSuppliers } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
@@ -15,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import SmartSearch from '@/components/SmartSearch';
 import ExchangeRateInput from './ExchangeRateInput';
+import DocumentDatePicker from './DocumentDatePicker';
 
 interface Company {
   id: string;
@@ -30,6 +29,7 @@ interface PurchaseOrderDetailsFormProps {
   baseCurrency: 'USD' | 'EUR';
   currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
+  issueDate?: Date;
   deliveryDate?: Date;
   paymentTerms: 'Contado' | 'Crédito' | 'Otro';
   customPaymentTerms: string;
@@ -39,6 +39,7 @@ interface PurchaseOrderDetailsFormProps {
   onBaseCurrencyChange: (value: 'USD' | 'EUR') => void;
   onCurrencyChange: (value: 'USD' | 'VES' | 'EUR') => void;
   onExchangeRateChange: (value: number | undefined) => void;
+  onIssueDateChange: (date: Date | undefined) => void;
   onDeliveryDateChange: (date: Date | undefined) => void;
   onPaymentTermsChange: (value: 'Contado' | 'Crédito' | 'Otro') => void;
   onCustomPaymentTermsChange: (value: string) => void;
@@ -56,6 +57,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   baseCurrency,
   currency,
   exchangeRate,
+  issueDate,
   deliveryDate,
   paymentTerms,
   customPaymentTerms,
@@ -65,6 +67,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   onBaseCurrencyChange,
   onCurrencyChange,
   onExchangeRateChange,
+  onIssueDateChange,
   onDeliveryDateChange,
   onPaymentTermsChange,
   onCustomPaymentTermsChange,
@@ -198,37 +201,22 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
 
         {/* COLUMNA 2 */}
         <div className="space-y-6">
-          {/* Fecha de Entrega */}
-          <div>
-            <Label htmlFor="deliveryDate" className="block text-sm font-semibold text-gray-700 mb-2">
-              Fecha de Entrega <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full pl-10 pr-4 py-2.5 h-auto justify-start text-left font-normal rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm",
-                      !deliveryDate && "text-muted-foreground"
-                    )}
-                  >
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                      <CalendarIcon className="h-5 w-5" />
-                    </span>
-                    {deliveryDate ? format(deliveryDate, "PPP") : <span>Selecciona fecha</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={deliveryDate}
-                    onSelect={onDeliveryDateChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DocumentDatePicker
+              id="issueDate"
+              label="Fecha de Emisión"
+              date={issueDate}
+              onDateChange={onIssueDateChange}
+              required
+            />
+
+            <DocumentDatePicker
+              id="deliveryDate"
+              label="Fecha de Entrega"
+              date={deliveryDate}
+              onDateChange={onDeliveryDateChange}
+              required
+            />
           </div>
 
           {/* Toggles de Moneda Separados (Divisa Base y Moneda de la Orden) */}

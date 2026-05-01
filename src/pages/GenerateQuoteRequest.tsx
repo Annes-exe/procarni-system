@@ -1,15 +1,17 @@
 // src/pages/GenerateQuoteRequest.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useSession } from '@/components/SessionContextProvider';
-import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search, TriangleAlert } from 'lucide-react';
+import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search, Sparkles, X } from 'lucide-react';
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
-import { searchSuppliers, searchMaterialsBySupplier, searchCompanies, getAllUnits, getSupplierDetails } from '@/integrations/supabase/data';
-import { useQuery } from '@tanstack/react-query';
+import { searchSuppliers, searchCompanies, getAllUnits, getSupplierDetails, getPurchaseHistoryReport, getSuppliersByMaterial } from '@/integrations/supabase/data';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Mail, Phone, Send, AlertCircle } from 'lucide-react';
 
 import SmartSearch from '@/components/SmartSearch';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -17,6 +19,7 @@ import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import QuoteRequestItemsTable, { QuoteRequestItemForm } from '@/components/QuoteRequestItemsTable';
+import DocumentDatePicker from '@/components/DocumentDatePicker';
 
 interface Company {
   id: string;
@@ -37,24 +40,33 @@ interface MaterialSearchResult {
 interface Supplier {
   id: string;
   name: string;
+  email?: string;
+  phone?: string;
+  phone_2?: string;
+  alert_comment?: string;
 }
-
 
 const GenerateQuoteRequest = () => {
   const { session } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
-  const [supplierId, setSupplierId] = useState<string>('');
-  const [supplierName, setSupplierName] = useState<string>('');
+  const [selectedSuppliers, setSelectedSuppliers] = useState<Supplier[]>([]);
   const [items, setItems] = useState<QuoteRequestItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [sendOptions, setSendOptions] = useState<Record<string, { whatsapp: boolean; email: boolean }>>({});
+  const [whatsappLinks, setWhatsappLinks] = useState<{name: string; url: string}[]>([]);
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
+  
+  const [suggestedSuppliers, setSuggestedSuppliers] = useState<any[]>([]);
+  const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [deadlineDate, setDeadlineDate] = useState<string>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
 
   const { data: units = [], isLoading: isLoadingUnits } = useQuery({
     queryKey: ['units_of_measure'],
@@ -62,48 +74,109 @@ const GenerateQuoteRequest = () => {
   });
 
   const userId = session?.user?.id;
-  const userEmail = session?.user?.email;
 
   const supplierData = location.state?.supplier;
   const materialData = location.state?.material;
 
+  // Handle location state
   useEffect(() => {
     if (supplierData) {
-      setSupplierId(supplierData.id);
-      setSupplierName(supplierData.name);
+      if (!selectedSuppliers.find(s => s.id === supplierData.id)) {
+        setSelectedSuppliers(prev => [...prev, supplierData]);
+      }
     }
   }, [supplierData]);
 
+  const handleAddItem = () => {
+    setItems((prevItems) => [...prevItems, { 
+      material_name: '', 
+      quantity: 0, 
+      description: '', 
+      unit: units[0]?.name || 'unid', 
+      material_id: undefined 
+    }]);
+  };
+
   useEffect(() => {
     if (materialData) {
-      setItems([{
+      const initialItem: QuoteRequestItemForm = {
         material_name: materialData.name,
         quantity: 0,
         description: materialData.specification || '',
         unit: materialData.unit || (units[0]?.name || ''),
-        // @ts-ignore
         material_id: materialData.id,
-      }]);
+      };
+      setItems([initialItem]);
+      
+      // Fetch price info for initial material
+      getPurchaseHistoryReport({ materialId: materialData.id }).then(history => {
+        if (history && history.length > 0) {
+          const latest = history[0];
+          const info = `Últ. compra: ${latest.unit_price} ${latest.purchase_orders.currency} (${latest.purchase_orders.suppliers.name})`;
+          setItems([{ ...initialItem, last_price_info: info }]);
+        }
+      });
+    } else if (units.length > 0 && items.length === 0) {
+      // Si no hay material inicial y ya cargaron las unidades, abrir un ítem por defecto
+      handleAddItem();
     }
-  }, [materialData]);
+  }, [materialData, units, items.length]);
 
-  const { data: supplierDetails } = useQuery({
-    queryKey: ['supplierDetails', supplierId],
-    queryFn: () => getSupplierDetails(supplierId),
-    enabled: !!supplierId,
-  });
-
+  // Fetch suggested suppliers when items change
   useEffect(() => {
-    if (supplierDetails?.alert_comment) {
-      showSupplierAlert(supplierDetails.alert_comment);
-    } else {
-      dismissToast("supplier-alert");
-    }
-  }, [supplierDetails]);
+    const fetchSuggestions = async () => {
+      const validIds = items.map(i => i.material_id).filter(Boolean) as string[];
+      if (validIds.length === 0) {
+        setSuggestedSuppliers([]);
+        return;
+      }
+      try {
+        const [allPurchases, allRelations] = await Promise.all([
+           Promise.all(validIds.map(id => getPurchaseHistoryReport({ materialId: id }))),
+           Promise.all(validIds.map(id => getSuppliersByMaterial(id)))
+        ]);
 
-  const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
-  };
+        const supplierMap = new Map();
+        
+        // Add suppliers that supply the material (without price yet)
+        allRelations.flat().forEach((rel: any) => {
+          if (rel && rel.id) {
+             supplierMap.set(rel.id, {
+               id: rel.id,
+               name: rel.name,
+               lastPrice: null,
+               currency: null,
+               isPurchase: false
+             });
+          }
+        });
+        
+        // Add/Overwrite with actual purchase history that have prices
+        allPurchases.flat().forEach((poItem: any) => {
+          const order = poItem.purchase_orders;
+          if (order && order.suppliers) {
+            const current = supplierMap.get(order.suppliers.id);
+            if (!current || !current.isPurchase) {
+              supplierMap.set(order.suppliers.id, {
+                 id: order.suppliers.id,
+                 name: order.suppliers.name,
+                 lastPrice: poItem.unit_price,
+                 currency: order.currency,
+                 isPurchase: true
+              });
+            }
+          }
+        });
+        
+        setSuggestedSuppliers(Array.from(supplierMap.values()).filter(s => s.id));
+      } catch (error) {
+        console.error("Error fetching suggestions", error);
+      }
+    };
+    fetchSuggestions();
+  }, [items]);
+
+
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
     setItems((prevItems) =>
@@ -115,15 +188,25 @@ const GenerateQuoteRequest = () => {
     setItems((prevItems) => prevItems.filter((_, i) => i !== index));
   };
 
-  const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
+  const handleMaterialSelect = async (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
     handleItemChange(index, 'material_id', material.id); // Save ID
 
-    // Solo completamos la descripción si existe una especificación guardada
-    // Y si esa especificación NO es exactamente igual al código del material
     if (material.specification && material.specification !== material.code) {
       handleItemChange(index, 'description', material.specification);
+    }
+
+    // Fetch latest price info for the selected material
+    try {
+      const history = await getPurchaseHistoryReport({ materialId: material.id });
+      if (history && history.length > 0) {
+        const latest = history[0];
+        const info = `Últ. compra: ${latest.unit_price} ${latest.purchase_orders.currency} (${latest.purchase_orders.suppliers.name})`;
+        handleItemChange(index, 'last_price_info', info);
+      }
+    } catch (e) {
+      console.error("Error fetching price history for item", e);
     }
   };
 
@@ -132,23 +215,60 @@ const GenerateQuoteRequest = () => {
     setCompanyName(company.name);
   };
 
-  const handleSupplierSelect = (supplier: { id: string; name: string }) => {
-    setSupplierId(supplier.id);
-    setSupplierName(supplier.name);
+  const handleSupplierSelect = async (supplier: { id: string; name: string }) => {
+    if (!supplier || !supplier.id) return;
+    
+    if (!selectedSuppliers.find(s => s.id === supplier.id)) {
+      try {
+        const details = await getSupplierDetails(supplier.id);
+        const fullSupplier = {
+          id: supplier.id,
+          name: supplier.name,
+          email: details?.email,
+          phone: details?.phone,
+        };
+        setSelectedSuppliers(prev => [...prev, fullSupplier]);
+        
+        // Configurar opciones de envío por defecto basadas en datos disponibles
+        setSendOptions(prev => ({
+          ...prev,
+          [supplier.id]: {
+            whatsapp: !!details?.phone,
+            email: !!details?.email
+          }
+        }));
+
+        if (details?.alert_comment) {
+          showSupplierAlert(details.alert_comment);
+        }
+      } catch (e) {
+        console.error("Error fetching supplier details", e);
+        setSelectedSuppliers(prev => [...prev, supplier as Supplier]);
+      }
+    }
+  };
+  
+  const removeSupplier = (id: string) => {
+    setSelectedSuppliers(prev => prev.filter(s => s.id !== id));
+    setSendOptions(prev => {
+      const newOpts = { ...prev };
+      delete newOpts[id];
+      return newOpts;
+    });
+    dismissToast("supplier-alert");
   };
 
   const handleSupplierCreated = (supplier: Supplier) => {
-    setSupplierId(supplier.id);
-    setSupplierName(supplier.name);
-    setItems([]);
+    if (!selectedSuppliers.find(s => s.id === supplier.id)) {
+      setSelectedSuppliers(prev => [...prev, supplier]);
+    }
   };
 
   const handleMaterialAdded = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
     // Optionally trigger a refresh or select the new material
-    // For now, simpler to just let them search it or if we knew which row triggered it, auto-fill.
   };
 
-  const handleSubmit = async () => {
+  const handleNextStep = () => {
     if (!userId) {
       showError('Usuario no autenticado.');
       return;
@@ -157,8 +277,8 @@ const GenerateQuoteRequest = () => {
       showError('Por favor, selecciona una empresa de origen.');
       return;
     }
-    if (!supplierId) {
-      showError('Por favor, selecciona un proveedor.');
+    if (selectedSuppliers.length === 0) {
+      showError('Por favor, selecciona al menos un proveedor.');
       return;
     }
 
@@ -168,65 +288,157 @@ const GenerateQuoteRequest = () => {
       return;
     }
 
-    let associatedMaterialIds: Set<string>;
-    try {
-      const associatedMaterials = await searchMaterialsBySupplier(supplierId, '');
-      associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
-    } catch (e) {
-      console.error("Error validating supplier materials:", e);
-      showError("Error al validar los materiales del proveedor.");
+    if (deadlineDate < issueDate) {
+      showError('La fecha de entrega no puede ser anterior a la fecha de emisión.');
       return;
     }
 
-    const unassociatedItem = items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
-    if (unassociatedItem) {
-      showError(`El proveedor seleccionado no distribuye el material: ${unassociatedItem.material_name}`);
-      return;
-    }
+    setStep(2);
+  };
 
+  const handleGenerateAndSend = async () => {
     setIsSubmitting(true);
 
     try {
-      const orderData = {
-        supplier_id: supplierId,
+      const baseOrderData = {
         company_id: companyId,
-        currency: 'USD' as const, // Default to USD for now, strictly typed
-        issue_date: new Date().toISOString(),
-        deadline_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // +7 days default
+        currency: 'USD' as const,
+        issue_date: issueDate,
+        deadline_date: deadlineDate,
         status: 'Draft' as const,
       };
 
       const formattedItems = items.map(item => ({
-        material_id: item.material_id || '', // Should ideally reject if no ID, but for flexible generic items might be empty? NO, we enforced strict materials.
-        // If strict materials are Enforced, we need material_id.
-        // If the user typed a name that isn't in DB, they should create it.
-        // For now, let's assume if they used SmartSearch they have an ID.
-        // If they just typed, we might fail or create a "Generic"?
-        // The service expects material_id.
-        // Let's check if we have IDs.
+        material_id: item.material_id || '',
         quantity: item.quantity,
         unit: item.unit,
         description: item.description,
       }));
 
-      // Validation:
       if (formattedItems.some(i => !i.material_id)) {
-        // If we allow ad-hoc items, we might need a "Generic Material" ID or handle it.
-        // But the system seems to want strict tracking.
-        // Let's warn the user if they didn't select a material from the list.
         showError("Todos los ítems deben estar asociados a un material registrado. Por favor selecciona materiales de la lista.");
         setIsSubmitting(false);
         return;
       }
 
-      await quoteRequestService.create(orderData, formattedItems as any);
+      // Create a Quote Request for each selected supplier
+      const createdRequests = await Promise.all(
+        selectedSuppliers.map(async (supplier) => {
+          const orderData = { ...baseOrderData, supplier_id: supplier.id };
+          const request = await quoteRequestService.create(orderData, formattedItems as any);
+          return { supplier, request };
+        })
+      );
 
-      showSuccess('Solicitud de cotización creada exitosamente.');
-      navigate('/quote-request-management');
+      const links: { name: string; url: string }[] = [];
+
+      for (const { supplier, request } of createdRequests) {
+        const options = sendOptions[supplier.id];
+        
+        let tempUrl = '';
+        
+        // Generar link de Cloudinary si se necesita para WhatsApp
+        if (options?.whatsapp && (supplier.phone || supplier.phone_2)) {
+          try {
+            const tempResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-temp-pdf`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ orderId: request.id, type: 'quote_request' }),
+            });
+            
+            if (tempResponse.ok) {
+              const tempData = await tempResponse.json();
+              tempUrl = tempData.url;
+            }
+          } catch (e) {
+            console.error('Error generando link temporal para', supplier.name, e);
+          }
+        }
+
+        // Recopilar enlaces de WhatsApp
+        if (options?.whatsapp && (supplier.phone || supplier.phone_2)) {
+          const phone = supplier.phone || supplier.phone_2 || '';
+          const cleanPhone = phone.replace(/\D/g, '');
+          const docUrl = tempUrl || `(Documento #${request.id.substring(0, 8)})`;
+          const message = `Saludos ${supplier.name}, le escribimos de Procarni para solicitar una cotización. Puede revisar los detalles en el siguiente enlace:\n\n${docUrl}\n\nQuedamos atentos a su pronta respuesta.`;
+          
+          links.push({
+            name: supplier.name,
+            url: `https://wa.me/${cleanPhone.startsWith('58') ? cleanPhone : '58' + cleanPhone}?text=${encodeURIComponent(message)}`
+          });
+        }
+
+        // Enviar Correo
+        if (options?.email && supplier.email) {
+          try {
+            // Generate PDF
+            const pdfResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-qr-pdf`, {
+              method: 'POST',
+              headers: {
+                // @ts-ignore - session exists from useSession() in a real component, wait, let's check if session is imported/used
+                'Authorization': `Bearer ${session?.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ requestId: request.id }),
+            });
+
+            if (pdfResponse.ok) {
+              const pdfBlob = await pdfResponse.blob();
+              const pdfBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(pdfBlob);
+              });
+
+              const emailBody = `
+                <h2>Nueva Solicitud de Cotización #${request.id.substring(0, 8)}</h2>
+                <p>Estimado proveedor <strong>${supplier.name}</strong>,</p>
+                <p>Se adjunta el PDF con los detalles de la solicitud de cotización.</p>
+                <p>Por favor revise el documento y responda con su oferta a la brevedad posible.</p>
+              `;
+
+              const supplierName = supplier.name.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+              const date = new Date().toLocaleDateString('es-VE').replace(/\//g, '-');
+              const attachmentFilename = `SC_${request.id.substring(0, 8)}_${supplierName}_${date}.pdf`;
+
+              await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+                method: 'POST',
+                headers: {
+                  // @ts-ignore
+                  'Authorization': `Bearer ${session?.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: supplier.email,
+                  subject: `Nueva Solicitud de Cotización #${request.id.substring(0, 8)}`,
+                  body: emailBody,
+                  attachmentBase64: pdfBase64,
+                  attachmentFilename,
+                }),
+              });
+            }
+          } catch (e) {
+            console.error('Error enviando correo a', supplier.name, e);
+          }
+        }
+      }
+
+      showSuccess(`Se han generado y enviado las solicitudes para ${selectedSuppliers.length} proveedores.`);
+      
+      if (links.length > 0) {
+        setWhatsappLinks(links);
+        setStep(3);
+      } else {
+        navigate('/quote-request-management');
+      }
 
     } catch (error: any) {
       console.error('Error creating quote request:', error);
-      showError(error.message || 'Error al crear la solicitud.');
+      showError(error.message || 'Error al crear las solicitudes.');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,130 +454,371 @@ const GenerateQuoteRequest = () => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Solicitud</h1>
-            <p className="text-[11px] text-gray-500 font-medium">Nueva Solicitud de Cotización</p>
+            <h1 className="text-xl font-bold text-procarni-dark tracking-tight">Generar Solicitud Múltiple</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Cotiza con varios proveedores a la vez</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
-          >
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Guardar Solicitud
-          </Button>
+          {step === 2 && (
+            <Button
+              variant="outline"
+              onClick={() => setStep(1)}
+              disabled={isSubmitting}
+              className="w-full md:w-auto"
+            >
+              Atrás
+            </Button>
+          )}
+          {step !== 3 && (
+            <Button
+              onClick={step === 1 ? handleNextStep : handleGenerateAndSend}
+              disabled={isSubmitting}
+              className="bg-procarni-secondary hover:bg-green-700 text-white shadow-sm w-full md:w-auto"
+            >
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (step === 1 ? <ArrowRight className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />)}
+              {step === 1 ? "Siguiente" : "Generar y Enviar"}
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid gap-6">
-        {/* PHASE 2: GENERAL INFO CARD */}
-        <Card className="border-gray-200 shadow-sm overflow-hidden">
-          <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
-                Información General
-              </CardTitle>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <Info className="h-4 w-4" />
-                <span>Detalles de la solicitud</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 md:p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-6">
+      {step === 1 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* COLUMNA PRINCIPAL: ITEMS */}
+        <div className="lg:col-span-8 space-y-6">
+          <Card className="border-none shadow-md overflow-hidden bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-procarni-primary text-white py-4 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg">
+                  <ShoppingCart className="h-5 w-5 text-white" />
+                </div>
                 <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <Label htmlFor="supplier" className="text-sm font-semibold text-gray-700">
-                      Proveedor Principal <span className="text-red-500">*</span>
-                    </Label>
-                    <div
-                      className="text-xs font-semibold text-procarni-primary hover:text-green-700 cursor-pointer flex items-center transition-colors"
-                      onClick={() => setIsAddSupplierDialogOpen(true)}
-                    >
-                      <PlusCircle className="h-3 w-3 mr-1" /> Nuevo Proveedor
+                  <CardTitle className="text-base uppercase tracking-wider">1. Ítems a Cotizar</CardTitle>
+                  <CardDescription className="text-white/70 text-[10px]">Añade los productos para esta solicitud</CardDescription>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8 bg-white/10 hover:bg-white/20 border-none text-white text-[10px]">
+                  <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
+                </Button>
+                <Button
+                  onClick={() => setIsAddMaterialDialogOpen(true)}
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 bg-white/10 hover:bg-white/20 border-none text-white text-[10px]"
+                >
+                  <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <QuoteRequestItemsTable
+                items={items}
+                onAddItem={handleAddItem}
+                onRemoveItem={handleRemoveItem}
+                onItemChange={handleItemChange}
+                onMaterialSelect={handleMaterialSelect}
+              />
+              {items.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400 bg-gray-50/30">
+                  <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+                  <p className="text-sm font-medium">No hay ítems agregados</p>
+                  <Button variant="link" onClick={handleAddItem} className="text-procarni-primary">Añadir el primero</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* COLUMNA LATERAL: PROVEEDORES Y AJUSTES */}
+        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+          
+          {/* INFORMACIÓN GENERAL */}
+          <Card className="border-none shadow-sm overflow-hidden bg-white">
+            <CardHeader className="bg-gray-50 border-b border-gray-100 py-3">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center">
+                <Building2 className="h-3.5 w-3.5 mr-2" /> Empresa Solicitante
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <SmartSearch
+                placeholder="Buscar empresa..."
+                onSelect={handleCompanySelect}
+                fetchFunction={searchCompanies}
+                displayValue={companyName}
+                className="w-full text-sm"
+                icon={<Building2 className="h-4 w-4 text-gray-400" />}
+              />
+
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <DocumentDatePicker
+                  label="Fecha Emisión"
+                  id="issue_date"
+                  date={issueDate ? new Date(issueDate + 'T12:00:00') : undefined}
+                  onDateChange={(d) => setIssueDate(d ? d.toISOString().split('T')[0] : '')}
+                  className="w-full"
+                />
+                <DocumentDatePicker
+                  label="Fecha Entrega"
+                  id="deadline_date"
+                  date={deadlineDate ? new Date(deadlineDate + 'T12:00:00') : undefined}
+                  onDateChange={(d) => setDeadlineDate(d ? d.toISOString().split('T')[0] : '')}
+                  className="w-full"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* PROVEEDORES */}
+          <Card className="border-none shadow-md overflow-hidden bg-white">
+            <CardHeader className="bg-procarni-blue text-white py-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className="bg-white/20 p-1.5 rounded-md">
+                    <Search className="h-4 w-4" />
+                  </div>
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider">2. Proveedores</CardTitle>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-[10px] text-white hover:bg-white/10"
+                  onClick={() => setIsAddSupplierDialogOpen(true)}
+                >
+                  <PlusCircle className="h-3 w-3 mr-1" /> Nuevo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 space-y-6">
+              
+              <div className="space-y-4">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Buscar en el Directorio</Label>
+                <SmartSearch
+                  placeholder="RIF o nombre..."
+                  onSelect={handleSupplierSelect}
+                  fetchFunction={searchSuppliers}
+                  displayValue=""
+                  className="w-full text-sm"
+                  icon={<Search className="h-4 w-4 text-gray-400" />}
+                />
+              </div>
+
+              {suggestedSuppliers.length > 0 && (
+                <div className="bg-procarni-blue/5 p-4 rounded-xl border border-procarni-blue/10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-3.5 w-3.5 text-procarni-blue" />
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-procarni-blue">Sugerencias</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedSuppliers.map(sup => {
+                      const isSelected = selectedSuppliers.some(s => s.id === sup.id);
+                      return (
+                        <Badge 
+                          key={sup.id} 
+                          variant={isSelected ? "default" : "outline"}
+                          className={`cursor-pointer px-3 py-1.5 transition-all flex flex-col items-start gap-0.5 ${isSelected ? 'bg-procarni-secondary hover:bg-green-700 shadow-sm border-none' : 'bg-white hover:bg-procarni-blue/5 border-procarni-blue/20 text-procarni-blue'}`}
+                          onClick={() => {
+                            if (!isSelected) {
+                              handleSupplierSelect(sup);
+                            } else {
+                              removeSupplier(sup.id);
+                            }
+                          }}
+                        >
+                          <div className="flex items-center w-full justify-between gap-1.5">
+                            <span className="font-semibold text-[10px]">{sup.name}</span>
+                            {isSelected ? <X className="h-2.5 w-2.5 shrink-0" /> : <PlusCircle className="h-2.5 w-2.5 shrink-0 text-procarni-blue/40" />}
+                          </div>
+                          <span className="text-[8px] opacity-70">Distribuye este material</span>
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[8px] text-procarni-blue/60 mt-3 italic">Basado en historial de compras</p>
+                </div>
+              )}
+
+              {selectedSuppliers.length > 0 && (
+                <div className="pt-2 border-t border-gray-100">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3 block">Seleccionados ({selectedSuppliers.length})</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSuppliers.map(supplier => (
+                      <Badge 
+                        key={supplier.id} 
+                        variant="secondary"
+                        className="pl-3 pr-1 py-1 text-[11px] bg-procarni-primary/5 text-procarni-primary border-procarni-primary/10 flex items-center gap-1 group"
+                      >
+                        {supplier.name}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 hover:bg-procarni-primary/10 rounded-full"
+                          onClick={() => removeSupplier(supplier.id)}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4">
+                <Button
+                  className="w-full h-12 bg-procarni-secondary hover:bg-green-700 text-white font-bold text-sm shadow-lg shadow-green-100 transition-all active:scale-[0.98]"
+                  onClick={handleNextStep}
+                  disabled={isSubmitting || items.length === 0 || selectedSuppliers.length === 0 || !companyId}
+                >
+                  Siguiente Paso <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      ) : step === 2 ? (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <Card className="border-none shadow-md overflow-hidden bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-procarni-primary text-white py-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg">
+                  <Send className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl uppercase tracking-wider">2. Configurar Envío</CardTitle>
+                  <CardDescription className="text-white/70">Selecciona el canal de notificación para cada proveedor.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-4">
+                {selectedSuppliers.map((sup) => (
+                  <div key={sup.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border border-gray-100 rounded-xl bg-gray-50 hover:bg-white transition-colors shadow-sm">
+                    <div className="mb-4 sm:mb-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-procarni-dark text-base">{sup.name}</h4>
+                        {sup.alert_comment && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] py-0 px-2 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" /> Alerta
+                          </Badge>
+                        )}
+                      </div>
+                      {sup.alert_comment && (
+                        <p className="text-[10px] text-amber-600 mt-1 italic font-medium">"{sup.alert_comment}"</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        {sup.email || sup.phone ? 'Datos de contacto disponibles' : 'Sin datos de contacto registrados'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8">
+                      <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${!sup.phone ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-green-50'}`}>
+                        <input
+                          type="checkbox"
+                          disabled={!sup.phone}
+                          checked={sendOptions[sup.id]?.whatsapp || false}
+                          onChange={(e) => setSendOptions(prev => ({ ...prev, [sup.id]: { ...prev[sup.id], whatsapp: e.target.checked } }))}
+                          className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-600 focus:ring-offset-0 disabled:bg-gray-100"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="w-4 h-4 text-green-600" />
+                          <div>
+                            <span className="text-sm font-semibold text-gray-700 block">WhatsApp</span>
+                            <span className="text-[10px] text-gray-500">{sup.phone || 'No registrado'}</span>
+                          </div>
+                        </div>
+                      </label>
+                      
+                      <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${!sup.email ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-blue-50'}`}>
+                        <input
+                          type="checkbox"
+                          disabled={!sup.email}
+                          checked={sendOptions[sup.id]?.email || false}
+                          onChange={(e) => setSendOptions(prev => ({ ...prev, [sup.id]: { ...prev[sup.id], email: e.target.checked } }))}
+                          className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-600 focus:ring-offset-0 disabled:bg-gray-100"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <Mail className="w-4 h-4 text-blue-600" />
+                          <div>
+                            <span className="text-sm font-semibold text-gray-700 block">Correo Electrónico</span>
+                            <span className="text-[10px] text-gray-500">{sup.email || 'No registrado'}</span>
+                          </div>
+                        </div>
+                      </label>
                     </div>
                   </div>
-                  <SmartSearch
-                    placeholder="Buscar proveedor por RIF o nombre"
-                    onSelect={handleSupplierSelect}
-                    fetchFunction={searchSuppliers}
-                    displayValue={supplierName}
-                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm placeholder-gray-400 pl-3"
-                    icon={<Search className="h-4 w-4 text-gray-400" />}
-                  />
-                </div>
+                ))}
               </div>
-
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="company" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Empresa de Origen <span className="text-red-500">*</span>
-                  </Label>
-                  <SmartSearch
-                    placeholder="Buscar empresa por RIF o nombre"
-                    onSelect={handleCompanySelect}
-                    fetchFunction={searchCompanies}
-                    displayValue={companyName}
-                    className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
-                    icon={<Building2 className="h-4 w-4 text-gray-400" />}
-                  />
-                </div>
+              
+              <div className="pt-6 border-t flex justify-end">
+                <Button
+                  className="h-12 px-8 bg-procarni-secondary hover:bg-green-700 text-white font-bold text-sm shadow-lg shadow-green-100 transition-all active:scale-[0.98]"
+                  onClick={handleGenerateAndSend}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Procesando envíos...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-5 w-5" />
+                      Generar y Enviar Notificaciones
+                    </>
+                  )}
+                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <Card className="border-none shadow-md overflow-hidden bg-white/80 backdrop-blur-sm text-center py-10">
+            <CardHeader>
+              <div className="mx-auto bg-green-100 p-4 rounded-full w-20 h-20 flex items-center justify-center mb-4">
+                <Send className="h-10 w-10 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl text-procarni-dark">¡Solicitudes Generadas Exitosamente!</CardTitle>
+              <CardDescription className="text-base mt-2">
+                Los correos electrónicos seleccionados se han enviado de forma automática. 
+                <br/>A continuación tienes los enlaces de WhatsApp para enviar los mensajes a cada proveedor:
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-lg mx-auto">
+              {whatsappLinks.map((link, idx) => (
+                <Button 
+                  key={idx} 
+                  variant="outline" 
+                  className="w-full h-14 justify-between border-green-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300"
+                  onClick={() => window.open(link.url, '_blank')}
+                >
+                  <span className="font-semibold">{link.name}</span>
+                  <div className="flex items-center gap-2 text-green-600">
+                    <Phone className="w-5 h-5" />
+                    <span>Enviar WhatsApp</span>
+                  </div>
+                </Button>
+              ))}
 
-        {/* PHASE 3: ITEMS TABLE */}
-        <Card className="border-gray-200 shadow-sm overflow-hidden">
-          <CardHeader className="bg-gray-50/50 pb-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-              <ShoppingCart className="h-4 w-4 mr-2" /> Ítems a Cotizar
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
-                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
-              </Button>
-              <Button
-                onClick={() => setIsAddMaterialDialogOpen(true)}
-                variant="secondary"
-                size="sm"
-                disabled={!supplierId}
-              >
-                <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <QuoteRequestItemsTable
-              items={items}
-              supplierId={supplierId}
-              supplierName={supplierName}
-              onAddItem={handleAddItem}
-              onRemoveItem={handleRemoveItem}
-              onItemChange={handleItemChange}
-              onMaterialSelect={handleMaterialSelect}
-            />
-          </CardContent>
-          {items.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-8 text-gray-400 bg-white">
-              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
-              <p className="text-sm">No hay ítems agregados a la solicitud.</p>
-              <Button variant="link" onClick={handleAddItem}>Añadir el primero</Button>
-            </div>
-          )}
-        </Card>
-      </div>
-
+              <div className="pt-8">
+                <Button 
+                  className="bg-procarni-dark hover:bg-gray-800 text-white h-12 w-full"
+                  onClick={() => navigate('/quote-request-management')}
+                >
+                  Ir al panel de Solicitudes de Cotización
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
         onClose={() => setIsAddMaterialDialogOpen(false)}
         onMaterialCreated={handleMaterialAdded}
-        supplierId={supplierId}
-        supplierName={supplierName}
       />
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}

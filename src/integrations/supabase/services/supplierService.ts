@@ -3,7 +3,7 @@
 import { supabase } from '../client';
 import { showError } from '@/utils/toast';
 import { Supplier } from '../types';
-import { SupplierMaterialPayload } from '../types/index';
+import { SupplierMaterialPayload } from '../types';
 import { logAudit } from './auditLogService';
 import { bulkArchiveQuoteRequestsBySupplier } from './quoteRequestService'; // Import bulk archive QR
 import { purchaseOrderService } from '@/services/purchaseOrderService'; // Import new service
@@ -283,6 +283,50 @@ const SupplierService = {
     }
     return data;
   },
+
+  getPaginated: async (
+    page: number,
+    pageSize: number,
+    searchTerm: string = '',
+    statusFilter: string = 'All',
+    dataQualityFilter: string = 'All'
+  ) => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from('suppliers')
+      .select('*', { count: 'exact' });
+
+    if (searchTerm) {
+      const sanitizedSearch = searchTerm.replace(/[,.]/g, ' ');
+      const searchPattern = `%${sanitizedSearch}%`;
+      query = query.or(`name.ilike.${searchPattern},rif.ilike.${searchPattern},code.ilike.${searchPattern},email.ilike.${searchPattern}`);
+    }
+
+    if (statusFilter !== 'All') {
+      query = query.eq('status', statusFilter);
+    }
+
+    if (dataQualityFilter === 'MissingCritical') {
+      // Datos Críticos: rif, phone, address
+      query = query.or('rif.is.null,rif.eq."",phone.is.null,phone.eq."",address.is.null,address.eq.""');
+    } else if (dataQualityFilter === 'MissingSecondary') {
+      // Datos Secundarios: email, instagram, phone_2, payment_terms
+      query = query.or('email.is.null,email.eq."",instagram.is.null,instagram.eq."",phone_2.is.null,phone_2.eq."",payment_terms.is.null,payment_terms.eq.""');
+    }
+
+    const { data, count, error } = await query
+      .range(from, to)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[SupplierService.getPaginated] Error:', error);
+      throw error;
+    }
+
+    return { data: data as Supplier[], totalCount: count || 0 };
+  },
 };
 
 export const {
@@ -292,4 +336,5 @@ export const {
   delete: deleteSupplier,
   search: searchSuppliers,
   getById: getSupplierDetails,
+  getPaginated: getPaginatedSuppliers,
 } = SupplierService;

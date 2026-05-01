@@ -17,6 +17,7 @@ import { es } from 'date-fns/locale';
 import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { OrderDocumentManager } from '@/components/OrderDocumentManager';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,7 +74,9 @@ interface PurchaseOrderDetailsData {
   created_by?: string;
   user_id: string;
   purchase_order_items: PurchaseOrderItem[];
+  issue_date?: string;
   delivery_date?: string;
+  print_date?: string;
   payment_terms?: string;
   custom_payment_terms?: string | null;
   credit_days?: number;
@@ -112,6 +115,7 @@ const PurchaseOrderDetails = () => {
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
 
   const pdfViewerRef = React.useRef<PurchaseOrderPDFViewerRef>(null);
 
@@ -502,6 +506,10 @@ const PurchaseOrderDetails = () => {
                     className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
                   />
                 </DropdownMenuItem>
+                
+                <DropdownMenuItem onSelect={() => setIsDocumentManagerOpen(true)}>
+                  <Paperclip className="mr-2 h-4 w-4" /> Documentos Adjuntos
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
                   <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
@@ -575,13 +583,21 @@ const PurchaseOrderDetails = () => {
             <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
           </div>
 
-          {/* Delivery Date */}
+          {/* Dates */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Emisión</span>
+            <p className={valueClass}>
+              {order.issue_date ? format(parseDateForDisplay(order.issue_date), 'PPP', { locale: es }) : format(new Date(order.created_at), 'PPP', { locale: es })}
+            </p>
+          </div>
+
           <div className="space-y-1">
             <span className={microLabelClass}>Fecha de Entrega</span>
             <p className={valueClass}>
               {order.delivery_date ? format(parseDateForDisplay(order.delivery_date), 'PPP', { locale: es }) : 'N/A'}
             </p>
           </div>
+
 
           {/* Payment Conditions */}
           <div className="space-y-1">
@@ -794,6 +810,17 @@ const PurchaseOrderDetails = () => {
           secondary: order.suppliers?.phone_2 || null
         }}
       />
+
+      {order && (
+        <OrderDocumentManager
+          orderId={order.id}
+          orderType="PO"
+          supplierName={order.suppliers?.name || 'Proveedor'}
+          sequenceNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+          isOpen={isDocumentManagerOpen}
+          onOpenChange={setIsDocumentManagerOpen}
+        />
+      )}
     </div>
   );
 };

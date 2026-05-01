@@ -9,6 +9,7 @@ import { searchMaterials, createQuoteComparison, updateQuoteComparison, getQuote
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialQuoteComparisonRow from '@/components/MaterialQuoteComparisonRow';
@@ -19,6 +20,9 @@ import { useSession } from '@/components/SessionContextProvider';
 import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem } from '@/integrations/supabase/types';
 import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
 import ExportToPurchaseOrdersDialog from '@/components/ExportToPurchaseOrdersDialog';
+import ExchangeRateInput from '@/components/ExchangeRateInput';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import { Material } from '@/integrations/supabase/types';
 
 interface MaterialSearchResult {
   id: string;
@@ -32,7 +36,7 @@ interface QuoteEntry {
   supplierId: string;
   supplierName: string;
   unitPrice: number;
-  currency: 'USD' | 'VES';
+  currency: 'USD' | 'VES' | 'EUR';
   exchangeRate?: number;
 }
 
@@ -50,12 +54,9 @@ const QuoteComparison = () => {
   const [comparisonId, setComparisonId] = useState<string | null>(null);
   const [comparisonName, setComparisonName] = useState<string>('Nueva Comparación');
   const [materialsToCompare, setMaterialsToCompare] = useState<MaterialComparison[]>([]);
-  const [globalInputCurrency, setGlobalInputCurrency] = useState<'USD' | 'VES'>('USD');
+  const [globalInputCurrency, setGlobalInputCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
-
-  const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
-  const [rateSource, setRateSource] = useState<'custom' | 'daily'>('custom');
-  const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const [eurExchangeRate, setEurExchangeRate] = useState<number | undefined>(undefined);
 
   const [newMaterialQuery, setNewMaterialQuery] = useState('');
   const [selectedMaterialToAdd, setSelectedMaterialToAdd] = useState<MaterialSearchResult | null>(null);
@@ -63,6 +64,22 @@ const QuoteComparison = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const handleMaterialCreated = (material: Material & { specification?: string }) => {
+    // Check if it's already added
+    if (materialsToCompare.some(m => m.material.id === material.id)) {
+      showError('Este material ya está en la lista de comparación.');
+    } else {
+      setMaterialsToCompare(prev => [
+        ...prev,
+        { material: { id: material.id, name: material.name, code: material.code || 'N/A' }, quotes: [] }
+      ]);
+      setIsDirty(true);
+      showSuccess(`Material "${material.name}" añadido a la comparación.`);
+    }
+  };
 
   // --- Data Loading from URL ---
   const comparisonIdFromUrl = searchParams.get('loadId');
@@ -77,7 +94,7 @@ const QuoteComparison = () => {
     if (loadedComparison) {
       setComparisonId(loadedComparison.id);
       setComparisonName(loadedComparison.name);
-      setGlobalInputCurrency(loadedComparison.base_currency as 'USD' | 'VES');
+      setGlobalInputCurrency(loadedComparison.base_currency as 'USD' | 'VES' | 'EUR');
       setExchangeRate(loadedComparison.global_exchange_rate || undefined);
 
       const loadedMaterials: MaterialComparison[] = loadedComparison.items?.map(item => ({
@@ -97,63 +114,20 @@ const QuoteComparison = () => {
     }
   }, [loadedComparison, navigate]);
   // -----------------------------
-
-  const fetchDailyRate = useCallback(async () => {
-    setIsLoadingRate(true);
-    try {
-      const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-      if (!response.ok) {
-        throw new Error('Failed to fetch daily rate');
-      }
-      const data = await response.json();
-
-      const rate = data.promedio || data.valor;
-
-      if (typeof rate === 'number' && rate > 0) {
-        setDailyRate(rate);
-        showSuccess(`Tasa del día cargada: ${rate.toFixed(2)} VES/USD`);
-      } else {
-        throw new Error('Formato de tasa de cambio inválido.');
-      }
-      return rate;
-    } catch (e: any) {
-      console.error('[QuoteComparison] Error fetching daily rate:', e);
-      showError(`Error al cargar la tasa del día: ${e.message}`);
-      setDailyRate(undefined);
-      return undefined;
-    } finally {
-      setIsLoadingRate(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (globalInputCurrency === 'VES' && !comparisonIdFromUrl) {
-      fetchDailyRate().then(rate => {
-        if (rate) {
-          setRateSource('daily');
-          setExchangeRate(rate);
-        } else {
-          setRateSource('custom');
-          setExchangeRate(undefined);
-        }
-      });
-    } else if (globalInputCurrency === 'USD') {
-      setDailyRate(undefined);
-      setRateSource('custom');
-      setExchangeRate(undefined);
-    }
-  }, [globalInputCurrency, fetchDailyRate, comparisonIdFromUrl]);
-
-  useEffect(() => {
-    if (globalInputCurrency === 'VES') {
-      if (rateSource === 'daily' && dailyRate !== undefined) {
-        setExchangeRate(dailyRate);
-      }
-    } else {
-      setExchangeRate(undefined);
-    }
-  }, [globalInputCurrency, rateSource, dailyRate]);
-
+  const renderExchangeRateInput = (currency: 'USD' | 'EUR', currentVal: number | undefined, setter: (val: number | undefined) => void) => (
+    <div className="flex flex-col gap-2">
+      <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tasa {currency}/VES</Label>
+      <ExchangeRateInput
+        baseCurrency={currency}
+        exchangeRate={currentVal}
+        onExchangeRateChange={(val) => {
+          setter(val);
+          setIsDirty(true);
+        }}
+        disableAutoFetch={!!comparisonIdFromUrl && !isDirty}
+      />
+    </div>
+  );
 
   const handleMaterialSelect = (material: MaterialSearchResult) => {
     setSelectedMaterialToAdd(material);
@@ -176,10 +150,12 @@ const QuoteComparison = () => {
     ]);
     setSelectedMaterialToAdd(null);
     setNewMaterialQuery('');
+    setIsDirty(true);
   };
 
   const handleRemoveMaterial = (materialId: string) => {
     setMaterialsToCompare(prev => prev.filter(m => m.material.id !== materialId));
+    setIsDirty(true);
   };
 
   const handleAddQuoteEntry = (materialId: string) => {
@@ -192,12 +168,13 @@ const QuoteComparison = () => {
             supplierName: '',
             unitPrice: 0,
             currency: globalInputCurrency,
-            exchangeRate: globalInputCurrency === 'VES' ? exchangeRate : undefined
+            exchangeRate: globalInputCurrency === 'EUR' ? eurExchangeRate : exchangeRate
           }]
         };
       }
       return m;
     }));
+    setIsDirty(true);
   };
 
   const handleRemoveQuoteEntry = (materialId: string, quoteIndex: number) => {
@@ -210,6 +187,7 @@ const QuoteComparison = () => {
       }
       return m;
     }));
+    setIsDirty(true);
   };
 
   const handleImportQuoteRequests = (importedRequests: QuoteRequest[]) => {
@@ -271,7 +249,7 @@ const QuoteComparison = () => {
                     supplierName: req.suppliers?.name || 'Desconocido',
                     unitPrice: 0, // Prepopulate with 0, user will fill it
                     currency: globalInputCurrency,
-                    exchangeRate: globalInputCurrency === 'VES' ? exchangeRate : undefined
+                    exchangeRate: exchangeRate
                   }]
                 };
               }
@@ -285,6 +263,7 @@ const QuoteComparison = () => {
     });
 
     setIsImportModalOpen(false);
+    setIsDirty(true);
     showSuccess(`${importedRequests.length} SC(s) importadas exitosamente.`);
   };
 
@@ -294,10 +273,6 @@ const QuoteComparison = () => {
         const updatedQuotes = m.quotes.map((q, i) => {
           if (i === quoteIndex) {
             const newQuote = { ...q, [field]: value };
-
-            if (field === 'currency' && value === 'USD') {
-              newQuote.exchangeRate = undefined;
-            }
 
             if (field === 'supplierId' && supplierName) {
               newQuote.supplierName = supplierName;
@@ -311,6 +286,7 @@ const QuoteComparison = () => {
       }
       return m;
     }));
+    setIsDirty(true);
   };
 
   // --- Core Comparison Logic (Memoized) ---
@@ -343,6 +319,22 @@ const QuoteComparison = () => {
           } else {
             return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para VES a USD.' };
           }
+        } else if (quote.currency === 'EUR' && comparisonBaseCurrency === 'USD') {
+          // Convert EUR to VES first, then VES to USD
+          /* EUR SUPPORT TEMPORARILY DISABLED
+          const eurRate = quote.exchangeRate || eurExchangeRate; // Use row rate or fallback to global default
+          const usdRate = exchangeRate; // This is USD/VES
+
+          if (eurRate && eurRate > 0 && usdRate && usdRate > 0) {
+            convertedPrice = (quote.unitPrice * eurRate) / usdRate;
+            finalRate = eurRate;
+          } else if (!eurRate || eurRate <= 0) {
+            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para EUR a VES.' };
+          } else {
+            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio Global (USD/VES) para conversión.' };
+          }
+          */
+          return { ...quote, convertedPrice: null, isValid: false, error: 'Soporte para EUR temporalmente deshabilitado.' };
         }
 
         if (convertedPrice === null || isNaN(convertedPrice)) {
@@ -381,7 +373,7 @@ const QuoteComparison = () => {
 
       const itemsPayload = materialsToCompare.map(m => ({
         material_id: m.material.id,
-        material_name: m.material.name,
+        material_name: m.material.name || 'Material sin nombre',
         quotes: m.quotes,
       }));
 
@@ -392,11 +384,17 @@ const QuoteComparison = () => {
       }
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['quoteComparisons'] });
-      setComparisonId(data?.id || null);
-      setComparisonName(variables.name);
-      setIsSaveDialogOpen(false);
-      showSuccess(`Comparación "${variables.name}" ${variables.isUpdate ? 'actualizada' : 'guardada'} exitosamente.`);
+      if (data) {
+        queryClient.invalidateQueries({ queryKey: ['quoteComparisons'] });
+        setComparisonId(data.id);
+        setComparisonName(variables.name);
+        setIsSaveDialogOpen(false);
+        setIsDirty(false);
+        showSuccess(`Comparación "${variables.name}" ${variables.isUpdate ? 'actualizada' : 'guardada'} exitosamente.`);
+      } else {
+        // Error is already handled by service showError
+        console.error('Save mutation returned null data');
+      }
     },
     onError: (error: any) => {
       showError(error.message || 'Error al guardar la comparación.');
@@ -413,72 +411,9 @@ const QuoteComparison = () => {
     setMaterialsToCompare([]);
     setGlobalInputCurrency('USD');
     setExchangeRate(undefined);
-    setRateSource('custom');
     navigate('/quote-comparison', { replace: true });
   };
 
-  const renderExchangeRateInput = () => {
-    if (globalInputCurrency === 'USD') {
-      return (
-        <div className="text-sm text-muted-foreground mt-1">
-          Tasa no requerida si la moneda de ingreso es USD.
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-2">
-        <Select value={rateSource} onValueChange={(value) => setRateSource(value as 'custom' | 'daily')}>
-          <SelectTrigger id="rate-source">
-            <SelectValue placeholder="Selecciona fuente de tasa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="daily" disabled={dailyRate === undefined}>
-              Tasa del día {dailyRate ? `(${dailyRate.toFixed(2)} VES/USD)` : '(Cargando...)'}
-            </SelectItem>
-            <SelectItem value="custom">Tasa personalizada</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {rateSource === 'daily' && (
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              value={exchangeRate || dailyRate || ''}
-              placeholder="Tasa del día"
-              disabled
-              onWheel={(e) => (e.target as HTMLElement).blur()}
-              className="bg-gray-100 dark:bg-gray-700"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={fetchDailyRate}
-              disabled={isLoadingRate}
-            >
-              {isLoadingRate ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </Button>
-          </div>
-        )}
-
-        {rateSource === 'custom' && (
-          <Input
-            id="exchange-rate"
-            type="number"
-            step="0.01"
-            placeholder="Ingresa tasa personalizada"
-            value={exchangeRate || ''}
-            onChange={(e) => setExchangeRate(parseFloat(e.target.value) || undefined)}
-            onWheel={(e) => (e.target as HTMLElement).blur()}
-          />
-        )}
-        <p className="text-xs text-muted-foreground mt-1">
-          Tasa actual utilizada: {exchangeRate ? exchangeRate.toFixed(4) : 'N/A'} VES/USD
-        </p>
-      </div>
-    );
-  };
 
   const renderComparisonTable = () => {
     if (materialsToCompare.length === 0) {
@@ -494,6 +429,7 @@ const QuoteComparison = () => {
                 comparisonData={materialComp}
                 baseCurrency={comparisonBaseCurrency}
                 globalExchangeRate={exchangeRate}
+                globalEurRate={eurExchangeRate}
                 onAddQuoteEntry={handleAddQuoteEntry}
                 onRemoveQuoteEntry={handleRemoveQuoteEntry}
                 onQuoteChange={handleQuoteChange}
@@ -526,7 +462,7 @@ const QuoteComparison = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-7xl pb-24">
+    <div className="container mx-auto p-4 md:p-8 max-w-[1600px] pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
           <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">
@@ -548,7 +484,7 @@ const QuoteComparison = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-8 mb-8">
 
         {/* Lado Izquierdo: Configuración y Añadir Materiales (1 columna en desktop grande) */}
         <div className="lg:col-span-1 space-y-6">
@@ -582,8 +518,18 @@ const QuoteComparison = () => {
 
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="material-search" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar Material</Label>
-                  <div className="mt-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <Label htmlFor="material-search" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar Material</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 px-2 text-xs text-procarni-secondary hover:text-procarni-secondary hover:bg-procarni-secondary/10"
+                      onClick={() => setIsMaterialDialogOpen(true)}
+                    >
+                      <PlusCircle className="mr-1 h-3 w-3" /> Nuevo
+                    </Button>
+                  </div>
+                  <div>
                     <SmartSearch
                       placeholder="Nombre o código..."
                       onSelect={handleMaterialSelect}
@@ -617,26 +563,36 @@ const QuoteComparison = () => {
             <CardContent className="p-5 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="global-input-currency" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda de Ingreso</Label>
-                <Select value={globalInputCurrency} onValueChange={(value) => setGlobalInputCurrency(value as 'USD' | 'VES')}>
+                <Select value={globalInputCurrency} onValueChange={(value) => setGlobalInputCurrency(value as 'USD' | 'VES' | 'EUR')}>
                   <SelectTrigger id="global-input-currency" className="bg-gray-50 focus:ring-procarni-primary/20">
                     <SelectValue placeholder="Selecciona moneda" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USD">USD (Dólares)</SelectItem>
                     <SelectItem value="VES">VES (Bolívares)</SelectItem>
+                    {/* <SelectItem value="EUR">EUR (Euros)</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="exchange-rate" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa Global (USD/VES)</Label>
-                {renderExchangeRateInput()}
-              </div>
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="rates" className="border-none">
+                  <AccordionTrigger className="text-[10px] font-bold py-1 px-0 hover:no-underline text-blue-600 hover:text-blue-700 uppercase tracking-widest">
+                    Tasas de Cambio (VES)
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-2 pb-0">
+                    <div className="grid grid-cols-1 gap-4">
+                      {renderExchangeRateInput('USD', exchangeRate, setExchangeRate)}
+                      {/* {renderExchangeRateInput('EUR', eurExchangeRate, setEurExchangeRate)} */}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </CardContent>
           </Card>
         </div>
 
-        {/* Lado Derecho: Contenido Principal de Comparación (3 columnas en desktop grande) */}
-        <div className="lg:col-span-3 space-y-6">
+        {/* Lado Derecho: Contenido Principal de Comparación (3 columnas en desktop, 4 en xl) */}
+        <div className="lg:col-span-3 xl:col-span-4 space-y-6">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden ring-1 ring-black/5">
             <CardHeader className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
@@ -677,7 +633,7 @@ const QuoteComparison = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="p-0 sm:p-6 bg-gray-50/30">
+            <CardContent className="p-2 sm:p-6 bg-gray-50/30">
               {renderComparisonTable()}
             </CardContent>
           </Card>
@@ -713,6 +669,12 @@ const QuoteComparison = () => {
           // Optional: redirect to PO management or clear the comparison
           navigate('/purchase-order-management');
         }}
+      />
+
+      <MaterialCreationDialog
+        isOpen={isMaterialDialogOpen}
+        onClose={() => setIsMaterialDialogOpen(false)}
+        onMaterialCreated={handleMaterialCreated}
       />
     </div>
   );

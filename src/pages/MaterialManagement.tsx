@@ -1,25 +1,28 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info, X } from 'lucide-react';
+import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getAllMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories, getAllUnits } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialForm from '@/components/MaterialForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import UnitOfMeasureModal from '@/components/UnitOfMeasureModal';
 import MaterialCategoryModal from '@/components/MaterialCategoryModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { useDebounce } from 'use-debounce';
+import PaginationControls from '@/components/PaginationControls';
 
 import MaterialFusionModal from '@/components/MaterialFusionModal';
 import MaterialGroupModal from '@/components/MaterialGroupModal';
@@ -33,16 +36,17 @@ const MaterialManagement = () => {
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const initialSearch = queryParams.get('search') || '';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 25;
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [debouncedSearch] = useDebounce(searchInput, 500);
+  const selectedCategory = searchParams.get('category') || 'all';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
-  const [searchTerm, setSearchTerm] = useState(initialSearch);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [materialToDeleteId, setMaterialToDeleteId] = useState<string | null>(null);
 
@@ -55,37 +59,53 @@ const MaterialManagement = () => {
     queryFn: getAllMaterialCategories,
   });
 
-  const { data: materials, isLoading, error } = useQuery<Material[]>({
-    queryKey: ['materials'],
-    queryFn: getAllMaterials,
+  const { data: units = [] } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
   });
 
-  const filteredMaterials = useMemo(() => {
-    if (!materials) return [];
-    let currentMaterials = materials;
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['materials_paginated', page, pageSize, debouncedSearch, selectedCategory],
+    queryFn: () => getPaginatedMaterials(page, pageSize, debouncedSearch, selectedCategory),
+    placeholderData: keepPreviousData,
+  });
 
-    if (searchTerm) {
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      currentMaterials = currentMaterials.filter(material => {
-        const nameMatch = material.name.toLowerCase().includes(lowerCaseSearchTerm);
-        const codeMatch = material.code?.toLowerCase().includes(lowerCaseSearchTerm);
-        const aliasMatch = material.search_aliases?.some((alias: string) => alias.toLowerCase().includes(lowerCaseSearchTerm));
-        return nameMatch || codeMatch || aliasMatch;
-      });
-    }
+  const materialsList = data?.data || [];
+  const totalCount = data?.totalCount || 0;
+  const filteredMaterials = materialsList; // Use paginated list as source for filtering if needed, or directly use materialsList
 
-    if (selectedCategory !== 'all') {
-      currentMaterials = currentMaterials.filter(material => material.category === selectedCategory);
-    }
+  const setPage = (newPage: number) => {
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
 
-    return currentMaterials;
-  }, [materials, searchTerm, selectedCategory]);
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    setSearchParams(prev => {
+      if (value) prev.set('search', value);
+      else prev.delete('search');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
+
+  const handleCategoryChange = (val: string) => {
+    setSearchParams(prev => {
+      if (val !== 'all') prev.set('category', val);
+      else prev.delete('category');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: (newMaterial: Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>) =>
       createMaterial({ ...newMaterial, user_id: userId! } as any),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       setIsFormOpen(false);
       showSuccess('Material creado exitosamente.');
     },
@@ -98,20 +118,39 @@ const MaterialManagement = () => {
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>> }) =>
       updateMaterial(id, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       setIsFormOpen(false);
       setEditingMaterial(null);
       showSuccess('Material actualizado exitosamente.');
     },
-    onError: (err) => {
-      showError(`Error al actualizar material: ${err.message}`);
+    onError: (err: any) => {
+      if (err?.code === '23505') {
+        showError('Ya existe un material con ese código o nombre. Verifica los datos e intenta de nuevo.');
+      } else {
+        showError('No se pudo actualizar el material. Intenta de nuevo.');
+      }
     },
   });
+
+  // Inline save: updates a single field, applying tripa logic when saving the name
+  const handleInlineSave = async (material: Material, field: keyof Material, newValue: string) => {
+    const updates: Partial<Material> = { [field]: newValue } as any;
+
+    // If renaming to something that starts with "tripa", auto-assign category and unit
+    if (field === 'name' && newValue.toLowerCase().startsWith('tripa')) {
+      const empaqueCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+      const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+      if (empaqueCategory) updates.category = empaqueCategory.name;
+      if (mtUnit) updates.unit = mtUnit.name;
+    }
+
+    await updateMutation.mutateAsync({ id: material.id, updates });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: deleteMaterial,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       showSuccess('Material eliminado exitosamente.');
       setIsDeleteDialogOpen(false);
       setMaterialToDeleteId(null);
@@ -297,16 +336,15 @@ const MaterialManagement = () => {
             <div className="relative w-full md:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                type="text"
-                placeholder="Buscar material por código o nombre..."
-                className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar material..."
+                value={searchInput}
+                onChange={handleSearchChange}
+                className="w-full pl-10 bg-white"
               />
             </div>
             <div className="relative w-full md:w-72">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="w-full pl-8 h-9 text-sm">
                   <SelectValue placeholder="Filtrar por categoría" />
                 </SelectTrigger>
@@ -320,12 +358,19 @@ const MaterialManagement = () => {
             </div>
           </div>
 
-          {filteredMaterials && filteredMaterials.length > 0 ? (
+          <div className={cn("transition-opacity duration-200", isFetching && "opacity-50 pointer-events-none")}>
+          {isLoading && materialsList.length === 0 ? (
+            <div className="flex justify-center p-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-procarni-primary border-t-transparent"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center text-red-500 p-4">Error cargando materiales</div>
+          ) : materialsList.length > 0 ? (
             isMobile ? (
               <div className="grid gap-4">
-                {filteredMaterials.map((material) => (
+                {materialsList.map((material) => (
                   <Card key={material.id} className={cn("p-4 shadow-md transition-all duration-200", selectedMaterialIds.includes(material.id) && "ring-2 ring-procarni-primary bg-procarni-primary/5")}>
-                    <CardTitle className="text-lg mb-2 flex items-start gap-2">
+                    <div className="flex items-start gap-3 mb-2">
                       <Checkbox 
                         checked={selectedMaterialIds.includes(material.id)}
                         onCheckedChange={() => toggleMaterialSelection(material.id)}
@@ -333,33 +378,61 @@ const MaterialManagement = () => {
                         className="mt-1"
                       />
                       <div className="flex-1">
-                        {material.name}
-                        {material.is_exempt && (
-                          <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-procarni-primary text-white rounded-full">
-                            EXENTO
-                          </span>
-                        )}
-                        {/* Indicadores de Grupo/Alias */}
-                        {material.base_material_id && (
-                          <Badge variant="secondary" className="ml-2 text-[10px]" title="Forma parte de un grupo de materiales">Grupo</Badge>
-                        )}
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
+                        <InlineEditableCell
+                          value={material.name}
+                          onSave={(v) => handleInlineSave(material, 'name', v)}
+                          alwaysShowIcon
+                          displayClassName="font-semibold text-base text-procarni-dark"
+                          placeholder="Nombre del material"
+                          renderDisplay={(v) => (
+                            <span className="flex items-center gap-1.5 flex-wrap">
+                              {String(v)}
+                              {material.is_exempt && (
+                                <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
+                              )}
+                              {material.base_material_id && (
+                                <Badge variant="secondary" className="text-[10px]" title="Forma parte de un grupo de materiales">Grupo</Badge>
+                              )}
+                              {material.search_aliases && material.search_aliases.length > 0 && (
+                                <Badge variant="outline" className="text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
+                                  {material.search_aliases.length} Alias
+                                </Badge>
+                              )}
+                            </span>
+                          )}
+                        />
                       </div>
-                      <div className="flex-1 mt-1">
-                        {material.search_aliases && material.search_aliases.length > 0 && (
-                          <Badge variant="outline" className="text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
-                            {material.search_aliases.length} Alias
-                          </Badge>
-                        )}
-                      </div>
-                    </CardTitle>
-                    <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3" /> Código: {material.code}
-                    </CardDescription>
-                    <div className="text-sm space-y-1 mt-2 w-full">
-                      <p><strong>Categoría:</strong> {material.category || 'N/A'}</p>
-                      <p><strong>Unidad:</strong> {material.unit || 'N/A'}</p>
                     </div>
-                    <div className="flex justify-end gap-2 mt-4 border-t pt-3">
+                    <div className="mb-1 ml-7">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Código</p>
+                      <span className="font-mono text-xs text-gray-600">{material.code}</span>
+                    </div>
+                    <div className="mb-1 ml-7">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Categoría</p>
+                      <InlineEditableCell
+                        value={material.category || ''}
+                        onSave={(v) => handleInlineSave(material, 'category', v)}
+                        type="select"
+                        options={categories.map(c => ({ value: c.name, label: c.name }))}
+                        alwaysShowIcon
+                        displayClassName="text-gray-600"
+                        placeholder="Sin categoría"
+                      />
+                    </div>
+                    <div className="mb-3 ml-7">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Unidad</p>
+                      <InlineEditableCell
+                        value={material.unit || ''}
+                        onSave={(v) => handleInlineSave(material, 'unit', v)}
+                        type="select"
+                        options={units.map(u => ({ value: u.name, label: u.name }))}
+                        alwaysShowIcon
+                        displayClassName="text-gray-600"
+                        placeholder="Sin unidad"
+                      />
+                    </div>
+                    <div className="flex justify-start gap-2 mt-4 border-t pt-3 ml-7">
                       <Button
                         variant="outline"
                         size="sm"
@@ -400,54 +473,81 @@ const MaterialManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMaterials.map((material) => (
+                    {materialsList.map((material) => (
                       <TableRow 
                         key={material.id} 
                         className={cn(
-                          "hover:bg-gray-50/50 transition-colors cursor-pointer",
+                          "hover:bg-gray-50/50 transition-colors cursor-pointer group",
                           selectedMaterialIds.includes(material.id) && "bg-procarni-primary/5"
                         )}
                         onClick={() => toggleMaterialSelection(material.id)}
                       >
-                        <TableCell className="pl-4 py-3">
+                        <TableCell className="pl-4 py-2">
                            <Checkbox 
                               checked={selectedMaterialIds.includes(material.id)}
                               onCheckedChange={() => toggleMaterialSelection(material.id)}
                               onClick={(e) => e.stopPropagation()}
                            />
                         </TableCell>
-                        <TableCell className="py-3 font-mono text-xs text-gray-600">{material.code}</TableCell>
-                        <TableCell className="flex flex-col items-start justify-center font-medium py-3 text-procarni-dark">
-                          <div className="flex items-center flex-wrap gap-2">
-                            <span>{material.name}</span>
-                            {material.is_exempt && (
-                              <span className="px-2 py-0.5 text-[10px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full">
-                                EXENTO
-                              </span>
-                            )}
-                            {material.base_material_id && (
-                              <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
-                            )}
-                          </div>
-                          
-                          {/* Indicadores Base Group y Aliases en Subtítulo */}
-                          <div className="flex gap-2 mt-1">
-                             {material.search_aliases && material.search_aliases.length > 0 && (
-                                <Badge variant="outline" className="text-[9px] h-4 py-0 px-1.5 font-normal border-procarni-primary/40 text-procarni-primary" title={material.search_aliases.join(', ')}>
-                                  {material.search_aliases.length} Alias
-                                </Badge>
-                             )}
-                          </div>
+                        <TableCell className="py-2">
+                          <span className="font-mono text-xs text-gray-600">{material.code}</span>
                         </TableCell>
-                        <TableCell className="py-3 text-gray-600">{material.category || 'N/A'}</TableCell>
-                        <TableCell className="py-3 text-gray-600">{material.unit || 'N/A'}</TableCell>
-                        <TableCell className="py-3 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
-                        <TableCell className="text-right pr-4 py-3">
+                        <TableCell className="py-2 max-w-[220px]">
+                          <InlineEditableCell
+                            value={material.name}
+                            onSave={(v) => handleInlineSave(material, 'name', v)}
+                            displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
+                            placeholder="Nombre"
+                            renderDisplay={(v) => (
+                              <div className="flex flex-col">
+                                <span className="flex items-center gap-1.5 flex-wrap">
+                                  {String(v)}
+                                  {material.is_exempt && (
+                                    <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
+                                  )}
+                                  {material.base_material_id && (
+                                    <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
+                                  )}
+                                </span>
+                                {material.search_aliases && material.search_aliases.length > 0 && (
+                                  <div className="flex gap-2 mt-1">
+                                    <Badge variant="outline" className="text-[9px] h-4 py-0 px-1.5 font-normal border-procarni-primary/40 text-procarni-primary" title={material.search_aliases.join(', ')}>
+                                      {material.search_aliases.length} Alias
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={material.category || ''}
+                            onSave={(v) => handleInlineSave(material, 'category', v)}
+                            type="select"
+                            options={categories.map(c => ({ value: c.name, label: c.name }))}
+                            displayClassName="text-gray-600"
+                            placeholder="Sin categoría"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={material.unit || ''}
+                            onSave={(v) => handleInlineSave(material, 'unit', v)}
+                            type="select"
+                            options={units.map(u => ({ value: u.name, label: u.name }))}
+                            displayClassName="text-gray-600"
+                            placeholder="Sin unidad"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
+                        <TableCell className="text-right pr-4 py-2">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={(e) => { e.stopPropagation(); handleEditMaterial(material); }}
                             disabled={deleteMutation.isPending}
+                            title="Editar completo"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -471,6 +571,14 @@ const MaterialManagement = () => {
               No hay materiales registrados o no se encontraron resultados para tu búsqueda/filtro.
             </div>
           )}
+        </div>
+        
+        <PaginationControls
+          currentPage={page}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
         </CardContent>
       </Card>
 
@@ -503,13 +611,13 @@ const MaterialManagement = () => {
         onOpenChange={setIsCategoriesModalOpen}
       />
 
-      {materials && (
+      {materialsList && (
         <>
           <MaterialGroupModal
             open={isGroupModalOpen}
             onOpenChange={setIsGroupModalOpen}
             selectedIds={selectedMaterialIds}
-            materials={materials}
+            materials={materialsList}
             onSuccess={() => setSelectedMaterialIds([])}
           />
 
@@ -517,7 +625,7 @@ const MaterialManagement = () => {
             open={isFusionModalOpen}
             onOpenChange={setIsFusionModalOpen}
             selectedIds={selectedMaterialIds}
-            materials={materials}
+            materials={materialsList}
             onSuccess={() => setSelectedMaterialIds([])}
           />
         </>

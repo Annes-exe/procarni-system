@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,20 +11,168 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Plus, X, PlusCircle, Info } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getAllMaterials } from '@/integrations/supabase/data';
+import { getAllMaterials, searchMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
-import { validateRif } from '@/utils/validators'; // Importar el validador de RIF
-import MaterialCreationDialog from '@/components/MaterialCreationDialog'; // NEW IMPORT
+import { validateRif } from '@/utils/validators';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import { VENEZUELAN_MUNICIPALITIES_FLAT } from '@/constants/venezuela-locations';
+import { detectLocation } from '@/utils/location-detector';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DragStartEvent,
+  DragOverEvent,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
+import { m, AnimatePresence } from 'framer-motion';
+import { useDroppable } from '@dnd-kit/core';
+import { rectIntersection, closestCorners } from '@dnd-kit/core';
 
-const VENEZUELAN_CITIES = [
-  'Caracas', 'Maracaibo', 'Valencia', 'Barquisimeto', 'Maracay',
-  'Ciudad Guayana', 'San Cristóbal', 'Maturín', 'Barinas', 'Barcelona',
-  'Mérida', 'Coro', 'Cumaná', 'Ciudad Bolívar', 'San Felipe',
-  'Guanare', 'San Carlos', 'San Juan de los Morros', 'Tucupita',
-  'Puerto Ayacucho', 'La Asunción', 'La Guaira'
-].sort((a, b) => a.localeCompare(b));
+// --- Sub-componentes para DND ---
+
+interface DroppableZoneProps {
+  id: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const DroppableZone = ({ id, children, className }: DroppableZoneProps) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div 
+      ref={setNodeRef} 
+      className={cn(className, isOver && "ring-2 ring-procarni-secondary ring-inset bg-procarni-secondary/5")}
+    >
+      {children}
+    </div>
+  );
+};
+
+interface DraggableItemProps {
+  id: string;
+  name: string;
+  category?: string;
+  code?: string;
+  specification?: string;
+  onSpecificationChange?: (val: string) => void;
+  onRemove?: () => void;
+  onClick?: () => void;
+  isOverlay?: boolean;
+  type: 'available' | 'selected';
+  disabled?: boolean;
+}
+
+const DraggableMaterialItem = ({ 
+  id, 
+  name, 
+  category, 
+  code, 
+  specification, 
+  onSpecificationChange, 
+  onRemove,
+  onClick,
+  isOverlay,
+  type,
+  disabled
+}: DraggableItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id, disabled });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging && !isOverlay ? 0.4 : 1,
+  };
+
+  const handleItemClick = (e: React.MouseEvent) => {
+    // Si estamos arrastrando, no disparamos el click
+    if (isDragging) return;
+    if (onClick) onClick();
+  };
+
+  const content = (
+    <div 
+      className={cn(
+        "p-2 mb-2 bg-white border rounded-lg shadow-sm transition-all group relative",
+        !disabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+        isOverlay ? "shadow-lg border-procarni-secondary pointer-events-none opacity-90" : "hover:border-procarni-secondary/50",
+        type === 'selected' ? "bg-white" : "bg-gray-50/50"
+      )}
+      onClick={handleItemClick}
+    >
+      <div className="flex justify-between items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-[11px] text-procarni-dark truncate">{name}</div>
+          <div className="text-[9px] text-muted-foreground truncate uppercase tracking-tighter">
+            {code} {category && `• ${category}`}
+          </div>
+        </div>
+        {!isOverlay && type === 'selected' && onRemove && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-gray-400 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
+        <div className="text-gray-300 group-hover:text-gray-400 transition-colors">
+           <ChevronsUpDown className="h-3.5 w-3.5" />
+        </div>
+      </div>
+      
+      {type === 'selected' && onSpecificationChange && (
+        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <Input
+            value={specification || ''}
+            onChange={(e) => onSpecificationChange(e.target.value)}
+            placeholder="Especificación..."
+            className="h-7 text-[10px] bg-gray-50/30"
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {content}
+    </div>
+  );
+};
 
 // Esquema de validación - reestructurado para evitar problemas con ctx.parent
 const supplierFormSchema = z.object({
@@ -38,6 +187,7 @@ const supplierFormSchema = z.object({
   instagram: z.string().optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
   payment_terms: z.enum(['Contado', 'Crédito', 'Otro'], { message: 'Términos de pago son requeridos y deben ser Contado, Crédito u Otro.' }), // Opciones limitadas
   // Eliminamos las validaciones condicionales que dependen de ctx.parent
   custom_payment_terms: z.string().optional().nullable(),
@@ -68,6 +218,7 @@ interface SupplierFormProps {
     instagram?: string;
     address?: string;
     city?: string | null;
+    state?: string | null;
     payment_terms: 'Contado' | 'Crédito' | 'Otro';
     custom_payment_terms?: string | null;
     credit_days: number;
@@ -109,6 +260,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       instagram: '',
       address: '',
       city: '',
+      state: '',
       payment_terms: 'Contado',
       custom_payment_terms: '',
       credit_days: 0,
@@ -118,21 +270,36 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     },
   });
 
-  const currentMaterialsInForm = form.watch('materials');
+  const isMobile = useIsMobile();
+
+  // --- DND Sensors ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Sensibilidad al arrastrar para no disparar clicks accidentales
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeItem, setActiveItem] = useState<any>(null);
+
+  const currentMaterialsInForm = form.watch('materials') || [];
   const currentPaymentTerms = form.watch('payment_terms');
   const currentAddress = form.watch('address');
 
   useEffect(() => {
     if (currentAddress) {
-      const addressLower = currentAddress.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      for (const city of VENEZUELAN_CITIES) {
-        const cityNormalized = city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (addressLower.includes(cityNormalized)) {
-          if (form.getValues('city') !== city) {
-            form.setValue('city', city, { shouldDirty: true });
-          }
-          break;
-        }
+      const { state: detectedState, city: detectedCity } = detectLocation(currentAddress);
+
+      if (detectedState && form.getValues('state') !== detectedState) {
+        form.setValue('state', detectedState, { shouldDirty: true });
+      }
+      if (detectedCity && form.getValues('city') !== detectedCity) {
+        form.setValue('city', detectedCity, { shouldDirty: true });
       }
     }
   }, [currentAddress, form]);
@@ -158,6 +325,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         instagram: initialData.instagram || '',
         address: initialData.address || '',
         city: initialData.city || '',
+        state: initialData.state || '',
         payment_terms: initialData.payment_terms,
         custom_payment_terms: initialData.custom_payment_terms || '',
         credit_days: initialData.credit_days || 0,
@@ -175,6 +343,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         instagram: '',
         address: '',
         city: '',
+        state: '',
         payment_terms: 'Contado',
         custom_payment_terms: '',
         credit_days: 0,
@@ -239,11 +408,33 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     form.setValue('materials', updatedMaterials, { shouldDirty: true });
   };
 
-  const filteredMaterials = allMaterials?.filter(material =>
-    material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (material.code && material.code.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (material.category && material.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  ) || [];
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  // Search materials when searchTerm changes
+  useEffect(() => {
+    const search = async () => {
+      // If searchTerm is empty, no need to search, but perhaps show a default list or empty
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const results = await searchMaterials(searchTerm);
+        setSearchResults(results || []);
+      } catch (error) {
+        console.error('Error searching materials:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timeoutId = setTimeout(search, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   const handleFormSubmit = (data: SupplierFormValues) => {
     const normalizedRif = validateRif(data.rif);
@@ -269,6 +460,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       ...data,
       rif: normalizedRif,
       city: data.city || null,
+      state: data.state || null,
       name: data.name.toUpperCase(), // Ensure name is uppercase before submission
       credit_days: data.payment_terms === 'Crédito' ? data.credit_days : 0,
       custom_payment_terms: data.payment_terms === 'Otro' ? data.custom_payment_terms : null,
@@ -276,342 +468,544 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     onSubmit(finalData);
   };
 
+  // --- DND Handlers ---
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+    
+    // Encontrar el item activo ya sea en resultados o en seleccionados
+    const itemInResults = searchResults.find(m => m.id === active.id);
+    const itemInSelected = currentMaterialsInForm.find(m => m.material_id === active.id);
+    
+    if (itemInResults) {
+      setActiveItem({ ...itemInResults, type: 'available' });
+    } else if (itemInSelected) {
+      setActiveItem({ 
+        id: itemInSelected.material_id, 
+        name: itemInSelected.material_name, 
+        code: '', 
+        category: itemInSelected.material_category, 
+        specification: itemInSelected.specification,
+        type: 'selected' 
+      });
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    setActiveItem(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Caso 1: Agregar (Disponibles -> Seleccionados)
+    if (activeItem?.type === 'available' && (overId === 'selected-zone' || currentMaterialsInForm.some(m => m.material_id === overId))) {
+      const material = searchResults.find(m => m.id === activeId);
+      if (material) {
+        handleAddMaterial(material);
+      }
+    }
+    
+    // Caso 2: Quitar (Seleccionados -> Disponibles)
+    if (activeItem?.type === 'selected' && (overId === 'available-zone' || searchResults.some(m => m.id === overId))) {
+      handleRemoveMaterial(activeId);
+    }
+
+    // Caso 3: Reordenar dentro de Seleccionados
+    if (activeItem?.type === 'selected' && currentMaterialsInForm.some(m => m.material_id === overId)) {
+      if (activeId !== overId) {
+        const oldIndex = currentMaterialsInForm.findIndex(m => m.material_id === activeId);
+        const newIndex = currentMaterialsInForm.findIndex(m => m.material_id === overId);
+        form.setValue('materials', arrayMove(currentMaterialsInForm, oldIndex, newIndex), { shouldDirty: true });
+      }
+    }
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
-        {/* El campo de código ha sido eliminado */}
-        <FormField
-          control={form.control}
-          name="rif"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>RIF</FormLabel>
-              <FormControl>
-                <Input placeholder="RIF del proveedor" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nombre</FormLabel>
-              <FormControl>
-                <Input placeholder="Nombre del proveedor" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input placeholder="Email del proveedor" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Teléfono 1</FormLabel>
-              <FormControl>
-                <Input placeholder="Teléfono principal" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone_2"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Teléfono 2</FormLabel>
-              <FormControl>
-                <Input placeholder="Teléfono secundario" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="instagram"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Instagram</FormLabel>
-              <FormControl>
-                <Input placeholder="@usuario" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dirección</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Dirección del proveedor" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="city"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Ciudad (Ubicación)</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Autodetectado o seleccione" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent className="max-h-[250px]">
-                  <SelectItem value="none" disabled className="hidden">Seleccione ciudad</SelectItem>
-                  {VENEZUELAN_CITIES.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground mt-1">Puede detectarse automáticamente desde la dirección</p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="payment_terms"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Términos de Pago</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione términos de pago" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Contado">Contado</SelectItem>
-                  <SelectItem value="Crédito">Crédito</SelectItem>
-                  <SelectItem value="Otro">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {currentPaymentTerms === 'Crédito' && (
-          <FormField
-            control={form.control}
-            name="credit_days"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Días de Crédito</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="Días de crédito"
-                    {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        {currentPaymentTerms === 'Otro' && (
-          <FormField
-            control={form.control}
-            name="custom_payment_terms"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Términos de Pago Personalizados</FormLabel>
-                <FormControl>
-                  <Input placeholder="Describa los términos de pago" {...field} value={field.value || ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Estado</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione estado" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Active">Activo</SelectItem>
-                  <SelectItem value="Inactive">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="alert_comment"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-procarni-alert flex items-center gap-2">
-                <Info className="h-4 w-4" /> Aviso / Comentario Especial
-              </FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Este comentario aparecerá como una alerta cuando este proveedor sea seleccionado en una Orden o Documento."
-                  className="bg-red-50/10 border-procarni-alert/30 focus:border-procarni-alert min-h-[100px]"
-                  {...field}
-                  value={field.value || ''}
-                />
-              </FormControl>
-              <p className="text-[10px] text-gray-500">Útil para alertar sobre condiciones de crédito especiales, advertencias de cobros o acuerdos específicos.</p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Sección de materiales asociados */}
-        <div className="mt-6 p-4 border rounded-lg">
-          <h3 className="text-lg font-semibold mb-4 flex justify-between items-center">
-            Materiales Asociados
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMaterialCreationDialogOpen(true)} // NEW BUTTON
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 items-start">
+          
+          {/* Columna Derecha: Materiales Asociados (DND) */}
+          <div className="order-2 md:order-2 space-y-4">
+            <DndContext 
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
             >
-              <PlusCircle className="mr-2 h-4 w-4" /> Crear Material
-            </Button>
-          </h3>
-
-          <div className="mb-4">
-            <Input
-              placeholder="Buscar materiales existentes para asociar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="mb-2"
-            />
-
-            {isLoadingMaterials ? (
-              <div className="text-sm text-muted-foreground">Cargando materiales...</div>
-            ) : (
-              <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                {filteredMaterials.length > 0 ? (
-                  filteredMaterials.map((material) => (
-                    <div
-                      key={material.id}
-                      className="p-2 hover:bg-muted rounded cursor-pointer flex justify-between items-center"
-                      onClick={() => handleAddMaterial(material)}
+              <div className="grid grid-cols-1 gap-4">
+                
+                {/* Zona de Búsqueda / Disponibles */}
+                <DroppableZone 
+                  id="available-zone"
+                  className="p-4 bg-gray-50/50 border rounded-xl"
+                >
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3 flex justify-between items-center">
+                    Buscador de Materiales
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-[10px] bg-white border-dashed"
+                      onClick={() => setIsMaterialCreationDialogOpen(true)}
                     >
-                      <div>
-                        <div className="font-medium">{material.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {material.code} {material.category && `- ${material.category}`}
-                        </div>
-                      </div>
-                      <Button type="button" size="sm" variant="ghost">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-muted-foreground p-2">
-                    No se encontraron materiales
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                      <PlusCircle className="mr-1.5 h-3 w-3" /> Nuevo
+                    </Button>
+                  </h3>
 
-          {currentMaterialsInForm && currentMaterialsInForm.length > 0 ? (
-            <div className="space-y-3">
-              {currentMaterialsInForm.map((material) => (
-                <div key={material.material_id} className="p-3 border rounded-md flex flex-col gap-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-medium">{material.material_name}</div>
-                      {material.material_category && (
-                        <div className="text-sm text-muted-foreground">
-                          Categoría: {material.material_category}
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                      <Input
+                        placeholder="Escribe para buscar..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 h-9 text-xs bg-white"
+                      />
+                      {(isLoadingMaterials || isSearching) && (
+                        <div className="absolute right-3 top-2.5">
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                         </div>
                       )}
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveMaterial(material.material_id)}
+
+                    <div className="max-h-56 overflow-y-auto pr-1">
+                      <SortableContext 
+                        id="available-zone"
+                        items={searchResults.map(m => m.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <AnimatePresence>
+                          {searchResults.length > 0 ? (
+                            searchResults.map((material) => (
+                              <m.div
+                                key={material.id}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                              >
+                                <DraggableMaterialItem 
+                                  id={material.id}
+                                  name={material.name}
+                                  category={material.category}
+                                  code={material.code}
+                                  type="available"
+                                  onClick={() => handleAddMaterial(material)}
+                                  disabled={isMobile}
+                                />
+                              </m.div>
+                            ))
+                          ) : searchTerm.trim() ? (
+                            <div className="text-[11px] text-center text-muted-foreground py-10 bg-white/50 rounded-lg border border-dashed">
+                              Sin coincidencias para "{searchTerm}"
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-center text-gray-400 py-10 bg-white/30 rounded-lg border border-dashed flex flex-col items-center gap-2">
+                              <Info className="h-4 w-4 opacity-30" />
+                              Arrastra resultados aquí abajo para agregar
+                            </div>
+                          )}
+                        </AnimatePresence>
+                      </SortableContext>
+                    </div>
+                  </div>
+                </DroppableZone>
+
+                {/* Zona de Seleccionados / Drop Zone */}
+                <DroppableZone 
+                  id="selected-zone"
+                  className={cn(
+                    "p-4 border-2 rounded-xl transition-all min-h-[200px]",
+                    activeId ? "border-procarni-secondary border-dashed" : "bg-white border-gray-100 shadow-inner"
+                  )}
+                >
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary mb-3 flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5" /> Vinculados al Proveedor
+                    {currentMaterialsInForm.length > 0 && (
+                      <span className="bg-procarni-secondary text-white px-1.5 py-0.5 rounded-full text-[9px]">
+                        {currentMaterialsInForm.length}
+                      </span>
+                    )}
+                  </h3>
+
+                  <div className="space-y-1">
+                    <SortableContext 
+                      id="selected-zone"
+                      items={currentMaterialsInForm.map(m => m.material_id)} 
+                      strategy={verticalListSortingStrategy}
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
+                      <AnimatePresence>
+                        {currentMaterialsInForm.length > 0 ? (
+                          currentMaterialsInForm.map((material) => (
+                            <m.div
+                              key={material.material_id}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                            >
+                              <DraggableMaterialItem 
+                                id={material.material_id}
+                                name={material.material_name}
+                                category={material.material_category}
+                                specification={material.specification}
+                                onSpecificationChange={(val) => handleSpecificationChange(material.material_id, val)}
+                                onRemove={() => handleRemoveMaterial(material.material_id)}
+                                type="selected"
+                                disabled={isMobile}
+                              />
+                            </m.div>
+                          ))
+                        ) : (
+                          <div className="text-[11px] text-center text-gray-400 py-16 flex flex-col items-center gap-2">
+                            <Plus className="h-6 w-6 opacity-10" />
+                            Arrastra materiales aquí para seleccionarlos
+                          </div>
+                        )}
+                      </AnimatePresence>
+                    </SortableContext>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Especificación</label>
-                    <Input
-                      value={material.specification || ''}
-                      onChange={(e) => handleSpecificationChange(material.material_id, e.target.value)}
-                      placeholder="Especificación del material (opcional)"
-                    />
-                  </div>
-                </div>
-              ))}
+                </DroppableZone>
+              </div>
+
+              {/* Overlay simple portado al body para evitar desfases por el Modal */}
+              {!isMobile && createPortal(
+                <DragOverlay adjustScale={false}>
+                  {activeId && activeItem ? (
+                    <div className="w-[300px] pointer-events-none z-[9999]">
+                      <DraggableMaterialItem 
+                        id={activeId}
+                        name={activeItem.name}
+                        category={activeItem.category}
+                        code={activeItem.code}
+                        specification={activeItem.specification}
+                        type={activeItem.type}
+                        isOverlay
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body
+              )}
+            </DndContext>
+          </div>
+
+
+          {/* Columna Izquierda: Datos del Proveedor (en desktop) */}
+          <div className="order-1 md:order-1 space-y-6">
+            
+            {/* Sección: Datos Básicos */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Identificación</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="rif"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">RIF</FormLabel>
+                      <FormControl>
+                        <Input placeholder="J123456789" {...field} className="h-9" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Estado</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Estado" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Active">Activo</SelectItem>
+                          <SelectItem value="Inactive">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Nombre / Razón Social</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nombre del proveedor" {...field} className="h-9" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              No hay materiales asociados a este proveedor
+
+            {/* Sección: Contacto */}
+            <div className="space-y-4">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Contacto</h4>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="proveedor@ejemplo.com" {...field} value={field.value || ''} className="h-9" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Teléfono Principal</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0412-1234567" {...field} value={field.value || ''} className="h-9" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone_2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Teléfono Secundario</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Opcional" {...field} value={field.value || ''} className="h-9" />
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="instagram"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Instagram</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 h-4 w-4">@</span>
+                        <Input placeholder="usuario" {...field} value={field.value || ''} className="h-9 pl-8" />
+                      </div>
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
             </div>
-          )}
+
+            {/* Sección: Ubicación */}
+            <div className="space-y-4 pt-2">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Ubicación</h4>
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Dirección Fiscal</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Dirección completa..." {...field} value={field.value || ''} className="min-h-[80px] resize-none" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel className="text-xs">Ciudad / Municipio</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between h-9 text-xs font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value
+                              ? VENEZUELAN_MUNICIPALITIES_FLAT.find(
+                                  (m) => m.city === field.value && m.state === form.getValues('state')
+                                )?.label || field.value
+                              : "Seleccionar ciudad..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar ciudad o estado..." />
+                          <CommandList className="max-h-48">
+                            <CommandEmpty>No se encontró la ciudad.</CommandEmpty>
+                            <CommandGroup>
+                              {VENEZUELAN_MUNICIPALITIES_FLAT.map((m) => (
+                                <CommandItem
+                                  value={m.label}
+                                  key={`${m.city}-${m.state}`}
+                                  className="text-xs"
+                                  onSelect={() => {
+                                    form.setValue("city", m.city);
+                                    form.setValue("state", m.state);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-3.5 w-3.5",
+                                      m.city === field.value && m.state === form.getValues('state')
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                      )}
+                                  />
+                                  {m.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <p className="text-[10px] text-muted-foreground italic">La ubicación se detecta automáticamente al escribir la dirección.</p>
+            </div>
+
+            {/* Sección: Términos y Pagos */}
+            <div className="space-y-4 pt-2">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-procarni-secondary border-l-2 border-procarni-secondary pl-2">Pago y Comentarios</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="payment_terms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Términos de Pago</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Términos" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Contado">Contado</SelectItem>
+                          <SelectItem value="Crédito">Crédito</SelectItem>
+                          <SelectItem value="Otro">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+
+                {currentPaymentTerms === 'Crédito' && (
+                  <FormField
+                    control={form.control}
+                    name="credit_days"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Días de Crédito</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="Ej: 30"
+                            className="h-9"
+                            {...field}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {currentPaymentTerms === 'Otro' && (
+                  <FormField
+                    control={form.control}
+                    name="custom_payment_terms"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Pago Personalizado</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Describa los términos" {...field} value={field.value || ''} className="h-9" />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+
+              <FormField
+                control={form.control}
+                name="alert_comment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-procarni-alert flex items-center gap-2">
+                      <Info className="h-3 w-3" /> Aviso Especial
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Aviso que aparecerá al seleccionar este proveedor..."
+                        className="bg-red-50/10 border-procarni-alert/30 focus:border-procarni-alert min-h-[100px] text-xs resize-none"
+                        {...field}
+                        value={field.value || ''}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="mt-6">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <DialogFooter className="sticky bottom-0 bg-white pt-4 border-t gap-2 flex-col sm:flex-row">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="h-10">
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="bg-procarni-secondary hover:bg-green-700">
+          <Button type="submit" disabled={isSubmitting} className="h-10 bg-procarni-secondary hover:bg-green-700 sm:min-w-[120px]">
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Guardando...
               </>
             ) : (
-              'Guardar'
+              'Guardar Cambios'
             )}
           </Button>
         </DialogFooter>
       </form>
 
-      {/* NEW DIALOG */}
       <MaterialCreationDialog
         isOpen={isMaterialCreationDialogOpen}
         onClose={() => setIsMaterialCreationDialogOpen(false)}
         onMaterialCreated={handleMaterialCreatedFromDialog}
-        supplierId={currentSupplierId} // Pass ID if editing, undefined if creating
+        supplierId={currentSupplierId}
         supplierName={initialData?.name}
       />
     </Form>

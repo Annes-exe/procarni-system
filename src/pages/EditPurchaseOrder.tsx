@@ -48,6 +48,7 @@ interface PurchaseOrderItemForm {
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
+  was_recalculated?: boolean;
 }
 
 interface MaterialSearchResult {
@@ -78,6 +79,7 @@ const EditPurchaseOrder = () => {
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
 
+  const [issueDate, setIssueDate] = useState<Date | undefined>(undefined);
   const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
   const [paymentTerms, setPaymentTerms] = useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
   const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
@@ -119,6 +121,12 @@ const EditPurchaseOrder = () => {
       setCurrency(savedCurrency);
       setBaseCurrency((initialOrder.base_currency as 'USD' | 'EUR') || (savedCurrency === 'EUR' ? 'EUR' : 'USD'));
       setExchangeRate(initialOrder.exchange_rate || undefined);
+
+      if (initialOrder.issue_date) {
+        setIssueDate(parseISO(initialOrder.issue_date));
+      } else {
+        setIssueDate(parseISO(initialOrder.created_at));
+      }
 
       if (initialOrder.delivery_date) {
         setDeliveryDate(parseISO(initialOrder.delivery_date));
@@ -263,6 +271,14 @@ const EditPurchaseOrder = () => {
       showError('Debe seleccionar una fecha de entrega.');
       return;
     }
+    if (!issueDate) {
+      showError('Debe seleccionar una fecha de emisión.');
+      return;
+    }
+    if (deliveryDate < issueDate) {
+      showError('La fecha de entrega no puede ser anterior a la fecha de emisión.');
+      return;
+    }
 
     setIsReminderDialogOpen(true);
   };
@@ -279,6 +295,7 @@ const EditPurchaseOrder = () => {
       status: initialOrder.status,
       created_by: userEmail || 'unknown',
       user_id: userId,
+      issue_date: issueDate ? format(issueDate, 'yyyy-MM-dd') : undefined,
       delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
       payment_terms: paymentTerms,
       custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
@@ -360,6 +377,7 @@ const EditPurchaseOrder = () => {
             baseCurrency={baseCurrency}
             currency={currency}
             exchangeRate={exchangeRate}
+            issueDate={issueDate}
             deliveryDate={deliveryDate}
             paymentTerms={paymentTerms}
             customPaymentTerms={customPaymentTerms}
@@ -369,6 +387,7 @@ const EditPurchaseOrder = () => {
             onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
             onExchangeRateChange={setExchangeRate}
+            onIssueDateChange={setIssueDate}
             onDeliveryDateChange={setDeliveryDate}
             onPaymentTermsChange={setPaymentTerms}
             onCustomPaymentTermsChange={setCustomPaymentTerms}

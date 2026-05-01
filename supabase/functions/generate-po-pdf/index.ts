@@ -211,6 +211,11 @@ serve(async (req: Request) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
     if (authError || !user) {
       console.error('[generate-po-pdf] Auth Error:', authError);
@@ -253,6 +258,21 @@ serve(async (req: Request) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // --- Update Print Date ---
+    const now = new Date().toISOString();
+    console.log(`[generate-po-pdf] Updating print_date for ${orderId} to ${now}`);
+    const { error: updateError } = await supabaseAdmin
+      .from('purchase_orders')
+      .update({ print_date: now })
+      .eq('id', orderId);
+    
+    if (updateError) {
+      console.error('[generate-po-pdf] CRITICAL: Could not update print_date:', updateError);
+    } else {
+      console.log('[generate-po-pdf] print_date updated successfully');
+      order.print_date = now; // Update local object for PDF rendering
     }
 
     // Helper function to format payment terms
@@ -409,10 +429,19 @@ serve(async (req: Request) => {
       drawText(state, 'ORDEN DE COMPRA', titleX, state.y, { font: boldFont, size: 16, color: PROC_RED });
 
       drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
-      drawText(state, `Fecha: ${new Date(order.created_at).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
+      
+      const docDate = order.issue_date || order.created_at;
+      drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
+
+      if (order.print_date) {
+        drawText(state, `Fecha Impresión: ${new Date(order.print_date).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
+      }
 
       // Update Y position based on the tallest element in the header
       state.y -= Math.max(companyLogoImage ? LOGO_SIZE : LINE_HEIGHT * 3, LINE_HEIGHT * 3);
+
+      // Add a small padding to avoid overlapping with print date and logo
+      state.y -= 5;
 
       // Separator line (Red, 2pt)
       state.page.drawLine({

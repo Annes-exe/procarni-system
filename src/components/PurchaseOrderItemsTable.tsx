@@ -27,6 +27,7 @@ interface PurchaseOrderItemForm {
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
+  was_recalculated?: boolean;
 }
 
 interface MaterialSearchResult {
@@ -67,7 +68,13 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 }) => {
 
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const isMobile = useIsMobile();
+
+  // Sincronizar items expandidos cuando cambia la longitud de la lista (como en Solicitudes de Cotización)
+  React.useEffect(() => {
+    setExpandedItems(items.map((_, i) => `item-${i}`));
+  }, [items.length]);
 
   const { data: units = [], isLoading: isLoadingUnits } = useQuery({
     queryKey: ['units_of_measure'],
@@ -141,7 +148,47 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             <Input type="number" value={item.quantity || ''} onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Precio ({currency})</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-muted-foreground">Precio ({currency})</label>
+              <div className="flex gap-1">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-5 text-[10px] px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded disabled:opacity-30"
+                  disabled={item.was_recalculated}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const price = Number(item.unit_price);
+                    if (price > 0) {
+                      onItemChange(index, 'unit_price', parseFloat((price / 1.16).toFixed(2)));
+                      onItemChange(index, 'was_recalculated', true);
+                    }
+                  }}
+                  title="Extraer IVA (dividir entre 1.16)"
+                >
+                  / 1.16
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-5 text-[10px] px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded disabled:opacity-30"
+                  disabled={!item.was_recalculated}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const price = Number(item.unit_price);
+                    if (price > 0) {
+                      onItemChange(index, 'unit_price', parseFloat((price * 1.16).toFixed(2)));
+                      onItemChange(index, 'was_recalculated', false);
+                    }
+                  }}
+                  title="Revertir (multiplicar por 1.16)"
+                >
+                  * 1.16
+                </Button>
+              </div>
+            </div>
             <Input type="number" step="0.01" value={item.unit_price || ''} onChange={(e) => onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
           </div>
           <div className="space-y-1">
@@ -273,9 +320,49 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* Col 9-11: Precio */}
             <div className="col-span-3 space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
-                <Calculator className="w-3 h-3" /> Precio
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
+                  <Calculator className="w-3 h-3" /> Precio
+                </label>
+                <div className="flex gap-1">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-4 text-[9px] px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded disabled:opacity-30"
+                    disabled={item.was_recalculated}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const price = Number(item.unit_price);
+                      if (price > 0) {
+                        onItemChange(index, 'unit_price', parseFloat((price / 1.16).toFixed(2)));
+                        onItemChange(index, 'was_recalculated', true);
+                      }
+                    }}
+                    title="Extraer IVA (dividir entre 1.16)"
+                  >
+                    / 1.16
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-4 text-[9px] px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded disabled:opacity-30"
+                    disabled={!item.was_recalculated}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const price = Number(item.unit_price);
+                      if (price > 0) {
+                        onItemChange(index, 'unit_price', parseFloat((price * 1.16).toFixed(2)));
+                        onItemChange(index, 'was_recalculated', false);
+                      }
+                    }}
+                    title="Revertir (multiplicar por 1.16)"
+                  >
+                    * 1.16
+                  </Button>
+                </div>
+              </div>
               <div className="relative">
                 <span className="absolute left-2.5 top-2.5 text-xs text-gray-400 font-medium">{currency === 'USD' ? '$' : currency === 'VES' ? 'Bs' : '€'}</span>
                 <Input
@@ -443,7 +530,12 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         </div>
       ) : (
         <>
-          <Accordion type="multiple" className="w-full" defaultValue={items.map((_, i) => `item-${i}`)}>
+          <Accordion 
+            type="multiple" 
+            className="w-full" 
+            value={expandedItems}
+            onValueChange={setExpandedItems}
+          >
             {items.map(renderDesktopAccordionItem)}
           </Accordion>
           

@@ -20,6 +20,7 @@ import EmailSenderModal from '@/components/EmailSenderModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import WhatsAppShareModal from '@/components/WhatsAppShareModal';
+import { OrderDocumentManager } from '@/components/OrderDocumentManager';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +62,7 @@ const ServiceOrderDetails = () => {
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
 
   const pdfViewerRef = React.useRef<ServiceOrderPDFViewerRef>(null);
 
@@ -464,6 +466,10 @@ const ServiceOrderDetails = () => {
                     className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
                   />
                 </DropdownMenuItem>
+                
+                <DropdownMenuItem onSelect={() => setIsDocumentManagerOpen(true)}>
+                  <Paperclip className="mr-2 h-4 w-4" /> Documentos Adjuntos
+                </DropdownMenuItem>
 
                 <DropdownMenuItem
                   onSelect={() => setIsEmailModalOpen(true)}
@@ -548,13 +554,21 @@ const ServiceOrderDetails = () => {
             <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
           </div>
 
-          {/* Service Date */}
+          {/* Dates */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Fecha Emisión</span>
+            <p className={valueClass}>
+              {order.issue_date ? format(parseDateForDisplay(order.issue_date), 'PPP', { locale: es }) : format(new Date(order.created_at || new Date()), 'PPP', { locale: es })}
+            </p>
+          </div>
+
           <div className="space-y-1">
             <span className={microLabelClass}>Fecha de Servicio</span>
             <p className={valueClass}>
               {order.service_date ? format(parseDateForDisplay(order.service_date), 'PPP', { locale: es }) : 'N/A'}
             </p>
           </div>
+
 
           {/* Equipment */}
           <div className="space-y-1">
@@ -870,6 +884,18 @@ const ServiceOrderDetails = () => {
           secondary: order.suppliers?.phone_2 || null
         }}
       />
+
+      {order && (
+        <OrderDocumentManager
+          orderId={order.id}
+          orderType="SO"
+          // @ts-ignore
+          supplierName={order.suppliers?.name || 'Proveedor'}
+          sequenceNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
+          isOpen={isDocumentManagerOpen}
+          onOpenChange={setIsDocumentManagerOpen}
+        />
+      )}
     </div>
   );
 };

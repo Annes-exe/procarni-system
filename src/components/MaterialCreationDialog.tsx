@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { showError, showSuccess } from '@/utils/toast';
-import { createMaterial, createSupplierMaterialRelation, searchMaterials, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { createMaterial, createSupplierMaterialRelation, searchMaterials, getMaterialByName, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
 import { useQuery } from '@tanstack/react-query';
-import { Material } from '@/integrations/supabase/types';
+import { Material, MaterialCategory } from '@/integrations/supabase/types';
+import { UnitOfMeasure } from '@/integrations/supabase/services/unitService';
 import { Loader2, Check } from 'lucide-react';
 
 interface MaterialCreationDialogProps {
@@ -34,12 +35,12 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery<UnitOfMeasure[]>({
     queryKey: ['units_of_measure'],
     queryFn: getAllUnits,
   });
 
-  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<MaterialCategory[]>({
     queryKey: ['material_categories'],
     queryFn: getAllMaterialCategories,
   });
@@ -108,16 +109,41 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               setUnit(bestMatch.unit || (units[0]?.name || ''));
               // Use existing material's exemption status
               setIsExempt(bestMatch.is_exempt || false);
-            } else {
-              // If it's just a suggestion, keep current form values but show suggestion
-              // We only reset fields if the user accepts the suggestion
+            } else if (trimmedName.toLowerCase().startsWith('tripa')) {
+              // Apply "tripa" auto-fill logic for new material candidate even if there are suggests
+              const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+              const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+              
+              const isDefaultCategory = category === (categories[0]?.name || '');
+              const isDefaultUnit = unit === (units[0]?.name || '');
+
+              if (empCategory && isDefaultCategory) setCategory(empCategory.name);
+              if (mtUnit && isDefaultUnit) setUnit(mtUnit.name);
             }
           } else {
             setSuggestedMaterial(null);
-            // Reset fields to default if no match found, respecting FRESCA rule
-            setCategory(categories[0]?.name || '');
-            setUnit(units[0]?.name || '');
-            setIsExempt((categories[0]?.name || '') === 'FRESCA');
+            
+            // Apply "tripa" auto-fill logic if no match found
+            if (trimmedName.toLowerCase().startsWith('tripa')) {
+              const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+              const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
+              
+              const isDefaultCategory = category === (categories[0]?.name || '');
+              const isDefaultUnit = unit === (units[0]?.name || '');
+
+              if (empCategory && isDefaultCategory) setCategory(empCategory.name);
+              if (mtUnit && isDefaultUnit) setUnit(mtUnit.name);
+              
+              // If we set category to EMPAQUE, we might want to update isExempt too if it was default
+              if (empCategory && isDefaultCategory) {
+                  setIsExempt(empCategory.name === 'FRESCA');
+              }
+            } else {
+              // Reset fields to default if no match found and not "tripa", respecting FRESCA rule
+              setCategory(categories[0]?.name || '');
+              setUnit(units[0]?.name || '');
+              setIsExempt((categories[0]?.name || '') === 'FRESCA');
+            }
           }
         } catch (e) {
           console.error("Error checking material existence:", e);
@@ -166,10 +192,8 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       let materialToAssociate: Material | null = null;
       let isNewMaterial = false;
 
-      // 1. Check if the final name matches an existing material (case insensitive)
-      // We re-fetch to be absolutely sure, relying on the service which handles searching.
-      const existingMaterials = await searchMaterials(trimmedMaterialName);
-      const exactMatch = existingMaterials.find(m => m.name.toUpperCase() === trimmedMaterialName);
+      // 1. Check if the final name matches an existing material (exact check without limit)
+      const exactMatch = await getMaterialByName(trimmedMaterialName);
 
       // Determine final is_exempt status (forced true if FRESCA)
       const finalIsExempt = category === 'FRESCA' ? true : isExempt;

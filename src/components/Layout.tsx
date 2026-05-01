@@ -40,8 +40,12 @@ const Layout = () => {
 
   const { role, session, supabase } = useSession();
 
+  // Ref to prevent duplicate backup checks
+  const backupCheckedRef = useRef(false);
+
   useEffect(() => {
-    if (role === 'admin' && session?.user && supabase) {
+    if (role === 'admin' && session?.user && supabase && !backupCheckedRef.current) {
+      backupCheckedRef.current = true;
       const today = new Date();
       const nextSun = isSunday(today) ? today : nextSunday(today);
       const formattedDate = format(nextSun, 'dd-MM-yyyy');
@@ -50,6 +54,9 @@ const Layout = () => {
 
       const checkAndCreateNotification = async () => {
         try {
+          // Delay to ensure the GoTrue client has attached the token
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           const { data: existingProgrammed } = await supabase
             .from('notifications')
             .select('id')
@@ -83,6 +90,8 @@ const Layout = () => {
           }
         } catch (error) {
           console.error('Error al gestionar notificación de backup:', error);
+          // Permitir reintentos en caso de errores de autenticación temporal
+          backupCheckedRef.current = false;
         }
       };
 

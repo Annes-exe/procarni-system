@@ -1,22 +1,25 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp } from 'lucide-react';
+import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getAllSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
+import { getPaginatedSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import SupplierForm from '@/components/SupplierForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Import Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useDebounce } from 'use-debounce';
+import PaginationControls from '@/components/PaginationControls';
 
 interface MaterialAssociation {
   id?: string;
@@ -39,6 +42,8 @@ interface Supplier {
   phone_2?: string;
   instagram?: string;
   address?: string;
+  city?: string | null;
+  state?: string | null;
   payment_terms: string;
   custom_payment_terms?: string | null;
   credit_days: number;
@@ -55,7 +60,8 @@ interface SupplierFormValues {
   phone?: string;
   phone_2?: string;
   instagram?: string;
-  address?: string;
+  city?: string | null;
+  state?: string | null;
   payment_terms: string;
   custom_payment_terms?: string;
   credit_days: number;
@@ -75,48 +81,72 @@ const SupplierManagement = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 25;
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const [debouncedSearch] = useDebounce(searchInput, 500);
+  const selectedStatus = (searchParams.get('status') || 'Active') as 'All' | 'Active' | 'Inactive';
+  const dataQualityFilter = searchParams.get('quality') || 'All';
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<'All' | 'Active' | 'Inactive'>('Active'); // NEW STATE for status filter
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [supplierToDeleteId, setSupplierToDeleteId] = useState<string | null>(null);
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
-  const { data: suppliers, isLoading, error } = useQuery<Supplier[]>({
-    queryKey: ['suppliers'],
-    queryFn: getAllSuppliers,
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter],
+    queryFn: () => getPaginatedSuppliers(page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter),
     enabled: !!session,
+    placeholderData: keepPreviousData,
   });
 
-  const filteredSuppliers = useMemo(() => {
-    if (!suppliers) return [];
-    let currentSuppliers = suppliers;
+  const suppliersList = data?.data || [];
+  const totalCount = data?.totalCount || 0;
 
-    // 1. Filter by Status
-    if (selectedStatus !== 'All') {
-      currentSuppliers = currentSuppliers.filter(supplier => supplier.status === selectedStatus);
-    }
+  const setPage = (newPage: number) => {
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
 
-    // 2. Filter by Search Term
-    if (searchTerm) {
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      currentSuppliers = currentSuppliers.filter(supplier =>
-        supplier.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        supplier.rif.toLowerCase().includes(lowerCaseSearchTerm) ||
-        (supplier.email && supplier.email.toLowerCase().includes(lowerCaseSearchTerm))
-      );
-    }
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    setSearchParams(prev => {
+      if (value) prev.set('search', value);
+      else prev.delete('search');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
-    return currentSuppliers;
-  }, [suppliers, searchTerm, selectedStatus]);
+  const handleStatusChange = (value: string) => {
+    setSearchParams(prev => {
+      if (value !== 'All') prev.set('status', value);
+      else prev.delete('status');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
+
+  const handleQualityChange = (value: string) => {
+    setSearchParams(prev => {
+      if (value !== 'All') prev.set('quality', value);
+      else prev.delete('quality');
+      prev.set('page', '1');
+      return prev;
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: ({ supplierData, materials }: { supplierData: any; materials: any }) =>
       createSupplier(supplierData, materials),
-    onSuccess: (data) => {
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    onSuccess: (responseData) => {
+      if (responseData) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
         setIsFormOpen(false);
         showSuccess('Proveedor creado exitosamente.');
       }
@@ -129,9 +159,9 @@ const SupplierManagement = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: any; materials: any }) =>
       updateSupplier(id, supplierData, materials),
-    onSuccess: (data) => {
-      if (data) {
-        queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    onSuccess: (responseData) => {
+      if (responseData) {
+        queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
         setIsFormOpen(false);
         setEditingSupplier(null);
         showSuccess('Proveedor actualizado exitosamente.');
@@ -142,10 +172,35 @@ const SupplierManagement = () => {
     },
   });
 
+  // Mutation exclusive for inline field edits — patches ONLY the suppliers table,
+  // never touches supplier_materials so associated materials are preserved.
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: string }) => {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const payload = (field === 'name' || field === 'rif') ? { [field]: value.toUpperCase() } : { [field]: value };
+      const { error } = await supabase
+        .from('suppliers')
+        .update(payload)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
+      showSuccess('Campo actualizado.');
+    },
+    onError: (err: any) => {
+      if (err?.code === '23505') {
+        showError('El RIF ingresado ya pertenece a otro proveedor. Verifícalo e intenta de nuevo.');
+      } else {
+        showError('No se pudo actualizar el campo. Intenta de nuevo.');
+      }
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteSupplier,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
       showSuccess('Proveedor eliminado exitosamente.');
       setIsDeleteDialogOpen(false);
       setSupplierToDeleteId(null);
@@ -181,6 +236,12 @@ const SupplierManagement = () => {
 
   const handleViewSupplier = (supplierId: string) => {
     navigate(`/suppliers/${supplierId}`);
+  };
+
+  // Inline save: patches a single field directly in the suppliers table.
+  // Uses inlineUpdateMutation (NOT updateMutation) to avoid wiping supplier_materials.
+  const handleInlineSave = async (supplierId: string, field: string, newValue: string) => {
+    await inlineUpdateMutation.mutateAsync({ id: supplierId, field, value: newValue });
   };
 
   const confirmDeleteSupplier = (id: string) => {
@@ -224,13 +285,7 @@ const SupplierManagement = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Cargando proveedores...
-      </div>
-    );
-  }
+  // No loading static return to allow keepPreviousData rendering
 
   if (error) {
     showError(error.message);
@@ -272,7 +327,7 @@ const SupplierManagement = () => {
                 {!isMobile && 'Añadir Proveedor'}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[425px] md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>
                 <DialogDescription>
@@ -303,18 +358,17 @@ const SupplierManagement = () => {
             <div className="relative w-full md:w-72">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                type="text"
                 placeholder="Buscar proveedor por RIF, nombre o email..."
-                className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={handleSearchChange}
+                className="w-full pl-10 bg-white"
               />
             </div>
-            <div className="relative w-full md:w-72">
+            <div className="relative w-full md:w-48">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as 'All' | 'Active' | 'Inactive')}>
+              <Select value={selectedStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-full pl-8 h-9 text-sm">
-                  <SelectValue placeholder="Filtrar por estado" />
+                  <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">Todos los Estados</SelectItem>
@@ -323,46 +377,94 @@ const SupplierManagement = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="relative w-full md:w-64">
+              <AlertTriangle className={cn("absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground", dataQualityFilter !== 'All' && "text-amber-500")} />
+              <Select value={dataQualityFilter} onValueChange={handleQualityChange}>
+                <SelectTrigger className={cn("w-full pl-8 h-9 text-sm", dataQualityFilter !== 'All' && "ring-1 ring-amber-400 bg-amber-50")}>
+                  <SelectValue placeholder="Calidad de Datos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">Calidad: Todos</SelectItem>
+                  <SelectItem value="MissingCritical">Datos Críticos Faltantes</SelectItem>
+                  <SelectItem value="MissingSecondary">Datos Secundarios Faltantes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {filteredSuppliers.length > 0 ? (
+          <div className={cn("transition-opacity duration-200", isFetching && "opacity-50 pointer-events-none")}>
+          {isLoading && suppliersList.length === 0 ? (
+            <div className="flex justify-center p-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-procarni-primary border-t-transparent"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center text-red-500 p-4">Error cargando proveedores</div>
+          ) : suppliersList.length > 0 ? (
             isMobile ? (
               <div className="grid gap-4">
-                {filteredSuppliers.map((supplier) => (
+                {suppliersList.map((supplier) => (
                   <Card key={supplier.id} className="p-4 w-full shadow-md">
-                    <div className="flex justify-between items-start mb-2">
-                      {/* Título del proveedor */}
-                      <CardTitle className="text-lg break-words max-w-[60%]">{supplier.name}</CardTitle>
-                      {/* Espacio vacío donde estaba el badge de estado */}
-                      <div className="w-[30%] text-right"></div>
+                    <div className="mb-2">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
+                      <InlineEditableCell
+                        value={supplier.name}
+                        onSave={(v) => handleInlineSave(supplier.id, 'name', v)}
+                        alwaysShowIcon
+                        displayClassName="font-semibold text-base text-procarni-dark"
+                        placeholder="Nombre del proveedor"
+                      />
                     </div>
-                    <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3" /> Cód: {supplier.code || 'N/A'} | RIF: {isGenericRif(supplier.rif) ? (
-                        <span className="text-procarni-alert flex items-center">
-                          <AlertTriangle className="mr-1 h-3 w-3" /> Faltante
-                        </span>
-                      ) : supplier.rif}
-                    </CardDescription>
-                    <div className="text-sm space-y-1 mt-2 w-full">
-                      {/* Eliminado el email para ahorrar espacio */}
-                      {supplier.phone ? (
-                        <p className="flex items-center"><Phone className="mr-1 h-3 w-3" /> Teléfono: {supplier.phone}</p>
-                      ) : (
-                        <p className="flex items-center text-procarni-alert">
-                          <AlertTriangle className="mr-1 h-3 w-3" /> Teléfono: Faltante
-                        </p>
-                      )}
-                      <p>
-                        <strong>Términos:</strong> {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms ? supplier.custom_payment_terms : supplier.payment_terms}
-                      </p>
-                      {/* Etiqueta de estado movida aquí */}
-                      <p>
-                        <strong>Estado:</strong>
-                        <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
-                          {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </p>
+                    <div className="mb-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">RIF</p>
+                      <InlineEditableCell
+                        value={isGenericRif(supplier.rif) ? '' : supplier.rif}
+                        onSave={(v) => handleInlineSave(supplier.id, 'rif', v)}
+                        alwaysShowIcon
+                        displayClassName={isGenericRif(supplier.rif) ? 'text-procarni-alert' : 'font-mono text-xs text-gray-600'}
+                        placeholder="RIF"
+                        renderDisplay={(v) => isGenericRif(supplier.rif) ? (
+                          <span className="flex items-center gap-1 text-procarni-alert">
+                            <AlertTriangle className="h-3 w-3" /> Faltante
+                          </span>
+                        ) : <span>{String(v)}</span>}
+                      />
                     </div>
+                    <div className="mb-1">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Teléfono</p>
+                      <InlineEditableCell
+                        value={supplier.phone || ''}
+                        onSave={(v) => handleInlineSave(supplier.id, 'phone', v)}
+                        alwaysShowIcon
+                        displayClassName={supplier.phone ? '' : 'text-procarni-alert'}
+                        placeholder="Teléfono"
+                        renderDisplay={(v) => !v ? (
+                          <span className="flex items-center gap-1 text-procarni-alert">
+                            <AlertTriangle className="h-3 w-3" /> Faltante
+                          </span>
+                        ) : <span>{String(v)}</span>}
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Email</p>
+                      <InlineEditableCell
+                        value={supplier.email || ''}
+                        onSave={(v) => handleInlineSave(supplier.id, 'email', v)}
+                        type="email"
+                        alwaysShowIcon
+                        displayClassName="text-gray-600"
+                        placeholder="Sin email"
+                      />
+                    </div>
+                    <p className="text-sm mb-1">
+                      <strong>Términos:</strong> {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms ? supplier.custom_payment_terms : supplier.payment_terms}
+                    </p>
+                    <p className="text-sm mb-3">
+                      <strong>Estado:</strong>
+                      <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
+                        {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </p>
                     <div className="flex justify-start gap-2 mt-4 border-t pt-3">
                       <Button
                         variant="outline"
@@ -411,36 +513,67 @@ const SupplierManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSuppliers.map((supplier) => (
-                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
-                        <TableCell className="py-3 font-medium text-procarni-dark">{supplier.name}</TableCell>
-                        <TableCell className={cn("py-3", isGenericRif(supplier.rif) ? "text-procarni-alert font-medium" : "")}>
-                          {isGenericRif(supplier.rif) ? (
-                            <span className="flex items-center">
-                              <AlertTriangle className="h-3 w-3 mr-1" /> Faltante
-                            </span>
-                          ) : supplier.rif}
+                    {suppliersList.map((supplier) => (
+                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <TableCell className="pl-4 py-2 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
+                        <TableCell className="py-2 max-w-[200px]">
+                          <div className="flex flex-col">
+                            <InlineEditableCell
+                              value={supplier.name}
+                              onSave={(v) => handleInlineSave(supplier.id, 'name', v)}
+                              displayClassName="font-semibold text-procarni-dark whitespace-normal break-words"
+                              placeholder="Nombre"
+                            />
+                            {/* Alerta de Datos Críticos Faltantes (Estilo suave en Azul) */}
+                            {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
+                              <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-1" title="Falta RIF, Teléfono o Dirección">
+                                <Search className="h-3 w-3" /> Info incompleta
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell className="py-3 text-gray-600">{supplier.email || 'N/A'}</TableCell>
-                        <TableCell className={cn("py-3", supplier.phone ? '' : 'text-procarni-alert font-medium')}>
-                          {supplier.phone || (
-                            <span className="flex items-center">
-                              <AlertTriangle className="h-3 w-3 mr-1" /> Faltante
-                            </span>
-                          )}
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={isGenericRif(supplier.rif) ? '' : supplier.rif}
+                            onSave={(v) => handleInlineSave(supplier.id, 'rif', v)}
+                            displayClassName={isGenericRif(supplier.rif) ? 'text-procarni-alert font-medium' : ''}
+                            placeholder="RIF"
+                            renderDisplay={(v) => isGenericRif(supplier.rif) ? (
+                              <span className="flex items-center gap-1 text-procarni-alert">
+                                <AlertTriangle className="h-3 w-3" /> Faltante
+                              </span>
+                            ) : <span>{String(v)}</span>}
+                          />
                         </TableCell>
-                        <TableCell className="py-3">
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={supplier.email || ''}
+                            onSave={(v) => handleInlineSave(supplier.id, 'email', v)}
+                            type="email"
+                            displayClassName="text-gray-600"
+                            placeholder="Sin email"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <InlineEditableCell
+                            value={supplier.phone || ''}
+                            onSave={(v) => handleInlineSave(supplier.id, 'phone', v)}
+                            displayClassName={supplier.phone ? '' : 'text-procarni-alert font-medium'}
+                            placeholder="Teléfono"
+                            renderDisplay={(v) => !v ? (
+                              <span className="flex items-center gap-1 text-procarni-alert">
+                                <AlertTriangle className="h-3 w-3" /> Faltante
+                              </span>
+                            ) : <span>{String(v)}</span>}
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
                           <span className={cn("px-2 py-0.5 text-xs font-medium rounded-md border", getStatusBadgeClass(supplier.status))}>
                             {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right pr-4 py-3">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => { e.stopPropagation(); handleViewSupplier(supplier.id); }}
-                          >
+                        <TableCell className="text-right pr-4 py-2">
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewSupplier(supplier.id); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button
@@ -448,6 +581,7 @@ const SupplierManagement = () => {
                             size="icon"
                             onClick={(e) => { e.stopPropagation(); handleEditSupplier(supplier.id); }}
                             disabled={deleteMutation.isPending || isLoadingEditData}
+                            title="Editar completo"
                           >
                             {isLoadingEditData && editingSupplier?.id === supplier.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -475,6 +609,14 @@ const SupplierManagement = () => {
               No hay proveedores registrados o no se encontraron resultados para tu búsqueda.
             </div>
           )}
+          </div>
+          
+          <PaginationControls
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
 

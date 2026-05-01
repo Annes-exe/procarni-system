@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { QuoteRequest, QuoteRequestItem } from "@/integrations/supabase/types";
 
 export interface CreateQuoteRequestInput {
-    status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+    status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
     company_id: string;
     supplier_id: string;
     issue_date: string;
@@ -13,12 +13,15 @@ export interface CreateQuoteRequestInput {
 }
 
 export interface UpdateQuoteRequestInput {
-    status?: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+    status?: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
     company_id?: string;
     issue_date?: string;
     deadline_date?: string;
     observations?: string | null;
     currency?: 'USD' | 'VES';
+    last_sent_at?: string | null;
+    send_method?: string | null;
+    pdf_url?: string | null;
 }
 
 export interface CreateQuoteRequestItemInput {
@@ -136,7 +139,7 @@ export const quoteRequestService = {
         return newOrder;
     },
 
-    async update(id: string, orderData: UpdateQuoteRequestInput, items: CreateQuoteRequestItemInput[]) {
+    async update(id: string, orderData: UpdateQuoteRequestInput, items?: CreateQuoteRequestItemInput[]) {
         const { error: orderError } = await supabase
             .from('quote_requests')
             .update(orderData)
@@ -144,27 +147,29 @@ export const quoteRequestService = {
 
         if (orderError) throw orderError;
 
-        const { error: deleteError } = await supabase
-            .from('quote_request_items')
-            .delete()
-            .eq('request_id', id);
-
-        if (deleteError) throw deleteError;
-
-        if (items.length > 0) {
-            const itemsToInsert = items.map(item => ({
-                request_id: id,
-                material_id: item.material_id,
-                quantity: item.quantity,
-                unit: item.unit,
-                description: item.description,
-            }));
-
-            const { error: itemsError } = await supabase
+        if (items) {
+            const { error: deleteError } = await supabase
                 .from('quote_request_items')
-                .insert(itemsToInsert);
+                .delete()
+                .eq('request_id', id);
 
-            if (itemsError) throw itemsError;
+            if (deleteError) throw deleteError;
+
+            if (items.length > 0) {
+                const itemsToInsert = items.map(item => ({
+                    request_id: id,
+                    material_id: item.material_id,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    description: item.description,
+                }));
+
+                const { error: itemsError } = await supabase
+                    .from('quote_request_items')
+                    .insert(itemsToInsert);
+
+                if (itemsError) throw itemsError;
+            }
         }
 
         // Create Notification
@@ -185,7 +190,7 @@ export const quoteRequestService = {
         return true;
     },
 
-    async updateStatus(id: string, status: 'Draft' | 'Approved' | 'Rejected' | 'Archived') {
+    async updateStatus(id: string, status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived') {
         const { error } = await supabase
             .from('quote_requests')
             .update({ status })

@@ -44,7 +44,7 @@ const PriceHistory = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialSearchResult | null>(null);
-  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'VES'>('USD'); // State for base currency (still needed for table display)
+  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD'); // State for base currency (still needed for table display)
 
   const { data: priceHistory, isLoading, error } = useQuery<PriceHistoryEntry[]>({
     queryKey: ['priceHistory', selectedMaterial?.id],
@@ -57,9 +57,9 @@ const PriceHistory = () => {
   };
 
   // Helper function to convert price to the base currency
-  const convertPriceToBase = (entry: PriceHistoryEntry, base: 'USD' | 'VES'): number | null => {
+  const convertPriceToBase = (entry: PriceHistoryEntry, base: 'USD' | 'VES' | 'EUR'): number | null => {
     const price = entry.unit_price;
-    const currency = entry.currency as 'USD' | 'VES';
+    const currency = entry.currency as 'USD' | 'VES' | 'EUR';
     const rate = entry.exchange_rate;
 
     if (currency === base) {
@@ -270,13 +270,14 @@ const PriceHistory = () => {
             </div>
             <div>
               <Label htmlFor="base-currency">Moneda Base de Comparación</Label>
-              <Select value={baseCurrency} onValueChange={(value) => setBaseCurrency(value as 'USD' | 'VES')}>
+              <Select value={baseCurrency} onValueChange={(value) => setBaseCurrency(value as 'USD' | 'VES' | 'EUR')}>
                 <SelectTrigger id="base-currency">
                   <SelectValue placeholder="Selecciona moneda" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="USD">USD (Dólares)</SelectItem>
                   <SelectItem value="VES">VES (Bolívares)</SelectItem>
+                  <SelectItem value="EUR">EUR (Euros)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

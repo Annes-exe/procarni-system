@@ -36,6 +36,11 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) {
       console.warn('[generate-qr-pdf] Unauthorized: Invalid user session');
@@ -75,6 +80,21 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // --- Update Print Date ---
+    const now = new Date().toISOString();
+    console.log(`[generate-qr-pdf] Updating print_date for ${requestId} to ${now}`);
+    const { error: updateError } = await supabaseAdmin
+      .from('quote_requests')
+      .update({ print_date: now })
+      .eq('id', requestId);
+
+    if (updateError) {
+      console.error('[generate-qr-pdf] CRITICAL: Could not update print_date:', updateError);
+    } else {
+      console.log('[generate-qr-pdf] print_date updated successfully');
+      request.print_date = now; // Update local object for PDF rendering
     }
 
     // --- Generación de PDF con pdf-lib ---
@@ -185,6 +205,9 @@ serve(async (req) => {
       y -= lineHeight * 2;
     }
 
+    // Add a small padding to avoid overlapping with company details
+    y -= 5;
+
     // Separator line (Red, 2pt)
     page.drawLine({
       start: { x: margin, y: y },
@@ -198,7 +221,13 @@ serve(async (req) => {
     drawText('SOLICITUD DE COTIZACIÓN', width / 2 - 100, y, { font: boldFont, size: 16, color: PROC_RED });
     y -= lineHeight * 2;
     drawText(`Nº: ${request.id.substring(0, 8)}`, width - margin - 100, y, { font: boldFont, size: 10 });
-    drawText(`Fecha: ${new Date(request.created_at).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight);
+    
+    const docDate = request.issue_date || request.created_at;
+    drawText(`Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight);
+    
+    if (request.print_date) {
+      drawText(`Fecha Impresión: ${new Date(request.print_date).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight * 2.5, { size: 8, color: DARK_GRAY });
+    }
     y -= lineHeight * 3;
 
     // --- Detalles del Proveedor ---

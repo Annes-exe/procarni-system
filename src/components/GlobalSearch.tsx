@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { searchService, SearchResult } from '@/integrations/supabase/services/searchService';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface GlobalSearchProps {
     open: boolean;
@@ -118,9 +120,33 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onOpenChange }) => {
                                             <span className="text-xs text-muted-foreground">{item.subtitle}</span>
                                         </div>
                                     </div>
-                                    <Badge variant="outline" className="text-[10px] uppercase ml-2">
-                                        {getTypeLabel(type)}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        {item.type === 'material' && (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-procarni-secondary hover:text-green-700 hover:bg-green-50 transition-colors"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleSelect(`/search-suppliers-by-material?query=${encodeURIComponent(item.title)}`);
+                                                            }}
+                                                        >
+                                                            <Truck className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="left">
+                                                        <p>Ver proveedores x material</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )}
+                                        <Badge variant="outline" className="text-[10px] uppercase">
+                                            {getTypeLabel(type)}
+                                        </Badge>
+                                    </div>
                                 </CommandItem>
                             ))}
                         </CommandGroup>
