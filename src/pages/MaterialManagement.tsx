@@ -292,39 +292,48 @@ const MaterialManagement = () => {
 
       {/* ActionBar para Multi-selección */}
       {selectedMaterialIds.length > 0 && (
-        <div className="bg-procarni-primary/5 border border-procarni-primary/20 rounded-lg p-3 mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-4">
-          <div className="text-sm font-medium text-procarni-dark">
-            <span className="font-bold">{selectedMaterialIds.length}</span> materiales seleccionados
+        <div className="mb-4 p-3 bg-procarni-primary/5 border border-procarni-primary/20 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="bg-procarni-primary text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shadow-sm">
+              {selectedMaterialIds.length}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-procarni-dark">Materiales seleccionados</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Acciones masivas disponibles</p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedMaterialIds([])}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X className="h-4 w-4 mr-1" />
-              Cancelar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-9 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 font-bold"
               onClick={() => setIsGroupModalOpen(true)}
-              className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10"
-              disabled={selectedMaterialIds.length < 1}
             >
               <Network className="h-4 w-4 mr-2" />
-              Asignar Grupo Base
+              Asignar Grupo
             </Button>
-            <Button
-              variant={selectedMaterialIds.length >= 2 ? "destructive" : "outline"}
-              size="sm"
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={cn(
+                "h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-bold",
+                selectedMaterialIds.length < 2 && "opacity-50 grayscale pointer-events-none"
+              )}
               onClick={() => setIsFusionModalOpen(true)}
               disabled={selectedMaterialIds.length < 2}
-              title={selectedMaterialIds.length < 2 ? "Selecciona al menos 2 materiales para fusionar" : "Fusionar materiales"}
             >
               <Combine className="h-4 w-4 mr-2" />
               Fusionar
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/5 font-medium px-2 lg:px-3"
+              onClick={() => setSelectedMaterialIds([])}
+              title="Cancelar Selección"
+            >
+              <X className="h-4 w-4 lg:mr-2" />
+              <span className="hidden lg:inline">Cancelar Selección</span>
             </Button>
           </div>
         </div>
@@ -478,7 +487,7 @@ const MaterialManagement = () => {
                         key={material.id} 
                         className={cn(
                           "hover:bg-gray-50/50 transition-colors cursor-pointer group",
-                          selectedMaterialIds.includes(material.id) && "bg-procarni-primary/5"
+                          selectedMaterialIds.includes(material.id) && "bg-procarni-primary/5 hover:bg-procarni-primary/10"
                         )}
                         onClick={() => toggleMaterialSelection(material.id)}
                       >
