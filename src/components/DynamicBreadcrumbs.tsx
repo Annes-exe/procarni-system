@@ -24,6 +24,7 @@ const routeMap: Record<string, { label: string; parent?: string }> = {
     '/quote-comparison': { label: 'Comparación de Precios' },
     '/quote-comparison-management': { label: 'Gestión de Comparaciones' },
     '/search-suppliers-by-material': { label: 'Búsqueda de Proveedores' },
+    '/group-management': { label: 'Gestión de Grupos', parent: '/settings' },
 };
 
 export const DynamicBreadcrumbs = () => {

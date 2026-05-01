@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllMaterials, updateMaterial } from '@/integrations/supabase/data';
+import { getAllMaterials, updateMaterial } from '@/integrations/supabase/services/materialService';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { Material } from '@/integrations/supabase/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,28 @@ const GroupManagement = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, parentId }: { id: string, parentId: string | null }) => {
-      return await updateMaterial(id, { base_material_id: parentId });
+      const childMaterial = materials.find(m => m.id === id);
+      const parentMaterial = materials.find(m => m.id === parentId);
+      
+      const res = await updateMaterial(id, { base_material_id: parentId });
+      
+      if (res) {
+        const action = parentId ? 'GROUP_ADD' : 'GROUP_REMOVE';
+        const description = parentId 
+          ? `Material "${childMaterial?.name}" agregado al grupo de "${parentMaterial?.name}"`
+          : `Material "${childMaterial?.name}" removido de su grupo jerárquico`;
+        
+        await logAudit(action, {
+          table: 'materials',
+          record_id: id,
+          description,
+          child_name: childMaterial?.name,
+          parent_name: parentMaterial?.name,
+          action_type: parentId ? 'join' : 'leave'
+        });
+      }
+      
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });

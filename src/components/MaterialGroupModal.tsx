@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateMaterial } from '@/integrations/supabase/data';
+import { updateMaterial } from '@/integrations/supabase/services/materialService';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError, showSuccess } from '@/utils/toast';
 import { Network } from 'lucide-react';
 import { Material } from '@/integrations/supabase/types';
@@ -38,9 +39,25 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
       const parentId = selectedParentId === 'none' ? null : selectedParentId;
       if (selectedParentId === '' ) throw new Error("Debes seleccionar una opción");
       
-      const promises = selectedIds.map(id => 
-        updateMaterial(id, { base_material_id: parentId })
-      );
+      const parentMaterial = materials.find(m => m.id === parentId);
+      
+      const promises = selectedIds.map(async (id) => {
+        const res = await updateMaterial(id, { base_material_id: parentId });
+        if (res) {
+          const childMaterial = materials.find(m => m.id === id);
+          const description = parentId 
+            ? `Material "${childMaterial?.name}" agrupado masivamente bajo "${parentMaterial?.name}"`
+            : `Material "${childMaterial?.name}" desagrupado masivamente`;
+          
+          await logAudit(parentId ? 'GROUP_ADD' : 'GROUP_REMOVE', {
+            table: 'materials',
+            record_id: id,
+            description,
+            is_mass_action: true
+          });
+        }
+        return res;
+      });
       await Promise.all(promises);
     },
     onSuccess: () => {
