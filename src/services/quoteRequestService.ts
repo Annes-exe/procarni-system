@@ -24,6 +24,7 @@ export interface UpdateQuoteRequestInput {
     pdf_url?: string | null;
 }
 
+export interface CreateQuoteRequestItemInput {
     material_id: string; // Linking to material is standard now
     material_name: string;
     quantity: number;
