@@ -138,7 +138,20 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 </Button>
               </div>
             </div>
-            <Input type="number" step="0.01" value={item.unit_price || ''} onChange={(e) => onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
+            <Input 
+              type="number" 
+              step="0.01" 
+              value={item.unit_price || ''} 
+              onChange={(e) => {
+                onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value));
+                if (item.was_recalculated) {
+                  onItemChange(index, 'was_recalculated', false);
+                }
+              }} 
+              className="h-9" 
+              placeholder="0" 
+              onWheel={(e) => e.currentTarget.blur()} 
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Desc %</label>
@@ -294,7 +307,12 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 <Input
                   type="number" step="0.01" min="0"
                   value={item.unit_price || ''}
-                  onChange={(e) => onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value));
+                    if (item.was_recalculated) {
+                      onItemChange(index, 'was_recalculated', false);
+                    }
+                  }}
                   className="h-9 pl-6 text-right font-semibold bg-gray-50/30 border-gray-200"
                   placeholder="0"
                   onWheel={(e) => e.currentTarget.blur()}
