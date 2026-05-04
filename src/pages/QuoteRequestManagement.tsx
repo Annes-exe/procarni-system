@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
+  'Sent': 'Enviada',
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
@@ -277,8 +278,9 @@ const QuoteRequestManagement = () => {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'Draft': return 'secondary'; // Yellow-ish usually handled by class, but badge variant 'secondary' is grey.
-      case 'Approved': return 'outline'; // Green usually
+      case 'Draft': return 'secondary';
+      case 'Sent': return 'outline';
+      case 'Approved': return 'outline';
       case 'Rejected': return 'destructive';
       case 'Archived': return 'outline';
       default: return 'secondary';
@@ -288,6 +290,7 @@ const QuoteRequestManagement = () => {
   const getStatusColorClass = (status: string) => {
     switch (status) {
       case 'Draft': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'Sent': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Approved': return 'bg-green-100 text-green-800 border-green-200';
       case 'Rejected': return 'bg-red-100 text-red-800 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-600 border-gray-200';

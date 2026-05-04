@@ -45,9 +45,9 @@ export const quoteRequestService = {
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
-            query = query.in('status', ['Draft']);
+            query = query.in('status', ['Draft', 'Sent', 'Approved']);
         } else if (statusFilter === 'History') {
-            query = query.in('status', ['Approved', 'Rejected', 'Archived']);
+            query = query.in('status', ['Rejected', 'Archived']);
         } else if (statusFilter === 'Rejected') {
             query = query.eq('status', 'Rejected');
         } else if (statusFilter) {
