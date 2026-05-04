@@ -212,8 +212,9 @@ const EditServiceOrder = () => {
                             supplier_code: mat.supplier_code || undefined,
                             unit: mat.unit || undefined,
                             description: mat.description || '',
-                            // @ts-ignore
-                            material_name: mat.materials?.name || '',
+                            // Use the historical name if available, fallback to relation name
+                            material_name: mat.material_name || mat.materials?.name || 'Material',
+                            was_recalculated: mat.was_recalculated || false,
                             sales_percentage: mat.sales_percentage || 0,
                             discount_percentage: mat.discount_percentage || 0,
                         });

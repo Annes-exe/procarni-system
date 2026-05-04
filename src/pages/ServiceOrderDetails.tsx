@@ -713,11 +713,17 @@ const ServiceOrderDetails = () => {
                   <div className="divide-y divide-gray-100">
                     {group.items.map((item: any) => (
                       <div key={item.id} className="p-4 bg-white">
-                        <div className="flex justify-between items-start mb-2">
-                          {/* @ts-ignore */}
-                          <span className="font-medium text-procarni-dark">{item.materials?.name || 'Material'}</span>
+                          <div className="flex flex-col gap-1">
+                            {/* @ts-ignore */}
+                            <span className="font-medium text-procarni-dark">{item.material_name || item.materials?.name || 'Material'}</span>
+                            {/* @ts-ignore */}
+                            {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
+                              <Badge variant="outline" className="w-fit text-[9px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                                Nuevo: {item.materials.name}
+                              </Badge>
+                            )}
+                          </div>
                           <span className="font-mono text-sm font-semibold">{order.currency} {(item.quantity * item.unit_price).toFixed(2)}</span>
-                        </div>
                         {item.description && <p className="text-xs text-gray-500 mb-2">{item.description}</p>}
                         <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
                           <div>
@@ -750,7 +756,13 @@ const ServiceOrderDetails = () => {
                           <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
                             <TableCell className="pl-6 py-4 text-sm">
                               {/* @ts-ignore */}
-                              <span className="font-medium text-procarni-dark block">{item.materials?.name || 'Material'}</span>
+                              <span className="font-medium text-procarni-dark block">{item.material_name || item.materials?.name || 'Material'}</span>
+                              {/* @ts-ignore */}
+                              {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
+                                <Badge variant="outline" className="mt-1 text-[10px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                                  Nuevo nombre: {item.materials.name}
+                                </Badge>
+                              )}
                               {item.description && <span className="text-xs text-gray-500 block mt-0.5">{item.description}</span>}
                             </TableCell>
                             <TableCell className="text-right font-mono text-sm text-gray-600">{item.quantity}</TableCell>

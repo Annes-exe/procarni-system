@@ -148,6 +148,7 @@ const EditPurchaseOrder = () => {
         tax_rate: item.tax_rate,
         is_exempt: item.is_exempt,
         unit: item.unit || 'KG',
+        was_recalculated: item.was_recalculated || false,
         description: item.description || '',
         sales_percentage: item.sales_percentage || 0,
         discount_percentage: item.discount_percentage || 0,

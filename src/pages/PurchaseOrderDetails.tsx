@@ -42,6 +42,10 @@ interface PurchaseOrderItem {
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
+  material_id?: string;
+  materials?: {
+    name: string;
+  };
 }
 
 interface SupplierDetails {
@@ -629,7 +633,14 @@ const PurchaseOrderDetails = () => {
                 return (
                   <div key={item.id} className="p-4 bg-white">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium text-procarni-dark">{item.material_name}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-procarni-dark">{item.material_name}</span>
+                        {item.materials?.name && item.materials.name !== item.material_name && (
+                          <Badge variant="outline" className="w-fit text-[9px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                            Nuevo: {item.materials.name}
+                          </Badge>
+                        )}
+                      </div>
                       <span className="font-mono text-sm font-semibold">{order.currency} {totals.total.toFixed(2)}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
@@ -667,6 +678,11 @@ const PurchaseOrderDetails = () => {
                     <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
                       <TableCell className="pl-6 py-4">
                         <span className="font-medium text-procarni-dark text-sm block">{item.material_name}</span>
+                        {item.materials?.name && item.materials.name !== item.material_name && (
+                          <Badge variant="outline" className="mt-1 text-[10px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                            Nuevo nombre: {item.materials.name}
+                          </Badge>
+                        )}
                         {item.description && (
                           <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
                         )}

@@ -114,7 +114,7 @@ export const purchaseOrderService = {
     getById: async (id: string): Promise<PurchaseOrder | null> => {
         const { data, error } = await supabase
             .from('purchase_orders')
-            .select('*, suppliers(*), companies(*), purchase_order_items(*)')
+            .select('*, suppliers(*), companies(*), purchase_order_items(*, materials(name))')
             .eq('id', id)
             .single();
 
