@@ -40,16 +40,21 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
+  const lastDisplayValueRef = useRef<string | undefined>(displayValue);
 
   // Update internal state if displayValue or selectedId changes from parent
   useEffect(() => {
-    if (displayValue) {
-      setQuery(displayValue);
-      // Synchronize selectedItem based on displayValue and selectedId
-      setSelectedItem({ id: selectedId || '', name: displayValue });
-    } else {
-      setQuery('');
-      setSelectedItem(null);
+    // Only update if displayValue actually changed from the outside
+    // to avoid resetting the query while the user is typing
+    if (displayValue !== lastDisplayValueRef.current) {
+      if (displayValue) {
+        setQuery(displayValue);
+        setSelectedItem({ id: selectedId || '', name: displayValue });
+      } else {
+        setQuery('');
+        setSelectedItem(null);
+      }
+      lastDisplayValueRef.current = displayValue;
     }
   }, [displayValue, selectedId]);
 
@@ -63,7 +68,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   const debouncedFetch = useCallback(async (searchQuery: string) => {
     try {
       const data = await fetchFunction(searchQuery);
-      setResults(data);
+      setResults(data || []);
     } catch (error) {
       console.error('Error fetching search results:', error);
       setResults([]);
@@ -75,15 +80,11 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
       clearTimeout(debounceTimeoutRef.current);
     }
 
-    // Only fetch if not disabled and query is present (or if we want default suggestions)
-    if (!disabled) {
+    if (!disabled && open) { // Only fetch if popover is open
       debounceTimeoutRef.current = setTimeout(() => {
-        // Si la consulta está vacía, cargamos todos los resultados (para el scroll)
         const fetchQuery = query.trim() === '' ? '' : query;
         debouncedFetch(fetchQuery);
       }, query.trim() === '' ? 0 : 300) as unknown as number;
-    } else {
-      setResults([]);
     }
 
     return () => {
@@ -91,11 +92,12 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
         clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [query, debouncedFetch, disabled]);
+  }, [query, debouncedFetch, disabled, open]);
 
   const handleSelect = (item: SearchResult) => {
     setSelectedItem(item);
     setQuery(item.name);
+    lastDisplayValueRef.current = item.name; // Mark as current to avoid effect trigger
     onSelect(item);
     setOpen(false);
   };
@@ -104,7 +106,10 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
     <Popover open={open && !disabled} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (newOpen) {
-        setQuery('');
+        // When opening, if we don't have a selection, clear query to show all
+        if (!selectedItem) {
+          setQuery('');
+        }
       }
     }}>
       <PopoverTrigger asChild>
@@ -124,31 +129,35 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             placeholder={placeholder}
             value={query}
             onValueChange={setQuery}
-            autoFocus={autoFocus}
+            autoFocus
           />
-          <CommandList className="max-h-60 overflow-y-auto"> {/* Added max-h-60 and overflow-y-auto */}
+          <CommandList className="max-h-60 overflow-y-auto">
             <CommandEmpty>No se encontraron resultados.</CommandEmpty>
             <CommandGroup>
               {results.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item.name}
+                  value={item.id} // Use ID as value for uniqueness
                   onSelect={() => handleSelect(item)}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      // Check if the current item being rendered matches the selected ID from the parent
-                      selectedId === item.id ? "opacity-100" : "opacity-0"
+                      selectedId === item.id || selectedItem?.id === item.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {item.name}
+                  <div className="flex flex-col">
+                    <span className="font-medium">{item.name}</span>
+                    {item.code && (
+                      <span className="text-[10px] text-muted-foreground uppercase">{item.code}</span>
+                    )}
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>
