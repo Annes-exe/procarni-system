@@ -33,7 +33,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   compact = false,
 }) => {
   const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
-  const [rateSource, setRateSource] = useState<'custom' | 'daily'>('custom');
+  const [rateSource, setRateSource] = useState<'custom' | 'daily'>('daily');
   const [isLoadingRate, setIsLoadingRate] = useState(false);
   const [isStale, setIsStale] = useState(false);
   const [history, setHistory] = useState<RateHistoryItem[]>([]);
@@ -281,7 +281,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
           <SelectValue placeholder="Selecciona fuente de tasa" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="daily" disabled={dailyRate === undefined}>
+          <SelectItem value="daily">
             Tasa oficial {dailyRate ? `(${dailyRate.toFixed(2)} VES/${baseCurrency})` : '(Cargando...)'}
           </SelectItem>
           <SelectItem value="custom">Tasa personalizada</SelectItem>

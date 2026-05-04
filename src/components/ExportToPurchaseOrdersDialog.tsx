@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, CalendarIcon, ArrowRight, Building, Truck, AlertTriangle, Link as LinkIcon } from 'lucide-react';
+import { Building, Truck, AlertTriangle, Link as LinkIcon, DollarSign, Loader2, CalendarIcon, ArrowRight } from 'lucide-react';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { getAllCompanies, createSupplierMaterialRelation } from '@/integrations/supabase/data';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +18,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import ExchangeRateInput from './ExchangeRateInput';
 
 interface QuoteEntry {
     supplierId: string;
@@ -77,6 +78,14 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
     // Form State
     const [companyId, setCompanyId] = useState<string>('');
     const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(undefined);
+    const [localExchangeRate, setLocalExchangeRate] = useState<number>(globalExchangeRate || 0);
+
+    // Sync local exchange rate when prop changes
+    useEffect(() => {
+        if (globalExchangeRate) {
+            setLocalExchangeRate(globalExchangeRate);
+        }
+    }, [globalExchangeRate]);
 
     // Grouped suppliers state
     const [supplierGroups, setSupplierGroups] = useState<SupplierGroup[]>([]);
@@ -233,7 +242,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                     supplier_id: group.supplierId,
                     company_id: companyId,
                     currency: orderCurrency,
-                    exchange_rate: orderCurrency === 'VES' ? globalExchangeRate || null : null,
+                    exchange_rate: localExchangeRate || null,
                     status: 'Draft' as const,
                     created_by: session.user.email || 'unknown',
                     user_id: session.user.id,
@@ -359,6 +368,22 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                 </PopoverContent>
                             </Popover>
                         </div>
+
+                        <div className="space-y-2 md:col-span-2 pt-2 border-t border-gray-100">
+                            <Label className="text-gray-700 font-semibold flex items-center mb-1">
+                                <DollarSign className="h-4 w-4 mr-2 text-procarni-secondary" />
+                                Tasa de Cambio (VES/USD)
+                            </Label>
+                            <ExchangeRateInput
+                                baseCurrency="USD"
+                                exchangeRate={localExchangeRate}
+                                onExchangeRateChange={(val) => setLocalExchangeRate(val)}
+                                compact={true}
+                            />
+                            <p className="text-[10px] text-muted-foreground italic">
+                                Esta tasa se aplicará a todas las órdenes generadas en esta sesión.
+                            </p>
+                        </div>
                     </div>
 
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4 px-1 flex items-center">
@@ -430,14 +455,14 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                         </div>
                                                         
                                                         {!isAssociated(group.supplierId, item.material.id) && (
-                                                            <div className="mt-2 flex items-center justify-between bg-amber-50 border border-amber-100 rounded px-2 py-1">
-                                                                <span className="text-[10px] text-amber-700 font-medium flex items-center gap-1">
-                                                                    <AlertTriangle className="h-3 w-3" /> No asociado
+                                                            <div className="mt-2 flex items-center justify-between bg-red-50 border border-red-100 rounded-md px-3 py-1.5 animate-pulse-subtle">
+                                                                <span className="text-[10px] text-red-700 font-bold flex items-center gap-1 uppercase tracking-tight">
+                                                                    <AlertTriangle className="h-3.5 w-3.5" /> No asociado
                                                                 </span>
                                                                 <Button 
                                                                     size="sm" 
-                                                                    variant="ghost" 
-                                                                    className="h-6 px-2 text-[10px] text-amber-800 hover:bg-amber-100 gap-1 font-bold"
+                                                                    variant="secondary" 
+                                                                    className="h-7 px-3 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1 font-bold shadow-sm border-none"
                                                                     onClick={(e) => {
                                                                         e.preventDefault();
                                                                         e.stopPropagation();
@@ -448,9 +473,11 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                                     {isAssociating === `${item.material.id}-${group.supplierId}` ? (
                                                                         <Loader2 className="h-3 w-3 animate-spin" />
                                                                     ) : (
-                                                                        <LinkIcon className="h-3 w-3" />
+                                                                        <>
+                                                                            <LinkIcon className="h-3 w-3" />
+                                                                            Vincular Material
+                                                                        </>
                                                                     )}
-                                                                    Vincular ahora
                                                                 </Button>
                                                             </div>
                                                         )}

@@ -10,6 +10,7 @@ export interface CreateQuoteRequestInput {
     deadline_date: string;
     observations?: string | null;
     currency: 'USD' | 'VES';
+    exchange_rate?: number | null;
 }
 
 export interface UpdateQuoteRequestInput {
@@ -19,6 +20,7 @@ export interface UpdateQuoteRequestInput {
     deadline_date?: string;
     observations?: string | null;
     currency?: 'USD' | 'VES';
+    exchange_rate?: number | null;
     last_sent_at?: string | null;
     send_method?: string | null;
     pdf_url?: string | null;

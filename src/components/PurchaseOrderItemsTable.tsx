@@ -161,20 +161,20 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 className="w-full"
               />
               {item.material_id && !associatedMaterialIds.has(item.material_id) && (
-                <div className="mt-1 flex items-center justify-between bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                  <div className="flex items-center gap-1.5 text-amber-700">
+                <div className="mt-1 flex items-center justify-between bg-red-50 border border-red-200 rounded-md px-2 py-1 animate-pulse-subtle">
+                  <div className="flex items-center gap-1.5 text-red-700">
                     <AlertTriangle className="h-3 w-3" />
-                    <span className="text-[10px] font-medium">No asociado al proveedor</span>
+                    <span className="text-[10px] font-bold uppercase tracking-tight">Sin asociar</span>
                   </div>
                   <Button 
                     size="sm" 
-                    variant="ghost" 
-                    className="h-5 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100 gap-1"
+                    variant="secondary" 
+                    className="h-6 px-2 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1 font-bold shadow-sm border-none"
                     onClick={() => handleAssociateMaterial(item.material_id!, item.material_name)}
                     disabled={isAssociating === item.material_id}
                   >
                     <Link className="h-3 w-3" />
-                    Asociar
+                    Vincular
                   </Button>
                 </div>
               )}
@@ -362,13 +362,13 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 {item.material_id && !associatedMaterialIds.has(item.material_id) && (
                   <Button 
                     size="sm" 
-                    variant="ghost" 
-                    className="w-full h-7 px-3 text-[10px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 gap-1.5 shadow-sm justify-start"
+                    variant="secondary" 
+                    className="w-full h-8 px-3 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1.5 shadow-md justify-center font-bold animate-pulse-subtle border-none mt-1"
                     onClick={() => handleAssociateMaterial(item.material_id!, item.material_name)}
                     disabled={isAssociating === item.material_id}
                   >
                     {isAssociating === item.material_id ? (
-                      <span className="h-3 w-3 animate-spin border-2 border-amber-700 border-t-transparent rounded-full" />
+                      <span className="h-3 w-3 animate-spin border-2 border-white border-t-transparent rounded-full" />
                     ) : (
                       <Link className="h-3 w-3" />
                     )}
