@@ -13,7 +13,8 @@ const SupplierService = {
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(10000); // Override default 1000 cap
 
     if (error) {
       console.error('[SupplierService.getAll] Error:', error);
@@ -245,7 +246,8 @@ const SupplierService = {
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
-        .order('name', { ascending: true }); // Removed limit(10)
+        .order('name', { ascending: true })
+        .limit(10000); // Removed limit(10) and ensured full access for suggestions
 
       if (error) {
         console.error('[SupplierService.search] Error fetching default suppliers:', error);
@@ -261,7 +263,7 @@ const SupplierService = {
       .from('suppliers')
       .select('*')
       .or(`name.ilike.%${sanitizedQuery}%,rif.ilike.%${sanitizedQuery}%`)
-      .limit(10);
+      .limit(100);
 
     if (error) {
       console.error('[SupplierService.search] Error:', error);

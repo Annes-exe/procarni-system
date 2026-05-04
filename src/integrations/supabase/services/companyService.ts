@@ -10,7 +10,8 @@ const CompanyService = {
     const { data, error } = await supabase
       .from('companies')
       .select('*')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(1000);
 
     if (error) {
       console.error('[CompanyService.getAll] Error:', error);
@@ -101,7 +102,8 @@ const CompanyService = {
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .order('name', { ascending: true }); // Removed limit(10)
+        .order('name', { ascending: true })
+        .limit(1000); // Removed limit(10)
 
       if (error) {
         console.error('[CompanyService.search] Error fetching default companies:', error);
@@ -117,7 +119,7 @@ const CompanyService = {
       .from('companies')
       .select('*')
       .or(`name.ilike.%${sanitizedQuery}%,rif.ilike.%${sanitizedQuery}%`)
-      .limit(10);
+      .limit(100);
 
     if (error) {
       console.error('[CompanyService.search] Error:', error);

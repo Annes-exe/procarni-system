@@ -112,7 +112,8 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
-        .order('name', { ascending: true });
+        .order('name', { ascending: true })
+        .limit(10000);
 
       if (error) {
         console.error('[MaterialService.search] Error fetching default materials:', error);
