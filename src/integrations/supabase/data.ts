@@ -107,7 +107,8 @@ export const searchSuppliersByMaterial = async (materialId: string, query: strin
       ),
       specification
     `)
-    .eq('material_id', materialId);
+    .eq('material_id', materialId)
+    .limit(10000);
 
   const { data: relations, error } = await selectQuery;
 
@@ -146,7 +147,8 @@ export const searchMaterialsBySupplier = async (supplierId: string, query: strin
   let selectQuery = supabase
     .from('supplier_materials')
     .select('materials:material_id(id, name, code, category, unit, is_exempt, search_aliases), specification')
-    .eq('supplier_id', supplierId);
+    .eq('supplier_id', supplierId)
+    .limit(10000);
 
   // Eliminamos el límite de 50 en la consulta a Supabase para obtener todos los asociados.
   const { data: relations, error } = await selectQuery;
