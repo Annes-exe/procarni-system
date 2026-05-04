@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator } from 'lucide-react';
+import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterialsBySupplier, getAllUnits } from '@/integrations/supabase/data';
+import { searchMaterialsBySupplier, getAllUnits, createSupplierMaterialRelation } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,6 +13,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useSession } from '@/components/SessionContextProvider';
+import { showSuccess, showError } from '@/utils/toast';
 
 interface PurchaseOrderItemForm {
   id?: string;
@@ -67,9 +69,22 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   showAddButton = true,
 }) => {
 
+  const { session } = useSession();
+  const userId = session?.user?.id;
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const isMobile = useIsMobile();
+  const [isAssociating, setIsAssociating] = useState<string | null>(null);
+
+  const { data: associatedMaterialIds = new Set<string>(), refetch: refetchAssociated } = useQuery({
+    queryKey: ['supplier_materials_ids', supplierId],
+    queryFn: async () => {
+      if (!supplierId) return new Set<string>();
+      const materials = await searchMaterialsBySupplier(supplierId, '');
+      return new Set<string>(materials.map(m => m.id));
+    },
+    enabled: !!supplierId,
+  });
 
   // Sincronizar items expandidos cuando cambia la longitud de la lista (como en Solicitudes de Cotización)
   React.useEffect(() => {
@@ -88,6 +103,29 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
   const handleMaterialAdded = (material: any) => {
     // Lógica post-creación
+    refetchAssociated();
+  };
+
+  const handleAssociateMaterial = async (materialId: string, materialName: string) => {
+    if (!userId || !supplierId || !materialId) return;
+
+    setIsAssociating(materialId);
+    try {
+      const result = await createSupplierMaterialRelation({
+        supplier_id: supplierId,
+        material_id: materialId,
+        user_id: userId
+      });
+
+      if (result.success) {
+        showSuccess(`Material "${materialName}" asociado exitosamente.`);
+        await refetchAssociated();
+      }
+    } catch (error) {
+      console.error("Error associating material:", error);
+    } finally {
+      setIsAssociating(null);
+    }
   };
 
   const calculateItemTotals = (item: PurchaseOrderItemForm) => {
@@ -112,15 +150,35 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         <div className="flex justify-between items-start border-b pb-3">
           <div className="w-[85%]">
             <label className="text-xs font-bold text-muted-foreground uppercase mb-1 block">Producto</label>
-            <SmartSearch
-              placeholder={supplierId ? "Buscar material..." : "Selecciona prov."}
-              onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
-              fetchFunction={searchSupplierMaterials}
-              displayValue={item.material_name}
-              selectedId={item.material_id}
-              disabled={!supplierId}
-              className="w-full"
-            />
+            <div className="relative">
+              <SmartSearch
+                placeholder={supplierId ? "Buscar material..." : "Selecciona prov."}
+                onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
+                fetchFunction={searchSupplierMaterials}
+                displayValue={item.material_name}
+                selectedId={item.material_id}
+                disabled={!supplierId}
+                className="w-full"
+              />
+              {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                <div className="mt-1 flex items-center justify-between bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  <div className="flex items-center gap-1.5 text-amber-700">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span className="text-[10px] font-medium">No asociado al proveedor</span>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-5 px-1.5 text-[10px] text-amber-800 hover:bg-amber-100 gap-1"
+                    onClick={() => handleAssociateMaterial(item.material_id!, item.material_name)}
+                    disabled={isAssociating === item.material_id}
+                  >
+                    <Link className="h-3 w-3" />
+                    Asociar
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <Button variant="ghost" size="icon" onClick={() => onRemoveItem(index)} className="text-destructive h-8 w-8 -mr-2">
             <Trash2 className="h-5 w-5" />
@@ -238,11 +296,22 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         <AccordionTrigger className="px-5 py-3 hover:bg-gray-50/50 hover:no-underline data-[state=open]:bg-gray-50/80 data-[state=open]:border-b">
           <div className="flex justify-between items-center w-full pr-6">
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className={`h-8 w-1 rounded-full ${item.material_name ? 'bg-procarni-primary' : 'bg-gray-300'}`}></div>
+              <div className={`h-8 w-1 rounded-full ${
+                !item.material_id ? 'bg-gray-300' : 
+                associatedMaterialIds.has(item.material_id) ? 'bg-procarni-primary' : 'bg-amber-500'
+              }`}></div>
               <div className="flex flex-col items-start text-left min-w-0">
-                <span className={`font-semibold text-sm truncate max-w-[400px] ${!item.material_name && 'text-muted-foreground italic'}`}>
-                  {item.material_name || "Seleccionar ítem..."}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-semibold text-sm truncate max-w-[400px] ${!item.material_name && 'text-muted-foreground italic'}`}>
+                    {item.material_name || "Seleccionar ítem..."}
+                  </span>
+                  {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                    <Badge variant="outline" className="h-4 text-[9px] bg-amber-50 text-amber-700 border-amber-200 gap-1 px-1">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      Sin asociar
+                    </Badge>
+                  )}
+                </div>
                 {item.material_name && (
                   <div className="flex gap-2 text-[10px] text-muted-foreground">
                     {item.quantity > 0 && <span>{item.quantity} {item.unit}</span>}
@@ -270,19 +339,43 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* Col 1-4: BUSCADOR DIRECTO (Reemplaza Lupa) */}
             <div className="col-span-4 space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-                Producto / Material
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex justify-between items-center">
+                <span>Producto / Material</span>
+                {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                  <span className="text-amber-600 flex items-center gap-1 normal-case font-medium">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    No asociado
+                  </span>
+                )}
               </label>
-              <SmartSearch
-                placeholder={supplierId ? "Escribe para buscar..." : "Selecciona prov."}
-                onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
-                fetchFunction={searchSupplierMaterials}
-                displayValue={item.material_name}
-                selectedId={item.material_id}
-                disabled={!supplierId}
-                className="w-full h-9 bg-white border-gray-200"
-                icon={<Search className="h-4 w-4 text-gray-400" />}
-              />
+              <div className="space-y-2">
+                <SmartSearch
+                  placeholder={supplierId ? "Escribe para buscar..." : "Selecciona prov."}
+                  onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
+                  fetchFunction={searchSupplierMaterials}
+                  displayValue={item.material_name}
+                  selectedId={item.material_id}
+                  disabled={!supplierId}
+                  className={`w-full h-9 bg-white ${item.material_id && !associatedMaterialIds.has(item.material_id) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
+                  icon={<Search className="h-4 w-4 text-gray-400" />}
+                />
+                {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="w-full h-7 px-3 text-[10px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 gap-1.5 shadow-sm justify-start"
+                    onClick={() => handleAssociateMaterial(item.material_id!, item.material_name)}
+                    disabled={isAssociating === item.material_id}
+                  >
+                    {isAssociating === item.material_id ? (
+                      <span className="h-3 w-3 animate-spin border-2 border-amber-700 border-t-transparent rounded-full" />
+                    ) : (
+                      <Link className="h-3 w-3" />
+                    )}
+                    Vincular material al proveedor
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Col 5-6: Cantidad */}

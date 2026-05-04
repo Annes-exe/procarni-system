@@ -2,11 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, CalendarIcon, ArrowRight, Building, Truck } from 'lucide-react';
+import { Loader2, CalendarIcon, ArrowRight, Building, Truck, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
-import { getAllCompanies } from '@/integrations/supabase/data';
+import { getAllCompanies, createSupplierMaterialRelation } from '@/integrations/supabase/data';
+import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -69,6 +71,8 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
 }) => {
     const { session } = useSession();
     const [isExporting, setIsExporting] = useState(false);
+    const [isAssociating, setIsAssociating] = useState<string | null>(null); // materialId-supplierId
+    const queryClient = useQueryClient();
 
     // Form State
     const [companyId, setCompanyId] = useState<string>('');
@@ -112,8 +116,56 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
             }
         });
 
-        setSupplierGroups(Array.from(groupsMap.values()));
+    setSupplierGroups(Array.from(groupsMap.values()));
     }, [isOpen, comparisonResults]);
+
+    // Fetch all associations for these suppliers and materials to show warnings
+    const supplierIds = useMemo(() => supplierGroups.map(g => g.supplierId), [supplierGroups]);
+    
+    const { data: associations, isLoading: isLoadingAssociations } = useQuery({
+        queryKey: ['supplierMaterialsMulti', supplierIds],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('supplier_materials')
+                .select('supplier_id, material_id')
+                .in('supplier_id', supplierIds);
+            
+            if (error) throw error;
+            return data;
+        },
+        enabled: isOpen && supplierIds.length > 0
+    });
+
+    const isAssociated = (supplierId: string, materialId: string) => {
+        if (!associations) return true; // Assume true while loading to avoid flickering
+        return associations.some(a => a.supplier_id === supplierId && a.material_id === materialId);
+    };
+
+    const handleAssociateSupplier = async (supplierId: string, materialId: string, supplierName: string) => {
+        if (!session?.user?.id || !materialId || !supplierId) return;
+
+        const assocKey = `${materialId}-${supplierId}`;
+        setIsAssociating(assocKey);
+        try {
+            const result = await createSupplierMaterialRelation({
+                supplier_id: supplierId,
+                material_id: materialId,
+                user_id: session.user.id
+            });
+
+            if (result.success) {
+                showSuccess(`Material asociado a ${supplierName}.`);
+                await queryClient.invalidateQueries({ queryKey: ['supplierMaterialsMulti'] });
+                // Also invalidate specific material queries if they exist elsewhere
+                await queryClient.invalidateQueries({ queryKey: ['suppliersByMaterial', materialId] });
+            }
+        } catch (error) {
+            console.error("Error associating supplier:", error);
+            showError("No se pudo asociar el material.");
+        } finally {
+            setIsAssociating(null);
+        }
+    };
 
     const toggleItemSelection = (supplierId: string, materialId: string) => {
         setSupplierGroups(prev => prev.map(group => {
@@ -150,6 +202,16 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
 
         if (groupsToProcess.length === 0) {
             showError('Debes seleccionar al menos un material para generar una orden.');
+            return;
+        }
+
+        // Check if any selected item is NOT associated
+        const unassociatedItems = groupsToProcess.flatMap(g => 
+            g.items.filter(i => i.selected && !isAssociated(g.supplierId, i.material.id))
+        );
+
+        if (unassociatedItems.length > 0) {
+            showError(`Hay ${unassociatedItems.length} materiales que no están asociados a sus proveedores. Por favor, vincúlalos antes de continuar.`);
             return;
         }
 
@@ -366,6 +428,32 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                                 )}
                                                             </div>
                                                         </div>
+                                                        
+                                                        {!isAssociated(group.supplierId, item.material.id) && (
+                                                            <div className="mt-2 flex items-center justify-between bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                                                                <span className="text-[10px] text-amber-700 font-medium flex items-center gap-1">
+                                                                    <AlertTriangle className="h-3 w-3" /> No asociado
+                                                                </span>
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    variant="ghost" 
+                                                                    className="h-6 px-2 text-[10px] text-amber-800 hover:bg-amber-100 gap-1 font-bold"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        handleAssociateSupplier(group.supplierId, item.material.id, group.supplierName);
+                                                                    }}
+                                                                    disabled={isAssociating === `${item.material.id}-${group.supplierId}`}
+                                                                >
+                                                                    {isAssociating === `${item.material.id}-${group.supplierId}` ? (
+                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                    ) : (
+                                                                        <LinkIcon className="h-3 w-3" />
+                                                                    )}
+                                                                    Vincular ahora
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </label>
                                             ))}

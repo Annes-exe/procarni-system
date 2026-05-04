@@ -8,13 +8,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle, Link } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getSuppliersByMaterial, getAllSuppliers } from '@/integrations/supabase/data';
+import { getSuppliersByMaterial, getAllSuppliers, createSupplierMaterialRelation } from '@/integrations/supabase/data';
 import ExchangeRateInput from './ExchangeRateInput';
 import SupplierCreationDialog from './SupplierCreationDialog';
 import { isGenericRif } from '@/utils/validators';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
+import { useSession } from '@/components/SessionContextProvider';
+import { showSuccess, showError } from '@/utils/toast';
 
 interface MaterialSearchResult {
   id: string;
@@ -65,8 +67,12 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   onQuoteChange,
   onRemoveMaterial,
 }) => {
+  const { session } = useSession();
+  const userId = session?.user?.id;
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
+  const [isAssociating, setIsAssociating] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const { material, results, bestPrice } = comparisonData;
 
   // Fetch suppliers associated with this specific material ID
@@ -140,6 +146,28 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
 
     // Pass both ID and Name back to the parent
     onQuoteChange(materialId, quoteIndex, 'supplierId', supplierId, supplierName);
+  };
+
+  const handleAssociateSupplier = async (supplierId: string, supplierName: string) => {
+    if (!userId || !material.id || !supplierId) return;
+
+    setIsAssociating(supplierId);
+    try {
+      const result = await createSupplierMaterialRelation({
+        supplier_id: supplierId,
+        material_id: material.id,
+        user_id: userId
+      });
+
+      if (result.success) {
+        showSuccess(`Proveedor "${supplierName}" asociado al material.`);
+        await queryClient.invalidateQueries({ queryKey: ['suppliersByMaterial', material.id] });
+      }
+    } catch (error) {
+      console.error("Error associating supplier:", error);
+    } finally {
+      setIsAssociating(null);
+    }
   };
 
   // Sub-component for supplier selection to handle local popover state
@@ -311,20 +339,40 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                   )}
                   
                   {/* Row 1: Supplier and Delete Button */}
-                  <div className={cn("flex items-end gap-2", !isMobile ? "mb-3" : "mb-4")}>
-                    <div className="flex-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Proveedor</label>
-                      <SupplierSelector quote={quote} index={index} />
+                  <div className={cn("flex flex-col gap-2", !isMobile ? "mb-3" : "mb-4")}>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Proveedor</label>
+                        <SupplierSelector quote={quote} index={index} />
+                      </div>
+                      {results.length > 1 && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => onRemoveQuoteEntry(material.id, index)} 
+                          className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    {results.length > 1 && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => onRemoveQuoteEntry(material.id, index)} 
-                        className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    {quote.supplierId && !supplierOptions.associated.some(s => s.id === quote.supplierId) && (
+                      <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                        <div className="flex items-center gap-1.5 text-amber-700">
+                          <AlertTriangle className="h-3 w-3" />
+                          <span className="text-[10px] font-medium">No asociado</span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-6 px-2 text-[10px] text-amber-800 hover:bg-amber-100 gap-1"
+                          onClick={() => handleAssociateSupplier(quote.supplierId, quote.supplierName)}
+                          disabled={isAssociating === quote.supplierId}
+                        >
+                          {isAssociating === quote.supplierId ? <span className="h-3 w-3 animate-spin border-2 border-amber-700 border-t-transparent rounded-full" /> : <Link className="h-3 w-3" />}
+                          Vincular
+                        </Button>
+                      </div>
                     )}
                   </div>
 
@@ -495,7 +543,26 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       )}
                     >
                       <TableCell className="pl-3 sm:pl-4 py-3">
-                        <SupplierSelector quote={quote} index={index} />
+                        <div className="space-y-1.5">
+                          <SupplierSelector quote={quote} index={index} />
+                          {quote.supplierId && !supplierOptions.associated.some(s => s.id === quote.supplierId) && (
+                            <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded px-2 py-0.5">
+                              <span className="text-[9px] text-amber-700 font-medium flex items-center gap-1">
+                                <AlertTriangle className="h-2.5 w-2.5" /> No asociado
+                              </span>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-5 px-1.5 text-[9px] text-amber-800 hover:bg-amber-100 gap-1 font-bold"
+                                onClick={() => handleAssociateSupplier(quote.supplierId, quote.supplierName)}
+                                disabled={isAssociating === quote.supplierId}
+                              >
+                                {isAssociating === quote.supplierId ? <span className="h-2.5 w-2.5 animate-spin border border-amber-700 border-t-transparent rounded-full" /> : <Link className="h-2.5 w-2.5" />}
+                                Vincular
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="relative">
