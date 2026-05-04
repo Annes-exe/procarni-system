@@ -310,6 +310,7 @@ const GenerateQuoteRequest = () => {
 
       const formattedItems = items.map(item => ({
         material_id: item.material_id || '',
+        material_name: item.material_name,
         quantity: item.quantity,
         unit: item.unit,
         description: item.description,

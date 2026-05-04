@@ -24,8 +24,8 @@ export interface UpdateQuoteRequestInput {
     pdf_url?: string | null;
 }
 
-export interface CreateQuoteRequestItemInput {
     material_id: string; // Linking to material is standard now
+    material_name: string;
     quantity: number;
     unit: string;
     description?: string; // Optional override or additional info
@@ -110,6 +110,7 @@ export const quoteRequestService = {
             const itemsToInsert = items.map(item => ({
                 request_id: newOrder.id,
                 material_id: item.material_id,
+                material_name: item.material_name,
                 quantity: item.quantity,
                 unit: item.unit,
                 description: item.description,
@@ -159,6 +160,7 @@ export const quoteRequestService = {
                 const itemsToInsert = items.map(item => ({
                     request_id: id,
                     material_id: item.material_id,
+                    material_name: item.material_name,
                     quantity: item.quantity,
                     unit: item.unit,
                     description: item.description,

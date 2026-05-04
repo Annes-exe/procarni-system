@@ -90,7 +90,7 @@ const EditQuoteRequest = () => {
       const mappedItems = initialRequest.quote_request_items?.map(item => ({
         // We need an ID for internal react key if possible, but the form uses index primarily or internal id
         id: item.id,
-        material_name: item.materials?.name || 'Material Desconocido',
+        material_name: item.material_name || item.materials?.name || 'Material Desconocido',
         quantity: item.quantity,
         description: item.description || '',
         unit: item.unit || (units[0]?.name || ''),
@@ -215,6 +215,7 @@ const EditQuoteRequest = () => {
 
       const formattedItems = items.map(item => ({
         material_id: item.material_id || '', // Strict check again?
+        material_name: item.material_name,
         quantity: item.quantity,
         unit: item.unit,
         description: item.description,

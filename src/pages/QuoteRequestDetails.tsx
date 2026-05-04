@@ -523,8 +523,16 @@ const QuoteRequestDetails = () => {
                 {request.quote_request_items.map((item) => (
                   <div key={item.id} className="p-4 bg-white hover:bg-gray-50">
                     <div className="flex justify-between items-start mb-1">
-                      {/* @ts-ignore */}
-                      <p className="font-semibold text-procarni-primary text-sm">{item.materials?.name || item.material_name}</p>
+                      <div className="flex flex-col gap-1">
+                        {/* @ts-ignore */}
+                        <p className="font-semibold text-procarni-primary text-sm">{item.material_name || item.materials?.name || 'Material'}</p>
+                        {/* @ts-ignore */}
+                        {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
+                          <Badge variant="outline" className="w-fit text-[9px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                            Nuevo: {item.materials.name}
+                          </Badge>
+                        )}
+                      </div>
                       <Badge variant="outline" className="ml-2 font-mono text-[10px]">{item.quantity} {item.unit}</Badge>
                     </div>
                     {item.description && (
@@ -549,8 +557,14 @@ const QuoteRequestDetails = () => {
                       <TableCell className="pl-6 py-4">
                         <span className="font-medium text-procarni-dark text-sm block">
                           {/* @ts-ignore */}
-                          {item.materials?.name || item.material_name}
+                          {item.material_name || item.materials?.name || 'Material'}
                         </span>
+                        {/* @ts-ignore */}
+                        {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
+                          <Badge variant="outline" className="mt-1 text-[10px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                            Nuevo nombre: {item.materials.name}
+                          </Badge>
+                        )}
                         {item.description && (
                           <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
                         )}
