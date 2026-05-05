@@ -193,7 +193,8 @@ const QuoteComparison = () => {
             unitPrice: 0,
             currency: globalInputCurrency,
             exchangeRate: globalInputCurrency === 'EUR' ? eurExchangeRate : exchangeRate,
-            unit_id: ''
+            unit_id: '',
+            unit_name: ''
           }]
         };
       }
@@ -272,7 +273,10 @@ const QuoteComparison = () => {
               // We check both unit_id and unit (name) to differentiate presentations even if ID is missing
               const hasQuoteAlready = matComp.quotes.some(q => 
                 q.supplierId === req.supplier_id && 
-                (q.unit_id === unitId || (unitId === '' && q.unit_name === item.unit))
+                (
+                  (unitId && q.unit_id === unitId) || 
+                  (!unitId && q.unit_name === item.unit)
+                )
               );
 
               if (!hasQuoteAlready) {
@@ -285,7 +289,8 @@ const QuoteComparison = () => {
                     unitPrice: 0,
                     currency: globalInputCurrency,
                     exchangeRate: exchangeRate,
-                    unit_id: unitId
+                    unit_id: unitId,
+                    unit_name: item.unit // Store the imported unit name as fallback display
                   }]
                 };
               }

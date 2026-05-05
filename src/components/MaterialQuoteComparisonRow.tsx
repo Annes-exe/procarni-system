@@ -107,9 +107,9 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     }
   };
 
-  const isAssociated = (materialId: string, supplierId: string) => {
+  const isAssociated = (materialId: string, supplierId: string, unitId?: string) => {
     if (!associatedSuppliers) return true;
-    return associatedSuppliers.some(s => s.id === supplierId);
+    return associatedSuppliers.some(s => s.id === supplierId && (!unitId || s.unit_id === unitId));
   };
 
   // Group quotes by supplier for the requested "subgroups" view
@@ -456,7 +456,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                                 </Select>
                               </div>
                               
-                              {quote.supplierId && !isAssociated(material.id, quote.supplierId) && (
+                              {quote.supplierId && !isAssociated(material.id, quote.supplierId, quote.unit_id) && (
                                 <Button
                                   variant="ghost"
                                   size="sm"

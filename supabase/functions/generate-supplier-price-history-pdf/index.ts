@@ -175,20 +175,19 @@ serve(async (req) => {
 
     // --- Table Column Configuration (Adjusted for Landscape A4: ~780px width) ---
     const tableWidth = width - 2 * MARGIN; // Approx 780px
-    // Columns: Material, Cód. Material, Precio Unitario, Moneda, Tasa, Precio Convertido (USD), N° OC
-    // Total 7 columns.
     const colWidths = [
-      tableWidth * 0.30,  // 0. Material (30%)
-      tableWidth * 0.10,  // 1. Cód. Material (10%) - REDUCED
-      tableWidth * 0.12,  // 2. Precio Unitario (12%)
-      tableWidth * 0.08,  // 3. Moneda (8%) - REDUCED
-      tableWidth * 0.12,  // 4. Tasa (12%)
-      tableWidth * 0.18,  // 5. Precio Convertido (USD) (18%) - INCREASED
-      tableWidth * 0.10,  // 6. N° OC (10%)
+      tableWidth * 0.28,  // 0. Material
+      tableWidth * 0.10,  // 1. Cód. Mat.
+      tableWidth * 0.08,  // 2. Unidad
+      tableWidth * 0.10,  // 3. P. Unit.
+      tableWidth * 0.08,  // 4. Moneda
+      tableWidth * 0.10,  // 5. Tasa
+      tableWidth * 0.14,  // 6. Precio (USD)
+      tableWidth * 0.12,  // 7. N° OC
     ];
     const colHeaders = [
-      'Material', 'Cód. Mat.', 'P. Unit.', 'Moneda', 'Tasa (USD/VES)',
-      'Precio Convertido (USD)', 'N° Orden Compra'
+      'Material', 'Cód. Mat.', 'Unidad', 'P. Unit.', 'Moneda', 'Tasa',
+      'Precio (USD)', 'N° Orden Compra'
     ];
 
     const drawTableHeader = (state: PDFState): PDFState => {
@@ -319,24 +318,28 @@ serve(async (req) => {
         }
         currentX += colWidths[0];
 
-        // 1. Cód. Material (Right Aligned)
-        drawCellData(entry.materials?.code || 'N/A', 1, true);
+        // 1. Cód. Mat. (Left Aligned)
+        drawCellData(entry.materials?.code || 'N/A', 1);
 
-        // 2. Precio Unitario (Right Aligned)
-        drawCellData(entry.unit_price.toFixed(2), 2, true);
+        // 2. Unidad (Left Aligned)
+        const unitDisplay = entry.unit || entry.materials?.unit || 'N/A';
+        drawCellData(unitDisplay, 2);
 
-        // 3. Moneda (Left Aligned)
-        drawCellData(entry.currency, 3);
+        // 3. P. Unit. (Right Aligned)
+        drawCellData(entry.unit_price.toFixed(2), 3, true);
 
-        // 4. Tasa (Right Aligned)
-        drawCellData(entry.exchange_rate ? entry.exchange_rate.toFixed(4) : 'N/A', 4, true);
+        // 4. Moneda (Left Aligned)
+        drawCellData(entry.currency, 4);
 
-        // 5. Precio Convertido (USD) (Right Aligned, Bold)
-        const convertedText = convertedPrice !== null ? `USD ${convertedPrice.toFixed(2)}` : 'N/A';
-        drawCellData(convertedText, 5, true, boldFont);
+        // 5. Tasa (Right Aligned)
+        drawCellData(entry.exchange_rate ? entry.exchange_rate.toFixed(4) : 'N/A', 5, true);
 
-        // 6. N° OC (Left Aligned)
-        drawCellData(orderNumber, 6);
+        // 6. Precio Convertido (USD) (Right Aligned, Bold)
+        const convertedText = convertedPrice !== null ? convertedPrice.toFixed(2) : 'N/A';
+        drawCellData(convertedText, 6, true, boldFont);
+
+        // 7. N° OC (Left Aligned)
+        drawCellData(orderNumber, 7);
 
         state.y = finalY; // Update Y position for the next row
       }
