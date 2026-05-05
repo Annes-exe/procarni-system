@@ -5,7 +5,7 @@ import { ArrowLeft, Search, TrendingUp, TrendingDown, DollarSign, Clock, Users }
 
 import { useNavigate } from 'react-router-dom';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterials, getPriceHistoryByMaterialId } from '@/integrations/supabase/data';
+import { searchMaterials, getPriceHistoryByMaterialId, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';

@@ -5,7 +5,7 @@ import { ArrowLeft, PlusCircle, Scale, Download, X, Loader2, RefreshCw, DollarSi
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterials, createQuoteComparison, updateQuoteComparison, getQuoteComparisonById } from '@/integrations/supabase/data';
+import { searchMaterials, createQuoteComparison, updateQuoteComparison, getQuoteComparisonById, getAllUnits } from '@/integrations/supabase/data';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
