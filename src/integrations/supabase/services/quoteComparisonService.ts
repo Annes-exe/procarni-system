@@ -15,6 +15,7 @@ interface QuoteComparisonPayload {
 interface QuoteComparisonItemPayload {
   material_id: string;
   material_name: string;
+  unit_id: string; // ADDED
   quotes: QuoteComparisonItem['quotes'];
 }
 
@@ -96,6 +97,7 @@ const QuoteComparisonService = {
         comparison_id: newComparison.id,
         material_id: item.material_id,
         material_name: item.material_name || 'Material sin nombre',
+        unit_id: item.unit_id,
         quotes: item.quotes,
       }));
 
@@ -160,6 +162,7 @@ const QuoteComparisonService = {
         comparison_id: id,
         material_id: item.material_id,
         material_name: item.material_name || 'Material sin nombre',
+        unit_id: item.unit_id,
         quotes: item.quotes,
       }));
 

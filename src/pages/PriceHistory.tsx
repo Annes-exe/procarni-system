@@ -21,12 +21,14 @@ interface MaterialSearchResult {
   name: string;
   code: string;
   category?: string;
+  unit_id?: string; // ADDED
 }
 
 interface PriceHistoryEntry {
   id: string;
   material_id: string;
   supplier_id: string;
+  unit_id: string; // ADDED
   unit_price: number;
   currency: string;
   exchange_rate?: number | null;
@@ -44,12 +46,18 @@ const PriceHistory = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialSearchResult | null>(null);
-  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD'); // State for base currency (still needed for table display)
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('all'); // NEW
+  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
 
   const { data: priceHistory, isLoading, error } = useQuery<PriceHistoryEntry[]>({
-    queryKey: ['priceHistory', selectedMaterial?.id],
-    queryFn: () => getPriceHistoryByMaterialId(selectedMaterial!.id),
+    queryKey: ['priceHistory', selectedMaterial?.id, selectedUnitId],
+    queryFn: () => getPriceHistoryByMaterialId(selectedMaterial!.id, selectedUnitId === 'all' ? undefined : selectedUnitId),
     enabled: !!selectedMaterial?.id,
+  });
+
+  const { data: allUnits } = useQuery({
+    queryKey: ['units'],
+    queryFn: () => import('@/integrations/supabase/data').then(m => m.getAllUnits()),
   });
 
   const handleMaterialSelect = (material: MaterialSearchResult) => {
@@ -132,6 +140,12 @@ const PriceHistory = () => {
       };
     });
   }, [priceHistory, baseCurrency]);
+
+  const availableUnits = useMemo(() => {
+    if (!priceHistory || !allUnits) return [];
+    const unitIds = Array.from(new Set(priceHistory.map(h => h.unit_id)));
+    return allUnits.filter(u => unitIds.includes(u.id));
+  }, [priceHistory, allUnits]);
 
   const isValidDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -269,15 +283,29 @@ const PriceHistory = () => {
               )}
             </div>
             <div>
-              <Label htmlFor="base-currency">Moneda Base de Comparación</Label>
+              <Label htmlFor="base-currency">Moneda Base</Label>
               <Select value={baseCurrency} onValueChange={(value) => setBaseCurrency(value as 'USD' | 'VES' | 'EUR')}>
                 <SelectTrigger id="base-currency">
-                  <SelectValue placeholder="Selecciona moneda" />
+                  <SelectValue placeholder="Moneda" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD (Dólares)</SelectItem>
-                  <SelectItem value="VES">VES (Bolívares)</SelectItem>
-                  <SelectItem value="EUR">EUR (Euros)</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="VES">VES</SelectItem>
+                  <SelectItem value="EUR">EUR</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="unit-filter">Presentación/Unidad</Label>
+              <Select value={selectedUnitId} onValueChange={setSelectedUnitId}>
+                <SelectTrigger id="unit-filter">
+                  <SelectValue placeholder="Todas las unidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las presentaciones</SelectItem>
+                  {availableUnits.map(unit => (
+                    <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -312,10 +340,11 @@ const PriceHistory = () => {
                   <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead>Proveedor</TableHead>
+                      <TableHead>Presentación</TableHead>
                       <TableHead>Precio Unitario</TableHead>
                       <TableHead>Moneda</TableHead>
-                      <TableHead>Tasa de Cambio</TableHead>
-                      <TableHead>Fecha Registro</TableHead>
+                      <TableHead>Tasa</TableHead>
+                      <TableHead>Fecha</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -333,12 +362,17 @@ const PriceHistory = () => {
                         }}
                       >
                         <TableCell>{entry.suppliers.name}</TableCell>
-                        <TableCell>{entry.unit_price.toFixed(2)}</TableCell>
-                        <TableCell>{entry.currency}</TableCell>
-                        <TableCell>{entry.exchange_rate ? entry.exchange_rate.toFixed(2) : 'N/A'}</TableCell>
                         <TableCell>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-procarni-secondary/10 text-procarni-secondary border border-procarni-secondary/20">
+                            {allUnits?.find(u => u.id === entry.unit_id)?.name || 'N/A'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-semibold">{entry.unit_price.toFixed(2)}</TableCell>
+                        <TableCell>{entry.currency}</TableCell>
+                        <TableCell>{entry.exchange_rate ? entry.exchange_rate.toFixed(2) : '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">
                           {entry.recorded_at && isValidDate(entry.recorded_at)
-                            ? format(new Date(entry.recorded_at), 'dd/MM/yyyy HH:mm')
+                            ? format(new Date(entry.recorded_at), 'dd/MM/yy HH:mm')
                             : 'N/A'}
                         </TableCell>
                       </TableRow>

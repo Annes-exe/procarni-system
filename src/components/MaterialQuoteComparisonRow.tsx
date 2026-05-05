@@ -41,7 +41,8 @@ interface QuoteEntry {
 
 interface ComparisonResult {
   material: MaterialSearchResult;
-  unit_id: string; // REQUIRED
+  unit_id: string; 
+  unit_name: string; // ADDED
   results: (QuoteEntry & { convertedPrice: number | null; isValid: boolean; error: string | null })[];
   bestPrice: number | null;
 }
@@ -75,16 +76,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   const queryClient = useQueryClient();
   const { material, results, bestPrice } = comparisonData;
 
-  // Fetch unit details to show the name
-  const { data: units } = useQuery({
-    queryKey: ['allUnits'],
-    queryFn: getAllUnits,
-  });
-
-  const unitName = useMemo(() => {
-    if (!units || !comparisonData.unit_id) return 'N/A';
-    return units.find(u => u.id === comparisonData.unit_id)?.name || 'N/A';
-  }, [units, comparisonData.unit_id]);
+  const unitName = comparisonData.unit_name || 'N/A';
 
   // Fetch suppliers associated with this specific material ID
   const { data: associatedSuppliers, isLoading: isLoadingAssociated } = useQuery<SupplierResult[]>({
@@ -319,8 +311,11 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
             <Tags className="h-5 w-5 text-procarni-primary" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-procarni-dark leading-tight">
-              {material.name} <span className="text-procarni-secondary ml-1">({unitName})</span>
+            <h3 className="text-lg font-bold text-procarni-dark leading-tight flex items-center gap-2">
+              {material.name} 
+              <span className="px-2 py-0.5 rounded-md bg-procarni-secondary/10 text-procarni-secondary text-[10px] font-bold border border-procarni-secondary/20 uppercase">
+                {unitName}
+              </span>
             </h3>
             <p className="text-xs font-mono text-muted-foreground mt-0.5">
               Ref: {material.code} | ID: {material.id.substring(0,8)}...

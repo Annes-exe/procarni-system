@@ -30,6 +30,9 @@ interface MaterialSearchResult {
   code: string;
   category?: string;
   unit?: string;
+  unit_id?: string; // ADDED
+  is_exempt?: boolean;
+  specification?: string;
 }
 
 interface QuoteEntry {
@@ -149,7 +152,7 @@ const QuoteComparison = () => {
     }
     
     // Use material's default unit if available
-    const unitId = (selectedMaterialToAdd as any).unit_id || '';
+    const unitId = selectedMaterialToAdd.unit_id || '';
 
     if (materialsToCompare.some(m => m.material.id === selectedMaterialToAdd.id && m.unit_id === unitId)) {
       showError('Este material con esta unidad ya está en la lista de comparación.');
@@ -453,17 +456,17 @@ const QuoteComparison = () => {
     return (
       <div className="space-y-8">
         {comparisonResults.map(materialComp => (
-          <Card key={materialComp.material.id} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 rounded-xl overflow-hidden bg-white">
+          <Card key={`${materialComp.material.id}-${materialComp.unit_id}`} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 rounded-xl overflow-hidden bg-white">
             <div className="p-0 sm:p-2">
               <MaterialQuoteComparisonRow
                 comparisonData={materialComp}
                 baseCurrency={comparisonBaseCurrency}
                 globalExchangeRate={exchangeRate}
                 globalEurRate={eurExchangeRate}
-                onAddQuoteEntry={() => handleAddQuoteEntry(materialComp.material.id, (materialComp as any).unit_id)}
-                onRemoveQuoteEntry={(index) => handleRemoveQuoteEntry(materialComp.material.id, (materialComp as any).unit_id, index)}
-                onQuoteChange={(index, field, value, supName) => handleQuoteChange(materialComp.material.id, (materialComp as any).unit_id, index, field, value, supName)}
-                onRemoveMaterial={() => handleRemoveMaterial(materialComp.material.id, (materialComp as any).unit_id)}
+                onAddQuoteEntry={() => handleAddQuoteEntry(materialComp.material.id, materialComp.unit_id)}
+                onRemoveQuoteEntry={(index) => handleRemoveQuoteEntry(materialComp.material.id, materialComp.unit_id, index)}
+                onQuoteChange={(index, field, value, supName) => handleQuoteChange(materialComp.material.id, materialComp.unit_id, index, field, value, supName)}
+                onRemoveMaterial={() => handleRemoveMaterial(materialComp.material.id, materialComp.unit_id)}
               />
             </div>
             {/* Individual PDF Download Button */}

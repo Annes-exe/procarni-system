@@ -288,7 +288,8 @@ serve(async (req) => {
 
     // --- Draw all comparison tables ---
     for (const comparison of comparisonResults) {
-      state = drawComparisonTable(state, `${comparison.material.name} (${comparison.material.code})`, comparison.results, comparison.bestPrice);
+      const materialTitle = `${comparison.material.name} (${comparison.material.code}) [${comparison.unit_name || 'N/A'}]`;
+      state = drawComparisonTable(state, materialTitle, comparison.results, comparison.bestPrice);
       state.y -= LINE_HEIGHT * 2; // Extra space between materials
     }
 
