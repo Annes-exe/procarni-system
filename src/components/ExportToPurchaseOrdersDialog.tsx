@@ -21,8 +21,6 @@ import { Badge } from '@/components/ui/badge';
 import ExchangeRateInput from './ExchangeRateInput';
 import { QuoteEntry, ComparisonResult } from '@/integrations/supabase/types';
 
-// Redundant interfaces removed, using shared ones from types.ts
-
 interface ExportToPurchaseOrdersDialogProps {
     isOpen: boolean;
     onClose: () => void;
@@ -32,7 +30,6 @@ interface ExportToPurchaseOrdersDialogProps {
     onExportSuccess: () => void;
 }
 
-// Data structure to hold the selected quotes mapped by Supplier
 interface SupplierGroup {
     supplierId: string;
     supplierName: string;
@@ -40,6 +37,7 @@ interface SupplierGroup {
         material: ComparisonResult['material'];
         quote: QuoteEntry;
         selected: boolean;
+        quantity: number;
     }[];
 }
 
@@ -52,9 +50,10 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
     onExportSuccess
 }) => {
     const { session } = useSession();
-    const [isExporting, setIsExporting] = useState(false);
-    const [isAssociating, setIsAssociating] = useState<string | null>(null); // materialId-supplierId
+    const [step, setStep] = useState(1);
     const queryClient = useQueryClient();
+    const [isExporting, setIsExporting] = useState(false);
+    const [isAssociating, setIsAssociating] = useState<string | null>(null);
 
     // Form State
     const [companyId, setCompanyId] = useState<string>('');
@@ -84,9 +83,6 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         const groupsMap = new Map<string, SupplierGroup>();
 
         comparisonResults.forEach(comp => {
-            // Find all winning quotes (matching best price for their specific unit)
-            // Or if bestPrice is global, find matches.
-            // Given the new logic, we pre-select the ones marked as isBest
             const winningQuotes = comp.results.filter(r => r.isBest && r.isValid);
 
             winningQuotes.forEach(winningQuote => {
@@ -101,15 +97,16 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                 groupsMap.get(winningQuote.supplierId)!.items.push({
                     material: comp.material,
                     quote: winningQuote,
-                    selected: true // Pre-select by default
+                    selected: true,
+                    quantity: 1
                 });
             });
         });
 
         setSupplierGroups(Array.from(groupsMap.values()));
+        setStep(1); 
     }, [isOpen, comparisonResults]);
 
-    // Fetch all associations for these suppliers and materials to show warnings
     const supplierIds = useMemo(() => supplierGroups.map(g => g.supplierId), [supplierGroups]);
     
     const { data: associations, isLoading: isLoadingAssociations } = useQuery({
@@ -126,9 +123,9 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         enabled: isOpen && supplierIds.length > 0
     });
 
-    const isAssociated = (supplierId: string, materialId: string) => {
-        if (!associations) return true; // Assume true while loading to avoid flickering
-        return associations.some(a => a.supplier_id === supplierId && a.material_id === materialId);
+    const isAssociated = (supplierId: string, materialId: string, unitId: string) => {
+        if (!associations) return true; 
+        return associations.some(a => a.supplier_id === supplierId && a.material_id === materialId && a.unit_id === unitId);
     };
 
     const handleAssociateSupplier = async (supplierId: string, materialId: string, unitId: string, supplierName: string) => {
@@ -147,7 +144,6 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
             if (result.success) {
                 showSuccess(`Material asociado a ${supplierName}.`);
                 await queryClient.invalidateQueries({ queryKey: ['supplierMaterialsMulti'] });
-                // Also invalidate specific material queries if they exist elsewhere
                 await queryClient.invalidateQueries({ queryKey: ['suppliersByMaterial', materialId] });
             }
         } catch (error) {
@@ -174,7 +170,23 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         }));
     };
 
-    const handleExportClick = async () => {
+    const updateItemQuantity = (supplierId: string, materialId: string, unitId: string, quantity: number) => {
+        setSupplierGroups(prev => prev.map(group => {
+            if (group.supplierId === supplierId) {
+                return {
+                    ...group,
+                    items: group.items.map(item =>
+                        (item.material.id === materialId && item.quote.unit_id === unitId)
+                            ? { ...item, quantity: isNaN(quantity) ? 0 : Math.max(0, quantity) }
+                            : item
+                    )
+                };
+            }
+            return group;
+        }));
+    };
+
+    const handleNextStep = () => {
         if (!companyId) {
             showError('Debes seleccionar una empresa de origen.');
             return;
@@ -188,17 +200,15 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
             return;
         }
 
-        // Filter to only include groups that have at least one selected item
-        const groupsToProcess = supplierGroups.filter(g => g.items.some(i => i.selected));
+        const selectedGroups = supplierGroups.filter(g => g.items.some(i => i.selected));
 
-        if (groupsToProcess.length === 0) {
+        if (selectedGroups.length === 0) {
             showError('Debes seleccionar al menos un material para generar una orden.');
             return;
         }
 
-        // Check if any selected item is NOT associated
-        const unassociatedItems = groupsToProcess.flatMap(g => 
-            g.items.filter(i => i.selected && !isAssociated(g.supplierId, i.material.id))
+        const unassociatedItems = selectedGroups.flatMap(g =>
+            g.items.filter(i => i.selected && !isAssociated(g.supplierId, i.material.id, i.quote.unit_id))
         );
 
         if (unassociatedItems.length > 0) {
@@ -206,20 +216,20 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
             return;
         }
 
+        setStep(2);
+    };
+
+    const handleExportClick = async () => {
         setIsExporting(true);
 
         try {
             let successCount = 0;
+            const groupsToProcess = supplierGroups.filter(g => g.items.some(i => i.selected));
 
             for (const group of groupsToProcess) {
                 const selectedItems = group.items.filter(i => i.selected);
-
-                // Find if this group requires VES (if any quote is in VES) to set the order currency appropriately
-                // Or default to USD if mixed, but let's just use the quote's native currency for the order if possible.
-                // For simplicity, we create the order in USD if mixed, or the native one if uniform.
                 const orderCurrency = selectedItems.every(i => i.quote.currency === 'VES') ? 'VES' : 'USD';
 
-                // Prepare Order Data
                 const orderData = {
                     supplier_id: group.supplierId,
                     company_id: companyId,
@@ -228,15 +238,13 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                     status: 'Draft' as const,
                     created_by: session.user.email || 'unknown',
                     user_id: session.user.id,
-                    delivery_date: format(deliveryDate, 'yyyy-MM-dd'),
-                    payment_terms: 'Contado', // Default
+                    delivery_date: format(deliveryDate!, 'yyyy-MM-dd'),
+                    payment_terms: 'Contado',
                     credit_days: 0,
                     observations: 'Generada automáticamente desde Comparación de Cotizaciones.',
                 };
 
-                // Prepare Items Data
                 const itemsData = selectedItems.map(item => {
-                    // If order is USD but quote was VES, we need the converted price
                     let finalPrice = item.quote.unitPrice;
                     if (orderCurrency === 'USD' && item.quote.currency === 'VES') {
                         finalPrice = item.quote.convertedPrice || 0;
@@ -245,9 +253,9 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                     return {
                         material_id: item.material.id,
                         material_name: item.material.name,
-                        quantity: 1, // Default quantity, user will adjust in PO draft
+                        quantity: item.quantity || 1,
                         unit_price: finalPrice,
-                        tax_rate: 0.16, // Default
+                        tax_rate: 0.16,
                         is_exempt: false,
                         unit: item.quote.unit_name || 'UND',
                         description: '',
@@ -274,18 +282,15 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         }
     };
 
-    // Reset state when modal opens
     useEffect(() => {
         if (isOpen) {
-            setDeliveryDate(new Date()); // Default to today
-            // Find default company if only 1 exists
+            setDeliveryDate(new Date());
             if (companies && companies.length === 1 && !companyId) {
                 setCompanyId(companies[0].id);
             }
         }
     }, [isOpen, companies]);
 
-    // Calculate total selected items for the generate button
     const totalSelectedItems = supplierGroups.reduce((total, group) => {
         return total + group.items.filter(i => i.selected).length;
     }, 0);
@@ -297,9 +302,13 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
             <DialogContent className="w-[95vw] sm:max-w-[800px] h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col p-0 sm:p-4 overflow-hidden bg-gray-50 rounded-2xl border-none shadow-2xl">
                 <DialogHeader className="text-left bg-white p-4 mx-0 sm:mx-2 mt-0 sm:mt-2 rounded-none sm:rounded-xl shadow-sm border-b sm:border border-gray-100 relative shrink-0">
                     <div className="hidden sm:block absolute top-0 left-0 w-1 rounded-l-xl h-full bg-procarni-secondary/80"></div>
-                    <DialogTitle className="text-lg sm:text-xl font-bold text-procarni-dark sm:pl-2">Generar Órdenes de Compra</DialogTitle>
+                    <DialogTitle className="text-lg sm:text-xl font-bold text-procarni-dark sm:pl-2">
+                        Generar Órdenes de Compra - Paso {step} de 2
+                    </DialogTitle>
                     <DialogDescription className="text-sm sm:pl-2 mt-1">
-                        El sistema ha preseleccionado los precios más bajos. Revisa la distribución y proporciona los datos de la orden antes de generarlas en estado Borrador.
+                        {step === 1 
+                            ? "Selecciona los materiales y proveedores para generar las órdenes."
+                            : "Define las cantidades a comprar para cada ítem seleccionado."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -369,131 +378,202 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                         </div>
                     </div>
 
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4 px-1 flex items-center">
-                        <span className="bg-gray-200 h-px flex-1 mr-4"></span>
-                        Materiales asignados por Proveedor
-                        <span className="bg-gray-200 h-px flex-1 ml-4"></span>
-                    </h3>
+                    {step === 1 ? (
+                        <>
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4 px-1 flex items-center">
+                                <span className="bg-gray-200 h-px flex-1 mr-4"></span>
+                                Materiales asignados por Proveedor
+                                <span className="bg-gray-200 h-px flex-1 ml-4"></span>
+                            </h3>
 
-                    {supplierGroups.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
-                            <Truck className="h-10 w-10 mx-auto text-gray-300 mb-3" />
-                            <p className="font-medium text-gray-900">No hay precios ganadores</p>
-                            <p className="text-xs mt-1">No se encontraron precios ganadores válidos en la comparación actual.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6 pb-2">
-                            {supplierGroups.map(group => {
-                                const hasSelected = group.items.some(i => i.selected);
+                            {supplierGroups.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+                                    <Truck className="h-10 w-10 mx-auto text-gray-300 mb-3" />
+                                    <p className="font-medium text-gray-900">No hay precios ganadores</p>
+                                    <p className="text-xs mt-1">No se encontraron precios ganadores válidos en la comparación actual.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6 pb-2">
+                                    {supplierGroups.map(group => {
+                                        const hasSelected = group.items.some(i => i.selected);
 
-                                return (
-                                    <div key={group.supplierId} className={cn(
-                                        "bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-200 group",
-                                        hasSelected ? "border-procarni-secondary/30 ring-1 ring-procarni-secondary/10" : "border-gray-200 opacity-60"
-                                    )}>
-                                        <div className="bg-gray-50/80 px-4 py-3 border-b flex justify-between items-center">
-                                            <div className="flex items-center gap-2">
-                                                <Building className="h-4 w-4 text-gray-500" />
-                                                <h4 className="font-semibold text-procarni-dark">{group.supplierName}</h4>
-                                            </div>
-                                            <Badge variant={hasSelected ? "secondary" : "outline"} className={cn(
-                                                hasSelected ? "bg-procarni-secondary/10 text-procarni-secondary hover:bg-procarni-secondary/20" : ""
+                                        return (
+                                            <div key={group.supplierId} className={cn(
+                                                "bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-200 group",
+                                                hasSelected ? "border-procarni-secondary/30 ring-1 ring-procarni-secondary/10" : "border-gray-200 opacity-60"
                                             )}>
-                                                {group.items.filter(i => i.selected).length} ítems
-                                            </Badge>
-                                        </div>
-                                        <div className="divide-y divide-gray-100">
-                                            {group.items.map((item) => (
-                                                <label
-                                                    key={`${item.material.id}-${item.quote.unit_id}`}
-                                                    className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer hover:bg-gray-50/80 transition-colors"
-                                                >
-                                                    <div className="mt-0.5 shrink-0">
-                                                        <Checkbox
-                                                            checked={item.selected}
-                                                            onCheckedChange={() => toggleItemSelection(group.supplierId, item.material.id, item.quote.unit_id)}
-                                                            className="data-[state=checked]:bg-procarni-secondary data-[state=checked]:border-procarni-secondary h-4 w-4 sm:h-5 sm:w-5"
-                                                        />
+                                                <div className="bg-gray-50/80 px-4 py-3 border-b flex justify-between items-center">
+                                                    <div className="flex items-center gap-2">
+                                                        <Building className="h-4 w-4 text-gray-500" />
+                                                        <h4 className="font-semibold text-procarni-dark">{group.supplierName}</h4>
                                                     </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-4">
-                                                            <div className="min-w-0 flex-1">
-                                                                <p className="font-medium text-sm text-gray-900 truncate" title={item.material.name}>
-                                                                    {item.material.name} <span className="text-gray-400 font-normal">({item.quote.unit_name || 'N/A'})</span>
-                                                                </p>
-                                                                <p className="text-xs text-gray-500 font-mono mt-0.5 truncate">
-                                                                    Ref: {item.material.code}
-                                                                </p>
+                                                    <Badge variant={hasSelected ? "secondary" : "outline"} className={cn(
+                                                        hasSelected ? "bg-procarni-secondary/10 text-procarni-secondary hover:bg-procarni-secondary/20" : ""
+                                                    )}>
+                                                        {group.items.filter(i => i.selected).length} ítems
+                                                    </Badge>
+                                                </div>
+                                                <div className="divide-y divide-gray-100">
+                                                    {group.items.map((item) => (
+                                                        <label
+                                                            key={`${item.material.id}-${item.quote.unit_id}`}
+                                                            className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer hover:bg-gray-50/80 transition-colors"
+                                                        >
+                                                            <div className="mt-0.5 shrink-0">
+                                                                <Checkbox
+                                                                    checked={item.selected}
+                                                                    onCheckedChange={() => toggleItemSelection(group.supplierId, item.material.id, item.quote.unit_id)}
+                                                                    className="data-[state=checked]:bg-procarni-secondary data-[state=checked]:border-procarni-secondary h-4 w-4 sm:h-5 sm:w-5"
+                                                                />
                                                             </div>
-                                                            <div className="text-left sm:text-right shrink-0">
-                                                                <p className="font-bold text-sm text-procarni-secondary">
-                                                                    {item.quote.currency} {item.quote.unitPrice.toFixed(2)}
-                                                                </p>
-                                                                {item.quote.currency === 'VES' && item.quote.convertedPrice && (
-                                                                    <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 font-medium">
-                                                                        ≈ USD {item.quote.convertedPrice.toFixed(2)}
-                                                                    </p>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-4">
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="font-medium text-sm text-gray-900 truncate" title={item.material.name}>
+                                                                            {item.material.name} <span className="text-gray-400 font-normal">({item.quote.unit_name || 'N/A'})</span>
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-500 font-mono mt-0.5 truncate">
+                                                                            Ref: {item.material.code}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="text-left sm:text-right shrink-0">
+                                                                        <p className="font-bold text-sm text-procarni-secondary">
+                                                                            {item.quote.currency} {item.quote.unitPrice.toFixed(2)}
+                                                                        </p>
+                                                                        {item.quote.currency === 'VES' && item.quote.convertedPrice && (
+                                                                            <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 font-medium">
+                                                                                ≈ USD {item.quote.convertedPrice.toFixed(2)}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                {!isAssociated(group.supplierId, item.material.id, item.quote.unit_id) && (
+                                                                    <div className="mt-2 flex items-center justify-between bg-red-50 border border-red-100 rounded-md px-3 py-1.5 animate-pulse-subtle">
+                                                                        <span className="text-[10px] text-red-700 font-bold flex items-center gap-1 uppercase tracking-tight">
+                                                                            <AlertTriangle className="h-3.5 w-3.5" /> No asociado
+                                                                        </span>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="secondary" 
+                                                                            className="h-7 px-3 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1 font-bold shadow-sm border-none"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                handleAssociateSupplier(group.supplierId, item.material.id, item.quote.unit_id, group.supplierName);
+                                                                            }}
+                                                                            disabled={isAssociating === `${item.material.id}-${group.supplierId}-${item.quote.unit_id}`}
+                                                                        >
+                                                                            {isAssociating === `${item.material.id}-${group.supplierId}-${item.quote.unit_id}` ? (
+                                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            ) : (
+                                                                                <>
+                                                                                    <LinkIcon className="h-3 w-3" />
+                                                                                    Vincular Material
+                                                                                </>
+                                                                            )}
+                                                                        </Button>
+                                                                    </div>
                                                                 )}
                                                             </div>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="space-y-6">
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4 px-1 flex items-center">
+                                <span className="bg-gray-200 h-px flex-1 mr-4"></span>
+                                Ajustar Cantidades
+                                <span className="bg-gray-200 h-px flex-1 ml-4"></span>
+                            </h3>
+                            
+                            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                <table className="w-full text-sm text-left border-collapse">
+                                    <thead className="bg-gray-50 border-b">
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold text-gray-700">Material</th>
+                                            <th className="px-4 py-3 font-semibold text-gray-700">Proveedor</th>
+                                            <th className="px-4 py-3 font-semibold text-gray-700 w-32">Cantidad</th>
+                                            <th className="px-4 py-3 font-semibold text-gray-700 text-right">P. Unitario</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {supplierGroups.flatMap(group => 
+                                            group.items.filter(i => i.selected).map(item => (
+                                                <tr key={`${group.supplierId}-${item.material.id}-${item.quote.unit_id}`} className="hover:bg-gray-50/50 transition-colors">
+                                                    <td className="px-4 py-4">
+                                                        <div className="font-medium text-gray-900">{item.material.name}</div>
+                                                        <div className="text-xs text-gray-500">{item.quote.unit_name}</div>
+                                                    </td>
+                                                    <td className="px-4 py-4">
+                                                        <div className="text-gray-600">{group.supplierName}</div>
+                                                    </td>
+                                                    <td className="px-4 py-4">
+                                                        <input 
+                                                            type="number" 
+                                                            min="0.01" 
+                                                            step="0.01"
+                                                            value={item.quantity}
+                                                            onChange={(e) => updateItemQuantity(group.supplierId, item.material.id, item.quote.unit_id, parseFloat(e.target.value))}
+                                                            className="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-procarni-secondary/20 focus:border-procarni-secondary outline-none transition-all text-sm font-medium"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-4 text-right">
+                                                        <div className="font-bold text-procarni-secondary">
+                                                            {item.quote.currency} {item.quote.unitPrice.toFixed(2)}
                                                         </div>
-                                                        
-                                                        {!isAssociated(group.supplierId, item.material.id, item.quote.unit_id) && (
-                                                            <div className="mt-2 flex items-center justify-between bg-red-50 border border-red-100 rounded-md px-3 py-1.5 animate-pulse-subtle">
-                                                                <span className="text-[10px] text-red-700 font-bold flex items-center gap-1 uppercase tracking-tight">
-                                                                    <AlertTriangle className="h-3.5 w-3.5" /> No asociado
-                                                                </span>
-                                                                <Button 
-                                                                    size="sm" 
-                                                                    variant="secondary" 
-                                                                    className="h-7 px-3 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1 font-bold shadow-sm border-none"
-                                                                    onClick={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        handleAssociateSupplier(group.supplierId, item.material.id, item.quote.unit_id, group.supplierName);
-                                                                    }}
-                                                                    disabled={isAssociating === `${item.material.id}-${group.supplierId}`}
-                                                                >
-                                                                    {isAssociating === `${item.material.id}-${group.supplierId}` ? (
-                                                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                                                    ) : (
-                                                                        <>
-                                                                            <LinkIcon className="h-3 w-3" />
-                                                                            Vincular Material
-                                                                        </>
-                                                                    )}
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
-
                 </div>
 
                 <DialogFooter className="p-4 sm:px-6 bg-white sm:bg-transparent border-t border-gray-100 sm:border-none flex-col sm:flex-row gap-3 sm:gap-2 shrink-0">
-                    <Button variant="outline" onClick={onClose} disabled={isExporting} className="w-full sm:w-auto bg-white hover:bg-gray-50 transition-colors">
-                        Cancelar
-                    </Button>
-                    <Button
-                        onClick={handleExportClick}
-                        disabled={isExporting || totalSelectedItems === 0 || supplierGroups.length === 0}
-                        className="bg-procarni-secondary hover:bg-green-700 w-full sm:w-auto shadow-sm group transition-all"
+                    <Button 
+                        variant="outline" 
+                        onClick={step === 1 ? onClose : () => setStep(1)} 
+                        disabled={isExporting} 
+                        className="w-full sm:w-auto bg-white hover:bg-gray-50 transition-colors"
                     >
-                        {isExporting ? (
-                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generando...</>
-                        ) : (
-                            <><ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /> Generar {totalOrdersToGenerate} Órden{totalOrdersToGenerate !== 1 ? 'es' : ''}</>
-                        )}
+                        {step === 1 ? "Cancelar" : "Atrás"}
                     </Button>
+                    
+                    {step === 1 ? (
+                        <Button
+                            onClick={handleNextStep}
+                            disabled={totalSelectedItems === 0 || supplierGroups.length === 0}
+                            className="bg-procarni-secondary hover:bg-green-700 w-full sm:w-auto shadow-sm group transition-all"
+                        >
+                            <ArrowRight className="mr-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                            Continuar
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={handleExportClick}
+                            disabled={isExporting}
+                            className="bg-procarni-secondary hover:bg-green-700 w-full sm:w-auto shadow-sm group transition-all"
+                        >
+                            {isExporting ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generando...</>
+                            ) : (
+                                <><DollarSign className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" /> Generar {totalOrdersToGenerate} Órden{totalOrdersToGenerate !== 1 ? 'es' : ''}</>
+                            )}
+                        </Button>
+                    )}
                 </DialogFooter>
-            </DialogContent >
-        </Dialog >
+            </DialogContent>
+        </Dialog>
     );
 };
 
