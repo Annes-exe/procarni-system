@@ -26,6 +26,8 @@ interface MaterialSearchResult {
 
 interface ComparisonResult {
   material: MaterialSearchResult;
+  unit_id: string; 
+  unit_name?: string; // NEW
   results: (QuoteEntry & { convertedPrice: number | null; isValid: boolean; error: string | null })[];
   bestPrice: number | null;
 }

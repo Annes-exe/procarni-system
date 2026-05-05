@@ -42,6 +42,8 @@ interface QuoteEntry {
 
 interface MaterialComparison {
   material: MaterialSearchResult;
+  unit_id: string; // Grouping key
+  unit_name?: string;
   quotes: QuoteEntry[];
 }
 
@@ -68,13 +70,18 @@ const QuoteComparison = () => {
   const [isDirty, setIsDirty] = useState(false);
 
   const handleMaterialCreated = (material: Material & { specification?: string }) => {
-    // Check if it's already added
-    if (materialsToCompare.some(m => m.material.id === material.id)) {
-      showError('Este material ya está en la lista de comparación.');
+    const unitId = material.unit_id || '';
+    // Check if it's already added for this specific unit
+    if (materialsToCompare.some(m => m.material.id === material.id && m.unit_id === unitId)) {
+      showError('Este material con esta unidad ya está en la lista de comparación.');
     } else {
       setMaterialsToCompare(prev => [
         ...prev,
-        { material: { id: material.id, name: material.name, code: material.code || 'N/A' }, quotes: [] }
+        { 
+          material: { id: material.id, name: material.name, code: material.code || 'N/A' }, 
+          unit_id: unitId,
+          quotes: [] 
+        }
       ]);
       setIsDirty(true);
       showSuccess(`Material "${material.name}" añadido a la comparación.`);
@@ -103,6 +110,7 @@ const QuoteComparison = () => {
           name: item.material_name,
           code: item.materials?.code || 'N/A',
         },
+        unit_id: item.unit_id || '', // Load unit_id
         quotes: item.quotes,
       })) || [];
 
@@ -139,28 +147,32 @@ const QuoteComparison = () => {
       showError('Por favor, selecciona un material para añadir.');
       return;
     }
-    if (materialsToCompare.some(m => m.material.id === selectedMaterialToAdd.id)) {
-      showError('Este material ya está en la lista de comparación.');
+    
+    // Use material's default unit if available
+    const unitId = (selectedMaterialToAdd as any).unit_id || '';
+
+    if (materialsToCompare.some(m => m.material.id === selectedMaterialToAdd.id && m.unit_id === unitId)) {
+      showError('Este material con esta unidad ya está en la lista de comparación.');
       return;
     }
 
     setMaterialsToCompare(prev => [
       ...prev,
-      { material: selectedMaterialToAdd, quotes: [] }
+      { material: selectedMaterialToAdd, unit_id: unitId, quotes: [] }
     ]);
     setSelectedMaterialToAdd(null);
     setNewMaterialQuery('');
     setIsDirty(true);
   };
 
-  const handleRemoveMaterial = (materialId: string) => {
-    setMaterialsToCompare(prev => prev.filter(m => m.material.id !== materialId));
+  const handleRemoveMaterial = (materialId: string, unitId: string) => {
+    setMaterialsToCompare(prev => prev.filter(m => !(m.material.id === materialId && m.unit_id === unitId)));
     setIsDirty(true);
   };
 
-  const handleAddQuoteEntry = (materialId: string) => {
+  const handleAddQuoteEntry = (materialId: string, unitId: string) => {
     setMaterialsToCompare(prev => prev.map(m => {
-      if (m.material.id === materialId) {
+      if (m.material.id === materialId && m.unit_id === unitId) {
         return {
           ...m,
           quotes: [...m.quotes, {
@@ -177,9 +189,9 @@ const QuoteComparison = () => {
     setIsDirty(true);
   };
 
-  const handleRemoveQuoteEntry = (materialId: string, quoteIndex: number) => {
+  const handleRemoveQuoteEntry = (materialId: string, unitId: string, quoteIndex: number) => {
     setMaterialsToCompare(prev => prev.map(m => {
-      if (m.material.id === materialId) {
+      if (m.material.id === materialId && m.unit_id === unitId) {
         return {
           ...m,
           quotes: m.quotes.filter((_, i) => i !== quoteIndex)
@@ -202,12 +214,16 @@ const QuoteComparison = () => {
         items.forEach(item => {
           const matId = item.material_id || item.id;
           const matName = item.materials?.name || item.material_name || 'Desconocido';
+          const unitId = item.unit_id || '';
+          const compositeKey = `${matId}-${unitId}`;
 
-          if (!uniqueMaterialsMap.has(matId)) {
-            uniqueMaterialsMap.set(matId, {
+          if (!uniqueMaterialsMap.has(compositeKey)) {
+            // @ts-ignore - hacking the interface to carry unit_id
+            uniqueMaterialsMap.set(compositeKey, {
               id: matId,
               name: matName,
-              code: item.materials?.code || (item.material_id ? 'N/A' : 'Sin Código (Legado)')
+              code: item.materials?.code || (item.material_id ? 'N/A' : 'Sin Código (Legado)'),
+              unit_id: unitId
             });
           }
         });
@@ -221,8 +237,10 @@ const QuoteComparison = () => {
 
       // 2. Add any new materials that we don't already have in the comparison
       newMaterialsToAdd.forEach(newMat => {
-        if (!updatedMaterials.some(m => m.material.id === newMat.id)) {
-          updatedMaterials.push({ material: newMat, quotes: [] });
+        // @ts-ignore
+        const unitId = newMat.unit_id || '';
+        if (!updatedMaterials.some(m => m.material.id === newMat.id && m.unit_id === unitId)) {
+          updatedMaterials.push({ material: newMat, unit_id: unitId, quotes: [] });
         }
       });
 
@@ -234,10 +252,11 @@ const QuoteComparison = () => {
 
         items.forEach(item => {
           const matId = item.material_id || item.id;
+          const unitId = item.unit_id || '';
 
           updatedMaterials = updatedMaterials.map(matComp => {
-            if (matComp.material.id === matId) {
-              // Check if this supplier already has a quote entry for this material
+            if (matComp.material.id === matId && matComp.unit_id === unitId) {
+              // Check if this supplier already has a quote entry for this material-unit
               const hasSupplierAlready = matComp.quotes.some(q => q.supplierId === req.supplier_id);
 
               if (!hasSupplierAlready) {
@@ -267,9 +286,9 @@ const QuoteComparison = () => {
     showSuccess(`${importedRequests.length} SC(s) importadas exitosamente.`);
   };
 
-  const handleQuoteChange = (materialId: string, quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => {
+  const handleQuoteChange = (materialId: string, unitId: string, quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => {
     setMaterialsToCompare(prev => prev.map(m => {
-      if (m.material.id === materialId) {
+      if (m.material.id === materialId && m.unit_id === unitId) {
         const updatedQuotes = m.quotes.map((q, i) => {
           if (i === quoteIndex) {
             const newQuote = { ...q, [field]: value };
@@ -291,6 +310,12 @@ const QuoteComparison = () => {
 
   // --- Core Comparison Logic (Memoized) ---
   const comparisonBaseCurrency = 'USD';
+
+  // Fetch units to show names in reports
+  const { data: units } = useQuery({
+    queryKey: ['allUnits'],
+    queryFn: getAllUnits,
+  });
 
   const comparisonResults = useMemo(() => {
     return materialsToCompare.map(materialComp => {
@@ -349,13 +374,17 @@ const QuoteComparison = () => {
         ? Math.min(...validResults.map(r => r.convertedPrice!))
         : null;
 
+      const unitName = units?.find(u => u.id === materialComp.unit_id)?.name || 'N/A';
+
       return {
         material: materialComp.material,
+        unit_id: materialComp.unit_id,
+        unit_name: unitName, // NEW
         results: results,
         bestPrice: bestPrice,
       };
     });
-  }, [materialsToCompare, exchangeRate]);
+  }, [materialsToCompare, exchangeRate, units]);
   // -----------------------------
 
   // --- Save/Update Logic ---
@@ -374,6 +403,7 @@ const QuoteComparison = () => {
       const itemsPayload = materialsToCompare.map(m => ({
         material_id: m.material.id,
         material_name: m.material.name || 'Material sin nombre',
+        unit_id: m.unit_id, // Include unit_id
         quotes: m.quotes,
       }));
 
@@ -430,10 +460,10 @@ const QuoteComparison = () => {
                 baseCurrency={comparisonBaseCurrency}
                 globalExchangeRate={exchangeRate}
                 globalEurRate={eurExchangeRate}
-                onAddQuoteEntry={handleAddQuoteEntry}
-                onRemoveQuoteEntry={handleRemoveQuoteEntry}
-                onQuoteChange={handleQuoteChange}
-                onRemoveMaterial={handleRemoveMaterial}
+                onAddQuoteEntry={() => handleAddQuoteEntry(materialComp.material.id, (materialComp as any).unit_id)}
+                onRemoveQuoteEntry={(index) => handleRemoveQuoteEntry(materialComp.material.id, (materialComp as any).unit_id, index)}
+                onQuoteChange={(index, field, value, supName) => handleQuoteChange(materialComp.material.id, (materialComp as any).unit_id, index, field, value, supName)}
+                onRemoveMaterial={() => handleRemoveMaterial(materialComp.material.id, (materialComp as any).unit_id)}
               />
             </div>
             {/* Individual PDF Download Button */}

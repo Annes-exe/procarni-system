@@ -41,20 +41,20 @@ interface QuoteEntry {
 
 interface ComparisonResult {
   material: MaterialSearchResult;
+  unit_id: string; // REQUIRED
   results: (QuoteEntry & { convertedPrice: number | null; isValid: boolean; error: string | null })[];
   bestPrice: number | null;
 }
 
 interface MaterialQuoteComparisonRowProps {
   comparisonData: ComparisonResult;
-  baseCurrency: 'USD' | 'VES' | 'EUR'; // This will now always be 'USD' from the parent
+  baseCurrency: 'USD' | 'VES' | 'EUR'; 
   globalExchangeRate?: number;
   globalEurRate?: number;
-  onAddQuoteEntry: (materialId: string) => void;
-  onRemoveQuoteEntry: (materialId: string, quoteIndex: number) => void;
-  // Updated signature to include optional supplierName for supplierId changes
-  onQuoteChange: (materialId: string, quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => void;
-  onRemoveMaterial: (materialId: string) => void;
+  onAddQuoteEntry: () => void;
+  onRemoveQuoteEntry: (quoteIndex: number) => void;
+  onQuoteChange: (quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => void;
+  onRemoveMaterial: () => void;
 }
 
 const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
@@ -74,6 +74,17 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   const [isAssociating, setIsAssociating] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { material, results, bestPrice } = comparisonData;
+
+  // Fetch unit details to show the name
+  const { data: units } = useQuery({
+    queryKey: ['allUnits'],
+    queryFn: getAllUnits,
+  });
+
+  const unitName = useMemo(() => {
+    if (!units || !comparisonData.unit_id) return 'N/A';
+    return units.find(u => u.id === comparisonData.unit_id)?.name || 'N/A';
+  }, [units, comparisonData.unit_id]);
 
   // Fetch suppliers associated with this specific material ID
   const { data: associatedSuppliers, isLoading: isLoadingAssociated } = useQuery<SupplierResult[]>({
@@ -111,8 +122,8 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   };
 
   const handleQuoteUpdate = React.useCallback((index: number, field: keyof QuoteEntry, value: any) => {
-    onQuoteChange(material.id, index, field, value);
-  }, [material.id, onQuoteChange]);
+    onQuoteChange(index, field, value);
+  }, [onQuoteChange]);
 
   const handlePriceChange = React.useCallback((index: number, value: string) => {
     handleQuoteUpdate(index, 'unitPrice', parseFloat(value) || 0);
@@ -140,12 +151,12 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
     };
   }, [associatedSuppliers, allSuppliers, isLoadingSuppliers]);
 
-  const handleSupplierChange = (materialId: string, quoteIndex: number, supplierId: string, directName?: string) => {
+  const handleSupplierChange = (quoteIndex: number, supplierId: string, directName?: string) => {
     const selectedSupplier = associatedSuppliers?.find(s => s.id === supplierId) || allSuppliers?.find(s => s.id === supplierId);
     const supplierName = directName || selectedSupplier?.name || '';
 
     // Pass both ID and Name back to the parent
-    onQuoteChange(materialId, quoteIndex, 'supplierId', supplierId, supplierName);
+    onQuoteChange(quoteIndex, 'supplierId', supplierId, supplierName);
   };
 
   const handleAssociateSupplier = async (supplierId: string, supplierName: string) => {
@@ -184,7 +195,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
 
     const handleSupplierCreated = async (newSupplier: any) => {
       await queryClient.invalidateQueries({ queryKey: ['allSuppliers'] });
-      handleSupplierChange(material.id, index, newSupplier.id, newSupplier.name);
+      handleSupplierChange(index, newSupplier.id, newSupplier.name);
       setIsSupplierDialogOpen(false);
       setOpen(false);
     };
@@ -224,7 +235,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       key={supplier.id}
                       value={supplier.name}
                       onSelect={() => {
-                        handleSupplierChange(material.id, index, supplier.id);
+                        handleSupplierChange(index, supplier.id);
                         setOpen(false);
                       }}
                     >
@@ -252,7 +263,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       key={supplier.id}
                       value={supplier.name}
                       onSelect={() => {
-                        handleSupplierChange(material.id, index, supplier.id);
+                        handleSupplierChange(index, supplier.id);
                         setOpen(false);
                       }}
                     >
@@ -309,15 +320,15 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
           </div>
           <div>
             <h3 className="text-lg font-bold text-procarni-dark leading-tight">
-              {material.name}
+              {material.name} <span className="text-procarni-secondary ml-1">({unitName})</span>
             </h3>
             <p className="text-xs font-mono text-muted-foreground mt-0.5">
-              Ref: {material.code}
+              Ref: {material.code} | ID: {material.id.substring(0,8)}...
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => onRemoveMaterial(material.id)} className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 self-end sm:self-auto">
-          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Material
+        <Button variant="ghost" size="sm" onClick={onRemoveMaterial} className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 self-end sm:self-auto">
+          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Fila
         </Button>
       </div>
 
@@ -349,7 +360,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => onRemoveQuoteEntry(material.id, index)} 
+                          onClick={() => onRemoveQuoteEntry(index)} 
                           className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -416,7 +427,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           compact
                           baseCurrency={quote.currency === 'EUR' ? 'EUR' : 'USD'}
                           exchangeRate={quote.exchangeRate || globalExchangeRate}
-                          onExchangeRateChange={(val) => onQuoteChange(material.id, index, 'exchangeRate', val)}
+                          onExchangeRateChange={(val) => onQuoteChange(index, 'exchangeRate', val)}
                           disableAutoFetch={true}
                         />
                       </div>
@@ -447,7 +458,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                               type="number"
                               step="0.01"
                               value={quote.unitPrice || ''}
-                              onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              onChange={(e) => onQuoteChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                               onWheel={(e) => (e.target as HTMLElement).blur()}
                               className="h-10 pl-8 bg-gray-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full"
                               placeholder="0.00"
@@ -458,7 +469,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Moneda</label>
                           <Select
                             value={quote.currency}
-                            onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES' | 'EUR')}
+                            onValueChange={(value) => onQuoteChange(index, 'currency', value as 'USD' | 'VES' | 'EUR')}
                           >
                             <SelectTrigger className="h-10 w-full bg-gray-50/50">
                               <SelectValue placeholder="Moneda" />
@@ -478,7 +489,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           type="number"
                           step="0.01"
                           value={quote.exchangeRate || globalExchangeRate || ''}
-                          onChange={(e) => onQuoteChange(material.id, index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
+                          onChange={(e) => onQuoteChange(index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
                           onWheel={(e) => (e.target as HTMLElement).blur()}
                           placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
                           className="h-10 bg-gray-50/50 w-full"
@@ -571,7 +582,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                             type="number"
                             step="0.01"
                             value={quote.unitPrice || ''}
-                            onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => onQuoteChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLElement).blur()}
                             className="h-9 pl-10 bg-white/50 focus:bg-white transition-colors w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             placeholder="0.00"
@@ -581,7 +592,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                       <TableCell>
                         <Select
                           value={quote.currency}
-                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES' | 'EUR')}
+                          onValueChange={(value) => onQuoteChange(index, 'currency', value as 'USD' | 'VES' | 'EUR')}
                         >
                           <SelectTrigger className="h-9">
                             <SelectValue placeholder="Moneda" />
@@ -589,16 +600,15 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <SelectContent>
                             <SelectItem value="USD">USD</SelectItem>
                             <SelectItem value="VES">VES</SelectItem>
-                            {/* <SelectItem value="EUR">EUR</SelectItem> */}
                           </SelectContent>
                         </Select>
                       </TableCell>
                       <TableCell>
                         <ExchangeRateInput
                           compact
-                          baseCurrency={'USD' /* quote.currency === 'EUR' ? 'EUR' : 'USD' */}
-                          exchangeRate={quote.exchangeRate || globalExchangeRate /* (quote.currency === 'EUR' ? globalEurRate : globalExchangeRate) */}
-                          onExchangeRateChange={(val) => handleExchangeRateChange(index, val)}
+                          baseCurrency={'USD'}
+                          exchangeRate={quote.exchangeRate || globalExchangeRate}
+                          onExchangeRateChange={(val) => onQuoteChange(index, 'exchangeRate', val)}
                           disableAutoFetch={true}
                         />
                       </TableCell>
@@ -612,7 +622,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                         )}
                       </TableCell>
                       <TableCell className="text-right py-3 pr-3 sm:pr-4">
-                        <Button variant="ghost" size="icon" onClick={() => onRemoveQuoteEntry(material.id, index)} className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
+                        <Button variant="ghost" size="icon" onClick={() => onRemoveQuoteEntry(index)} className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
                           <X className="h-4 w-4 text-destructive" />
                         </Button>
                       </TableCell>
@@ -629,7 +639,7 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onAddQuoteEntry(material.id)}
+          onClick={onAddQuoteEntry}
           className="text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10"
         >
           <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Oferta

@@ -29,15 +29,16 @@ const SupplierQuoteService = {
   },
 
   createOrUpdateQuote: async (payload: SupplierQuotePayload): Promise<SupplierQuote | null> => {
-    // Check if a quote already exists for this material/supplier pair
+    // Check if a quote already exists for this material/supplier/unit combination
     const { data: existingQuote, error: fetchError } = await supabase
       .from('supplier_quotes')
       .select('id')
       .eq('material_id', payload.material_id)
       .eq('supplier_id', payload.supplier_id)
-      .single();
+      .eq('unit_id', payload.unit_id) // Added unit_id to check
+      .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means "no rows found"
+    if (fetchError) {
       console.error('[SupplierQuoteService.createOrUpdateQuote] Error checking existing quote:', fetchError);
       showError('Error al verificar cotización existente.');
       return null;
@@ -57,6 +58,7 @@ const SupplierQuoteService = {
           quote_request_id: payload.quote_request_id,
           valid_until: payload.valid_until,
           delivery_days: payload.delivery_days,
+          unit_id: payload.unit_id,
         })
         .eq('id', existingQuote.id)
         .select()
