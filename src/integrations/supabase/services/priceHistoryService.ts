@@ -59,10 +59,11 @@ const PriceHistoryService = {
       .from('price_history')
       .select(`
         *,
-        suppliers (name, rif, code)
+        suppliers (name, rif, code),
+        materials (name, unit)
       `)
       .in('material_id', materialIds);
-    
+
     if (unitId) {
       query = query.eq('unit_id', unitId);
     }

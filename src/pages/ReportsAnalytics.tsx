@@ -102,19 +102,36 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
         enabled: selectedMaterialIds.length > 0
     });
 
+    const chartSeries = useMemo(() => {
+        if (!priceHistory || priceHistory.length === 0) return [];
+        const series = new Set<string>();
+        priceHistory.forEach((historyList: any[], index) => {
+            const requestedMatName = materials.find((m: any) => m.id === selectedMaterialIds[index])?.name || 'Material';
+            
+            historyList.forEach((item: any) => {
+                if (item.currency !== currency) return;
+                const unit = item.unit || item.materials?.unit || 'Und';
+                series.add(`${requestedMatName} (${unit})`);
+            });
+        });
+        return Array.from(series);
+    }, [priceHistory, currency, materials, selectedMaterialIds]);
+
     const chartData = useMemo(() => {
         if (!priceHistory || priceHistory.length === 0) return [];
         const dateMap: Record<string, any> = {};
 
         priceHistory.forEach((historyList: any[], index) => {
-            const matId = selectedMaterialIds[index];
-            const matName = materials.find((m: any) => m.id === matId)?.name || matId;
-
+            const requestedMatName = materials.find((m: any) => m.id === selectedMaterialIds[index])?.name || 'Material';
+            
             historyList.forEach((item: any) => {
                 if (item.currency !== currency) return;
-                const ts = item.recorded_at; // Use full timestamp to avoid overwriting same-day changes
+                const unit = item.unit || item.materials?.unit || 'Und';
+                const seriesKey = `${requestedMatName} (${unit})`;
+                
+                const ts = item.recorded_at;
                 if (!dateMap[ts]) dateMap[ts] = { date: ts };
-                dateMap[ts][matName] = item.unit_price;
+                dateMap[ts][seriesKey] = item.unit_price;
             });
         });
         // Sort by ISO timestamp string
@@ -124,37 +141,47 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
     // Calculate Variation Data for Table
     const variationTableData = useMemo(() => {
         if (!priceHistory || priceHistory.length === 0) return [];
-        const variations: any[] = [];
-
+        
+        // Group all history by seriesKey
+        const seriesHistory: Record<string, any[]> = {};
+        
         priceHistory.forEach((historyList: any[], index) => {
-            const matId = selectedMaterialIds[index];
-            const matName = materials.find((m: any) => m.id === matId)?.name || 'Desconocido';
+            const requestedMatName = materials.find((m: any) => m.id === selectedMaterialIds[index])?.name || 'Material';
+            
+            historyList.forEach((item: any) => {
+                if (item.currency !== currency) return;
+                const unit = item.unit || item.materials?.unit || 'Und';
+                const seriesKey = `${requestedMatName} (${unit})`;
+                
+                if (!seriesHistory[seriesKey]) seriesHistory[seriesKey] = [];
+                seriesHistory[seriesKey].push(item);
+            });
+        });
 
-            // Filter by currency and sort descending
-            const relevantHistory = historyList
-                .filter((item: any) => item.currency === currency)
-                .sort((a: any, b: any) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-
-            if (relevantHistory.length >= 2) {
-                const latest = relevantHistory[0];
-                const previous = relevantHistory[1];
+        const variations: any[] = [];
+        Object.entries(seriesHistory).forEach(([seriesKey, history]) => {
+            const sorted = history.sort((a: any, b: any) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+            
+            if (sorted.length >= 2) {
+                const latest = sorted[0];
+                const previous = sorted[1];
                 const change = latest.unit_price - previous.unit_price;
                 const percent = (change / previous.unit_price) * 100;
 
                 variations.push({
-                    material: matName,
+                    material: seriesKey,
                     currentPrice: latest.unit_price,
                     previousPrice: previous.unit_price,
                     change: change,
                     percent: percent,
                     date: latest.recorded_at,
                     supplier: latest.suppliers?.name,
-                    orderId: latest.purchase_order_id // Add orderId
+                    orderId: latest.purchase_order_id
                 });
-            } else if (relevantHistory.length === 1) {
-                const latest = relevantHistory[0];
+            } else if (sorted.length === 1) {
+                const latest = sorted[0];
                 variations.push({
-                    material: matName,
+                    material: seriesKey,
                     currentPrice: latest.unit_price,
                     previousPrice: 0,
                     change: 0,
@@ -162,11 +189,12 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                     date: latest.recorded_at,
                     supplier: latest.suppliers?.name,
                     isNew: true,
-                    orderId: latest.purchase_order_id // Add orderId
+                    orderId: latest.purchase_order_id
                 });
             }
         });
-        return variations;
+        
+        return variations.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [priceHistory, currency, materials, selectedMaterialIds]);
 
     const searchMaterialsLocal = async (query: string) => {
@@ -270,21 +298,18 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                                         }}
                                     />
                                     <Legend />
-                                    {selectedMaterialIds.map((id, idx) => {
-                                        const m = materials.find((mat: any) => mat.id === id);
-                                        return (
-                                            <Line
-                                                key={id}
-                                                type="monotone"
-                                                dataKey={m?.name}
-                                                stroke={COLORS[idx % COLORS.length]}
-                                                strokeWidth={2}
-                                                dot={{ r: 3 }}
-                                                activeDot={{ r: 6 }}
-                                                connectNulls
-                                            />
-                                        );
-                                    })}
+                                    {chartSeries.map((seriesKey, idx) => (
+                                        <Line
+                                            key={seriesKey}
+                                            type="monotone"
+                                            dataKey={seriesKey}
+                                            stroke={COLORS[idx % COLORS.length]}
+                                            strokeWidth={2}
+                                            dot={{ r: 3 }}
+                                            activeDot={{ r: 6 }}
+                                            connectNulls
+                                        />
+                                    ))}
                                 </LineChart>
                             </ResponsiveContainer>
                         )}
