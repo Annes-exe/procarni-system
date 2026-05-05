@@ -318,11 +318,7 @@ const QuoteComparison = () => {
   // --- Core Comparison Logic (Memoized) ---
   const comparisonBaseCurrency = 'USD';
 
-  // Fetch units to show names in reports
-  const { data: units } = useQuery({
-    queryKey: ['allUnits'],
-    queryFn: getAllUnits,
-  });
+
 
   const comparisonResults = useMemo<ComparisonResult[]>(() => {
     return materialsToCompare.map((materialComp) => {
