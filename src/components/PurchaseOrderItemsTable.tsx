@@ -26,6 +26,7 @@ interface PurchaseOrderItemForm {
   tax_rate?: number;
   is_exempt?: boolean;
   unit?: string;
+  unit_id?: string;
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
@@ -75,13 +76,16 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const isMobile = useIsMobile();
   const [isAssociating, setIsAssociating] = useState<string | null>(null);
+  const [associatedMaterials, setAssociatedMaterials] = useState<Set<string>>(new Set());
 
   const { data: associatedMaterialIds = new Set<string>(), refetch: refetchAssociated } = useQuery({
     queryKey: ['supplier_materials_ids', supplierId],
     queryFn: async () => {
       if (!supplierId) return new Set<string>();
       const materials = await searchMaterialsBySupplier(supplierId, '');
-      return new Set<string>(materials.map(m => m.id));
+      const materialIds = materials.map(m => m.id);
+      setAssociatedMaterials(new Set(materialIds));
+      return new Set<string>(materialIds);
     },
     enabled: !!supplierId,
   });
@@ -106,14 +110,15 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     refetchAssociated();
   };
 
-  const handleAssociateMaterial = async (materialId: string, materialName: string) => {
-    if (!userId || !supplierId || !materialId) return;
+  const handleAssociateMaterial = async (materialId: string, unitId: string, materialName: string) => {
+    if (!userId || !supplierId || !materialId || !unitId) return;
 
     setIsAssociating(materialId);
     try {
       const result = await createSupplierMaterialRelation({
         supplier_id: supplierId,
         material_id: materialId,
+        unit_id: unitId,
         user_id: userId
       });
 
@@ -160,7 +165,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 disabled={!supplierId}
                 className="w-full"
               />
-              {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+              {item.material_id && !associatedMaterials.has(item.material_id) && (
                 <div className="mt-1 flex items-center justify-between bg-red-50 border border-red-200 rounded-md px-2 py-1 animate-pulse-subtle">
                   <div className="flex items-center gap-1.5 text-red-700">
                     <AlertTriangle className="h-3 w-3" />
@@ -170,7 +175,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                     size="sm" 
                     variant="secondary" 
                     className="h-6 px-2 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1 font-bold shadow-sm border-none"
-                    onClick={() => handleAssociateMaterial(item.material_id!, item.material_name)}
+                    onClick={() => handleAssociateMaterial(item.material_id!, item.unit_id!, item.material_name)}
                     disabled={isAssociating === item.material_id}
                   >
                     <Link className="h-3 w-3" />
@@ -192,12 +197,19 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Unidad</label>
-            <Select value={item.unit || ''} onValueChange={(v) => onItemChange(index, 'unit', v)}>
+            <Select 
+              value={item.unit_id || ''} 
+              onValueChange={(v) => {
+                const selectedUnit = units.find(u => u.id === v);
+                onItemChange(index, 'unit_id', v);
+                if (selectedUnit) onItemChange(index, 'unit', selectedUnit.name);
+              }}
+            >
               <SelectTrigger className="h-9">
                 <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
               </SelectTrigger>
               <SelectContent>
-                {units.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -318,7 +330,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   <span className={`font-semibold text-sm truncate max-w-[400px] ${!item.material_name && 'text-muted-foreground italic'}`}>
                     {item.material_name || "Seleccionar ítem..."}
                   </span>
-                  {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                  {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
                     <Badge variant="outline" className="h-4 text-[9px] bg-amber-50 text-amber-700 border-amber-200 gap-1 px-1">
                       <AlertTriangle className="h-2.5 w-2.5" />
                       Sin asociar
@@ -354,7 +366,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             <div className="col-span-4 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex justify-between items-center">
                 <span>Producto / Material</span>
-                {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
                   <span className="text-amber-600 flex items-center gap-1 normal-case font-medium">
                     <AlertTriangle className="h-2.5 w-2.5" />
                     No asociado
@@ -369,18 +381,18 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   displayValue={item.material_name}
                   selectedId={item.material_id}
                   disabled={!supplierId}
-                  className={`w-full h-9 bg-white ${item.material_id && !associatedMaterialIds.has(item.material_id) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
+                  className={`w-full h-9 bg-white ${item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
                   icon={<Search className="h-4 w-4 text-gray-400" />}
                 />
-                {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
                   <Button 
                     size="sm" 
                     variant="secondary" 
                     className="w-full h-8 px-3 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1.5 shadow-md justify-center font-bold animate-pulse-subtle border-none mt-1"
-                    onClick={() => handleAssociateMaterial(item.material_id!, item.material_name)}
-                    disabled={isAssociating === item.material_id}
+                    onClick={() => handleAssociateMaterial(item.material_id!, item.unit_id!, item.material_name)}
+                    disabled={isAssociating === `${item.material_id}-${item.unit_id}`}
                   >
-                    {isAssociating === item.material_id ? (
+                    {isAssociating === `${item.material_id}-${item.unit_id}` ? (
                       <span className="h-3 w-3 animate-spin border-2 border-white border-t-transparent rounded-full" />
                     ) : (
                       <Link className="h-3 w-3" />
@@ -414,12 +426,19 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             {/* Col 7-8: Unidad */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</label>
-              <Select value={item.unit || ''} onValueChange={(v) => onItemChange(index, 'unit', v)}>
+              <Select 
+                value={item.unit_id || ''} 
+                onValueChange={(v) => {
+                  const selectedUnit = units.find(u => u.id === v);
+                  onItemChange(index, 'unit_id', v);
+                  if (selectedUnit) onItemChange(index, 'unit', selectedUnit.name);
+                }}
+              >
                 <SelectTrigger className="h-9 bg-gray-50/50 border-gray-200">
                   <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
                 </SelectTrigger>
                 <SelectContent>
-                  {units.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                  {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

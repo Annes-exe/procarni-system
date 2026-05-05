@@ -19,28 +19,9 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import ExchangeRateInput from './ExchangeRateInput';
+import { QuoteEntry, ComparisonResult } from '@/integrations/supabase/types';
 
-interface QuoteEntry {
-    supplierId: string;
-    supplierName: string;
-    unitPrice: number;
-    currency: 'USD' | 'VES' | 'EUR';
-    exchangeRate?: number;
-    convertedPrice: number | null;
-    isValid: boolean;
-}
-
-interface MaterialSearchResult {
-    id: string;
-    name: string;
-    code: string;
-}
-
-interface ComparisonResult {
-    material: MaterialSearchResult;
-    results: QuoteEntry[];
-    bestPrice: number | null;
-}
+// Redundant interfaces removed, using shared ones from types.ts
 
 interface ExportToPurchaseOrdersDialogProps {
     isOpen: boolean;
@@ -56,7 +37,7 @@ interface SupplierGroup {
     supplierId: string;
     supplierName: string;
     items: {
-        material: MaterialSearchResult;
+        material: ComparisonResult['material'];
         quote: QuoteEntry;
         selected: boolean;
     }[];
@@ -103,12 +84,12 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         const groupsMap = new Map<string, SupplierGroup>();
 
         comparisonResults.forEach(comp => {
-            if (!comp.bestPrice) return; // Skip if no valid best price
+            // Find all winning quotes (matching best price for their specific unit)
+            // Or if bestPrice is global, find matches.
+            // Given the new logic, we pre-select the ones marked as isBest
+            const winningQuotes = comp.results.filter(r => r.isBest && r.isValid);
 
-            // Find the quote that matches the best price
-            const winningQuote = comp.results.find(r => r.convertedPrice === comp.bestPrice && r.isValid);
-
-            if (winningQuote) {
+            winningQuotes.forEach(winningQuote => {
                 if (!groupsMap.has(winningQuote.supplierId)) {
                     groupsMap.set(winningQuote.supplierId, {
                         supplierId: winningQuote.supplierId,
@@ -122,10 +103,10 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                     quote: winningQuote,
                     selected: true // Pre-select by default
                 });
-            }
+            });
         });
 
-    setSupplierGroups(Array.from(groupsMap.values()));
+        setSupplierGroups(Array.from(groupsMap.values()));
     }, [isOpen, comparisonResults]);
 
     // Fetch all associations for these suppliers and materials to show warnings
@@ -136,7 +117,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('supplier_materials')
-                .select('supplier_id, material_id')
+                .select('supplier_id, material_id, unit_id')
                 .in('supplier_id', supplierIds);
             
             if (error) throw error;
@@ -150,15 +131,16 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         return associations.some(a => a.supplier_id === supplierId && a.material_id === materialId);
     };
 
-    const handleAssociateSupplier = async (supplierId: string, materialId: string, supplierName: string) => {
-        if (!session?.user?.id || !materialId || !supplierId) return;
+    const handleAssociateSupplier = async (supplierId: string, materialId: string, unitId: string, supplierName: string) => {
+        if (!session?.user?.id || !materialId || !supplierId || !unitId) return;
 
-        const assocKey = `${materialId}-${supplierId}`;
+        const assocKey = `${materialId}-${supplierId}-${unitId}`;
         setIsAssociating(assocKey);
         try {
             const result = await createSupplierMaterialRelation({
                 supplier_id: supplierId,
                 material_id: materialId,
+                unit_id: unitId,
                 user_id: session.user.id
             });
 
@@ -176,13 +158,13 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
         }
     };
 
-    const toggleItemSelection = (supplierId: string, materialId: string) => {
+    const toggleItemSelection = (supplierId: string, materialId: string, unitId: string) => {
         setSupplierGroups(prev => prev.map(group => {
             if (group.supplierId === supplierId) {
                 return {
                     ...group,
                     items: group.items.map(item =>
-                        item.material.id === materialId
+                        (item.material.id === materialId && item.quote.unit_id === unitId)
                             ? { ...item, selected: !item.selected }
                             : item
                     )
@@ -267,10 +249,11 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                         unit_price: finalPrice,
                         tax_rate: 0.16, // Default
                         is_exempt: false,
-                        unit: 'UND', // Default, we might not have it here
+                        unit: item.quote.unit_name || 'UND',
                         description: '',
                         sales_percentage: 0,
                         discount_percentage: 0,
+                        unit_id: item.quote.unit_id,
                     };
                 });
 
@@ -422,13 +405,13 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                         <div className="divide-y divide-gray-100">
                                             {group.items.map((item) => (
                                                 <label
-                                                    key={item.material.id}
+                                                    key={`${item.material.id}-${item.quote.unit_id}`}
                                                     className="flex items-start gap-3 p-3 sm:p-4 cursor-pointer hover:bg-gray-50/80 transition-colors"
                                                 >
                                                     <div className="mt-0.5 shrink-0">
                                                         <Checkbox
                                                             checked={item.selected}
-                                                            onCheckedChange={() => toggleItemSelection(group.supplierId, item.material.id)}
+                                                            onCheckedChange={() => toggleItemSelection(group.supplierId, item.material.id, item.quote.unit_id)}
                                                             className="data-[state=checked]:bg-procarni-secondary data-[state=checked]:border-procarni-secondary h-4 w-4 sm:h-5 sm:w-5"
                                                         />
                                                     </div>
@@ -436,7 +419,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-4">
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="font-medium text-sm text-gray-900 truncate" title={item.material.name}>
-                                                                    {item.material.name}
+                                                                    {item.material.name} <span className="text-gray-400 font-normal">({item.quote.unit_name || 'N/A'})</span>
                                                                 </p>
                                                                 <p className="text-xs text-gray-500 font-mono mt-0.5 truncate">
                                                                     Ref: {item.material.code}
@@ -454,7 +437,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                             </div>
                                                         </div>
                                                         
-                                                        {!isAssociated(group.supplierId, item.material.id) && (
+                                                        {!isAssociated(group.supplierId, item.material.id, item.quote.unit_id) && (
                                                             <div className="mt-2 flex items-center justify-between bg-red-50 border border-red-100 rounded-md px-3 py-1.5 animate-pulse-subtle">
                                                                 <span className="text-[10px] text-red-700 font-bold flex items-center gap-1 uppercase tracking-tight">
                                                                     <AlertTriangle className="h-3.5 w-3.5" /> No asociado
@@ -466,7 +449,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                                     onClick={(e) => {
                                                                         e.preventDefault();
                                                                         e.stopPropagation();
-                                                                        handleAssociateSupplier(group.supplierId, item.material.id, group.supplierName);
+                                                                        handleAssociateSupplier(group.supplierId, item.material.id, item.quote.unit_id, group.supplierName);
                                                                     }}
                                                                     disabled={isAssociating === `${item.material.id}-${group.supplierId}`}
                                                                 >

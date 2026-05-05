@@ -17,7 +17,7 @@ import QuoteComparisonPDFButton from '@/components/QuoteComparisonPDFButton';
 import { Separator } from '@/components/ui/separator';
 import SaveComparisonDialog from '@/components/SaveComparisonDialog';
 import { useSession } from '@/components/SessionContextProvider';
-import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem } from '@/integrations/supabase/types';
+import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem, QuoteEntry, ComparisonResult, QuoteComparisonItem } from '@/integrations/supabase/types';
 import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
 import ExportToPurchaseOrdersDialog from '@/components/ExportToPurchaseOrdersDialog';
 import ExchangeRateInput from '@/components/ExchangeRateInput';
@@ -35,18 +35,19 @@ interface MaterialSearchResult {
   specification?: string;
 }
 
-interface QuoteEntry {
-  supplierId: string;
-  supplierName: string;
-  unitPrice: number;
-  currency: 'USD' | 'VES' | 'EUR';
-  exchangeRate?: number;
+interface MaterialSearchResult {
+  id: string;
+  name: string;
+  code: string;
+  category?: string;
+  unit?: string;
+  unit_id?: string;
+  is_exempt?: boolean;
+  specification?: string;
 }
 
 interface MaterialComparison {
   material: MaterialSearchResult;
-  unit_id: string; // Grouping key
-  unit_name?: string;
   quotes: QuoteEntry[];
 }
 
@@ -73,16 +74,19 @@ const QuoteComparison = () => {
   const [isDirty, setIsDirty] = useState(false);
 
   const handleMaterialCreated = (material: Material & { specification?: string }) => {
-    const unitId = material.unit_id || '';
-    // Check if it's already added for this specific unit
-    if (materialsToCompare.some(m => m.material.id === material.id && m.unit_id === unitId)) {
-      showError('Este material con esta unidad ya está en la lista de comparación.');
+    // Check if it's already added
+    if (materialsToCompare.some(m => m.material.id === material.id)) {
+      showError('Este material ya está en la lista de comparación.');
     } else {
       setMaterialsToCompare(prev => [
         ...prev,
         { 
-          material: { id: material.id, name: material.name, code: material.code || 'N/A' }, 
-          unit_id: unitId,
+          material: { 
+            id: material.id, 
+            name: material.name, 
+            code: material.code || 'N/A',
+            unit_id: material.unit_id || undefined
+          }, 
           quotes: [] 
         }
       ]);
@@ -112,9 +116,9 @@ const QuoteComparison = () => {
           id: item.material_id,
           name: item.material_name,
           code: item.materials?.code || 'N/A',
+          unit_id: item.unit_id || undefined,
         },
-        unit_id: item.unit_id || '', // Load unit_id
-        quotes: item.quotes,
+        quotes: item.quotes || [],
       })) || [];
 
       setMaterialsToCompare(loadedMaterials);
@@ -154,36 +158,37 @@ const QuoteComparison = () => {
     // Use material's default unit if available
     const unitId = selectedMaterialToAdd.unit_id || '';
 
-    if (materialsToCompare.some(m => m.material.id === selectedMaterialToAdd.id && m.unit_id === unitId)) {
-      showError('Este material con esta unidad ya está en la lista de comparación.');
+    if (materialsToCompare.some(m => m.material.id === selectedMaterialToAdd.id)) {
+      showError('Este material ya está en la lista de comparación.');
       return;
     }
 
     setMaterialsToCompare(prev => [
       ...prev,
-      { material: selectedMaterialToAdd, unit_id: unitId, quotes: [] }
+      { material: selectedMaterialToAdd, quotes: [] }
     ]);
     setSelectedMaterialToAdd(null);
     setNewMaterialQuery('');
     setIsDirty(true);
   };
 
-  const handleRemoveMaterial = (materialId: string, unitId: string) => {
-    setMaterialsToCompare(prev => prev.filter(m => !(m.material.id === materialId && m.unit_id === unitId)));
+  const handleRemoveMaterial = (materialId: string) => {
+    setMaterialsToCompare(prev => prev.filter(m => m.material.id !== materialId));
     setIsDirty(true);
   };
 
-  const handleAddQuoteEntry = (materialId: string, unitId: string) => {
+  const handleAddQuoteEntry = (materialId: string, supplierId?: string, supplierName?: string) => {
     setMaterialsToCompare(prev => prev.map(m => {
-      if (m.material.id === materialId && m.unit_id === unitId) {
+      if (m.material.id === materialId) {
         return {
           ...m,
           quotes: [...m.quotes, {
-            supplierId: '',
-            supplierName: '',
+            supplierId: supplierId || '',
+            supplierName: supplierName || '',
             unitPrice: 0,
             currency: globalInputCurrency,
-            exchangeRate: globalInputCurrency === 'EUR' ? eurExchangeRate : exchangeRate
+            exchangeRate: globalInputCurrency === 'EUR' ? eurExchangeRate : exchangeRate,
+            unit_id: ''
           }]
         };
       }
@@ -192,9 +197,9 @@ const QuoteComparison = () => {
     setIsDirty(true);
   };
 
-  const handleRemoveQuoteEntry = (materialId: string, unitId: string, quoteIndex: number) => {
+  const handleRemoveQuoteEntry = (materialId: string, quoteIndex: number) => {
     setMaterialsToCompare(prev => prev.map(m => {
-      if (m.material.id === materialId && m.unit_id === unitId) {
+      if (m.material.id === materialId) {
         return {
           ...m,
           quotes: m.quotes.filter((_, i) => i !== quoteIndex)
@@ -210,23 +215,17 @@ const QuoteComparison = () => {
     const uniqueMaterialsMap = new Map<string, MaterialSearchResult>();
 
     importedRequests.forEach(req => {
-      // @ts-ignore: quote_request_items populated via join in service
-      const items = req.quote_request_items as QuoteRequestItem[];
-
+      const items = (req as any).quote_request_items as QuoteRequestItem[];
       if (items) {
         items.forEach(item => {
           const matId = item.material_id || item.id;
           const matName = item.materials?.name || item.material_name || 'Desconocido';
-          const unitId = item.unit_id || '';
-          const compositeKey = `${matId}-${unitId}`;
 
-          if (!uniqueMaterialsMap.has(compositeKey)) {
-            // @ts-ignore - hacking the interface to carry unit_id
-            uniqueMaterialsMap.set(compositeKey, {
+          if (!uniqueMaterialsMap.has(matId)) {
+            uniqueMaterialsMap.set(matId, {
               id: matId,
               name: matName,
               code: item.materials?.code || (item.material_id ? 'N/A' : 'Sin Código (Legado)'),
-              unit_id: unitId
             });
           }
         });
@@ -240,17 +239,14 @@ const QuoteComparison = () => {
 
       // 2. Add any new materials that we don't already have in the comparison
       newMaterialsToAdd.forEach(newMat => {
-        // @ts-ignore
-        const unitId = newMat.unit_id || '';
-        if (!updatedMaterials.some(m => m.material.id === newMat.id && m.unit_id === unitId)) {
-          updatedMaterials.push({ material: newMat, unit_id: unitId, quotes: [] });
+        if (!updatedMaterials.some(m => m.material.id === newMat.id)) {
+          updatedMaterials.push({ material: newMat, quotes: [] });
         }
       });
 
-      // 3. For every imported request, add a quote row for its supplier against all its materials
+      // 3. For every imported request, add a quote row for its supplier and its specific unit
       importedRequests.forEach(req => {
-        // @ts-ignore
-        const items = req.quote_request_items as QuoteRequestItem[];
+        const items = (req as any).quote_request_items as QuoteRequestItem[];
         if (!items) return;
 
         items.forEach(item => {
@@ -258,20 +254,21 @@ const QuoteComparison = () => {
           const unitId = item.unit_id || '';
 
           updatedMaterials = updatedMaterials.map(matComp => {
-            if (matComp.material.id === matId && matComp.unit_id === unitId) {
-              // Check if this supplier already has a quote entry for this material-unit
-              const hasSupplierAlready = matComp.quotes.some(q => q.supplierId === req.supplier_id);
+            if (matComp.material.id === matId) {
+              // Check if this supplier + unit already has a quote entry
+              const hasQuoteAlready = matComp.quotes.some(q => q.supplierId === req.supplier_id && q.unit_id === unitId);
 
-              if (!hasSupplierAlready) {
+              if (!hasQuoteAlready) {
                 return {
                   ...matComp,
                   quotes: [...matComp.quotes, {
                     supplierId: req.supplier_id,
                     // @ts-ignore
                     supplierName: req.suppliers?.name || 'Desconocido',
-                    unitPrice: 0, // Prepopulate with 0, user will fill it
+                    unitPrice: 0,
                     currency: globalInputCurrency,
-                    exchangeRate: exchangeRate
+                    exchangeRate: exchangeRate,
+                    unit_id: unitId
                   }]
                 };
               }
@@ -289,21 +286,11 @@ const QuoteComparison = () => {
     showSuccess(`${importedRequests.length} SC(s) importadas exitosamente.`);
   };
 
-  const handleQuoteChange = (materialId: string, unitId: string, quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => {
+  const handleQuoteChange = (materialId: string, quoteIndex: number, field: keyof QuoteEntry, value: any) => {
     setMaterialsToCompare(prev => prev.map(m => {
-      if (m.material.id === materialId && m.unit_id === unitId) {
-        const updatedQuotes = m.quotes.map((q, i) => {
-          if (i === quoteIndex) {
-            const newQuote = { ...q, [field]: value };
-
-            if (field === 'supplierId' && supplierName) {
-              newQuote.supplierName = supplierName;
-            }
-
-            return newQuote;
-          }
-          return q;
-        });
+      if (m.material.id === materialId) {
+        const updatedQuotes = [...m.quotes];
+        updatedQuotes[quoteIndex] = { ...updatedQuotes[quoteIndex], [field]: value };
         return { ...m, quotes: updatedQuotes };
       }
       return m;
@@ -320,74 +307,62 @@ const QuoteComparison = () => {
     queryFn: getAllUnits,
   });
 
-  const comparisonResults = useMemo(() => {
-    return materialsToCompare.map(materialComp => {
-      const results = materialComp.quotes.map(quote => {
-
-        // Use the rate explicitly set on the quote, or the global rate if the quote currency is VES
-        const rateToUse = quote.currency === 'VES' ? (quote.exchangeRate || exchangeRate) : undefined;
-
-        if (!quote.supplierId || quote.unitPrice <= 0) {
-          return { ...quote, convertedPrice: null, isValid: false, error: 'Datos incompletos o inválidos.' };
-        }
-
-        if (quote.currency === 'VES' && (!rateToUse || rateToUse <= 0)) {
-          return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para VES a USD.' };
-        }
-
+  const comparisonResults = useMemo<ComparisonResult[]>(() => {
+    return materialsToCompare.map((materialComp) => {
+      const results = materialComp.quotes.map((quote) => {
+        let rateToUse = quote.exchangeRate || exchangeRate;
         let convertedPrice: number | null = quote.unitPrice;
         let finalRate = quote.exchangeRate;
 
+        // Get unit name for PDF/Export
+        const unitName = units?.find(u => u.id === quote.unit_id)?.name;
+
         if (quote.currency === comparisonBaseCurrency) {
-          // USD -> USD
+          // No conversion needed
         } else if (quote.currency === 'VES' && comparisonBaseCurrency === 'USD') {
           if (rateToUse && rateToUse > 0) {
             convertedPrice = quote.unitPrice / rateToUse;
             finalRate = rateToUse;
           } else {
-            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para VES a USD.' };
+            return { ...quote, unit_name: unitName, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para VES a USD.' };
           }
-        } else if (quote.currency === 'EUR' && comparisonBaseCurrency === 'USD') {
-          // Convert EUR to VES first, then VES to USD
-          /* EUR SUPPORT TEMPORARILY DISABLED
-          const eurRate = quote.exchangeRate || eurExchangeRate; // Use row rate or fallback to global default
-          const usdRate = exchangeRate; // This is USD/VES
-
-          if (eurRate && eurRate > 0 && usdRate && usdRate > 0) {
-            convertedPrice = (quote.unitPrice * eurRate) / usdRate;
-            finalRate = eurRate;
-          } else if (!eurRate || eurRate <= 0) {
-            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio para EUR a VES.' };
-          } else {
-            return { ...quote, convertedPrice: null, isValid: false, error: 'Falta Tasa de Cambio Global (USD/VES) para conversión.' };
-          }
-          */
-          return { ...quote, convertedPrice: null, isValid: false, error: 'Soporte para EUR temporalmente deshabilitado.' };
         }
 
         if (convertedPrice === null || isNaN(convertedPrice)) {
-          return { ...quote, convertedPrice: null, isValid: false, error: 'Error de cálculo.' };
+          return { ...quote, unit_name: unitName, convertedPrice: null, isValid: false, error: 'Error de cálculo.' };
         }
 
-        return { ...quote, convertedPrice: convertedPrice, isValid: true, error: null, exchangeRate: finalRate };
+        return { ...quote, unit_name: unitName, convertedPrice: convertedPrice, isValid: true, error: null, exchangeRate: finalRate };
       });
 
-      const validResults = results.filter(r => r.isValid && r.convertedPrice !== null);
-      const bestPrice = validResults.length > 0
-        ? Math.min(...validResults.map(r => r.convertedPrice!))
-        : null;
+      // Group results by unit to find best price per unit
+      const unitGroups: Record<string, number> = {};
+      results.forEach(r => {
+        if (r.isValid && r.convertedPrice !== undefined && r.convertedPrice !== null) {
+          const unitKey = r.unit_id || 'default';
+          if (!unitGroups[unitKey] || r.convertedPrice < unitGroups[unitKey]) {
+            unitGroups[unitKey] = r.convertedPrice;
+          }
+        }
+      });
 
-      const unitName = units?.find(u => u.id === materialComp.unit_id)?.name || 'N/A';
+      // Mark best prices
+      const resultsWithBest = results.map(r => {
+        const unitKey = r.unit_id || 'default';
+        return {
+          ...r,
+          isBest: r.isValid && r.convertedPrice !== undefined && r.convertedPrice !== null && r.convertedPrice === unitGroups[unitKey]
+        };
+      });
 
       return {
         material: materialComp.material,
-        unit_id: materialComp.unit_id,
-        unit_name: unitName, // NEW
-        results: results,
-        bestPrice: bestPrice,
+        results: resultsWithBest as QuoteEntry[],
+        unitGroups,
+        bestPrice: Math.min(...Object.values(unitGroups).filter(v => v > 0), Infinity)
       };
     });
-  }, [materialsToCompare, exchangeRate, units]);
+  }, [materialsToCompare, exchangeRate, units, comparisonBaseCurrency]);
   // -----------------------------
 
   // --- Save/Update Logic ---
@@ -406,7 +381,7 @@ const QuoteComparison = () => {
       const itemsPayload = materialsToCompare.map(m => ({
         material_id: m.material.id,
         material_name: m.material.name || 'Material sin nombre',
-        unit_id: m.unit_id, // Include unit_id
+        unit_id: m.quotes[0]?.unit_id || null, 
         quotes: m.quotes,
       }));
 
@@ -455,18 +430,17 @@ const QuoteComparison = () => {
 
     return (
       <div className="space-y-8">
-        {comparisonResults.map(materialComp => (
-          <Card key={`${materialComp.material.id}-${materialComp.unit_id}`} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 rounded-xl overflow-hidden bg-white">
+        {comparisonResults.map((materialComp: ComparisonResult) => (
+          <Card key={materialComp.material.id} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300 rounded-xl overflow-hidden bg-white">
             <div className="p-0 sm:p-2">
               <MaterialQuoteComparisonRow
-                comparisonData={materialComp}
-                baseCurrency={comparisonBaseCurrency}
-                globalExchangeRate={exchangeRate}
-                globalEurRate={eurExchangeRate}
-                onAddQuoteEntry={() => handleAddQuoteEntry(materialComp.material.id, materialComp.unit_id)}
-                onRemoveQuoteEntry={(index) => handleRemoveQuoteEntry(materialComp.material.id, materialComp.unit_id, index)}
-                onQuoteChange={(index, field, value, supName) => handleQuoteChange(materialComp.material.id, materialComp.unit_id, index, field, value, supName)}
-                onRemoveMaterial={() => handleRemoveMaterial(materialComp.material.id, materialComp.unit_id)}
+                material={materialComp.material as any}
+                quotes={materialComp.results}
+                allUnits={units || []}
+                onAddQuote={(supId, supName) => handleAddQuoteEntry(materialComp.material.id, supId, supName)}
+                onRemoveQuote={(index) => handleRemoveQuoteEntry(materialComp.material.id, index)}
+                onQuoteChange={(index, field, value) => handleQuoteChange(materialComp.material.id, index, field, value)}
+                onRemoveMaterial={() => handleRemoveMaterial(materialComp.material.id)}
               />
             </div>
             {/* Individual PDF Download Button */}

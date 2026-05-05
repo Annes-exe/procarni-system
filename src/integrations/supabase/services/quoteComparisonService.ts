@@ -15,7 +15,7 @@ interface QuoteComparisonPayload {
 interface QuoteComparisonItemPayload {
   material_id: string;
   material_name: string;
-  unit_id: string; // ADDED
+  unit_id?: string | null; // OPTIONAL
   quotes: QuoteComparisonItem['quotes'];
 }
 

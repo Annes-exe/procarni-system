@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle, Link } from 'lucide-react';
+import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle, Link, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSuppliersByMaterial, getAllSuppliers, createSupplierMaterialRelation } from '@/integrations/supabase/data';
 import ExchangeRateInput from './ExchangeRateInput';
@@ -17,54 +17,31 @@ import { isGenericRif } from '@/utils/validators';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
+import { QuoteEntry } from '@/integrations/supabase/types';
 
 interface MaterialSearchResult {
   id: string;
   name: string;
   code: string;
-}
-
-interface SupplierResult {
-  id: string;
-  name: string;
-  rif: string;
-  code?: string;
-}
-
-interface QuoteEntry {
-  supplierId: string;
-  supplierName: string;
-  unitPrice: number;
-  currency: 'USD' | 'VES' | 'EUR';
-  exchangeRate?: number;
-}
-
-interface ComparisonResult {
-  material: MaterialSearchResult;
-  unit_id: string; 
-  unit_name: string; // ADDED
-  results: (QuoteEntry & { convertedPrice: number | null; isValid: boolean; error: string | null })[];
-  bestPrice: number | null;
+  unit_id?: string;
 }
 
 interface MaterialQuoteComparisonRowProps {
-  comparisonData: ComparisonResult;
-  baseCurrency: 'USD' | 'VES' | 'EUR'; 
-  globalExchangeRate?: number;
-  globalEurRate?: number;
-  onAddQuoteEntry: () => void;
-  onRemoveQuoteEntry: (quoteIndex: number) => void;
-  onQuoteChange: (quoteIndex: number, field: keyof QuoteEntry, value: any, supplierName?: string) => void;
+  material: MaterialSearchResult;
+  quotes: QuoteEntry[];
+  allUnits: any[];
+  onAddQuote: (supplierId?: string, supplierName?: string) => void;
+  onRemoveQuote: (quoteIndex: number) => void;
+  onQuoteChange: (quoteIndex: number, field: keyof QuoteEntry, value: any) => void;
   onRemoveMaterial: () => void;
 }
 
 const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
-  comparisonData,
-  baseCurrency,
-  globalExchangeRate,
-  globalEurRate,
-  onAddQuoteEntry,
-  onRemoveQuoteEntry,
+  material,
+  quotes,
+  allUnits,
+  onAddQuote,
+  onRemoveQuote,
   onQuoteChange,
   onRemoveMaterial,
 }) => {
@@ -74,97 +51,54 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
   const isTablet = useIsTablet();
   const [isAssociating, setIsAssociating] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const { material, results, bestPrice } = comparisonData;
 
-  const unitName = comparisonData.unit_name || 'N/A';
+  const formatPrice = (price: number | null, currency: string = 'USD') => {
+    if (price === null) return '---';
+    return price.toLocaleString('es-VE', { style: 'currency', currency: currency || 'USD' });
+  };
 
-  // Fetch suppliers associated with this specific material ID
-  const { data: associatedSuppliers, isLoading: isLoadingAssociated } = useQuery<SupplierResult[]>({
+  // Memoized supplier options for search
+  const { data: allSuppliers } = useQuery({
+    queryKey: ['allSuppliers'],
+    queryFn: getAllSuppliers,
+  });
+
+  const { data: associatedSuppliers } = useQuery({
     queryKey: ['suppliersByMaterial', material.id],
-    queryFn: async () => {
-      const fetchedResults = await getSuppliersByMaterial(material.id);
-      return fetchedResults.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        rif: s.rif,
-        code: s.code,
-      }));
-    },
+    queryFn: () => getSuppliersByMaterial(material.id),
     enabled: !!material.id,
   });
 
-  const { data: allSuppliers, isLoading: isLoadingAll } = useQuery({
-    queryKey: ['allSuppliers'],
-    queryFn: async () => {
-      const fetchedResults = await getAllSuppliers();
-      return fetchedResults.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        rif: s.rif,
-        code: s.code,
-      }));
-    },
-  });
-
-  const isLoadingSuppliers = isLoadingAssociated || isLoadingAll;
-
-  const formatPrice = (price: number | null, currency: string) => {
-    if (price === null || isNaN(price)) return 'N/A';
-    return `${currency} ${price.toFixed(2)}`;
-  };
-
-  const handleQuoteUpdate = React.useCallback((index: number, field: keyof QuoteEntry, value: any) => {
-    onQuoteChange(index, field, value);
-  }, [onQuoteChange]);
-
-  const handlePriceChange = React.useCallback((index: number, value: string) => {
-    handleQuoteUpdate(index, 'unitPrice', parseFloat(value) || 0);
-  }, [handleQuoteUpdate]);
-
-  const handleCurrencyChange = React.useCallback((index: number, value: string) => {
-    handleQuoteUpdate(index, 'currency', value as 'USD' | 'VES' | 'EUR');
-  }, [handleQuoteUpdate]);
-
-  const handleExchangeRateChange = React.useCallback((index: number, value: number | undefined) => {
-    handleQuoteUpdate(index, 'exchangeRate', value);
-  }, [handleQuoteUpdate]);
-
   const supplierOptions = useMemo(() => {
-    if (isLoadingSuppliers) {
-      return { associated: [], others: [] };
-    }
-    
-    const associatedIds = new Set(associatedSuppliers?.map(s => s.id) || []);
-    const otherSuppliers = allSuppliers?.filter(s => !associatedIds.has(s.id)) || [];
-
-    return {
-      associated: associatedSuppliers || [],
-      others: otherSuppliers
-    };
-  }, [associatedSuppliers, allSuppliers, isLoadingSuppliers]);
+    const associated = associatedSuppliers || [];
+    const associatedIds = new Set(associated.map((s: any) => s.id));
+    const others = allSuppliers?.filter((s: any) => !associatedIds.has(s.id)) || [];
+    return { associated, others };
+  }, [allSuppliers, associatedSuppliers]);
 
   const handleSupplierChange = (quoteIndex: number, supplierId: string, directName?: string) => {
-    const selectedSupplier = associatedSuppliers?.find(s => s.id === supplierId) || allSuppliers?.find(s => s.id === supplierId);
+    const selectedSupplier = allSuppliers?.find(s => s.id === supplierId);
     const supplierName = directName || selectedSupplier?.name || '';
-
-    // Pass both ID and Name back to the parent
-    onQuoteChange(quoteIndex, 'supplierId', supplierId, supplierName);
+    onQuoteChange(quoteIndex, 'supplierId', supplierId);
+    onQuoteChange(quoteIndex, 'supplierName', supplierName);
   };
 
-  const handleAssociateSupplier = async (supplierId: string, supplierName: string) => {
-    if (!userId || !material.id || !supplierId) return;
+  const handleAssociateSupplier = async (supplierId: string, materialId: string, unitId: string, supplierName: string) => {
+    if (!userId || !materialId || !supplierId || !unitId) return;
 
-    setIsAssociating(supplierId);
+    const assocKey = `${materialId}-${supplierId}`;
+    setIsAssociating(assocKey);
     try {
       const result = await createSupplierMaterialRelation({
         supplier_id: supplierId,
-        material_id: material.id,
+        material_id: materialId,
+        unit_id: unitId,
         user_id: userId
       });
 
       if (result.success) {
         showSuccess(`Proveedor "${supplierName}" asociado al material.`);
-        await queryClient.invalidateQueries({ queryKey: ['suppliersByMaterial', material.id] });
+        await queryClient.invalidateQueries({ queryKey: ['suppliersByMaterial', materialId] });
       }
     } catch (error) {
       console.error("Error associating supplier:", error);
@@ -172,6 +106,35 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
       setIsAssociating(null);
     }
   };
+
+  const isAssociated = (materialId: string, supplierId: string) => {
+    if (!associatedSuppliers) return true;
+    return associatedSuppliers.some(s => s.id === supplierId);
+  };
+
+  // Group quotes by supplier for the requested "subgroups" view
+  const supplierGroups = useMemo(() => {
+    const groups: Record<string, { name: string; items: (QuoteEntry & { originalIndex: number })[] }> = {};
+    
+    quotes.forEach((q, idx) => {
+      // Use supplierId as key, or a temp one if not selected
+      const key = q.supplierId || `new-${idx}`;
+      if (!groups[key]) {
+        groups[key] = { 
+          name: q.supplierName || 'Nuevo Proveedor', 
+          items: [] 
+        };
+      }
+      groups[key].items.push({ ...q, originalIndex: idx });
+    });
+    
+    return Object.entries(groups).map(([id, group]) => ({
+      id,
+      ...group
+    }));
+  }, [quotes]);
+
+  const isLoadingSuppliers = !allSuppliers;
 
   // Sub-component for supplier selection to handle local popover state
   const SupplierSelector = ({ 
@@ -313,9 +276,6 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
           <div>
             <h3 className="text-lg font-bold text-procarni-dark leading-tight flex items-center gap-2">
               {material.name} 
-              <span className="px-2 py-0.5 rounded-md bg-procarni-secondary/10 text-procarni-secondary text-[10px] font-bold border border-procarni-secondary/20 uppercase">
-                {unitName}
-              </span>
             </h3>
             <p className="text-xs font-mono text-muted-foreground mt-0.5">
               Ref: {material.code} | ID: {material.id.substring(0,8)}...
@@ -323,321 +283,285 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={onRemoveMaterial} className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 self-end sm:self-auto">
-          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Fila
+          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Material
         </Button>
       </div>
 
       <div className="pt-4">
         {isTablet ? (
-          <div className="flex flex-col gap-4 w-full">
-            {results.map((quote, index) => {
-              const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
-              return (
-                <Card key={index} className={cn(
-                  "border shadow-sm relative overflow-hidden transition-all",
-                  isBestPrice ? "border-procarni-secondary bg-green-50/20 ring-1 ring-procarni-secondary/30" : "border-gray-100 bg-white",
-                  !isMobile ? "p-3" : "p-4"
-                )}>
-                  {isBestPrice && (
-                    <div className="absolute top-0 right-0 bg-procarni-secondary text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg flex items-center gap-1 z-10">
-                      <CheckCircle2 className="h-3 w-3" /> MEJOR PRECIO
+          <div className="flex flex-col gap-6">
+            {supplierGroups.map((group) => (
+              <Card key={group.id} className="border-gray-100 bg-white shadow-sm overflow-hidden border">
+                <div className="bg-gray-50/80 p-3 sm:p-4 border-b border-gray-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Proveedor</label>
+                      <SupplierSelector quote={group.items[0]} index={group.items[0].originalIndex} />
                     </div>
-                  )}
-                  
-                  {/* Row 1: Supplier and Delete Button */}
-                  <div className={cn("flex flex-col gap-2", !isMobile ? "mb-3" : "mb-4")}>
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Proveedor</label>
-                        <SupplierSelector quote={quote} index={index} />
-                      </div>
-                      {results.length > 1 && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => onRemoveQuoteEntry(index)} 
-                          className={cn("text-destructive hover:bg-red-50 shrink-0", !isMobile ? "h-9 w-9" : "h-10 w-10")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    {quote.supplierId && !supplierOptions.associated.some(s => s.id === quote.supplierId) && (
-                      <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded px-2 py-1">
-                        <div className="flex items-center gap-1.5 text-amber-700">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span className="text-[10px] font-medium">No asociado</span>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-6 px-2 text-[10px] text-amber-800 hover:bg-amber-100 gap-1"
-                          onClick={() => handleAssociateSupplier(quote.supplierId, quote.supplierName)}
-                          disabled={isAssociating === quote.supplierId}
-                        >
-                          {isAssociating === quote.supplierId ? <span className="h-3 w-3 animate-spin border-2 border-amber-700 border-t-transparent rounded-full" /> : <Link className="h-3 w-3" />}
-                          Vincular
-                        </Button>
-                      </div>
+                    {group.id !== 'new' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-8 text-[10px] text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10"
+                        onClick={() => onAddQuote(group.id, group.name)}
+                      >
+                        <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Añadir Presentación
+                      </Button>
                     )}
                   </div>
+                </div>
+                
+                <div className="divide-y divide-gray-50">
+                  {group.items.map((quote, itemIdx) => (
+                    <div key={`${group.id}-${itemIdx}`} className={cn(
+                      "p-3 sm:p-4 transition-colors",
+                      quote.isBest ? "bg-procarni-secondary/5" : "bg-white"
+                    )}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Unidad / Presentación</label>
+                          <Select
+                            value={quote.unit_id || 'default'}
+                            onValueChange={(val) => onQuoteChange(quote.originalIndex, 'unit_id', val)}
+                          >
+                            <SelectTrigger className="h-9 text-xs bg-white border-gray-200">
+                              <SelectValue placeholder="Seleccionar unidad..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allUnits.map(u => (
+                                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                  {/* Row 2: Price Inputs and Result */}
-                  {!isMobile ? (
-                    // Compact Tablet Layout (Row 2)
-                    <div className="flex flex-wrap items-end gap-4 w-full">
-                      <div className="flex-1 min-w-[140px]">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Precio Original</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-gray-400 text-sm">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={quote.unitPrice || ''}
-                            onChange={(e) => onQuoteChange(material.id, index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLElement).blur()}
-                            className="h-10 pl-8 text-base bg-gray-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full font-semibold"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div className="w-[100px] shrink-0">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Moneda</label>
-                        <Select
-                          value={quote.currency}
-                          onValueChange={(value) => onQuoteChange(material.id, index, 'currency', value as 'USD' | 'VES' | 'EUR')}
-                        >
-                          <SelectTrigger className="h-10 text-sm bg-gray-50/50 font-medium">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="VES">VES</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-[140px] shrink-0">
-                        <ExchangeRateInput
-                          compact
-                          baseCurrency={quote.currency === 'EUR' ? 'EUR' : 'USD'}
-                          exchangeRate={quote.exchangeRate || globalExchangeRate}
-                          onExchangeRateChange={(val) => onQuoteChange(index, 'exchangeRate', val)}
-                          disableAutoFetch={true}
-                        />
-                      </div>
-                      <div className={cn(
-                        "flex-1 min-w-[150px] flex items-center justify-between px-3 h-10 rounded-lg border",
-                        isBestPrice ? "bg-procarni-secondary/10 border-procarni-secondary/30" : "bg-gray-50 border-gray-100"
-                      )}>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Total USD</span>
-                        <div className="text-right">
-                          <span className={cn(
-                            "text-base font-bold block",
-                            isBestPrice ? "text-procarni-secondary" : "text-procarni-dark"
-                          )}>
-                            {formatPrice(quote.convertedPrice, '')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // Standard Mobile Layout (Rows 2, 3, 4)
-                    <>
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Precio Original</label>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Precio ({quote.currency})</label>
                           <div className="relative">
-                            <span className="absolute left-2.5 top-2.5 text-gray-400 text-xs">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
+                            <span className="absolute left-3 top-2 text-gray-400 text-xs font-medium mt-0.5">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
                             <Input
                               type="number"
                               step="0.01"
                               value={quote.unitPrice || ''}
-                              onChange={(e) => onQuoteChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              onWheel={(e) => (e.target as HTMLElement).blur()}
-                              className="h-10 pl-8 bg-gray-50/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full"
-                              placeholder="0.00"
+                              onChange={(e) => onQuoteChange(quote.originalIndex, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              className="h-9 pl-7 text-sm font-semibold"
                             />
                           </div>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Moneda</label>
-                          <Select
-                            value={quote.currency}
-                            onValueChange={(value) => onQuoteChange(index, 'currency', value as 'USD' | 'VES' | 'EUR')}
+
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Moneda / Tasa</label>
+                          <div className="flex gap-2">
+                            <Select
+                              value={quote.currency}
+                              onValueChange={(value) => onQuoteChange(quote.originalIndex, 'currency', value as any)}
+                            >
+                              <SelectTrigger className="h-9 w-20 text-xs shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="USD">USD</SelectItem>
+                                <SelectItem value="VES">VES</SelectItem>
+                                <SelectItem value="EUR">EUR</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="flex-1 min-w-[100px]">
+                              <ExchangeRateInput
+                                compact
+                                baseCurrency={quote.currency === 'EUR' ? 'EUR' : 'USD'}
+                                exchangeRate={quote.exchangeRate}
+                                onExchangeRateChange={(val) => onQuoteChange(quote.originalIndex, 'exchangeRate', val)}
+                                disableAutoFetch={true}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-gray-50/50 p-2 rounded-lg border border-gray-100">
+                          <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tight">Total USD</span>
+                            <div className="flex items-center gap-1.5">
+                              {quote.isBest && <CheckCircle2 className="h-3 w-3 text-procarni-secondary" />}
+                              <span className={cn("text-sm font-bold", quote.isBest ? "text-procarni-secondary" : "text-procarni-dark")}>
+                                {formatPrice(quote.convertedPrice, 'USD')}
+                              </span>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => onRemoveQuote(quote.originalIndex)}
+                            className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
                           >
-                            <SelectTrigger className="h-10 w-full bg-gray-50/50">
-                              <SelectValue placeholder="Moneda" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="USD">USD</SelectItem>
-                              <SelectItem value="VES">VES</SelectItem>
-                              <SelectItem value="EUR">EUR</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
-
-                      <div className="mb-4 space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tasa de Cambio</label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={quote.exchangeRate || globalExchangeRate || ''}
-                          onChange={(e) => onQuoteChange(index, 'exchangeRate', parseFloat(e.target.value) || undefined)}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          placeholder={globalExchangeRate ? `Global: ${globalExchangeRate}` : 'Tasa'}
-                          className="h-10 bg-gray-50/50 w-full"
-                        />
-                      </div>
-
-                      <div className={cn(
-                        "flex items-center justify-between p-3 rounded-lg",
-                        isBestPrice ? "bg-procarni-secondary/10" : "bg-gray-100/50"
-                      )}>
-                        <span className="text-xs font-semibold text-gray-500 uppercase">Precio Comparado (USD)</span>
-                        <div className="text-right">
-                          <span className={cn(
-                            "text-base font-bold block",
-                            isBestPrice ? "text-procarni-secondary" : "text-procarni-dark"
-                          )}>
-                            {formatPrice(quote.convertedPrice, 'USD')}
-                          </span>
-                          {!quote.isValid && quote.error && (
-                            <p className="text-[10px] text-red-500 mt-0.5 font-medium">{quote.error}</p>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {!quote.isValid && quote.error && isMobile && (
-                    <p className="text-[10px] text-red-500 mt-2 font-medium">{quote.error}</p>
-                  )}
-                  {!quote.isValid && quote.error && !isMobile && (
-                    <p className="text-[10px] text-red-500 mt-1 font-medium text-right">{quote.error}</p>
-                  )}
-                </Card>
-              );
-            })}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-100">
+          <div className="overflow-x-auto border border-gray-100 rounded-xl bg-white shadow-sm">
             <Table>
-              <TableHeader className="bg-gray-50/80">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[35%] min-w-[240px] text-xs font-semibold text-gray-500 uppercase tracking-wider pl-3 sm:pl-4">Proveedor</TableHead>
-                  <TableHead className="w-[22%] min-w-[180px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
-                  <TableHead className="w-[8%] min-w-[80px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
-                  <TableHead className="w-[20%] min-w-[200px] text-xs font-semibold text-gray-500 uppercase tracking-wider">Tasa</TableHead>
-                  <TableHead className="w-[18%] min-w-[160px] text-right font-bold text-xs uppercase tracking-wider text-procarni-dark">Precio Comparado (USD)</TableHead>
-                  <TableHead className="w-[5%] min-w-[50px] text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acción</TableHead>
+              <TableHeader className="bg-gray-50/50">
+                <TableRow>
+                  <TableHead className="w-[200px] pl-4 sm:pl-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Proveedor</TableHead>
+                  <TableHead className="w-[150px] py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Presentación / Unidad</TableHead>
+                  <TableHead className="w-[180px] py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Precio Original</TableHead>
+                  <TableHead className="w-[120px] py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Moneda</TableHead>
+                  <TableHead className="w-[160px] py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Tasa de Cambio</TableHead>
+                  <TableHead className="w-[180px] py-4 text-right pr-12 text-xs font-bold text-gray-500 uppercase tracking-wider">Total USD</TableHead>
+                  <TableHead className="w-[50px] py-4"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {results.map((quote, index) => {
-                  const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
-
-                  return (
-                    <TableRow
-                      key={index}
-                      className={cn(
-                        "transition-colors",
-                        isBestPrice
-                          ? "bg-green-50/40 hover:bg-green-50/60 border-l-4 border-procarni-secondary shadow-sm relative z-10"
-                          : "hover:bg-gray-50/50 bg-white",
-                        !quote.isValid && "bg-red-50/40 text-muted-foreground opacity-75"
-                      )}
-                    >
-                      <TableCell className="pl-3 sm:pl-4 py-3">
-                        <div className="space-y-1.5">
-                          <SupplierSelector quote={quote} index={index} />
-                          {quote.supplierId && !supplierOptions.associated.some(s => s.id === quote.supplierId) && (
-                            <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded px-2 py-0.5">
-                              <span className="text-[9px] text-amber-700 font-medium flex items-center gap-1">
-                                <AlertTriangle className="h-2.5 w-2.5" /> No asociado
-                              </span>
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                className="h-5 px-1.5 text-[9px] text-amber-800 hover:bg-amber-100 gap-1 font-bold"
-                                onClick={() => handleAssociateSupplier(quote.supplierId, quote.supplierName)}
-                                disabled={isAssociating === quote.supplierId}
-                              >
-                                {isAssociating === quote.supplierId ? <span className="h-2.5 w-2.5 animate-spin border border-amber-700 border-t-transparent rounded-full" /> : <Link className="h-2.5 w-2.5" />}
-                                Vincular
-                              </Button>
-                            </div>
+                {supplierGroups.map((group) => (
+                  <React.Fragment key={group.id}>
+                    {group.items.map((quote, itemIdx) => {
+                      const isFirstInGroup = itemIdx === 0;
+                      return (
+                        <TableRow 
+                          key={`${group.id}-${quote.unit_id}-${itemIdx}`}
+                          className={cn(
+                            "transition-colors hover:bg-gray-50/50",
+                            quote.isBest ? "bg-procarni-secondary/5" : ""
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-2 text-gray-400 text-sm">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={quote.unitPrice || ''}
-                            onChange={(e) => onQuoteChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLElement).blur()}
-                            className="h-9 pl-10 bg-white/50 focus:bg-white transition-colors w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={quote.currency}
-                          onValueChange={(value) => onQuoteChange(index, 'currency', value as 'USD' | 'VES' | 'EUR')}
                         >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Moneda" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="VES">VES</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <ExchangeRateInput
-                          compact
-                          baseCurrency={'USD'}
-                          exchangeRate={quote.exchangeRate || globalExchangeRate}
-                          onExchangeRateChange={(val) => onQuoteChange(index, 'exchangeRate', val)}
-                          disableAutoFetch={true}
-                        />
-                      </TableCell>
-                      <TableCell className={cn("text-right py-3", isBestPrice ? "font-bold text-procarni-secondary" : "font-semibold text-gray-700")}>
-                        <div className="flex items-center justify-end gap-2">
-                          {isBestPrice && <CheckCircle2 className="h-4 w-4 text-procarni-secondary fill-procarni-secondary/20" />}
-                          <span className="text-sm font-bold">{formatPrice(quote.convertedPrice, 'USD')}</span>
-                        </div>
-                        {!quote.isValid && quote.error && (
-                          <p className="text-[10px] text-red-500 mt-1 font-medium">{quote.error}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right py-3 pr-3 sm:pr-4">
-                        <Button variant="ghost" size="icon" onClick={() => onRemoveQuoteEntry(index)} className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
-                          <X className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                          <TableCell className="pl-4 sm:pl-6 py-3 align-top">
+                            {isFirstInGroup ? (
+                              <div className="flex flex-col gap-2">
+                                <SupplierSelector quote={quote} index={quote.originalIndex} />
+                              </div>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1">
+                                <Select
+                                  value={quote.unit_id || 'default'}
+                                  onValueChange={(val) => onQuoteChange(quote.originalIndex, 'unit_id', val)}
+                                >
+                                  <SelectTrigger className="h-9 text-xs bg-white/50 border-gray-200">
+                                    <SelectValue placeholder="Unidad" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="default" disabled>Selecciona Unidad</SelectItem>
+                                    {allUnits?.map((u) => (
+                                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              {quote.supplierId && !isAssociated(material.id, quote.supplierId) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 ml-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAssociateSupplier(quote.supplierId, material.id, quote.unit_id || '', quote.supplierName || '');
+                                  }}
+                                  disabled={isAssociating === `${material.id}-${quote.supplierId}`}
+                                  title="Vincular material al proveedor"
+                                >
+                                  {isAssociating === `${material.id}-${quote.supplierId}` ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Link className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <div className="relative group">
+                              <span className="absolute left-3 top-2.5 text-gray-400 text-xs font-medium">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={quote.unitPrice || ''}
+                                onChange={(e) => onQuoteChange(quote.originalIndex, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                onWheel={(e) => (e.target as HTMLElement).blur()}
+                                className="h-9 pl-7 text-sm font-semibold bg-white border-gray-200 focus:border-procarni-secondary focus:ring-procarni-secondary/10 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <Select
+                              value={quote.currency}
+                              onValueChange={(value) => onQuoteChange(quote.originalIndex, 'currency', value as 'USD' | 'VES' | 'EUR')}
+                            >
+                              <SelectTrigger className="h-9 text-xs bg-white border-gray-200 font-medium">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="USD">USD</SelectItem>
+                                <SelectItem value="VES">VES</SelectItem>
+                                <SelectItem value="EUR">EUR</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <ExchangeRateInput
+                              compact
+                              baseCurrency={quote.currency === 'EUR' ? 'EUR' : 'USD'}
+                              exchangeRate={quote.exchangeRate}
+                              onExchangeRateChange={(val) => onQuoteChange(quote.originalIndex, 'exchangeRate', val)}
+                              disableAutoFetch={true}
+                            />
+                          </TableCell>
+                          <TableCell className={cn("text-right py-3 pr-12", quote.isBest ? "font-bold text-procarni-secondary" : "font-semibold text-gray-700")}>
+                            <div className="flex items-center justify-end gap-2">
+                              {quote.isBest && <CheckCircle2 className="h-4 w-4 text-procarni-secondary fill-procarni-secondary/20" />}
+                              <span className="text-sm font-bold">{formatPrice(quote.convertedPrice, 'USD')}</span>
+                            </div>
+                            {!quote.isValid && quote.error && (
+                              <p className="text-[10px] text-red-500 mt-1 font-medium">{quote.error}</p>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right py-3 pr-4">
+                            <Button variant="ghost" size="icon" onClick={() => onRemoveQuote(quote.originalIndex)} className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50">
+                              <X className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {group.id !== 'new' && (
+                      <TableRow className="bg-gray-50/20 hover:bg-gray-50/20 border-b border-gray-100">
+                        <TableCell colSpan={7} className="py-2 pl-6">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 text-[10px] text-procarni-secondary hover:bg-procarni-secondary/10 gap-1"
+                            onClick={() => onAddQuote(group.id, group.name)}
+                          >
+                            <PlusCircle className="h-3 w-3" /> Añadir otra presentación para este proveedor
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex justify-end">
+      <div className="mt-6 flex justify-center sm:justify-end">
         <Button
           variant="outline"
           size="sm"
-          onClick={onAddQuoteEntry}
-          className="text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10"
+          onClick={() => onAddQuote('', '')}
+          className="text-procarni-secondary border-procarni-secondary/40 hover:bg-procarni-secondary/10 bg-white px-6 h-10 font-bold shadow-sm hover:shadow transition-all"
         >
-          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Oferta
+          <PlusCircle className="mr-2 h-5 w-5" /> Añadir Nuevo Proveedor
         </Button>
       </div>
     </div>

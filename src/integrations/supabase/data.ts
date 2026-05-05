@@ -85,6 +85,7 @@ export const getSuppliersByMaterial = async (materialId: string): Promise<any[]>
 
   return data.map(sm => ({
     ...sm.suppliers,
+    unit_id: sm.unit_id,
     specification: sm.specification,
   }));
 };

@@ -58,7 +58,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const resetForm = () => {
     setMaterialName('');
     setCategory(categories[0]?.name || '');
-    setUnit(units[0]?.name || '');
+    setUnit(units[0]?.id || '');
     setIsExempt((categories[0]?.name || '') === 'FRESCA'); // Default based on initial category
     setSpecification('');
     setSuggestedMaterial(null);
@@ -106,7 +106,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             // If the match is exact, pre-fill fields immediately
             if (bestMatch.name.toUpperCase() === trimmedName.toUpperCase()) {
               setCategory(bestMatch.category || (categories[0]?.name || ''));
-              setUnit(bestMatch.unit || (units[0]?.name || ''));
+              setUnit(bestMatch.unit_id || (units[0]?.id || ''));
               // Use existing material's exemption status
               setIsExempt(bestMatch.is_exempt || false);
             } else if (trimmedName.toLowerCase().startsWith('tripa')) {
@@ -118,7 +118,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               const isDefaultUnit = unit === (units[0]?.name || '');
 
               if (empCategory && isDefaultCategory) setCategory(empCategory.name);
-              if (mtUnit && isDefaultUnit) setUnit(mtUnit.name);
+              if (mtUnit && isDefaultUnit) setUnit(mtUnit.id);
             }
           } else {
             setSuggestedMaterial(null);
@@ -132,7 +132,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               const isDefaultUnit = unit === (units[0]?.name || '');
 
               if (empCategory && isDefaultCategory) setCategory(empCategory.name);
-              if (mtUnit && isDefaultUnit) setUnit(mtUnit.name);
+              if (mtUnit && isDefaultUnit) setUnit(mtUnit.id);
               
               // If we set category to EMPAQUE, we might want to update isExempt too if it was default
               if (empCategory && isDefaultCategory) {
@@ -141,7 +141,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             } else {
               // Reset fields to default if no match found and not "tripa", respecting FRESCA rule
               setCategory(categories[0]?.name || '');
-              setUnit(units[0]?.name || '');
+              setUnit(units[0]?.id || '');
               setIsExempt((categories[0]?.name || '') === 'FRESCA');
             }
           }
@@ -168,7 +168,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     if (suggestedMaterial) {
       setMaterialName(suggestedMaterial.name);
       setCategory(suggestedMaterial.category || (categories[0]?.name || ''));
-      setUnit(suggestedMaterial.unit || (units[0]?.name || ''));
+      setUnit(suggestedMaterial.unit_id || (units[0]?.id || ''));
       setIsExempt(suggestedMaterial.is_exempt || false); // Use suggested material's exemption status
       setSuggestedMaterial(null); // Clear suggestion after acceptance
     }
@@ -205,10 +205,15 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         // For now, we trust the existing material's definition.
       } else {
         // CREATE NEW
+        // Find unit name for the "unit" text field
+        const selectedUnitObj = units.find(u => u.id === unit);
+        const unitName = selectedUnitObj?.name || '';
+
         const newMaterial = await createMaterial({
           name: trimmedMaterialName,
           category,
-          unit,
+          unit: unitName,
+          unit_id: unit,
           is_exempt: finalIsExempt, // Use the determined final status
           user_id: session.user.id,
           code: '', // Allow trigger to generate it
@@ -226,6 +231,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         const result = await createSupplierMaterialRelation({
           supplier_id: supplierId,
           material_id: materialToAssociate.id,
+          unit_id: unit || materialToAssociate.unit_id || '',
           specification: specification.trim() || undefined,
           user_id: session.user.id,
         });
@@ -353,13 +359,20 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
             <div className="grid gap-2">
               <Label htmlFor="unit">Unidad</Label>
-              <Select value={unit} onValueChange={setUnit} disabled={isSubmitting || isExactMatch || isLoadingUnits}>
+              <Select 
+                value={unit} 
+                onValueChange={(val) => {
+                  setUnit(val);
+                  // Optional: if you need the name for something else immediately
+                }} 
+                disabled={isSubmitting || isExactMatch || isLoadingUnits}
+              >
                 <SelectTrigger id="unit">
                   <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
                   {units.map(u => (
-                    <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

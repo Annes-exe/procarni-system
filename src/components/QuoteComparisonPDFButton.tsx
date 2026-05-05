@@ -5,32 +5,13 @@ import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast
 import { useSession } from '@/components/SessionContextProvider';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { QuoteEntry, ComparisonResult } from '@/integrations/supabase/types';
 
 const sanitizeFilename = (filename: string): string => {
   return filename.replace(/[/\\?%*:|"<>]/g, '-');
 };
 
-interface QuoteEntry {
-  supplierId: string;
-  supplierName: string;
-  unitPrice: number;
-  currency: 'USD' | 'VES' | 'EUR';
-  exchangeRate?: number;
-}
-
-interface MaterialSearchResult {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface ComparisonResult {
-  material: MaterialSearchResult;
-  unit_id: string; 
-  unit_name?: string; // NEW
-  results: (QuoteEntry & { convertedPrice: number | null; isValid: boolean; error: string | null })[];
-  bestPrice: number | null;
-}
+// Redundant interfaces removed, using shared ones from types.ts
 
 interface QuoteComparisonPDFButtonProps {
   comparisonResults: ComparisonResult[];

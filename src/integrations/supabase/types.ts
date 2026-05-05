@@ -219,22 +219,44 @@ export type QuoteComparison = {
   items?: QuoteComparisonItem[]; // Joined items
 };
 
+export type QuoteEntry = {
+  supplierId: string;
+  supplierName: string;
+  unitPrice: number;
+  currency: 'USD' | 'VES' | 'EUR';
+  exchangeRate?: number;
+  unit_id: string;
+  unit_name?: string;
+  convertedPrice?: number | null;
+  isValid?: boolean;
+  error?: string | null;
+  isBest?: boolean;
+};
+
+export interface ComparisonResult {
+  material: {
+    id: string;
+    name: string;
+    code: string;
+    unit_id?: string;
+  };
+  results: QuoteEntry[];
+  unitGroups?: Record<string, number>;
+  bestPrice: number | null;
+}
+
 export type QuoteComparisonItem = {
   id: string;
   comparison_id: string;
   material_id: string;
   material_name: string;
-  quotes: Array<{
-    supplierId: string;
-    supplierName: string;
-    unitPrice: number;
-    currency: 'USD' | 'VES' | 'EUR';
-    exchangeRate?: number;
-  }>;
+  quotes: QuoteEntry[];
+  unit_id?: string | null;
   created_at: string;
-  materials?: { // Joined material details
+  materials?: {
     code: string;
     name: string;
+    unit_id?: string | null;
   };
 };
 
