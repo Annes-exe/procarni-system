@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info, TriangleAlert } from 'lucide-react';
-import { FichaTecnica, Supplier } from '@/integrations/supabase/types'; // Import Supplier type
+import { FichaTecnica, Supplier, SupplierMaterialPayload } from '@/integrations/supabase/types'; // Import Supplier type
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input';
 interface MaterialAssociation {
   id: string; // ID of supplier_materials entry
   material_id: string;
+  unit_id: string | null;
   specification?: string;
   materials: {
     id: string;
@@ -40,6 +41,12 @@ interface MaterialAssociation {
     code?: string;
     category?: string;
   };
+  units_of_measure?: {
+    id: string;
+    name: string;
+  };
+  hasFichaResult?: boolean;
+  isLoadingFicha?: boolean;
 }
 
 interface SupplierDetailsData {
@@ -86,15 +93,32 @@ const SupplierDetails = () => {
   });
 
   // --- Fetch Ficha Tecnica Status for all materials using useQueries ---
-  const materialQueries = supplier?.materials?.map(sm => ({
-    queryKey: ['fichaTecnicaStatus', supplier.id, sm.materials.name],
-    queryFn: () => getFichaTecnicaBySupplierAndProduct(supplier.id, sm.materials.name),
-    select: (data: FichaTecnica | null) => !!data, // Transform result to boolean (hasFicha)
-    enabled: !!supplier.id && !!sm.materials.name,
+  // Optimized ficha checks: Only one query per unique material name to avoid Duplicate Queries warning
+  const uniqueMaterialNames = useMemo(() => {
+    if (!supplier?.materials) return [];
+    return Array.from(new Set(supplier.materials.map(sm => sm.materials.name)));
+  }, [supplier?.materials]);
+
+  const materialQueries = uniqueMaterialNames.map(name => ({
+    queryKey: ['fichaTecnicaStatus', supplier?.id, name],
+    queryFn: () => getFichaTecnicaBySupplierAndProduct(supplier!.id, name),
+    select: (data: any) => !!data,
+    enabled: !!supplier?.id && !!name,
     staleTime: 1000 * 60 * 5,
-  })) || [];
+  }));
 
   const fichaStatusResults = useQueries({ queries: materialQueries });
+
+  const fichaStatusMap = useMemo(() => {
+    const map: Record<string, { data?: boolean; isLoading: boolean }> = {};
+    uniqueMaterialNames.forEach((name, index) => {
+      map[name] = {
+        data: fichaStatusResults[index]?.data as boolean,
+        isLoading: fichaStatusResults[index]?.isLoading
+      };
+    });
+    return map;
+  }, [uniqueMaterialNames, fichaStatusResults]);
   const isLoadingFichaStatus = fichaStatusResults.some(result => result.isLoading);
 
   const { data: categories = [] } = useQuery({
@@ -102,15 +126,18 @@ const SupplierDetails = () => {
     queryFn: getAllMaterialCategories,
   });
 
-  // Combine materials with their ficha status to survive filtering
+  // Combine materials with their ficha status from the map
   const materialsWithStatus = useMemo(() => {
     if (!supplier?.materials) return [];
-    return supplier.materials.map((sm, index) => ({
-      ...sm,
-      hasFichaResult: fichaStatusResults[index]?.data as boolean,
-      isLoadingFicha: fichaStatusResults[index]?.isLoading
-    }));
-  }, [supplier?.materials, fichaStatusResults]);
+    return supplier.materials.map((sm) => {
+      const status = fichaStatusMap[sm.materials.name];
+      return {
+        ...sm,
+        hasFichaResult: status?.data || false,
+        isLoadingFicha: status?.isLoading || false
+      };
+    });
+  }, [supplier?.materials, fichaStatusMap]);
 
   const filteredMaterials = useMemo(() => {
     if (!materialsWithStatus) return [];
@@ -120,14 +147,41 @@ const SupplierDetails = () => {
     return materialsWithStatus.filter(sm =>
       sm.materials.name.toLowerCase().includes(lowerSearch) ||
       sm.materials.code?.toLowerCase().includes(lowerSearch) ||
-      sm.materials.category?.toLowerCase().includes(lowerSearch)
+      sm.materials.category?.toLowerCase().includes(lowerSearch) ||
+      sm.units_of_measure?.name.toLowerCase().includes(lowerSearch)
     );
   }, [materialsWithStatus, searchTerm]);
+
+  const groupedMaterials = useMemo(() => {
+    const groups: Record<string, {
+      material_id: string;
+      name: string;
+      code?: string;
+      category?: string;
+      items: any[];
+    }> = {};
+
+    filteredMaterials.forEach(sm => {
+      const mId = sm.material_id;
+      if (!groups[mId]) {
+        groups[mId] = {
+          material_id: mId,
+          name: sm.materials.name,
+          code: sm.materials.code,
+          category: sm.materials.category,
+          items: []
+        };
+      }
+      groups[mId].items.push(sm);
+    });
+
+    return Object.values(groups);
+  }, [filteredMaterials]);
   // --------------------------------------------------------------------
 
   // Mutation for updating supplier
   const updateMutation = useMutation({
-    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: Array<{ material_id: string; specification?: string }> }) =>
+    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: SupplierMaterialPayload[] }) =>
       updateSupplier(id, supplierData, materials),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
@@ -224,6 +278,7 @@ const SupplierDetails = () => {
     const { materials, ...supplierData } = data;
     const materialsPayload = materials?.map((mat: any) => ({
       material_id: mat.material_id,
+      unit_id: mat.unit_id || null,
       specification: mat.specification,
     })) || [];
 
@@ -606,120 +661,91 @@ const SupplierDetails = () => {
         </CardHeader>
         <CardContent className="p-0">
           {supplier.materials && supplier.materials.length > 0 ? (
-            isMobile ? (
-              <div className="divide-y divide-gray-100">
-                {filteredMaterials.length > 0 ? (
-                  filteredMaterials.map((sm, index) => (
-                    <div key={sm.id || index} className="p-4 bg-white">
-                      <div className="flex justify-between items-start mb-2">
-                        <InlineEditableCell
-                          value={sm.materials.name}
-                          onSave={handleMaterialInlineSave(sm.materials.id, 'name')}
-                          alwaysShowIcon
-                          displayClassName="font-semibold text-procarni-dark"
-                          placeholder="Nombre"
-                        />
-                        {sm.isLoadingFicha ? (
-                          <span className="text-[10px] text-gray-400 italic">Cargando...</span>
-                        ) : sm.hasFichaResult ? (
-                          <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} className="h-6 w-6">
-                            <FileText className="h-3.5 w-3.5 text-procarni-secondary" />
-                          </Button>
-                        ) : null}
+            <div className="divide-y divide-gray-100">
+              {groupedMaterials.length > 0 ? (
+                groupedMaterials.map((group) => (
+                  <div key={group.material_id} className="bg-white overflow-hidden group/material">
+                    {/* Material Group Header */}
+                    <div className="bg-gray-50/30 p-3 px-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-procarni-secondary" />
+                          <h3 className="font-bold text-procarni-dark text-[13px] uppercase tracking-tight">
+                            {group.name}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 ml-3.5">
+                          <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono text-gray-400 bg-white border-gray-100">
+                            {group.code || 'S/C'}
+                          </Badge>
+                          <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
+                            {group.category || 'Sin categoría'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-500">
-                        <div>
-                          <span className="text-[10px] uppercase text-gray-400 block">Código</span>
-                          <span className="text-xs font-mono">{sm.materials.code || 'N/A'}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] uppercase text-gray-400 block">Categoría</span>
-                          <InlineEditableCell
-                            value={sm.materials.category || ''}
-                            onSave={handleMaterialInlineSave(sm.materials.id, 'category')}
-                            type="select"
-                            options={categories.map(c => ({ value: c.name, label: c.name }))}
-                            alwaysShowIcon
-                            displayClassName="text-xs"
-                            placeholder="Sin categoría"
-                          />
-                        </div>
-                        <div className="col-span-2 pt-1 border-t border-gray-50 mt-1">
-                          <span className="text-[10px] uppercase text-gray-400 block">Especificación</span>
-                          <span className="italic">{sm.specification || 'N/A'}</span>
-                        </div>
+                      
+                      <div className="flex items-center gap-2">
+                         <Badge className="bg-blue-50 text-blue-600 border-blue-100 shadow-none text-[10px] font-bold">
+                           {group.items.length} {group.items.length === 1 ? 'Presentación' : 'Presentaciones'}
+                         </Badge>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="p-8 text-center text-gray-400 italic">
-                    No se encontraron materiales que coincidan con la búsqueda.
+
+                    {/* Presentations Table/List */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader className="bg-white">
+                          <TableRow className="border-b-0 hover:bg-transparent">
+                            <TableHead className={cn(tableHeaderClass, "w-[150px] pl-10 h-8 py-0")}>Unidad</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "h-8 py-0")}>Especificación</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "w-[120px] text-center pr-6 h-8 py-0")}>Ficha Técnica</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {group.items.map((sm: any) => (
+                            <TableRow key={sm.id} className="border-b border-gray-50/50 hover:bg-gray-50/30 last:border-b-0">
+                              <TableCell className="pl-10">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
+                                  {sm.units_of_measure?.name || 'N/A'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-gray-500 italic text-[12px]">
+                                {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
+                              </TableCell>
+                              <TableCell className="text-center pr-6">
+                                {sm.isLoadingFicha ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto text-gray-300" />
+                                ) : sm.hasFichaResult ? (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => handleViewFicha(sm.materials.name)} 
+                                    className="hover:bg-green-50 rounded-full h-8 w-8 group/ficha"
+                                  >
+                                    <FileText className="h-4 w-4 text-procarni-secondary transition-transform group-hover/ficha:scale-110" />
+                                  </Button>
+                                ) : (
+                                  <span className="text-[10px] text-gray-300">N/A</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
-                )}
-              </div>
-            ) : (
-              <Table>
-                <TableHeader className="bg-gray-50/80">
-                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Código</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2"}>Nombre del Material</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2"}>Categoría</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2"}>Especificación</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center pr-6"}>Ficha técnica</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMaterials.length > 0 ? (
-                    filteredMaterials.map((sm, index) => (
-                      <TableRow key={sm.id || index} className="border-b border-gray-50 hover:bg-gray-50/30 group">
-                        <TableCell className="pl-6 font-mono text-[13px] text-gray-500">
-                          {sm.materials.code || 'N/A'}
-                        </TableCell>
-                        <TableCell className="max-w-[180px]">
-                          <InlineEditableCell
-                            value={sm.materials.name}
-                            onSave={handleMaterialInlineSave(sm.materials.id, 'name')}
-                            displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
-                            placeholder="Nombre"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <InlineEditableCell
-                            value={sm.materials.category || ''}
-                            onSave={handleMaterialInlineSave(sm.materials.id, 'category')}
-                            type="select"
-                            options={categories.map(c => ({ value: c.name, label: c.name }))}
-                            displayClassName="text-gray-500"
-                            placeholder="Sin categoría"
-                          />
-                        </TableCell>
-                        <TableCell className="text-gray-500 italic text-sm truncate max-w-[200px]">{sm.specification || 'N/A'}</TableCell>
-                        <TableCell className="text-center pr-6">
-                          {sm.isLoadingFicha ? (
-                            <span className="text-[10px] text-gray-400">...</span>
-                          ) : sm.hasFichaResult ? (
-                            <Button variant="ghost" size="icon" onClick={() => handleViewFicha(sm.materials.name)} className="hover:bg-green-50 rounded-full">
-                              <FileText className="h-4 w-4 text-procarni-secondary" />
-                            </Button>
-                          ) : (
-                            <span className="text-[10px] text-gray-300">N/A</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-gray-400 italic">
-                        No se encontraron materiales que coincidan con la búsqueda.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )
+                ))
+              ) : (
+                <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+                  <Search className="h-8 w-8 opacity-10" />
+                  <p className="italic text-sm">No se encontraron materiales que coincidan con la búsqueda.</p>
+                </div>
+              )}
+            </div>
           ) : (
-            <div className="p-8 text-center text-gray-400 italic">
-              Este proveedor no tiene materiales registrados.
+            <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+              <ShoppingCart className="h-10 w-10 opacity-10" />
+              <p className="italic text-sm">Este proveedor no tiene materiales registrados.</p>
             </div>
           )}
         </CardContent>

@@ -339,5 +339,6 @@ export type OrderDocument = {
 
 export type SupplierMaterialPayload = {
   material_id: string;
+  unit_id: string | null;
   specification?: string;
 };

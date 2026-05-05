@@ -222,6 +222,9 @@ export const getPurchaseHistoryReport = async ({
         category,
         unit,
         search_aliases
+      ),
+      units_of_measure (
+        name
       )
     `)
     .order('created_at', { ascending: false });

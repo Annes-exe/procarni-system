@@ -7,7 +7,7 @@ export interface PriceHistoryEntry {
   id: string;
   material_id: string;
   supplier_id: string;
-  unit_id: string; // NEW
+  unit_id: string;
   unit_price: number;
   currency: string;
   exchange_rate?: number | null;
@@ -18,6 +18,13 @@ export interface PriceHistoryEntry {
     name: string;
     rif: string;
     code?: string;
+  };
+  units_of_measure?: {
+    name: string;
+  };
+  materials?: {
+    name: string;
+    unit: string | null;
   };
 }
 
@@ -60,7 +67,8 @@ const PriceHistoryService = {
       .select(`
         *,
         suppliers (name, rif, code),
-        materials (name, unit)
+        materials (name, unit),
+        units_of_measure (name)
       `)
       .in('material_id', materialIds);
 

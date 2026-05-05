@@ -110,7 +110,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
             
             historyList.forEach((item: any) => {
                 if (item.currency !== currency) return;
-                const unit = item.unit || item.materials?.unit || 'Und';
+                const unit = item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und';
                 series.add(`${requestedMatName} (${unit})`);
             });
         });
@@ -126,7 +126,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
             
             historyList.forEach((item: any) => {
                 if (item.currency !== currency) return;
-                const unit = item.unit || item.materials?.unit || 'Und';
+                const unit = item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und';
                 const seriesKey = `${requestedMatName} (${unit})`;
                 
                 const ts = item.recorded_at;
@@ -150,7 +150,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
             
             historyList.forEach((item: any) => {
                 if (item.currency !== currency) return;
-                const unit = item.unit || item.materials?.unit || 'Und';
+                const unit = item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und';
                 const seriesKey = `${requestedMatName} (${unit})`;
                 
                 if (!seriesHistory[seriesKey]) seriesHistory[seriesKey] = [];
@@ -770,7 +770,7 @@ const ReportsAnalytics = () => {
                                                 </TableCell>
                                                 <TableCell className="py-3 text-gray-600 text-sm">{item.purchase_orders.suppliers.name}</TableCell>
                                                 <TableCell className="py-3 text-right text-sm">
-                                                    {item.quantity} <span className="text-xs text-gray-400">{item.unit || item.materials?.unit || 'Und'}</span>
+                                                    {item.quantity} <span className="text-xs text-gray-400">{item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und'}</span>
                                                 </TableCell>
                                                 <TableCell className="py-3 text-right font-mono text-sm">
                                                     {currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
