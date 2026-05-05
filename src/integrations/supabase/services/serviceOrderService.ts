@@ -182,6 +182,8 @@ const ServiceOrderService = {
           exchange_rate: newOrder.exchange_rate,
           service_order_id: newOrder.id,
           user_id: newOrder.user_id,
+          unit: mat.unit,
+          unit_id: mat.unit_id,
         }));
 
       if (priceHistoryEntries.length > 0) {
@@ -321,6 +323,8 @@ const ServiceOrderService = {
             exchange_rate: updatedOrder.exchange_rate,
             service_order_id: id,
             user_id: updatedOrder.user_id,
+            unit: mat.unit,
+            unit_id: mat.unit_id,
           }));
 
         if (priceHistoryEntries.length > 0) {
