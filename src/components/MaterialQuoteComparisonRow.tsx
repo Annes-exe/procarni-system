@@ -440,13 +440,13 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <TableCell className="py-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1">
-                                <Select
-                                  value={quote.unit_id || 'default'}
-                                  onValueChange={(val) => onQuoteChange(quote.originalIndex, 'unit_id', val)}
-                                >
-                                  <SelectTrigger className="h-9 text-xs bg-white/50 border-gray-200">
-                                    <SelectValue placeholder="Unidad" />
-                                  </SelectTrigger>
+                                  <Select
+                                    value={quote.unit_id || ''}
+                                    onValueChange={(val) => onQuoteChange(quote.originalIndex, 'unit_id', val)}
+                                  >
+                                    <SelectTrigger className="h-9 text-xs bg-white/50 border-gray-200">
+                                      <SelectValue placeholder={quote.unit_name || "Unidad"} />
+                                    </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="default" disabled>Selecciona Unidad</SelectItem>
                                     {allUnits?.map((u) => (

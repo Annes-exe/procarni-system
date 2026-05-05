@@ -73,6 +73,11 @@ const QuoteComparison = () => {
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  const { data: units = [] } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
+
   const handleMaterialCreated = (material: Material & { specification?: string }) => {
     // Check if it's already added
     if (materialsToCompare.some(m => m.material.id === material.id)) {
@@ -251,12 +256,24 @@ const QuoteComparison = () => {
 
         items.forEach(item => {
           const matId = item.material_id || item.id;
-          const unitId = item.unit_id || '';
+          let unitId = item.unit_id || '';
+          
+          // Fallback: try to find unitId from units list if missing but name is present
+          if (!unitId && item.unit) {
+            const matchedUnit = units.find(u => u.name.toLowerCase() === item.unit.toLowerCase());
+            if (matchedUnit) {
+              unitId = matchedUnit.id;
+            }
+          }
 
           updatedMaterials = updatedMaterials.map(matComp => {
             if (matComp.material.id === matId) {
               // Check if this supplier + unit already has a quote entry
-              const hasQuoteAlready = matComp.quotes.some(q => q.supplierId === req.supplier_id && q.unit_id === unitId);
+              // We check both unit_id and unit (name) to differentiate presentations even if ID is missing
+              const hasQuoteAlready = matComp.quotes.some(q => 
+                q.supplierId === req.supplier_id && 
+                (q.unit_id === unitId || (unitId === '' && q.unit_name === item.unit))
+              );
 
               if (!hasQuoteAlready) {
                 return {
