@@ -101,6 +101,18 @@ serve(async (req) => {
     const { comparisonResults, baseCurrency, globalExchangeRate, isSingleMaterial } = await req.json();
     console.log(`[generate-quote-comparison-pdf] Generating PDF for ${comparisonResults.length} materials by user: ${user.email}`);
 
+    // --- Fetch Unit of Measure Names for normalization ---
+    const { data: unitsData, error: unitsError } = await supabaseClient
+      .from('units_of_measure')
+      .select('id, name');
+    
+    const unitMap: Record<string, string> = {};
+    if (!unitsError && unitsData) {
+      unitsData.forEach(u => {
+        unitMap[u.id] = u.name;
+      });
+    }
+
     // --- PDF Setup ---
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage();
@@ -249,9 +261,12 @@ serve(async (req) => {
 
         // 3. Moneda (centrado)
         const currencyText = quote.currency;
-        const currencyWidth = state.font.widthOfTextAtSize(currencyText, FONT_SIZE);
+        const unitLabel = quote.unit_id ? (unitMap[quote.unit_id] || quote.unit_name || '') : (quote.unit_name || '');
+        const currencyAndUnit = unitLabel ? `${currencyText} (${unitLabel})` : currencyText;
+        
+        const currencyWidth = state.font.widthOfTextAtSize(currencyAndUnit, FONT_SIZE);
         const currencyXPos = currentX + colWidths[2] / 2 - currencyWidth / 2;
-        drawText(state, currencyText, currencyXPos, verticalCenterY);
+        drawText(state, currencyAndUnit, currencyXPos, verticalCenterY);
         currentX += colWidths[2];
 
         // 4. Tasa
@@ -288,7 +303,9 @@ serve(async (req) => {
 
     // --- Draw all comparison tables ---
     for (const comparison of comparisonResults) {
-      const materialTitle = `${comparison.material.name} (${comparison.material.code}) [${comparison.unit_name || 'N/A'}]`;
+      const materialUnitId = comparison.material.unit_id || (comparison.results[0]?.unit_id);
+      const unitLabel = materialUnitId ? (unitMap[materialUnitId] || comparison.unit_name || 'N/A') : (comparison.unit_name || 'N/A');
+      const materialTitle = `${comparison.material.name} (${comparison.material.code}) [${unitLabel}]`;
       state = drawComparisonTable(state, materialTitle, comparison.results, comparison.bestPrice);
       state.y -= LINE_HEIGHT * 2; // Extra space between materials
     }

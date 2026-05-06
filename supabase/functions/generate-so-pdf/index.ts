@@ -255,7 +255,7 @@ serve(async (req) => {
 
         const { data: materials, error: materialsError } = await supabaseClient
             .from('service_order_materials')
-            .select('*, suppliers(name), materials(name)')
+            .select('*, suppliers(name), materials(name), units_of_measure(name)')
             .eq('service_order_id', orderId);
 
         if (materialsError) {
@@ -781,7 +781,8 @@ serve(async (req) => {
                     };
 
                     // 2. Quantity
-                    drawCellData(`${String(item.quantity ?? 0)} ${item.unit || 'UND'}`, 1);
+                    const unitLabel = item.units_of_measure?.name || item.unit || 'UND';
+                    drawCellData(`${String(item.quantity ?? 0)} ${unitLabel}`, 1);
 
                     // 3. Unit Price
                     drawCellData((item.unit_price ?? 0).toFixed(2), 2);

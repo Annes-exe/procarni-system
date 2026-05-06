@@ -249,7 +249,7 @@ serve(async (req: Request) => {
 
     const { data: items, error: itemsError } = await supabaseClient
       .from('purchase_order_items')
-      .select('*')
+      .select('*, units_of_measure(name)')
       .eq('order_id', orderId);
 
     if (itemsError) {
@@ -619,7 +619,7 @@ serve(async (req: Request) => {
 
         // 2. Cantidad / Unidad (Merged)
         const quantityStr = String(item.quantity ?? 0);
-        const unitStr = item.unit || 'UND';
+        const unitStr = item.units_of_measure?.name || item.unit || 'UND';
         drawCellData(`${quantityStr} ${unitStr}`, 1);
 
         // 3. P. Unitario

@@ -71,7 +71,7 @@ serve(async (req) => {
 
     const { data: items, error: itemsError } = await supabaseClient
       .from('quote_request_items')
-      .select('*, materials(name)')
+      .select('*, materials(name), units_of_measure(name)')
       .eq('request_id', requestId);
 
     if (itemsError) {
@@ -281,7 +281,7 @@ serve(async (req) => {
       drawText(quantityText, currentX + colWidths[1] - 5 - font.widthOfTextAtSize(quantityText, fontSize), y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[1];
 
-      const unitText = item.unit || 'N/A';
+      const unitText = item.units_of_measure?.name || item.unit || 'N/A';
       drawText(unitText, currentX + colWidths[2] - 5 - font.widthOfTextAtSize(unitText, fontSize), y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[2];
 

@@ -162,6 +162,7 @@ serve(async (req) => {
       .select(`
         *,
         suppliers (name, code),
+        units_of_measure (name),
         purchase_orders (sequence_number, created_at)
       `)
       .eq('material_id', materialId)
@@ -322,7 +323,7 @@ serve(async (req) => {
         currentX += colWidths[0];
 
         // 1. Unidad (Left Aligned)
-        const unitDisplay = entry.unit || 'N/A';
+        const unitDisplay = entry.units_of_measure?.name || entry.unit || 'N/A';
         drawCellData(unitDisplay, 1);
 
         // 2. Precio Original (Right Aligned)

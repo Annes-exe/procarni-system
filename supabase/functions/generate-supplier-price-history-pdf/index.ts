@@ -129,6 +129,7 @@ serve(async (req) => {
       .select(`
         *,
         materials (name, code, unit),
+        units_of_measure (name),
         purchase_orders (sequence_number, created_at)
       `)
       .eq('supplier_id', supplierId)
@@ -322,7 +323,7 @@ serve(async (req) => {
         drawCellData(entry.materials?.code || 'N/A', 1);
 
         // 2. Unidad (Left Aligned)
-        const unitDisplay = entry.unit || entry.materials?.unit || 'N/A';
+        const unitDisplay = entry.units_of_measure?.name || entry.unit || entry.materials?.unit || 'N/A';
         drawCellData(unitDisplay, 2);
 
         // 3. P. Unit. (Right Aligned)
