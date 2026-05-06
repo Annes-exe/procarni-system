@@ -426,12 +426,12 @@ serve(async (req: Request) => {
 
       // 2. Draw Document Title and Number (Top Right)
       const titleX = width - MARGIN - 150;
-      drawText(state, 'ORDEN DE COMPRA', titleX, state.y, { font: boldFont, size: 14, color: PROC_RED });
+      drawText(state, 'ORDEN DE COMPRA', titleX, state.y, { font: boldFont, size: 16, color: PROC_RED });
 
-      drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 1.5, { font: boldFont, size: 9 });
+      drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       
       const docDate = order.created_at;
-      drawText(state, `Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT * 0.8, { size: 9 });
+      drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
       if (order.print_date) {
         drawText(state, `Fecha Impresión: ${new Date(order.print_date).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
@@ -440,8 +440,17 @@ serve(async (req: Request) => {
       // Update Y position based on the tallest element in the header
       state.y -= Math.max(companyLogoImage ? LOGO_SIZE : LINE_HEIGHT * 3, LINE_HEIGHT * 3);
 
-      // Add a small padding to avoid overlapping
-      state.y -= 15;
+      // Add a small padding to avoid overlapping with print date and logo
+      state.y -= 5;
+
+      // Separator line (Red, 2pt)
+      state.page.drawLine({
+        start: { x: MARGIN, y: state.y },
+        end: { x: width - MARGIN, y: state.y },
+        thickness: 2,
+        color: PROC_RED,
+      });
+      state.y -= LINE_HEIGHT * 2;
       return state;
     };
 
