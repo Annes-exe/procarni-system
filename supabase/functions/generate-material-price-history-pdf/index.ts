@@ -211,17 +211,17 @@ serve(async (req: Request) => {
         });
         currentX += colWidths[i];
       }
-      state.y -= LINE_HEIGHT * 1.5;
+      state.y -= 40; // space between header and rows
       return state;
     };
 
     // --- Header (Minimalist Clean Style) ---
     drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
     state.y -= LINE_HEIGHT * 1.5;
-    
+
     drawText(state, `MATERIAL: ${material.name} (${material.code})`, MARGIN, state.y, { font: boldFont, size: 11 });
     state.y -= LINE_HEIGHT * 1.2;
-    
+
     drawText(state, `Moneda Base: USD | Generado: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 8, color: DARK_GRAY });
     state.y -= LINE_HEIGHT * 1.5;
 
@@ -236,7 +236,7 @@ serve(async (req: Request) => {
     } else {
       // Group history by date
       const groupedHistory: Record<string, { rate: number | null, entries: any[] }> = {};
-      
+
       history.forEach((entry: any) => {
         // Use the purchase order date if available, otherwise fallback to recorded_at
         const entryDate = entry.purchase_orders?.created_at || entry.recorded_at;
@@ -262,11 +262,11 @@ serve(async (req: Request) => {
           color: rgb(0.97, 0.97, 0.97),
         });
         drawText(state, `Fecha: ${date}   ${rateText}`, MARGIN + 5, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, { font: boldFont, size: 8, color: DARK_GRAY });
-        state.y -= LINE_HEIGHT;
+        state.y -= 20; // Synchronized space between group header and items
 
         for (const entry of group.entries) {
           const convertedPrice = convertPriceToUSD(entry);
-          
+
           // Format Order Number
           const orderSequence = entry.purchase_orders?.sequence_number;
           const orderDate = entry.purchase_orders?.created_at;
@@ -280,15 +280,8 @@ serve(async (req: Request) => {
           const supplierLines = wrapText(supplierName, maxCharsPerLine);
           const rowHeight = Math.max(LINE_HEIGHT * 1.5, supplierLines.length * (TIGHT_LINE_SPACING + 2));
 
-          state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
+          state = checkPageBreak(pdfDoc, state, rowHeight + 15, drawTableHeader);
 
-          // Draw Row Separator
-          state.page.drawLine({
-            start: { x: MARGIN, y: state.y },
-            end: { x: MARGIN + tableWidth, y: state.y },
-            thickness: 0.5,
-            color: LIGHT_GRAY,
-          });
 
           let currentX = MARGIN;
 
@@ -315,7 +308,7 @@ serve(async (req: Request) => {
 
           drawText(state, orderNumber, currentX, verticalY);
 
-          state.y -= rowHeight + 2; // Added small padding between rows
+          state.y -= rowHeight + 10; // Even more padding between rows for maximum legibility
         }
         state.y -= 5; // Space between groups
       }

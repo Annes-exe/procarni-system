@@ -202,7 +202,7 @@ serve(async (req: Request) => {
         });
         currentX += colWidths[i];
       }
-      state.y -= 20;
+      state.y -= 10; // Reduced space between header and rows for compact layout
       return state;
     };
 
@@ -245,7 +245,7 @@ serve(async (req: Request) => {
 
       for (const [date, group] of Object.entries(grouped)) {
         state = checkPageBreak(pdfDoc, state, 40, drawTableHeader);
-        
+
         // Draw Date Group Header
         state.page.drawRectangle({
           x: MARGIN,
@@ -255,14 +255,14 @@ serve(async (req: Request) => {
           color: rgb(0.96, 0.96, 0.96)
         });
         drawText(state, `FECHA: ${date}   TASA: ${group.rate?.toFixed(2) || 'N/A'}`, MARGIN + 5, state.y - 9, { font: boldFont, size: 8, color: DARK_GRAY });
-        state.y -= 15;
+        state.y -= 5; // Reduced space between group header and items
 
         for (const entry of group.entries) {
           const materialName = `${entry.materials?.name || 'N/A'} (${entry.materials?.code || ''})`;
           const materialLines = wrapText(materialName, 50); // Reduced to avoid overlap
-          const rowHeight = Math.max(15, materialLines.length * 12);
-          
-          state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
+          const rowHeight = Math.max(12, materialLines.length * 10);
+
+          state = checkPageBreak(pdfDoc, state, rowHeight + 1, drawTableHeader);
 
           let curX = MARGIN;
           let sY = state.y;
@@ -291,19 +291,19 @@ serve(async (req: Request) => {
           const po = entry.purchase_orders;
           drawText(state, po ? formatSequenceNumber(po.sequence_number, po.created_at) : 'N/A', curX, verticalY, { size: 9 });
 
-          state.y -= rowHeight + 5;
+          state.y -= rowHeight + 1;
         }
         state.y -= 5;
       }
     }
 
-      // Draw final bottom border for the table
-      state.page.drawLine({
-        start: { x: MARGIN, y: state.y },
-        end: { x: MARGIN + tableWidth, y: state.y },
-        thickness: 1,
-        color: LIGHT_GRAY,
-      });
+    // Draw final bottom border for the table
+    state.page.drawLine({
+      start: { x: MARGIN, y: state.y },
+      end: { x: MARGIN + tableWidth, y: state.y },
+      thickness: 1,
+      color: LIGHT_GRAY,
+    });
 
     state.y -= LINE_HEIGHT * 4;
 
