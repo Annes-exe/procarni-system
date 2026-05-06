@@ -311,6 +311,19 @@ serve(async (req: Request) => {
     const footerY = MARGIN;
     drawText(state, `Generado por: ${user.email}`, MARGIN, footerY);
 
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - MARGIN - 70,
+        y: MARGIN,
+        size: 8,
+        font: font,
+        color: DARK_GRAY,
+      });
+    }
+
     const pdfBytes = await pdfDoc.save();
 
     // Format filename

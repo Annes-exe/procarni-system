@@ -840,6 +840,19 @@ serve(async (req: Request) => {
     state = await drawTotalsAndSummary(state, order, items, effectiveExchangeRate);
     state = drawFooter(state, order, user);
 
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - MARGIN - 70,
+        y: MARGIN / 2,
+        size: 8,
+        font: font,
+        color: DARK_GRAY,
+      });
+    }
+
     const pdfBytes = await pdfDoc.save();
 
     // Format filename as: OC-YYYY-MM-XXX-PROVEEDOR.pdf

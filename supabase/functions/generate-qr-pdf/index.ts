@@ -301,9 +301,18 @@ serve(async (req) => {
 
     y -= lineHeight * 2;
 
-    // --- Footer ---
-    const footerY = margin;
-    drawText(`Generado por: ${request.created_by || user.email}`, margin, footerY + lineHeight * 2);
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - margin - 70,
+        y: margin / 2,
+        size: 8,
+        font: font,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+    }
 
     const pdfBytes = await pdfDoc.save();
 
