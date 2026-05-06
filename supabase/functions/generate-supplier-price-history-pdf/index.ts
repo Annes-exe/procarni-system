@@ -311,7 +311,6 @@ serve(async (req) => {
         thickness: 1,
         color: LIGHT_GRAY,
       });
-    }
 
     state.y -= LINE_HEIGHT * 4;
 
