@@ -430,7 +430,7 @@ serve(async (req: Request) => {
 
       drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       
-      const docDate = order.issue_date || order.created_at;
+      const docDate = order.created_at;
       drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
       if (order.print_date) {

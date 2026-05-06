@@ -245,7 +245,9 @@ serve(async (req) => {
       // Group history by date
       const grouped: Record<string, { rate: number | null, entries: any[] }> = {};
       history.forEach(h => {
-        const d = new Date(h.recorded_at).toLocaleDateString('es-VE');
+        // Use order date if available, fallback to recorded_at
+        const entryDate = h.purchase_orders?.created_at || h.recorded_at;
+        const d = new Date(entryDate).toLocaleDateString('es-VE');
         if (!grouped[d]) grouped[d] = { rate: h.exchange_rate, entries: [] };
         grouped[d].entries.push(h);
       });
