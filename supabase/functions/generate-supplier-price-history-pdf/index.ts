@@ -259,7 +259,7 @@ serve(async (req: Request) => {
 
         for (const entry of group.entries) {
           const materialName = `${entry.materials?.name || 'N/A'} (${entry.materials?.code || ''})`;
-          const materialLines = wrapText(materialName, 50); // Reduced to avoid overlap
+          const materialLines = wrapText(materialName, 40); // Reduced to avoid overlap
           const rowHeight = Math.max(12, materialLines.length * 10);
 
           state = checkPageBreak(pdfDoc, state, rowHeight + 1, drawTableHeader);
