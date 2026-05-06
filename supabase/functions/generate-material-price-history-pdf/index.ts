@@ -20,7 +20,7 @@ const MARGIN = 30;
 const FONT_SIZE = 9;
 const LINE_HEIGHT = FONT_SIZE * 1.2;
 const TIGHT_LINE_SPACING = FONT_SIZE * 1.1; // Tighter spacing for wrapped text
-const MIN_ROW_HEIGHT = LINE_HEIGHT * 1.5; // Minimum height for single line content
+const MIN_ROW_HEIGHT = LINE_HEIGHT * 2; // Increased for better spacing
 
 // --- UTILITY FUNCTIONS ---
 
@@ -207,32 +207,23 @@ serve(async (req: Request) => {
         drawText(state, colHeaders[i], currentX, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
           font: boldFont,
           size: 8,
-          color: PROC_RED
+          color: DARK_GRAY
         });
         currentX += colWidths[i];
       }
-      state.y -= LINE_HEIGHT;
+      state.y -= LINE_HEIGHT * 1.5;
       return state;
     };
 
-    // --- Header ---
-    drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS', MARGIN, state.y, { font: boldFont, size: 16, color: PROC_RED });
-    state.y -= LINE_HEIGHT * 2;
-
-    drawText(state, `MATERIAL: ${material.name} (${material.code})`, MARGIN, state.y, { font: boldFont, size: 12 });
-    state.y -= LINE_HEIGHT;
-    drawText(state, `Moneda Base de Comparación: USD`, MARGIN, state.y, { font: boldFont, size: 10 });
-    state.y -= LINE_HEIGHT;
-    drawText(state, `Fecha de Generación: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
-    state.y -= LINE_HEIGHT * 2;
-
-    state.page.drawLine({
-      start: { x: MARGIN, y: state.y },
-      end: { x: width - MARGIN, y: state.y },
-      thickness: 2,
-      color: PROC_RED,
-    });
-    state.y -= LINE_HEIGHT * 2;
+    // --- Header (Minimalist Clean Style) ---
+    drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
+    state.y -= LINE_HEIGHT * 1.5;
+    
+    drawText(state, `MATERIAL: ${material.name} (${material.code})`, MARGIN, state.y, { font: boldFont, size: 11 });
+    state.y -= LINE_HEIGHT * 1.2;
+    
+    drawText(state, `Moneda Base: USD | Generado: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 8, color: DARK_GRAY });
+    state.y -= LINE_HEIGHT * 1.5;
 
     // --- Price History List ---
 
@@ -285,9 +276,9 @@ serve(async (req: Request) => {
           const uomName = entry.units_of_measure?.name || entry.unit || 'N/A';
 
           // Wrapped Supplier Name
-          const maxCharsPerLine = 40;
+          const maxCharsPerLine = 35; // Reduced to avoid column overlap
           const supplierLines = wrapText(supplierName, maxCharsPerLine);
-          const rowHeight = Math.max(LINE_HEIGHT, supplierLines.length * TIGHT_LINE_SPACING);
+          const rowHeight = Math.max(LINE_HEIGHT * 1.5, supplierLines.length * (TIGHT_LINE_SPACING + 2));
 
           state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
 
@@ -324,7 +315,7 @@ serve(async (req: Request) => {
 
           drawText(state, orderNumber, currentX, verticalY);
 
-          state.y -= rowHeight;
+          state.y -= rowHeight + 2; // Added small padding between rows
         }
         state.y -= 5; // Space between groups
       }

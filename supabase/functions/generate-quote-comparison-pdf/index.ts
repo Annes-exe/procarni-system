@@ -123,26 +123,18 @@ serve(async (req) => {
 
     let state: PDFState = { page, y: height - MARGIN, width, height, font, boldFont };
 
-    // --- Header ---
-    drawText(state, 'REPORTE DE COMPARACIÓN DE COTIZACIONES', MARGIN, state.y, { font: boldFont, size: 16, color: PROC_RED });
-    state.y -= LINE_HEIGHT * 2;
-    // La moneda base de comparación siempre es USD
-    drawText(state, `Moneda Base de Comparación: USD`, MARGIN, state.y, { font: boldFont, size: 12 });
+    // --- Header (Minimalist Clean Style) ---
+    drawText(state, 'REPORTE DE COMPARACIÓN DE COTIZACIONES', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
+    state.y -= LINE_HEIGHT * 1.5;
+
+    drawText(state, `Moneda Base: USD | Generado: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
     state.y -= LINE_HEIGHT;
+
     if (globalExchangeRate) {
-      drawText(state, `Tasa Global (USD/VES): ${globalExchangeRate.toFixed(2)}`, MARGIN, state.y, { font: boldFont, size: 12 });
+      drawText(state, `Tasa Global (USD/VES): ${globalExchangeRate.toFixed(2)}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
       state.y -= LINE_HEIGHT;
     }
-    drawText(state, `Fecha de Generación: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 10, color: DARK_GRAY });
-    state.y -= LINE_HEIGHT * 2;
-
-    state.page.drawLine({
-      start: { x: MARGIN, y: state.y },
-      end: { x: width - MARGIN, y: state.y },
-      thickness: 2,
-      color: PROC_RED,
-    });
-    state.y -= LINE_HEIGHT * 2;
+    state.y -= LINE_HEIGHT * 1.5;
 
     // --- Table Column Configuration ---
     const tableWidth = width - 2 * MARGIN;
@@ -171,10 +163,11 @@ serve(async (req) => {
         }
       });
 
-      // Draw Material Title
-      state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 2);
-      drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
-      state.y -= LINE_HEIGHT * 2;
+      // Draw Material Title (Clean Style)
+      state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 3);
+      state.y -= LINE_HEIGHT;
+      drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 11, color: rgb(0.2, 0.2, 0.2) });
+      state.y -= LINE_HEIGHT * 1.5;
 
       // Draw Table Header
       let currentX = MARGIN;
@@ -191,12 +184,12 @@ serve(async (req) => {
       for (let i = 0; i < colHeaders.length; i++) {
         drawText(state, colHeaders[i], currentX + 5, headerY - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
           font: boldFont,
-          size: 10,
-          color: PROC_RED
+          size: 9,
+          color: DARK_GRAY
         });
         currentX += colWidths[i];
       }
-      state.y -= LINE_HEIGHT;
+      state.y -= LINE_HEIGHT * 1.2;
 
       // Draw Table Rows
       for (const quote of results) {
@@ -224,8 +217,8 @@ serve(async (req) => {
             y: state.y - rowHeight,
             width: tableWidth,
             height: rowHeight,
-            color: isGlobalBest ? rgb(0.85, 1, 0.85) : rgb(0.95, 1, 0.95), // Deeper green for global best
-            opacity: 0.6,
+            color: isGlobalBest ? rgb(0.92, 1, 0.92) : rgb(0.97, 1, 0.97), // Even subtler green
+            opacity: 0.8,
           });
         }
 
@@ -310,7 +303,7 @@ serve(async (req) => {
         });
       }
 
-      state.y -= LINE_HEIGHT;
+      state.y -= LINE_HEIGHT * 2; // Extra space between material tables
       return state;
     };
 

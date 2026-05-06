@@ -198,7 +198,7 @@ serve(async (req: Request) => {
         drawText(state, colHeaders[i], currentX, state.y - 10, {
           font: boldFont,
           size: 8,
-          color: PROC_RED
+          color: DARK_GRAY
         });
         currentX += colWidths[i];
       }
@@ -213,28 +213,19 @@ serve(async (req: Request) => {
         state.y = state.height - MARGIN;
         state = drawHeader(state); // Redraw headers on new page
       }
+      state.y -= 15;
       return state;
     };
-    // --------------------------------------------------------------------
 
-    // --- Header ---
-    drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS POR PROVEEDOR', MARGIN, state.y, { font: boldFont, size: 16, color: PROC_RED });
-    state.y -= LINE_HEIGHT * 2;
+    // --- Header (Minimalist Clean Style) ---
+    drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS POR PROVEEDOR', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
+    state.y -= LINE_HEIGHT * 1.5;
 
-    drawText(state, `PROVEEDOR: ${supplier.name} (${supplier.code || supplier.rif})`, MARGIN, state.y, { font: boldFont, size: 12 });
-    state.y -= LINE_HEIGHT;
-    drawText(state, `Moneda Base de Comparación: USD`, MARGIN, state.y, { font: boldFont, size: 10 });
-    state.y -= LINE_HEIGHT;
-    drawText(state, `Fecha de Generación: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
-    state.y -= LINE_HEIGHT * 2;
+    drawText(state, `PROVEEDOR: ${supplier.name} (${supplier.code || supplier.rif})`, MARGIN, state.y, { font: boldFont, size: 11 });
+    state.y -= LINE_HEIGHT * 1.2;
 
-    state.page.drawLine({
-      start: { x: MARGIN, y: state.y },
-      end: { x: width - MARGIN, y: state.y },
-      thickness: 2,
-      color: PROC_RED,
-    });
-    state.y -= LINE_HEIGHT * 2;
+    drawText(state, `Moneda Base: USD | Generado: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 8, color: DARK_GRAY });
+    state.y -= LINE_HEIGHT * 1.5;
 
     // --- Price History Table ---
     state = drawTableHeader(state);
@@ -268,8 +259,8 @@ serve(async (req: Request) => {
 
         for (const entry of group.entries) {
           const materialName = `${entry.materials?.name || 'N/A'} (${entry.materials?.code || ''})`;
-          const materialLines = wrapText(materialName, 60);
-          const rowHeight = Math.max(12, materialLines.length * 10);
+          const materialLines = wrapText(materialName, 50); // Reduced to avoid overlap
+          const rowHeight = Math.max(15, materialLines.length * 12);
           
           state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
 
@@ -298,9 +289,9 @@ serve(async (req: Request) => {
 
           // Col 4: N° OC
           const po = entry.purchase_orders;
-          drawText(state, po ? formatSequenceNumber(po.sequence_number, po.created_at) : 'N/A', curX, verticalY, { size: 8 });
+          drawText(state, po ? formatSequenceNumber(po.sequence_number, po.created_at) : 'N/A', curX, verticalY, { size: 9 });
 
-          state.y -= rowHeight + 2;
+          state.y -= rowHeight + 5;
         }
         state.y -= 5;
       }
