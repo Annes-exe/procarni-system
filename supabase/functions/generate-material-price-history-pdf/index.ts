@@ -183,28 +183,18 @@ serve(async (req) => {
 
     let state: PDFState = { page, y: height - MARGIN, width, height, font, boldFont };
 
-    // --- Table Column Configuration ---
-    const tableWidth = width - 2 * MARGIN;
-    // Columns: Proveedor, Precio Original, Moneda, Tasa, Precio Convertido (USD), N° OC, Fecha
-    // Total width = 100%
+    // Columns: Proveedor, P. Original, P. Conv (USD), UoM, N° OC
     const colWidths = [
-      tableWidth * 0.22,  // 0. Proveedor
-      tableWidth * 0.10,  // 1. Unidad (New)
-      tableWidth * 0.12,  // 2. Precio Original
-      tableWidth * 0.08,  // 3. Moneda
-      tableWidth * 0.12,  // 4. Tasa
-      tableWidth * 0.18,  // 5. Precio (USD)
-      tableWidth * 0.18,  // 6. N° OC + Fecha
+      tableWidth * 0.35,  // 0. Proveedor
+      tableWidth * 0.18,  // 1. P. Original
+      tableWidth * 0.15,  // 2. P. Conv (USD)
+      tableWidth * 0.12,  // 3. UoM
+      tableWidth * 0.20,  // 4. N° OC
     ];
-    const colHeaders = [
-      'Proveedor', 'Unidad', 'P. Orig.', 'Moneda', 'Tasa',
-      'Precio (USD)', 'N° OC / Fecha'
-    ];
+    const colHeaders = ['Proveedor', 'P. Original', 'P. Conv (USD)', 'UoM', 'N° OC'];
 
     const drawTableHeader = (state: PDFState): PDFState => {
       let currentX = MARGIN;
-
-      // Draw thin gray line below header row
       state.page.drawLine({
         start: { x: MARGIN, y: state.y - LINE_HEIGHT },
         end: { x: MARGIN + tableWidth, y: state.y - LINE_HEIGHT },
@@ -213,22 +203,7 @@ serve(async (req) => {
       });
 
       for (let i = 0; i < colHeaders.length; i++) {
-        // Determine alignment for header text
-        const isRightAligned = [1, 3, 4].includes(i); // Precio Orig, Tasa, Precio Convertido
-
-        const headerText = colHeaders[i];
-        const textWidth = state.boldFont.widthOfTextAtSize(headerText, 8);
-
-        let xPos;
-        if (isRightAligned) {
-          // Align header text to the right of the column, with 2pt padding
-          xPos = currentX + colWidths[i] - 2 - textWidth;
-        } else {
-          // Align header text to the left of the column, with 2pt padding
-          xPos = currentX + 2;
-        }
-
-        drawText(state, headerText, xPos, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
+        drawText(state, colHeaders[i], currentX, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
           font: boldFont,
           size: 8,
           color: PROC_RED
@@ -258,92 +233,97 @@ serve(async (req) => {
     });
     state.y -= LINE_HEIGHT * 2;
 
-    // --- Table ---
+    // --- Price History List ---
+
+    // --- Price History Table ---
     state = drawTableHeader(state);
 
     if (history.length === 0) {
       drawText(state, 'No se encontró historial de precios para este material.', MARGIN, state.y - LINE_HEIGHT);
       state.y -= LINE_HEIGHT * 2;
     } else {
-      for (const entry of history) {
-        const convertedPrice = convertPriceToUSD(entry);
-
-        // Format Order Number
-        const orderSequence = entry.purchase_orders?.sequence_number;
-        const orderDate = entry.purchase_orders?.created_at;
-        const orderNumber = orderSequence ? formatSequenceNumber(orderSequence, orderDate) : 'N/A';
-
-        // --- Calculate required row height based on wrapped Supplier Name ---
-        // Max characters per line for 25% width (approx 30 chars per line)
-        const maxCharsPerLine = 30;
-        const supplierLines = wrapText(entry.suppliers?.name || 'N/A', maxCharsPerLine);
-
-        // Calculate height based on tighter line spacing
-        const requiredTextHeight = supplierLines.length * TIGHT_LINE_SPACING + 5; // Add padding
-
-        // Determine final row height
-        const rowHeight = Math.max(MIN_ROW_HEIGHT, requiredTextHeight);
-
-        state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
-
-        // Draw separator line above row content
-        state.page.drawLine({
-          start: { x: MARGIN, y: state.y },
-          end: { x: MARGIN + tableWidth, y: state.y },
-          thickness: 0.5,
-          color: LIGHT_GRAY,
-        });
-
-        let currentX = MARGIN;
-        const finalY = state.y - rowHeight;
-        const verticalCenterY = finalY + rowHeight / 2 - FONT_SIZE / 2;
-
-        // Helper to draw data
-        const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = false, fontToUse: any = font) => {
-          const cellWidth = colWidths[colIndex];
-          const textWidth = fontToUse.widthOfTextAtSize(text, FONT_SIZE);
-
-          let xPos;
-          if (isRightAligned) {
-            xPos = currentX + cellWidth - 2 - textWidth; // Right aligned
-          } else {
-            xPos = currentX + 2; // Left aligned
-          }
-
-          drawText(state, text, xPos, verticalCenterY, { font: fontToUse });
-          currentX += cellWidth;
-        };
-
-        // 0. Proveedor (Multi-line, Left Aligned)
-        let currentY = state.y - 3;
-        for (const line of supplierLines) {
-          drawText(state, line, currentX + 2, currentY - FONT_SIZE, { size: FONT_SIZE });
-          currentY -= TIGHT_LINE_SPACING;
+      // Group history by date
+      const groupedHistory: Record<string, { rate: number | null, entries: any[] }> = {};
+      
+      history.forEach(entry => {
+        const dateKey = new Date(entry.recorded_at).toLocaleDateString('es-VE');
+        if (!groupedHistory[dateKey]) {
+          groupedHistory[dateKey] = { rate: entry.exchange_rate, entries: [] };
         }
-        currentX += colWidths[0];
+        groupedHistory[dateKey].entries.push(entry);
+      });
 
-        // 1. Unidad (Left Aligned)
-        const unitDisplay = entry.units_of_measure?.name || entry.unit || 'N/A';
-        drawCellData(unitDisplay, 1);
+      for (const [date, group] of Object.entries(groupedHistory)) {
+        const rateText = group.rate ? `Tasa: ${group.rate.toFixed(2)}` : 'Tasa: N/A';
 
-        // 2. Precio Original (Right Aligned)
-        drawCellData(entry.unit_price.toFixed(2), 2, true);
+        // Check space for Group Header
+        state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 2, drawTableHeader);
 
-        // 3. Moneda (Left Aligned)
-        drawCellData(entry.currency, 3);
+        // Draw Date Group Header
+        state.page.drawRectangle({
+          x: MARGIN,
+          y: state.y - LINE_HEIGHT,
+          width: tableWidth,
+          height: LINE_HEIGHT,
+          color: rgb(0.97, 0.97, 0.97),
+        });
+        drawText(state, `Fecha: ${date}   ${rateText}`, MARGIN + 5, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, { font: boldFont, size: 8, color: DARK_GRAY });
+        state.y -= LINE_HEIGHT;
 
-        // 4. Tasa (Right Aligned)
-        drawCellData(entry.exchange_rate ? entry.exchange_rate.toFixed(4) : 'N/A', 4, true);
+        for (const entry of group.entries) {
+          const convertedPrice = convertPriceToUSD(entry);
+          
+          // Format Order Number
+          const orderSequence = entry.purchase_orders?.sequence_number;
+          const orderDate = entry.purchase_orders?.created_at;
+          const orderNumber = orderSequence ? formatSequenceNumber(orderSequence, orderDate) : 'N/A';
 
-        // 5. Precio Convertido (USD) (Right Aligned, Bold)
-        const convertedText = convertedPrice !== null ? convertedPrice.toFixed(2) : 'N/A';
-        drawCellData(convertedText, 5, true, boldFont);
+          const supplierName = entry.suppliers?.name || 'N/A';
+          const uomName = entry.units_of_measure?.name || entry.unit || 'N/A';
 
-        // 6. N° OC + Fecha (Left Aligned)
-        const dateText = new Date(entry.recorded_at).toLocaleDateString('es-VE');
-        drawCellData(`${orderNumber} (${dateText})`, 6);
+          // Wrapped Supplier Name
+          const maxCharsPerLine = 40;
+          const supplierLines = wrapText(supplierName, maxCharsPerLine);
+          const rowHeight = Math.max(LINE_HEIGHT, supplierLines.length * TIGHT_LINE_SPACING);
 
-        state.y = finalY; // Update Y position for the next row
+          state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
+
+          // Draw Row Separator
+          state.page.drawLine({
+            start: { x: MARGIN, y: state.y },
+            end: { x: MARGIN + tableWidth, y: state.y },
+            thickness: 0.5,
+            color: LIGHT_GRAY,
+          });
+
+          let currentX = MARGIN;
+
+          // Col 0: Prov
+          let supplierY = state.y;
+          for (const line of supplierLines) {
+            drawText(state, line, currentX, supplierY - FONT_SIZE);
+            supplierY -= TIGHT_LINE_SPACING;
+          }
+          currentX += colWidths[0];
+
+          // Other columns
+          const verticalY = state.y - FONT_SIZE;
+          const origPriceText = `${entry.unit_price.toFixed(2)} ${entry.currency}`;
+          drawText(state, origPriceText, currentX, verticalY);
+          currentX += colWidths[1];
+
+          const convPriceText = convertedPrice !== null ? `${convertedPrice.toFixed(2)} USD` : 'N/A';
+          drawText(state, convPriceText, currentX, verticalY, { font: boldFont });
+          currentX += colWidths[2];
+
+          drawText(state, uomName, currentX, verticalY);
+          currentX += colWidths[3];
+
+          drawText(state, orderNumber, currentX, verticalY);
+
+          state.y -= rowHeight;
+        }
+        state.y -= 5; // Space between groups
       }
 
       // Draw final bottom border for the table
