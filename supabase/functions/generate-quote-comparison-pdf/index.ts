@@ -101,6 +101,18 @@ serve(async (req) => {
     const { comparisonResults, baseCurrency, globalExchangeRate, isSingleMaterial } = await req.json();
     console.log(`[generate-quote-comparison-pdf] Generating PDF for ${comparisonResults.length} materials by user: ${user.email}`);
 
+    // --- Fetch Unit of Measure Names for normalization ---
+    const { data: unitsData, error: unitsError } = await supabaseClient
+      .from('units_of_measure')
+      .select('id, name');
+    
+    const unitMap: Record<string, string> = {};
+    if (!unitsError && unitsData) {
+      unitsData.forEach(u => {
+        unitMap[u.id] = u.name;
+      });
+    }
+
     // --- PDF Setup ---
     const pdfDoc = await PDFDocument.create();
     let page = pdfDoc.addPage();
@@ -111,26 +123,18 @@ serve(async (req) => {
 
     let state: PDFState = { page, y: height - MARGIN, width, height, font, boldFont };
 
-    // --- Header ---
-    drawText(state, 'REPORTE DE COMPARACIÓN DE COTIZACIONES', MARGIN, state.y, { font: boldFont, size: 16, color: PROC_RED });
-    state.y -= LINE_HEIGHT * 2;
-    // La moneda base de comparación siempre es USD
-    drawText(state, `Moneda Base de Comparación: USD`, MARGIN, state.y, { font: boldFont, size: 12 });
+    // --- Header (Minimalist Clean Style) ---
+    drawText(state, 'REPORTE DE COMPARACIÓN DE COTIZACIONES', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
+    state.y -= LINE_HEIGHT * 1.5;
+
+    drawText(state, `Moneda Base: USD | Generado: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
     state.y -= LINE_HEIGHT;
+
     if (globalExchangeRate) {
-      drawText(state, `Tasa Global (USD/VES): ${globalExchangeRate.toFixed(2)}`, MARGIN, state.y, { font: boldFont, size: 12 });
+      drawText(state, `Tasa Global (USD/VES): ${globalExchangeRate.toFixed(2)}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
       state.y -= LINE_HEIGHT;
     }
-    drawText(state, `Fecha de Generación: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 10, color: DARK_GRAY });
-    state.y -= LINE_HEIGHT * 2;
-
-    state.page.drawLine({
-      start: { x: MARGIN, y: state.y },
-      end: { x: width - MARGIN, y: state.y },
-      thickness: 2,
-      color: PROC_RED,
-    });
-    state.y -= LINE_HEIGHT * 2;
+    state.y -= LINE_HEIGHT * 1.5;
 
     // --- Table Column Configuration ---
     const tableWidth = width - 2 * MARGIN;
@@ -147,11 +151,23 @@ serve(async (req) => {
     const TIGHT_LINE_SPACING = FONT_SIZE * 1.1; // 11 points (tighter line spacing for wrapped text)
     const MIN_ROW_HEIGHT = LINE_HEIGHT * 1.5; // Minimum height for single line content
 
-    const drawComparisonTable = (state: PDFState, materialName: string, results: any[], bestPrice: number | null): PDFState => {
-      // Draw Material Title
-      state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 2);
-      drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
-      state.y -= LINE_HEIGHT * 2;
+    const drawComparisonTable = (state: PDFState, materialName: string, results: any[], globalBestPrice: number | null): PDFState => {
+      // Calculate best price per unique UoM (normalized by unit_id or unit_name)
+      const bestPricesByUoM: Record<string, number> = {};
+      results.forEach(quote => {
+        if (quote.isValid) {
+          const uomKey = quote.unit_id || quote.unit_name || 'UND';
+          if (bestPricesByUoM[uomKey] === undefined || quote.convertedPrice < bestPricesByUoM[uomKey]) {
+            bestPricesByUoM[uomKey] = quote.convertedPrice;
+          }
+        }
+      });
+
+      // Draw Material Title (Clean Style)
+      state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 3);
+      state.y -= LINE_HEIGHT;
+      drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 11, color: rgb(0.2, 0.2, 0.2) });
+      state.y -= LINE_HEIGHT * 1.5;
 
       // Draw Table Header
       let currentX = MARGIN;
@@ -168,16 +184,18 @@ serve(async (req) => {
       for (let i = 0; i < colHeaders.length; i++) {
         drawText(state, colHeaders[i], currentX + 5, headerY - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
           font: boldFont,
-          size: 10,
-          color: PROC_RED
+          size: 9,
+          color: DARK_GRAY
         });
         currentX += colWidths[i];
       }
-      state.y -= LINE_HEIGHT;
+      state.y -= LINE_HEIGHT * 1.2;
 
       // Draw Table Rows
       for (const quote of results) {
-        const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
+        const uomKey = quote.unit_id || quote.unit_name || 'UND';
+        const isBestPrice = quote.isValid && quote.convertedPrice === bestPricesByUoM[uomKey];
+        const isGlobalBest = quote.isValid && quote.convertedPrice === globalBestPrice;
 
         // --- 1. Calculate required row height based on wrapped Supplier Name ---
         // Max characters per line for 30% width (approx 30 chars per line)
@@ -192,15 +210,15 @@ serve(async (req) => {
 
         state = checkPageBreak(pdfDoc, state, rowHeight + 10); // Check page break with padding
 
-        // Draw row background/border if it's the best price
+        // Draw row background/border if it's the best price for its UoM
         if (isBestPrice) {
           state.page.drawRectangle({
             x: MARGIN,
             y: state.y - rowHeight,
             width: tableWidth,
             height: rowHeight,
-            color: rgb(0.9, 1, 0.9), // Light green background
-            opacity: 0.5,
+            color: isGlobalBest ? rgb(0.92, 1, 0.92) : rgb(0.97, 1, 0.97), // Even subtler green
+            opacity: 0.8,
           });
         }
 
@@ -249,9 +267,12 @@ serve(async (req) => {
 
         // 3. Moneda (centrado)
         const currencyText = quote.currency;
-        const currencyWidth = state.font.widthOfTextAtSize(currencyText, FONT_SIZE);
+        const unitLabel = quote.unit_id ? (unitMap[quote.unit_id] || quote.unit_name || '') : (quote.unit_name || '');
+        const currencyAndUnit = unitLabel ? `${currencyText} (${unitLabel})` : currencyText;
+        
+        const currencyWidth = state.font.widthOfTextAtSize(currencyAndUnit, FONT_SIZE);
         const currencyXPos = currentX + colWidths[2] / 2 - currencyWidth / 2;
-        drawText(state, currencyText, currencyXPos, verticalCenterY);
+        drawText(state, currencyAndUnit, currencyXPos, verticalCenterY);
         currentX += colWidths[2];
 
         // 4. Tasa
@@ -282,14 +303,30 @@ serve(async (req) => {
         });
       }
 
-      state.y -= LINE_HEIGHT;
+      state.y -= LINE_HEIGHT * 2; // Extra space between material tables
       return state;
     };
 
     // --- Draw all comparison tables ---
     for (const comparison of comparisonResults) {
-      state = drawComparisonTable(state, `${comparison.material.name} (${comparison.material.code})`, comparison.results, comparison.bestPrice);
+      const materialUnitId = comparison.material.unit_id || (comparison.results[0]?.unit_id);
+      const unitLabel = materialUnitId ? (unitMap[materialUnitId] || comparison.unit_name || 'N/A') : (comparison.unit_name || 'N/A');
+      const materialTitle = `${comparison.material.name} (${comparison.material.code}) [${unitLabel}]`;
+      state = drawComparisonTable(state, materialTitle, comparison.results, comparison.bestPrice);
       state.y -= LINE_HEIGHT * 2; // Extra space between materials
+    }
+
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - MARGIN - 70,
+        y: MARGIN / 2,
+        size: 8,
+        font: font,
+        color: DARK_GRAY,
+      });
     }
 
     const pdfBytes = await pdfDoc.save();

@@ -17,6 +17,7 @@ export interface QuoteRequestItemForm {
     material_name: string;
     quantity: number;
     unit?: string;
+    unit_id?: string; // ADDED
     description?: string;
     material_id?: string; // Added for name update propagation
     last_price_info?: string; // NEW: information about last purchase price
@@ -99,12 +100,19 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     </div>
                     <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">Unidad</label>
-                        <Select value={item.unit} onValueChange={(v) => onItemChange(index, 'unit', v)}>
+                        <Select 
+                            value={item.unit_id} 
+                            onValueChange={(v) => {
+                                const unit = units.find(u => u.id === v);
+                                onItemChange(index, 'unit_id', v);
+                                if (unit) onItemChange(index, 'unit', unit.name);
+                            }}
+                        >
                             <SelectTrigger className="h-9">
                                 <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
                             </SelectTrigger>
                             <SelectContent>
-                                {units.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                                {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
@@ -208,12 +216,19 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                         {/* Col 4-5: Unidad */}
                         <div className="col-span-2 space-y-1.5">
                             <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</label>
-                            <Select value={item.unit} onValueChange={(v) => onItemChange(index, 'unit', v)}>
+                            <Select 
+                                value={item.unit_id} 
+                                onValueChange={(v) => {
+                                    const unit = units.find(u => u.id === v);
+                                    onItemChange(index, 'unit_id', v);
+                                    if (unit) onItemChange(index, 'unit', unit.name);
+                                }}
+                            >
                                 <SelectTrigger className="h-9 bg-gray-50/50 border-gray-200">
                                     <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {units.map(u => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                                    {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>

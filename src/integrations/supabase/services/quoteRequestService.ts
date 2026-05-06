@@ -65,8 +65,8 @@ const QuoteRequestService = {
         quantity: item.quantity,
         description: item.description,
         unit: item.unit,
-        material_id: item.material_id, // Added for name update propagation
-        // is_exempt removed
+        unit_id: item.unit_id, // Persist unit_id
+        material_id: item.material_id,
       }));
 
       const { error: itemsError } = await supabase
@@ -127,8 +127,8 @@ const QuoteRequestService = {
         quantity: item.quantity,
         description: item.description,
         unit: item.unit,
-        material_id: item.material_id, // Added for name update propagation
-        // is_exempt removed
+        unit_id: item.unit_id, // Persist unit_id
+        material_id: item.material_id,
       }));
 
       const { error: itemsError } = await supabase

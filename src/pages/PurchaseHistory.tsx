@@ -10,7 +10,7 @@ import { getPurchaseHistoryReport, searchSuppliers, searchMaterials, searchMater
 import SmartSearch from '@/components/SmartSearch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,8 +23,8 @@ const PurchaseHistory = () => {
     const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
     const [selectedMaterial, setSelectedMaterial] = useState<any | null>(null);
     const [date, setDate] = useState<{ from: Date | undefined; to: Date | undefined }>({
-        from: undefined,
-        to: undefined,
+        from: startOfMonth(new Date()),
+        to: endOfMonth(new Date()),
     });
 
     const { data: historyData, isLoading, refetch } = useQuery({
@@ -35,7 +35,7 @@ const PurchaseHistory = () => {
             startDate: date.from,
             endDate: date.to
         }),
-        enabled: false, // Only fetch on manual search
+        enabled: true, // Fetch current month on mount
     });
 
     const handleSearch = () => {
@@ -255,7 +255,7 @@ const PurchaseHistory = () => {
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                         <div>
                                             <span className="text-gray-500 block">Fecha</span>
-                                            <span className="font-medium">{format(new Date(item.created_at), 'dd/MM/yy')}</span>
+                                            <span className="font-medium">{format(new Date(item.purchase_orders.created_at), 'dd/MM/yy')}</span>
                                         </div>
                                         <div className="text-right">
                                             <span className="text-gray-500 block">Cantidad</span>
@@ -297,7 +297,7 @@ const PurchaseHistory = () => {
                                     {historyData.map((item: any) => (
                                         <TableRow key={item.id} className="hover:bg-gray-50/50 transition-colors">
                                             <TableCell className="text-[13px] text-gray-600 font-medium">
-                                                {format(new Date(item.created_at), 'dd/MM/yy')}
+                                                {format(new Date(item.purchase_orders.created_at), 'dd/MM/yy')}
                                             </TableCell>
                                             <TableCell className="text-[13px] text-gray-900 font-medium">#{item.purchase_orders.sequence_number}</TableCell>
                                             <TableCell className="text-[13px] text-gray-600 max-w-[200px] truncate" title={item.purchase_orders.suppliers.name}>

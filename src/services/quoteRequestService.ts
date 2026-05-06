@@ -31,6 +31,7 @@ export interface CreateQuoteRequestItemInput {
     material_name: string;
     quantity: number;
     unit: string;
+    unit_id?: string | null; // ADDED
     description?: string; // Optional override or additional info
 }
 
@@ -116,6 +117,7 @@ export const quoteRequestService = {
                 material_name: item.material_name,
                 quantity: item.quantity,
                 unit: item.unit,
+                unit_id: item.unit_id,
                 description: item.description,
             }));
 
@@ -166,6 +168,7 @@ export const quoteRequestService = {
                     material_name: item.material_name,
                     quantity: item.quantity,
                     unit: item.unit,
+                    unit_id: item.unit_id,
                     description: item.description,
                 }));
 

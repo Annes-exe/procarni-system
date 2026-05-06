@@ -52,7 +52,8 @@ serve(async (req) => {
       .from('price_history')
       .select(`
         *,
-        materials (name, code, unit)
+        materials (name, code),
+        units_of_measure (name)
       `)
       .eq('supplier_id', supplierId)
       .order('recorded_at', { ascending: false });
@@ -67,7 +68,7 @@ serve(async (req) => {
         'ID Transacción': entry.id.substring(0, 8),
         'Material': entry.materials?.name || 'N/A',
         'Cód. Material': entry.materials?.code || 'N/A',
-        'Unidad': entry.materials?.unit || 'N/A',
+        'Unidad': entry.units_of_measure?.name || entry.unit || 'N/A',
         'Precio Unitario': entry.unit_price,
         'Moneda': entry.currency,
         'Tasa de Cambio (USD/VES)': entry.exchange_rate || 'N/A',

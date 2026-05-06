@@ -85,6 +85,7 @@ export const getSuppliersByMaterial = async (materialId: string): Promise<any[]>
 
   return data.map(sm => ({
     ...sm.suppliers,
+    unit_id: sm.unit_id,
     specification: sm.specification,
   }));
 };
@@ -205,6 +206,8 @@ export const getPurchaseHistoryReport = async ({
         id,
         sequence_number,
         created_at,
+        issue_date,
+        delivery_date,
         status,
         currency,
         exchange_rate,
@@ -221,9 +224,12 @@ export const getPurchaseHistoryReport = async ({
         category,
         unit,
         search_aliases
+      ),
+      units_of_measure (
+        name
       )
     `)
-    .order('created_at', { ascending: false });
+    .order('purchase_orders(created_at)', { ascending: false });
 
   if (supplierId) {
     query = query.eq('purchase_orders.supplier_id', supplierId);
@@ -234,14 +240,14 @@ export const getPurchaseHistoryReport = async ({
   }
 
   if (startDate) {
-    query = query.gte('created_at', startDate.toISOString());
+    query = query.gte('purchase_orders.created_at', startDate.toISOString());
   }
 
   if (endDate) {
     // Set time to end of day for the end date to include the full day
     const endOfDay = new Date(endDate);
     endOfDay.setHours(23, 59, 59, 999);
-    query = query.lte('created_at', endOfDay.toISOString());
+    query = query.lte('purchase_orders.created_at', endOfDay.toISOString());
   }
 
   if (status) {

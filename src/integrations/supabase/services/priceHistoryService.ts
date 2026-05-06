@@ -7,6 +7,7 @@ export interface PriceHistoryEntry {
   id: string;
   material_id: string;
   supplier_id: string;
+  unit_id: string;
   unit_price: number;
   currency: string;
   exchange_rate?: number | null;
@@ -18,10 +19,17 @@ export interface PriceHistoryEntry {
     rif: string;
     code?: string;
   };
+  units_of_measure?: {
+    name: string;
+  };
+  materials?: {
+    name: string;
+    unit: string | null;
+  };
 }
 
 const PriceHistoryService = {
-  getByMaterialId: async (materialId: string): Promise<PriceHistoryEntry[]> => {
+  getByMaterialId: async (materialId: string, unitId?: string): Promise<PriceHistoryEntry[]> => {
     // 1. Resolve all material IDs that belong to the same group
     const { data: groupData } = await supabase
       .from('materials')
@@ -54,14 +62,21 @@ const PriceHistoryService = {
     }
 
     // 2. Fetch price history for all related materials
-    const { data, error } = await supabase
+    let query = supabase
       .from('price_history')
       .select(`
         *,
-        suppliers (name, rif, code)
+        suppliers (name, rif, code),
+        materials (name, unit),
+        units_of_measure (name)
       `)
-      .in('material_id', materialIds)
-      .order('recorded_at', { ascending: false });
+      .in('material_id', materialIds);
+
+    if (unitId) {
+      query = query.eq('unit_id', unitId);
+    }
+
+    const { data, error } = await query.order('recorded_at', { ascending: false });
 
     if (error) {
       console.error('[PriceHistoryService.getByMaterialId] Error:', error);

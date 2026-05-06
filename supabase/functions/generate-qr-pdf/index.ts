@@ -71,7 +71,7 @@ serve(async (req) => {
 
     const { data: items, error: itemsError } = await supabaseClient
       .from('quote_request_items')
-      .select('*, materials(name)')
+      .select('*, materials(name), units_of_measure(name)')
       .eq('request_id', requestId);
 
     if (itemsError) {
@@ -281,7 +281,7 @@ serve(async (req) => {
       drawText(quantityText, currentX + colWidths[1] - 5 - font.widthOfTextAtSize(quantityText, fontSize), y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[1];
 
-      const unitText = item.unit || 'N/A';
+      const unitText = item.units_of_measure?.name || item.unit || 'N/A';
       drawText(unitText, currentX + colWidths[2] - 5 - font.widthOfTextAtSize(unitText, fontSize), y - lineHeight + (lineHeight - fontSize) / 2);
       currentX += colWidths[2];
 
@@ -301,9 +301,18 @@ serve(async (req) => {
 
     y -= lineHeight * 2;
 
-    // --- Footer ---
-    const footerY = margin;
-    drawText(`Generado por: ${request.created_by || user.email}`, margin, footerY + lineHeight * 2);
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - margin - 70,
+        y: margin / 2,
+        size: 8,
+        font: font,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+    }
 
     const pdfBytes = await pdfDoc.save();
 

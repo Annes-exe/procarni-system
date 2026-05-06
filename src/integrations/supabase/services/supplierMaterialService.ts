@@ -4,18 +4,20 @@ import { showError } from '@/utils/toast';
 interface SupplierMaterialPayload {
   supplier_id: string;
   material_id: string;
+  unit_id: string; // REQUIRED
   specification?: string;
   user_id: string;
 }
 
 const SupplierMaterialService = {
   create: async (payload: SupplierMaterialPayload): Promise<{ success: boolean; existed: boolean }> => {
-    // 1. Check if relation already exists
+    // 1. Check if relation already exists for this specific unit
     const { data: existingRelation, error: checkError } = await supabase
       .from('supplier_materials')
       .select('id')
       .eq('supplier_id', payload.supplier_id)
       .eq('material_id', payload.material_id)
+      .eq('unit_id', payload.unit_id) // Added unit_id check
       .maybeSingle();
 
     if (checkError) {
@@ -24,7 +26,7 @@ const SupplierMaterialService = {
     }
 
     if (existingRelation) {
-      // Relation already exists
+      // Relation already exists for this unit
       return { success: true, existed: true };
     }
 

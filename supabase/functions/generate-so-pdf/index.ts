@@ -192,7 +192,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 
 // --- MAIN SERVE HANDLER ---
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
     }
@@ -255,7 +255,7 @@ serve(async (req) => {
 
         const { data: materials, error: materialsError } = await supabaseClient
             .from('service_order_materials')
-            .select('*, suppliers(name), materials(name)')
+            .select('*, suppliers(name), materials(name), units_of_measure(name)')
             .eq('service_order_id', orderId);
 
         if (materialsError) {
@@ -434,7 +434,7 @@ serve(async (req) => {
 
             drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
             
-            const docDate = order.issue_date || order.created_at;
+            const docDate = order.created_at;
             drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
             if (order.print_date) {
@@ -781,7 +781,8 @@ serve(async (req) => {
                     };
 
                     // 2. Quantity
-                    drawCellData(`${String(item.quantity ?? 0)} ${item.unit || 'UND'}`, 1);
+                    const unitLabel = item.units_of_measure?.name || item.unit || 'UND';
+                    drawCellData(`${String(item.quantity ?? 0)} ${unitLabel}`, 1);
 
                     // 3. Unit Price
                     drawCellData((item.unit_price ?? 0).toFixed(2), 2);
@@ -997,6 +998,19 @@ serve(async (req) => {
         const allItems = [...items, ...(materials || [])];
         state = await drawTotalsAndSummary(state, order, allItems, effectiveExchangeRate);
         state = drawFooter(state, order, user);
+
+        // Add page numbers
+        const pages = pdfDoc.getPages();
+        for (let i = 0; i < pages.length; i++) {
+            const { width } = pages[i].getSize();
+            pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+                x: width - MARGIN - 70,
+                y: MARGIN / 2,
+                size: 8,
+                font: font,
+                color: DARK_GRAY,
+            });
+        }
 
         const pdfBytes = await pdfDoc.save();
 

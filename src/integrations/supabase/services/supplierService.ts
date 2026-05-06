@@ -70,6 +70,7 @@ const SupplierService = {
       const supplierMaterials = materials.map(mat => ({
         supplier_id: newSupplier.id,
         material_id: mat.material_id,
+        unit_id: mat.unit_id,
         specification: mat.specification,
         user_id: newSupplier.user_id,
       }));
@@ -153,7 +154,7 @@ const SupplierService = {
     // Obtener las relaciones de materiales existentes
     const { data: existingSupplierMaterials, error: fetchError } = await supabase
       .from('supplier_materials')
-      .select('id, material_id, specification')
+      .select('id, material_id, unit_id, specification')
       .eq('supplier_id', id);
 
     if (fetchError) {
@@ -162,11 +163,11 @@ const SupplierService = {
       return null;
     }
 
-    const existingMaterialMap = new Map(existingSupplierMaterials.map(sm => [sm.material_id, sm]));
-    const newMaterialIds = new Set(materials.map(mat => mat.material_id));
+    const existingMaterialMap = new Map(existingSupplierMaterials.map(sm => [`${sm.material_id}-${sm.unit_id}`, sm]));
+    const newMaterialKeys = new Set(materials.map(mat => `${mat.material_id}-${mat.unit_id}`));
 
     // Materiales a eliminar (existentes que ya no están en la lista nueva)
-    const materialsToDelete = existingSupplierMaterials.filter(sm => !newMaterialIds.has(sm.material_id));
+    const materialsToDelete = existingSupplierMaterials.filter(sm => !newMaterialKeys.has(`${sm.material_id}-${sm.unit_id}`));
     if (materialsToDelete.length > 0) {
       const { error: deleteError } = await supabase
         .from('supplier_materials')
@@ -182,7 +183,8 @@ const SupplierService = {
 
     // Materiales a insertar/actualizar
     for (const mat of materials) {
-      const existingSm = existingMaterialMap.get(mat.material_id);
+      const key = `${mat.material_id}-${mat.unit_id}`;
+      const existingSm = existingMaterialMap.get(key);
 
       if (!existingSm) {
         // Insertar nuevo material
@@ -191,6 +193,7 @@ const SupplierService = {
           .insert({
             supplier_id: id,
             material_id: mat.material_id,
+            unit_id: mat.unit_id,
             specification: mat.specification,
             user_id: updatedSupplier.user_id,
           });
@@ -275,7 +278,7 @@ const SupplierService = {
   getById: async (id: string): Promise<Supplier | null> => {
     const { data, error } = await supabase
       .from('suppliers')
-      .select('*, materials:supplier_materials(material_id, specification, materials:materials(id, name, code, category, unit))')
+      .select('*, materials:supplier_materials(id, material_id, unit_id, specification, materials:materials(id, name, code, category, unit), units_of_measure(id, name))')
       .eq('id', id)
       .single();
 

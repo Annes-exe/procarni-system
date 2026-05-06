@@ -94,6 +94,7 @@ const EditQuoteRequest = () => {
         quantity: item.quantity,
         description: item.description || '',
         unit: item.unit || (units[0]?.name || ''),
+        unit_id: item.unit_id || (units.find(u => u.name === item.unit)?.id || (units[0]?.id || '')),
         material_id: item.material_id || undefined,
       })) || [];
 
@@ -141,7 +142,14 @@ const EditQuoteRequest = () => {
   }
 
   const handleAddItem = () => {
-    setItems((prevItems) => [...prevItems, { material_name: '', quantity: 0, description: '', unit: units[0]?.name || '', material_id: undefined }]);
+    setItems((prevItems) => [...prevItems, { 
+      material_name: '', 
+      quantity: 0, 
+      description: '', 
+      unit: units[0]?.name || '', 
+      unit_id: units[0]?.id || '',
+      material_id: undefined 
+    }]);
   };
 
   const handleItemChange = (index: number, field: keyof QuoteRequestItemForm, value: any) => {
@@ -157,6 +165,8 @@ const EditQuoteRequest = () => {
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
+    // @ts-ignore - material might have unit_id
+    handleItemChange(index, 'unit_id', material.unit_id || (units.find(u => u.name === material.unit)?.id || (units[0]?.id || '')));
     handleItemChange(index, 'material_id', material.id); // Save ID
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);
@@ -218,6 +228,7 @@ const EditQuoteRequest = () => {
         material_name: item.material_name,
         quantity: item.quantity,
         unit: item.unit,
+        unit_id: item.unit_id,
         description: item.description,
       }));
 

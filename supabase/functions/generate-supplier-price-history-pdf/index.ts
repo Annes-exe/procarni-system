@@ -76,7 +76,7 @@ function wrapText(text: string, maxCharsPerLine: number): string[] {
 
 // --- MAIN SERVE HANDLER ---
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -129,6 +129,7 @@ serve(async (req) => {
       .select(`
         *,
         materials (name, code, unit),
+        units_of_measure (name),
         purchase_orders (sequence_number, created_at)
       `)
       .eq('supplier_id', supplierId)
@@ -175,57 +176,33 @@ serve(async (req) => {
 
     // --- Table Column Configuration (Adjusted for Landscape A4: ~780px width) ---
     const tableWidth = width - 2 * MARGIN; // Approx 780px
-    // Columns: Material, Cód. Material, Precio Unitario, Moneda, Tasa, Precio Convertido (USD), N° OC
-    // Total 7 columns.
     const colWidths = [
-      tableWidth * 0.30,  // 0. Material (30%)
-      tableWidth * 0.10,  // 1. Cód. Material (10%) - REDUCED
-      tableWidth * 0.12,  // 2. Precio Unitario (12%)
-      tableWidth * 0.08,  // 3. Moneda (8%) - REDUCED
-      tableWidth * 0.12,  // 4. Tasa (12%)
-      tableWidth * 0.18,  // 5. Precio Convertido (USD) (18%) - INCREASED
-      tableWidth * 0.10,  // 6. N° OC (10%)
+      tableWidth * 0.40,  // 0. Material / Código
+      tableWidth * 0.10,  // 1. UoM
+      tableWidth * 0.15,  // 2. P. Original
+      tableWidth * 0.15,  // 3. P. Conv (USD)
+      tableWidth * 0.20,  // 4. N° OC
     ];
-    const colHeaders = [
-      'Material', 'Cód. Mat.', 'P. Unit.', 'Moneda', 'Tasa (USD/VES)',
-      'Precio Convertido (USD)', 'N° Orden Compra'
-    ];
+    const colHeaders = ['Material / Código', 'UoM', 'P. Original', 'P. Conv (USD)', 'N° OC'];
 
     const drawTableHeader = (state: PDFState): PDFState => {
       let currentX = MARGIN;
-
-      // Draw thin gray line below header row
       state.page.drawLine({
-        start: { x: MARGIN, y: state.y - LINE_HEIGHT },
-        end: { x: MARGIN + tableWidth, y: state.y - LINE_HEIGHT },
+        start: { x: MARGIN, y: state.y - 15 },
+        end: { x: MARGIN + tableWidth, y: state.y - 15 },
         thickness: 1,
         color: LIGHT_GRAY,
       });
 
       for (let i = 0; i < colHeaders.length; i++) {
-        // Determine alignment for header text (Indices: 1, 2, 4, 5 are right aligned)
-        const isRightAligned = [1, 2, 4, 5].includes(i);
-
-        const headerText = colHeaders[i];
-        const textWidth = state.boldFont.widthOfTextAtSize(headerText, 7); // Use smaller font for headers
-
-        let xPos;
-        if (isRightAligned) {
-          // Align header text to the right of the column, with 2pt padding
-          xPos = currentX + colWidths[i] - 2 - textWidth;
-        } else {
-          // Align header text to the left of the column, with 2pt padding
-          xPos = currentX + 2;
-        }
-
-        drawText(state, headerText, xPos, state.y - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
+        drawText(state, colHeaders[i], currentX, state.y - 10, {
           font: boldFont,
-          size: 7, // Smaller header font
-          color: PROC_RED
+          size: 8,
+          color: DARK_GRAY
         });
         currentX += colWidths[i];
       }
-      state.y -= LINE_HEIGHT;
+      state.y -= 10; // Reduced space between header and rows for compact layout
       return state;
     };
 
@@ -236,125 +213,116 @@ serve(async (req) => {
         state.y = state.height - MARGIN;
         state = drawHeader(state); // Redraw headers on new page
       }
+      state.y -= 15;
       return state;
     };
-    // --------------------------------------------------------------------
 
-    // --- Header ---
-    drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS POR PROVEEDOR', MARGIN, state.y, { font: boldFont, size: 16, color: PROC_RED });
-    state.y -= LINE_HEIGHT * 2;
+    // --- Header (Minimalist Clean Style) ---
+    drawText(state, 'REPORTE DE HISTORIAL DE PRECIOS POR PROVEEDOR', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
+    state.y -= LINE_HEIGHT * 1.5;
 
-    drawText(state, `PROVEEDOR: ${supplier.name} (${supplier.code || supplier.rif})`, MARGIN, state.y, { font: boldFont, size: 12 });
-    state.y -= LINE_HEIGHT;
-    drawText(state, `Moneda Base de Comparación: USD`, MARGIN, state.y, { font: boldFont, size: 10 });
-    state.y -= LINE_HEIGHT;
-    drawText(state, `Fecha de Generación: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
-    state.y -= LINE_HEIGHT * 2;
+    drawText(state, `PROVEEDOR: ${supplier.name} (${supplier.code || supplier.rif})`, MARGIN, state.y, { font: boldFont, size: 11 });
+    state.y -= LINE_HEIGHT * 1.2;
 
-    state.page.drawLine({
-      start: { x: MARGIN, y: state.y },
-      end: { x: width - MARGIN, y: state.y },
-      thickness: 2,
-      color: PROC_RED,
-    });
-    state.y -= LINE_HEIGHT * 2;
+    drawText(state, `Moneda Base: USD | Generado: ${new Date().toLocaleDateString('es-VE')}`, MARGIN, state.y, { size: 8, color: DARK_GRAY });
+    state.y -= LINE_HEIGHT * 1.5;
 
-    // --- Table ---
+    // --- Price History Table ---
     state = drawTableHeader(state);
 
     if (history.length === 0) {
-      drawText(state, 'No se encontró historial de precios para este proveedor.', MARGIN, state.y - LINE_HEIGHT);
-      state.y -= LINE_HEIGHT * 2;
+      drawText(state, 'No se encontró historial de precios para este proveedor.', MARGIN, state.y - 20);
     } else {
-      for (const entry of history) {
-        const convertedPrice = convertPriceToUSD(entry);
-
-        // Format Order Number
-        const orderSequence = entry.purchase_orders?.sequence_number;
-        const orderDate = entry.purchase_orders?.created_at;
-        const orderNumber = orderSequence ? formatSequenceNumber(orderSequence, orderDate) : 'N/A';
-
-        // --- Calculate required row height based on wrapped Material Name ---
-        const maxCharsPerLine = 40;
-        const materialLines = wrapText(entry.materials?.name || 'N/A', maxCharsPerLine);
-
-        const requiredTextHeight = materialLines.length * TIGHT_LINE_SPACING + 5;
-        const rowHeight = Math.max(MIN_ROW_HEIGHT, requiredTextHeight);
-
-        state = checkPageBreak(pdfDoc, state, rowHeight + 5, drawTableHeader);
-
-        // Draw separator line above row content
-        state.page.drawLine({
-          start: { x: MARGIN, y: state.y },
-          end: { x: MARGIN + tableWidth, y: state.y },
-          thickness: 0.5,
-          color: LIGHT_GRAY,
-        });
-
-        let currentX = MARGIN;
-        const finalY = state.y - rowHeight;
-        const verticalCenterY = finalY + rowHeight / 2 - FONT_SIZE / 2;
-
-        // Helper to draw data
-        const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = false, fontToUse: any = font) => {
-          const cellWidth = colWidths[colIndex];
-          const textWidth = fontToUse.widthOfTextAtSize(text, FONT_SIZE);
-
-          let xPos;
-          if (isRightAligned) {
-            xPos = currentX + cellWidth - 2 - textWidth; // Right aligned
-          } else {
-            xPos = currentX + 2; // Left aligned
-          }
-
-          drawText(state, text, xPos, verticalCenterY, { font: fontToUse });
-          currentX += cellWidth;
-        };
-
-        // 0. Material (Multi-line, Left Aligned)
-        let currentY = state.y - 3;
-        for (const line of materialLines) {
-          drawText(state, line, currentX + 2, currentY - FONT_SIZE, { size: FONT_SIZE });
-          currentY -= TIGHT_LINE_SPACING;
-        }
-        currentX += colWidths[0];
-
-        // 1. Cód. Material (Right Aligned)
-        drawCellData(entry.materials?.code || 'N/A', 1, true);
-
-        // 2. Precio Unitario (Right Aligned)
-        drawCellData(entry.unit_price.toFixed(2), 2, true);
-
-        // 3. Moneda (Left Aligned)
-        drawCellData(entry.currency, 3);
-
-        // 4. Tasa (Right Aligned)
-        drawCellData(entry.exchange_rate ? entry.exchange_rate.toFixed(4) : 'N/A', 4, true);
-
-        // 5. Precio Convertido (USD) (Right Aligned, Bold)
-        const convertedText = convertedPrice !== null ? `USD ${convertedPrice.toFixed(2)}` : 'N/A';
-        drawCellData(convertedText, 5, true, boldFont);
-
-        // 6. N° OC (Left Aligned)
-        drawCellData(orderNumber, 6);
-
-        state.y = finalY; // Update Y position for the next row
-      }
-
-      // Draw final bottom border for the table
-      state.page.drawLine({
-        start: { x: MARGIN, y: state.y },
-        end: { x: MARGIN + tableWidth, y: state.y },
-        thickness: 1,
-        color: LIGHT_GRAY,
+      // Group history by date
+      const grouped: Record<string, { rate: number | null, entries: any[] }> = {};
+      history.forEach((h: any) => {
+        // Use order date if available, fallback to recorded_at
+        const entryDate = h.purchase_orders?.created_at || h.recorded_at;
+        const d = new Date(entryDate).toLocaleDateString('es-VE');
+        if (!grouped[d]) grouped[d] = { rate: h.exchange_rate, entries: [] };
+        grouped[d].entries.push(h);
       });
+
+      for (const [date, group] of Object.entries(grouped)) {
+        state = checkPageBreak(pdfDoc, state, 40, drawTableHeader);
+
+        // Draw Date Group Header
+        state.page.drawRectangle({
+          x: MARGIN,
+          y: state.y - 12,
+          width: tableWidth,
+          height: 12,
+          color: rgb(0.96, 0.96, 0.96)
+        });
+        drawText(state, `FECHA: ${date}   TASA: ${group.rate?.toFixed(2) || 'N/A'}`, MARGIN + 5, state.y - 9, { font: boldFont, size: 8, color: DARK_GRAY });
+        state.y -= 5; // Reduced space between group header and items
+
+        for (const entry of group.entries) {
+          const materialName = `${entry.materials?.name || 'N/A'} (${entry.materials?.code || ''})`;
+          const materialLines = wrapText(materialName, 40); // Reduced to avoid overlap
+          const rowHeight = Math.max(12, materialLines.length * 10);
+
+          state = checkPageBreak(pdfDoc, state, rowHeight + 1, drawTableHeader);
+
+          let curX = MARGIN;
+          let sY = state.y;
+          materialLines.forEach(l => {
+            drawText(state, l, curX, sY - 9, { size: 8 });
+            sY -= 10;
+          });
+          curX += colWidths[0];
+
+          const verticalY = state.y - 9;
+
+          // Col 1: UoM
+          drawText(state, entry.units_of_measure?.name || entry.unit || entry.materials?.unit || 'N/A', curX, verticalY, { size: 8 });
+          curX += colWidths[1];
+
+          // Col 2: P. Original
+          drawText(state, `${entry.unit_price.toFixed(2)} ${entry.currency}`, curX, verticalY, { size: 8 });
+          curX += colWidths[2];
+
+          // Col 3: P. Conv (USD)
+          const usd = convertPriceToUSD(entry);
+          drawText(state, usd ? `${usd.toFixed(2)} USD` : 'N/A', curX, verticalY, { font: boldFont, size: 8 });
+          curX += colWidths[3];
+
+          // Col 4: N° OC
+          const po = entry.purchase_orders;
+          drawText(state, po ? formatSequenceNumber(po.sequence_number, po.created_at) : 'N/A', curX, verticalY, { size: 9 });
+
+          state.y -= rowHeight + 1;
+        }
+        state.y -= 5;
+      }
     }
+
+    // Draw final bottom border for the table
+    state.page.drawLine({
+      start: { x: MARGIN, y: state.y },
+      end: { x: MARGIN + tableWidth, y: state.y },
+      thickness: 1,
+      color: LIGHT_GRAY,
+    });
 
     state.y -= LINE_HEIGHT * 4;
 
     // --- Footer ---
     const footerY = MARGIN;
     drawText(state, `Generado por: ${user.email}`, MARGIN, footerY);
+
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - MARGIN - 70,
+        y: MARGIN,
+        size: 8,
+        font: font,
+        color: DARK_GRAY,
+      });
+    }
 
     const pdfBytes = await pdfDoc.save();
 

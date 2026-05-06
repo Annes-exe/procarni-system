@@ -249,7 +249,7 @@ serve(async (req: Request) => {
 
     const { data: items, error: itemsError } = await supabaseClient
       .from('purchase_order_items')
-      .select('*')
+      .select('*, units_of_measure(name)')
       .eq('order_id', orderId);
 
     if (itemsError) {
@@ -430,7 +430,7 @@ serve(async (req: Request) => {
 
       drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       
-      const docDate = order.issue_date || order.created_at;
+      const docDate = order.created_at;
       drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
       if (order.print_date) {
@@ -619,7 +619,7 @@ serve(async (req: Request) => {
 
         // 2. Cantidad / Unidad (Merged)
         const quantityStr = String(item.quantity ?? 0);
-        const unitStr = item.unit || 'UND';
+        const unitStr = item.units_of_measure?.name || item.unit || 'UND';
         drawCellData(`${quantityStr} ${unitStr}`, 1);
 
         // 3. P. Unitario
@@ -839,6 +839,19 @@ serve(async (req: Request) => {
     state = drawItemsTable(state, items);
     state = await drawTotalsAndSummary(state, order, items, effectiveExchangeRate);
     state = drawFooter(state, order, user);
+
+    // Add page numbers
+    const pages = pdfDoc.getPages();
+    for (let i = 0; i < pages.length; i++) {
+      const { width } = pages[i].getSize();
+      pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
+        x: width - MARGIN - 70,
+        y: MARGIN / 2,
+        size: 8,
+        font: font,
+        color: DARK_GRAY,
+      });
+    }
 
     const pdfBytes = await pdfDoc.save();
 

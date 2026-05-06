@@ -83,6 +83,20 @@ interface DraggableItemProps {
   disabled?: boolean;
 }
 
+interface DraggableItemProps {
+  id: string;
+  name: string;
+  category?: string;
+  code?: string;
+  specification?: string;
+  onSpecificationChange?: (val: string) => void;
+  onRemove?: () => void;
+  onClick?: () => void;
+  isOverlay?: boolean;
+  type: 'available' | 'selected';
+  disabled?: boolean;
+}
+
 const DraggableMaterialItem = ({ 
   id, 
   name, 
@@ -174,6 +188,135 @@ const DraggableMaterialItem = ({
   );
 };
 
+interface DraggableGroupedItemProps {
+  id: string; // material_id
+  name: string;
+  category?: string;
+  code?: string;
+  units: Array<{
+    material_id: string;
+    unit_id?: string | null;
+    unit_name?: string | null;
+    specification?: string;
+  }>;
+  onSpecificationChange: (key: string, val: string) => void;
+  onRemoveUnit: (key: string) => void;
+  onRemoveGroup: () => void;
+  isOverlay?: boolean;
+  disabled?: boolean;
+}
+
+const DraggableGroupedMaterialItem = ({
+  id,
+  name,
+  category,
+  code,
+  units,
+  onSpecificationChange,
+  onRemoveUnit,
+  onRemoveGroup,
+  isOverlay,
+  disabled
+}: DraggableGroupedItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id, disabled });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging && !isOverlay ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-3">
+      <div 
+        className={cn(
+          "bg-white border rounded-xl shadow-sm transition-all group overflow-hidden",
+          !disabled ? "cursor-grab active:cursor-grabbing" : "",
+          isOverlay ? "shadow-xl border-procarni-secondary opacity-90 scale-[1.02]" : "hover:border-procarni-secondary/30",
+        )}
+      >
+        {/* Header del Grupo */}
+        <div className="p-2.5 bg-gray-50/50 border-b flex justify-between items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-bold text-[11px] text-procarni-dark flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-procarni-secondary" />
+              {name}
+            </div>
+            <div className="text-[9px] text-muted-foreground truncate uppercase tracking-tighter ml-3.5">
+              {category} {code && `• ${code}`}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-gray-300 hover:text-red-500 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveGroup();
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+            <div className="text-gray-300">
+               <ChevronsUpDown className="h-4 w-4" />
+            </div>
+          </div>
+        </div>
+
+        {/* Unidades Anidadas */}
+        <div className="p-2 space-y-2 bg-white">
+          {units.map((u) => {
+            const key = `${u.material_id}-${u.unit_id || ''}`;
+            return (
+              <div key={key} className="flex flex-col gap-1.5 p-2 rounded-lg bg-gray-50/30 border border-transparent hover:border-gray-200 transition-all group/unit">
+                <div className="flex justify-between items-center">
+                  <div className="text-[10px] font-bold text-procarni-secondary flex items-center gap-1.5">
+                    <div className="px-1.5 py-0.5 rounded bg-procarni-secondary/10 border border-procarni-secondary/20">
+                      {u.unit_name || 'N/A'}
+                    </div>
+                  </div>
+                  {units.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 text-gray-300 hover:text-red-500 opacity-0 group-hover/unit:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveUnit(key);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Input
+                    value={u.specification || ''}
+                    onChange={(e) => onSpecificationChange(key, e.target.value)}
+                    placeholder="Especificación para esta unidad..."
+                    className="h-7 text-[10px] bg-white border-gray-100 focus:border-procarni-secondary/30"
+                    onKeyDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Esquema de validación - reestructurado para evitar problemas con ctx.parent
 const supplierFormSchema = z.object({
   // El código se autogenera y no se gestiona en el formulario, por lo que se elimina de aquí.
@@ -198,6 +341,8 @@ const supplierFormSchema = z.object({
       material_id: z.string().min(1, 'Material es requerido'),
       material_name: z.string().min(1, 'Nombre de material es requerido'),
       material_category: z.string().optional(),
+      unit_id: z.string().optional().nullable(),
+      unit_name: z.string().optional().nullable(),
       specification: z.string().optional(),
     })
   ).optional(),
@@ -227,11 +372,16 @@ interface SupplierFormProps {
     materials?: Array<{
       id?: string;
       material_id: string;
+      unit_id?: string | null;
       specification?: string;
       materials?: {
         id: string;
         name: string;
         category?: string;
+      };
+      units_of_measure?: {
+        id: string;
+        name: string;
       };
     }>;
   };
@@ -313,6 +463,8 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         material_id: mat.material_id,
         material_name: mat.materials?.name || '',
         material_category: mat.materials?.category || '',
+        unit_id: mat.unit_id || null,
+        unit_name: mat.units_of_measure?.name || '',
         specification: mat.specification || '',
       })) || [];
 
@@ -354,10 +506,12 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     }
   }, [initialData, form]);
 
-  const handleAddMaterial = (material: { id: string; name: string; category?: string }) => {
+  const handleAddMaterial = (material: { id: string; name: string; category?: string; unit_id?: string; unit?: string }) => {
     const materialsArray = form.getValues('materials') || [];
-    if (materialsArray.some(m => m.material_id === material.id)) {
-      showError('Este material ya está asociado al proveedor');
+    const key = `${material.id}-${material.unit_id || ''}`;
+    
+    if (materialsArray.some(m => `${m.material_id}-${m.unit_id || ''}` === key)) {
+      showError('Este material con esta unidad ya está asociado al proveedor');
       return;
     }
 
@@ -365,26 +519,31 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       material_id: material.id,
       material_name: material.name,
       material_category: material.category || '',
+      unit_id: material.unit_id || null,
+      unit_name: material.unit || '',
       specification: '',
     };
 
     form.setValue('materials', [...materialsArray, newMaterialEntry], { shouldDirty: true });
   };
 
-  const handleMaterialCreatedFromDialog = (material: { id: string; name: string; unit?: string; is_exempt?: boolean; specification?: string }) => {
+  const handleMaterialCreatedFromDialog = (material: any) => {
     // 1. Add the newly created/associated material to the form state
     const materialsArray = form.getValues('materials') || [];
+    const key = `${material.id}-${material.unit_id || ''}`;
 
-    // Check if it was already added (shouldn't happen if logic is correct, but safety check)
-    if (materialsArray.some(m => m.material_id === material.id)) {
-      showError('El material ya estaba en la lista.');
+    // Check if it was already added
+    if (materialsArray.some(m => `${m.material_id}-${m.unit_id || ''}` === key)) {
+      showError('El material con esta unidad ya estaba en la lista.');
       return;
     }
 
     const newMaterialEntry = {
       material_id: material.id,
       material_name: material.name,
-      material_category: '', // We don't have category here, rely on refetch if needed later
+      material_category: material.category || '',
+      unit_id: material.unit_id || null,
+      unit_name: material.unit || '', // material.unit usually contains the name in these dialogs
       specification: material.specification || '',
     };
 
@@ -394,16 +553,22 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     refetchMaterials();
   };
 
-  const handleRemoveMaterial = (materialId: string) => {
+  const handleRemoveMaterial = (key: string) => {
+    const materialsArray = form.getValues('materials') || [];
+    const updatedMaterials = materialsArray.filter(m => `${m.material_id}-${m.unit_id || ''}` !== key);
+    form.setValue('materials', updatedMaterials, { shouldDirty: true });
+  };
+
+  const handleRemoveMaterialGroup = (materialId: string) => {
     const materialsArray = form.getValues('materials') || [];
     const updatedMaterials = materialsArray.filter(m => m.material_id !== materialId);
     form.setValue('materials', updatedMaterials, { shouldDirty: true });
   };
 
-  const handleSpecificationChange = (materialId: string, specification: string) => {
+  const handleSpecificationChange = (key: string, specification: string) => {
     const materialsArray = form.getValues('materials') || [];
     const updatedMaterials = materialsArray.map(m =>
-      m.material_id === materialId ? { ...m, specification } : m
+      `${m.material_id}-${m.unit_id || ''}` === key ? { ...m, specification } : m
     );
     form.setValue('materials', updatedMaterials, { shouldDirty: true });
   };
@@ -480,12 +645,13 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     if (itemInResults) {
       setActiveItem({ ...itemInResults, type: 'available' });
     } else if (itemInSelected) {
+      const materialUnits = currentMaterialsInForm.filter(m => m.material_id === itemInSelected.material_id);
       setActiveItem({ 
         id: itemInSelected.material_id, 
+        material_id: itemInSelected.material_id,
         name: itemInSelected.material_name, 
-        code: '', 
-        category: itemInSelected.material_category, 
-        specification: itemInSelected.specification,
+        category: itemInSelected.material_category,
+        units: materialUnits,
         type: 'selected' 
       });
     }
@@ -511,15 +677,27 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     
     // Caso 2: Quitar (Seleccionados -> Disponibles)
     if (activeItem?.type === 'selected' && (overId === 'available-zone' || searchResults.some(m => m.id === overId))) {
-      handleRemoveMaterial(activeId);
+      handleRemoveMaterialGroup(activeId);
     }
 
     // Caso 3: Reordenar dentro de Seleccionados
     if (activeItem?.type === 'selected' && currentMaterialsInForm.some(m => m.material_id === overId)) {
       if (activeId !== overId) {
-        const oldIndex = currentMaterialsInForm.findIndex(m => m.material_id === activeId);
-        const newIndex = currentMaterialsInForm.findIndex(m => m.material_id === overId);
-        form.setValue('materials', arrayMove(currentMaterialsInForm, oldIndex, newIndex), { shouldDirty: true });
+        // Obtenemos el orden de los IDs de materiales únicos
+        const uniqueOrderedIds = Array.from(new Set(currentMaterialsInForm.map(m => m.material_id)));
+        const oldIndex = uniqueOrderedIds.indexOf(activeId);
+        const newIndex = uniqueOrderedIds.indexOf(overId);
+        
+        const reorderedIds = arrayMove(uniqueOrderedIds, oldIndex, newIndex);
+        
+        // Reconstruimos el array plano basado en el nuevo orden de materiales
+        const newFlatArray: any[] = [];
+        reorderedIds.forEach(mId => {
+          const materialUnits = currentMaterialsInForm.filter(m => m.material_id === mId);
+          newFlatArray.push(...materialUnits);
+        });
+        
+        form.setValue('materials', newFlatArray, { shouldDirty: true });
       }
     }
   };
@@ -633,40 +811,47 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                   </h3>
 
                   <div className="space-y-1">
-                    <SortableContext 
-                      id="selected-zone"
-                      items={currentMaterialsInForm.map(m => m.material_id)} 
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <AnimatePresence>
-                        {currentMaterialsInForm.length > 0 ? (
-                          currentMaterialsInForm.map((material) => (
-                            <m.div
-                              key={material.material_id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                            >
-                              <DraggableMaterialItem 
-                                id={material.material_id}
-                                name={material.material_name}
-                                category={material.material_category}
-                                specification={material.specification}
-                                onSpecificationChange={(val) => handleSpecificationChange(material.material_id, val)}
-                                onRemove={() => handleRemoveMaterial(material.material_id)}
-                                type="selected"
-                                disabled={isMobile}
-                              />
-                            </m.div>
-                          ))
-                        ) : (
-                          <div className="text-[11px] text-center text-gray-400 py-16 flex flex-col items-center gap-2">
-                            <Plus className="h-6 w-6 opacity-10" />
-                            Arrastra materiales aquí para seleccionarlos
-                          </div>
-                        )}
-                      </AnimatePresence>
-                    </SortableContext>
+                      <SortableContext 
+                        id="selected-zone"
+                        items={Array.from(new Set(currentMaterialsInForm.map(m => m.material_id)))}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <AnimatePresence>
+                          {(() => {
+                            const uniqueIds = Array.from(new Set(currentMaterialsInForm.map(m => m.material_id)));
+                            return uniqueIds.length > 0 ? (
+                              uniqueIds.map((mId) => {
+                                const materialUnits = currentMaterialsInForm.filter(m => m.material_id === mId);
+                                const first = materialUnits[0];
+                                return (
+                                  <m.div
+                                    key={mId}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                  >
+                                    <DraggableGroupedMaterialItem 
+                                      id={mId}
+                                      name={first.material_name}
+                                      category={first.material_category}
+                                      units={materialUnits as any[]}
+                                      onSpecificationChange={handleSpecificationChange}
+                                      onRemoveUnit={handleRemoveMaterial}
+                                      onRemoveGroup={() => handleRemoveMaterialGroup(mId)}
+                                      disabled={isMobile}
+                                    />
+                                  </m.div>
+                                );
+                              })
+                            ) : (
+                              <div className="text-[11px] text-center text-gray-400 py-16 flex flex-col items-center gap-2">
+                                <Plus className="h-6 w-6 opacity-10" />
+                                Arrastra materiales aquí para seleccionarlos
+                              </div>
+                            );
+                          })()}
+                        </AnimatePresence>
+                      </SortableContext>
                   </div>
                 </DroppableZone>
               </div>
@@ -676,15 +861,28 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                 <DragOverlay adjustScale={false}>
                   {activeId && activeItem ? (
                     <div className="w-[300px] pointer-events-none z-[9999]">
-                      <DraggableMaterialItem 
-                        id={activeId}
-                        name={activeItem.name}
-                        category={activeItem.category}
-                        code={activeItem.code}
-                        specification={activeItem.specification}
-                        type={activeItem.type}
-                        isOverlay
-                      />
+                      {activeItem.type === 'selected' ? (
+                        <DraggableGroupedMaterialItem 
+                          id={activeItem.id}
+                          name={activeItem.name}
+                          category={activeItem.category}
+                          units={activeItem.units}
+                          onSpecificationChange={() => {}}
+                          onRemoveUnit={() => {}}
+                          onRemoveGroup={() => {}}
+                          isOverlay
+                        />
+                      ) : (
+                        <DraggableMaterialItem 
+                          id={activeItem.id}
+                          name={activeItem.name}
+                          category={activeItem.category}
+                          code={activeItem.code}
+                          specification={activeItem.specification}
+                          type={activeItem.type}
+                          isOverlay
+                        />
+                      )}
                     </div>
                   ) : null}
                 </DragOverlay>,

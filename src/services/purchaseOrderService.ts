@@ -167,6 +167,8 @@ export const purchaseOrderService = {
                     exchange_rate: newOrder.exchange_rate,
                     purchase_order_id: newOrder.id,
                     user_id: newOrder.user_id,
+                    unit: item.unit,
+                    unit_id: item.unit_id,
                 }));
 
             if (priceHistoryEntries.length > 0) {
@@ -251,6 +253,8 @@ export const purchaseOrderService = {
                     exchange_rate: updatedOrder.exchange_rate,
                     purchase_order_id: updatedOrder.id,
                     user_id: updatedOrder.user_id,
+                    unit: item.unit,
+                    unit_id: item.unit_id,
                 }));
 
             if (priceHistoryEntries.length > 0) {

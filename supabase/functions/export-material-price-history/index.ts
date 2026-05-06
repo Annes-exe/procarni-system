@@ -79,7 +79,8 @@ serve(async (req) => {
       .from('price_history')
       .select(`
         *,
-        suppliers (name, rif, code)
+        suppliers (name, rif, code),
+        units_of_measure (name)
       `)
       .eq('material_id', materialId)
       .order('recorded_at', { ascending: false });
@@ -96,6 +97,7 @@ serve(async (req) => {
         'ID Transacción': entry.id.substring(0, 8),
         'Proveedor': entry.suppliers?.name || 'N/A',
         'Cód. Proveedor': entry.suppliers?.code || 'N/A',
+        'Unidad': entry.units_of_measure?.name || entry.unit || 'N/A',
         'Precio Unitario Original': entry.unit_price,
         'Moneda Original': entry.currency,
         'Tasa de Cambio (USD/VES)': entry.exchange_rate || 'N/A',
@@ -106,7 +108,7 @@ serve(async (req) => {
     });
 
     const headers = [
-      'ID Transacción', 'Proveedor', 'Cód. Proveedor', 'Precio Unitario Original',
+      'ID Transacción', 'Proveedor', 'Cód. Proveedor', 'Unidad', 'Precio Unitario Original',
       'Moneda Original', 'Tasa de Cambio (USD/VES)', `Precio Convertido (${baseCurrency})`,
       'Fecha Registro', 'ID Orden de Compra'
     ];

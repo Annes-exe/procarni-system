@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { showError, showLoading, dismissToast, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { cn } from '@/lib/utils';
@@ -32,11 +32,17 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
   disabled = false,
   asChild = false, // Default to false
   className,
+  ...props
 }, ref) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const handleDownload = async () => {
+  const handleDownload = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     if (!session) {
       showError('No hay sesión activa para descargar el PDF.');
       return;
@@ -113,7 +119,11 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
 
   return (
     <Button
-      onClick={handleDownload}
+      {...props}
+      onClick={(e) => {
+        if (props.onClick) props.onClick(e);
+        handleDownload(e);
+      }}
       disabled={isDownloading || disabled}
       variant={variant}
       size={size}
@@ -126,8 +136,12 @@ const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonP
       {/* Wrap content in a single span element to ensure it's a single child element, 
           which satisfies the requirement of components using Radix Slot/asChild pattern. */}
       <span className="flex items-center gap-2">
-        <Download className="h-4 w-4" />
-        {isDownloading ? 'Descargando...' : label}
+        {isDownloading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4" />
+        )}
+        {isDownloading ? (label ? 'Descargando...' : null) : label}
       </span>
     </Button>
   );

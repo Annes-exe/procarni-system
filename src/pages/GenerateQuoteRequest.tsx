@@ -93,6 +93,7 @@ const GenerateQuoteRequest = () => {
       quantity: 0, 
       description: '', 
       unit: units[0]?.name || 'unid', 
+      unit_id: units[0]?.id || '', 
       material_id: undefined 
     }]);
   };
@@ -104,6 +105,7 @@ const GenerateQuoteRequest = () => {
         quantity: 0,
         description: materialData.specification || '',
         unit: materialData.unit || (units[0]?.name || ''),
+        unit_id: materialData.unit_id || (units[0]?.id || ''),
         material_id: materialData.id,
       };
       setItems([initialItem]);
@@ -191,6 +193,8 @@ const GenerateQuoteRequest = () => {
   const handleMaterialSelect = async (index: number, material: MaterialSearchResult) => {
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || (units[0]?.name || ''));
+    // @ts-ignore - material might have unit_id
+    handleItemChange(index, 'unit_id', material.unit_id || (units.find(u => u.name === material.unit)?.id || (units[0]?.id || '')));
     handleItemChange(index, 'material_id', material.id); // Save ID
 
     if (material.specification && material.specification !== material.code) {
@@ -313,6 +317,7 @@ const GenerateQuoteRequest = () => {
         material_name: item.material_name,
         quantity: item.quantity,
         unit: item.unit,
+        unit_id: item.unit_id,
         description: item.description,
       }));
 

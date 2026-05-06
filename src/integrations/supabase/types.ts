@@ -39,6 +39,7 @@ export type Material = {
   updated_at: string | null;
   user_id: string | null;
   unit: string | null;
+  unit_id: string | null; // ADDED
   is_exempt: boolean | null;
   base_material_id?: string | null;
   search_aliases?: string[] | null;
@@ -54,6 +55,7 @@ export type MaterialCategory = {
 export type UnitOfMeasure = {
   id: string;
   name: string;
+  category: 'Base' | 'Volumen'; // ADDED
   user_id: string | null;
   created_at: string | null;
 };
@@ -109,6 +111,7 @@ export type PurchaseOrderItem = {
   updated_at: string | null;
   supplier_code: string | null;
   unit: string | null;
+  unit_id: string | null; // ADDED
   material_id: string | null;
   description: string | null; // ADDED
   sales_percentage: number | null; // NEW
@@ -139,6 +142,7 @@ export type QuoteRequestItem = {
   updated_at: string | null;
   description: string | null;
   unit: string | null;
+  unit_id: string | null; // ADDED
   is_exempt: boolean | null;
   material_id: string | null; // Added
   materials?: { // Added
@@ -151,6 +155,7 @@ export type PriceHistory = {
   id: string;
   material_id: string;
   supplier_id: string;
+  unit_id: string | null; // ADDED
   unit_price: number;
   currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
@@ -182,6 +187,7 @@ export type SupplierMaterial = {
   id: string;
   supplier_id: string;
   material_id: string;
+  unit_id: string | null; // ADDED
   specification: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -192,6 +198,7 @@ export type SupplierQuote = {
   id: string;
   material_id: string;
   supplier_id: string;
+  unit_id: string | null; // ADDED
   user_id: string;
   unit_price: number;
   currency: 'USD' | 'VES' | 'EUR';
@@ -212,22 +219,44 @@ export type QuoteComparison = {
   items?: QuoteComparisonItem[]; // Joined items
 };
 
+export type QuoteEntry = {
+  supplierId: string;
+  supplierName: string;
+  unitPrice: number;
+  currency: 'USD' | 'VES' | 'EUR';
+  exchangeRate?: number;
+  unit_id: string;
+  unit_name?: string;
+  convertedPrice?: number | null;
+  isValid?: boolean;
+  error?: string | null;
+  isBest?: boolean;
+};
+
+export interface ComparisonResult {
+  material: {
+    id: string;
+    name: string;
+    code: string;
+    unit_id?: string;
+  };
+  results: QuoteEntry[];
+  unitGroups?: Record<string, number>;
+  bestPrice: number | null;
+}
+
 export type QuoteComparisonItem = {
   id: string;
   comparison_id: string;
   material_id: string;
   material_name: string;
-  quotes: Array<{
-    supplierId: string;
-    supplierName: string;
-    unitPrice: number;
-    currency: 'USD' | 'VES' | 'EUR';
-    exchangeRate?: number;
-  }>;
+  quotes: QuoteEntry[];
+  unit_id?: string | null;
   created_at: string;
-  materials?: { // Joined material details
+  materials?: {
     code: string;
     name: string;
+    unit_id?: string | null;
   };
 };
 
@@ -282,6 +311,7 @@ export type ServiceOrderMaterial = {
   is_exempt: boolean;
   supplier_code: string | null;
   unit: string | null;
+  unit_id: string | null; // ADDED
   description: string | null;
   sales_percentage: number | null;
   discount_percentage: number | null;
@@ -309,5 +339,6 @@ export type OrderDocument = {
 
 export type SupplierMaterialPayload = {
   material_id: string;
+  unit_id: string | null;
   specification?: string;
 };
