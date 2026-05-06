@@ -159,7 +159,18 @@ serve(async (req) => {
     const TIGHT_LINE_SPACING = FONT_SIZE * 1.1; // 11 points (tighter line spacing for wrapped text)
     const MIN_ROW_HEIGHT = LINE_HEIGHT * 1.5; // Minimum height for single line content
 
-    const drawComparisonTable = (state: PDFState, materialName: string, results: any[], bestPrice: number | null): PDFState => {
+    const drawComparisonTable = (state: PDFState, materialName: string, results: any[], globalBestPrice: number | null): PDFState => {
+      // Calculate best price per unique UoM (normalized by unit_id or unit_name)
+      const bestPricesByUoM: Record<string, number> = {};
+      results.forEach(quote => {
+        if (quote.isValid) {
+          const uomKey = quote.unit_id || quote.unit_name || 'UND';
+          if (bestPricesByUoM[uomKey] === undefined || quote.convertedPrice < bestPricesByUoM[uomKey]) {
+            bestPricesByUoM[uomKey] = quote.convertedPrice;
+          }
+        }
+      });
+
       // Draw Material Title
       state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 2);
       drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
@@ -189,7 +200,9 @@ serve(async (req) => {
 
       // Draw Table Rows
       for (const quote of results) {
-        const isBestPrice = quote.isValid && quote.convertedPrice === bestPrice;
+        const uomKey = quote.unit_id || quote.unit_name || 'UND';
+        const isBestPrice = quote.isValid && quote.convertedPrice === bestPricesByUoM[uomKey];
+        const isGlobalBest = quote.isValid && quote.convertedPrice === globalBestPrice;
 
         // --- 1. Calculate required row height based on wrapped Supplier Name ---
         // Max characters per line for 30% width (approx 30 chars per line)
@@ -204,15 +217,15 @@ serve(async (req) => {
 
         state = checkPageBreak(pdfDoc, state, rowHeight + 10); // Check page break with padding
 
-        // Draw row background/border if it's the best price
+        // Draw row background/border if it's the best price for its UoM
         if (isBestPrice) {
           state.page.drawRectangle({
             x: MARGIN,
             y: state.y - rowHeight,
             width: tableWidth,
             height: rowHeight,
-            color: rgb(0.9, 1, 0.9), // Light green background
-            opacity: 0.5,
+            color: isGlobalBest ? rgb(0.85, 1, 0.85) : rgb(0.95, 1, 0.95), // Deeper green for global best
+            opacity: 0.6,
           });
         }
 
