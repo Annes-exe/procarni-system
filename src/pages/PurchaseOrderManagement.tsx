@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download } from 'lucide-react';
+import PDFDownloadButton from '@/components/PDFDownloadButton';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { purchaseOrderService, PurchaseOrderWithRelations } from '@/services/purchaseOrderService';
@@ -286,8 +287,13 @@ const PurchaseOrderManagement = () => {
   }
 
   const renderActions = (order: PurchaseOrderWithRelations) => {
-    const isEditable = order.status === 'Draft' || role === 'admin';
     const isArchived = order.status === 'Archived';
+
+    const generateFileName = () => {
+      const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+      const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+      return `${sequence}-${supplierName}.pdf`;
+    };
 
     return (
       <TableCell className="text-right whitespace-nowrap">
@@ -302,16 +308,20 @@ const PurchaseOrderManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {isEditable && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => handleEditOrder(order.id)} className="h-8 w-8 text-blue-600">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Editar</TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PDFDownloadButton
+                  orderId={order.id}
+                  endpoint="generate-po-pdf"
+                  fileNameGenerator={generateFileName}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-blue-600"
+                  label=""
+                />
+              </TooltipTrigger>
+              <TooltipContent>Descargar</TooltipContent>
+            </Tooltip>
 
             {!isArchived && (
               <Tooltip>
@@ -389,16 +399,24 @@ const PurchaseOrderManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {(order.status === 'Draft' || role === 'admin') && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleEditOrder(order.id)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Editar</TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PDFDownloadButton
+                  orderId={order.id}
+                  endpoint="generate-po-pdf"
+                  fileNameGenerator={() => {
+                    const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+                    const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                    return `${sequence}-${supplierName}.pdf`;
+                  }}
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50"
+                  label=""
+                />
+              </TooltipTrigger>
+              <TooltipContent>Descargar</TooltipContent>
+            </Tooltip>
 
 
             {order.status !== 'Archived' ? (

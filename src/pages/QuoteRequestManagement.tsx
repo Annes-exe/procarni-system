@@ -11,6 +11,7 @@ import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, C
 
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import PDFDownloadButton from '@/components/PDFDownloadButton';
 import { showError, showSuccess } from '@/utils/toast';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -324,16 +325,24 @@ const QuoteRequestManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {(request.status === 'Draft' || role === 'admin') && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request.id)} className="h-8 w-8 text-blue-600">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Editar</TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PDFDownloadButton
+                  requestId={request.id}
+                  endpoint="generate-qr-pdf"
+                  fileNameGenerator={() => {
+                    const id = request.id.substring(0, 8);
+                    const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                    return `Cotizacion-${id}-${supplierName}.pdf`;
+                  }}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-blue-600"
+                  label=""
+                />
+              </TooltipTrigger>
+              <TooltipContent>Descargar</TooltipContent>
+            </Tooltip>
 
             {request.status === 'Draft' ? (
               <Tooltip>
@@ -390,16 +399,24 @@ const QuoteRequestManagement = () => {
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
 
-            {(request.status === 'Draft' || role === 'admin') && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50" onClick={() => handleEditRequest(request.id)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Editar</TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PDFDownloadButton
+                  requestId={request.id}
+                  endpoint="generate-qr-pdf"
+                  fileNameGenerator={() => {
+                    const id = request.id.substring(0, 8);
+                    const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                    return `Cotizacion-${id}-${supplierName}.pdf`;
+                  }}
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50"
+                  label=""
+                />
+              </TooltipTrigger>
+              <TooltipContent>Descargar</TooltipContent>
+            </Tooltip>
 
             {request.status === 'Draft' ? (
               <Tooltip>
