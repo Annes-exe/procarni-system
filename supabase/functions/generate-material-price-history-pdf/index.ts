@@ -110,7 +110,7 @@ const checkPageBreak = (pdfDoc: PDFDocument, state: PDFState, requiredSpace: num
 
 // --- MAIN SERVE HANDLER ---
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -182,6 +182,7 @@ serve(async (req) => {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     let state: PDFState = { page, y: height - MARGIN, width, height, font, boldFont };
+    const tableWidth = width - (2 * MARGIN);
 
     // Columns: Proveedor, P. Original, P. Conv (USD), UoM, N° OC
     const colWidths = [
@@ -245,7 +246,7 @@ serve(async (req) => {
       // Group history by date
       const groupedHistory: Record<string, { rate: number | null, entries: any[] }> = {};
       
-      history.forEach(entry => {
+      history.forEach((entry: any) => {
         // Use the purchase order date if available, otherwise fallback to recorded_at
         const entryDate = entry.purchase_orders?.created_at || entry.recorded_at;
         const dateKey = new Date(entryDate).toLocaleDateString('es-VE');

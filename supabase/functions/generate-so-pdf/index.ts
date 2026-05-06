@@ -192,7 +192,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 
 // --- MAIN SERVE HANDLER ---
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
     }

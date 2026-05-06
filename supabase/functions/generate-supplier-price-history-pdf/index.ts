@@ -76,7 +76,7 @@ function wrapText(text: string, maxCharsPerLine: number): string[] {
 
 // --- MAIN SERVE HANDLER ---
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -244,7 +244,7 @@ serve(async (req) => {
     } else {
       // Group history by date
       const grouped: Record<string, { rate: number | null, entries: any[] }> = {};
-      history.forEach(h => {
+      history.forEach((h: any) => {
         // Use order date if available, fallback to recorded_at
         const entryDate = h.purchase_orders?.created_at || h.recorded_at;
         const d = new Date(entryDate).toLocaleDateString('es-VE');
