@@ -495,10 +495,12 @@ const ReportsAnalytics = () => {
 
     // Filter by currency directly on the data for calculations
     const filteredData = useMemo(() => {
-        return purchaseData.filter((item: any) =>
-            item.purchase_orders.currency === currency &&
-            ['Approved', 'Archived'].includes(item.purchase_orders.status)
-        );
+        return purchaseData
+            .filter((item: any) =>
+                item.purchase_orders.currency === currency &&
+                ['Approved', 'Archived'].includes(item.purchase_orders.status)
+            )
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }, [purchaseData, currency]);
 
     const kpis = useMemo(() => {
