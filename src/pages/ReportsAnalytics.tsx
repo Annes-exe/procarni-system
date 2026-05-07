@@ -92,6 +92,7 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 // Price Variation Component (Complex logic separated)
 const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>> }) => {
     const navigate = useNavigate();
+    const [localNames, setLocalNames] = useState<Record<string, string>>({});
 
     const { data: priceHistory = [] } = useQuery({
         queryKey: ['priceTrends', selectedMaterialIds, currency],
@@ -148,7 +149,10 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
         const seriesHistory: Record<string, any[]> = {};
         
         priceHistory.forEach((historyList: any[], index) => {
-            const requestedMatName = materials.find((m: any) => m.id === selectedMaterialIds[index])?.name || 'Material';
+            const matId = selectedMaterialIds[index];
+            const m = materials.find((mat: any) => mat.id === matId);
+            // Fallback: Use localNames or name from history records if not found in materials prop
+            const requestedMatName = m?.name || localNames[matId] || historyList[0]?.materials?.name || 'Material';
             
             historyList.forEach((item: any) => {
                 if (item.currency !== currency) return;
@@ -244,6 +248,9 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                                     fetchFunction={searchMaterialsLocal}
                                     onSelect={(item) => {
                                         if (!selectedMaterialIds.includes(item.id)) {
+                                            // Store name locally in case it's missing from the prop
+                                            setLocalNames(prev => ({ ...prev, [item.id]: item.name }));
+
                                             if (selectedMaterialIds.length >= 5) {
                                                 setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
                                             } else {
@@ -260,7 +267,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                             const m = materials.find((mat: any) => mat.id === id);
                             return (
                                 <Badge key={id} variant="secondary" className="gap-1 pl-2 pr-1 py-1" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20', color: COLORS[idx % COLORS.length] }}>
-                                    {m?.name}
+                                    {m?.name || localNames[id] || 'Material'}
                                     <button onClick={() => setSelectedMaterialIds(prev => prev.filter(x => x !== id))} className="ml-1 hover:bg-black/10 rounded-full p-0.5">
                                         <ArrowDownRight className="h-3 w-3 rotate-45" />
                                     </button>
