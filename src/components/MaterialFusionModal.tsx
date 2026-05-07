@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { updateMaterial, getAllUnits } from '@/integrations/supabase/data';
+import { updateMaterial, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { mergeMaterials } from '@/integrations/supabase/services/materialService';
 import { showError, showSuccess } from '@/utils/toast';
 import { Combine, AlertTriangle } from 'lucide-react';
@@ -36,11 +36,17 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
   const [targetId, setTargetId] = useState<string>('');
   const [newName, setNewName] = useState<string>('');
   const [newUnit, setNewUnit] = useState<string>('');
+  const [newCategory, setNewCategory] = useState<string>('');
   const [isExempt, setIsExempt] = useState<boolean>(false);
   
   // Checks de confirmación (Doble Advertencia)
   const [checkMergeHistory, setCheckMergeHistory] = useState(false);
   const [checkDeleteSources, setCheckDeleteSources] = useState(false);
+
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['material_categories'],
+    queryFn: getAllMaterialCategories,
+  });
 
   const itemsToMerge = materials.filter(m => selectedIds.includes(m.id));
 
@@ -51,11 +57,13 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
       if (targetMat) {
         setNewName(targetMat.name);
         setNewUnit(targetMat.unit || '');
+        setNewCategory(targetMat.category || '');
         setIsExempt(targetMat.is_exempt || false);
       }
     } else {
       setNewName('');
       setNewUnit('');
+      setNewCategory('');
       setIsExempt(false);
     }
   }, [targetId]); // ONLY run when targetId changes
@@ -80,6 +88,7 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
       await updateMaterial(targetId, {
         name: newName,
         unit: newUnit,
+        category: newCategory,
         is_exempt: isExempt
       });
 
@@ -164,8 +173,8 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Unidad de Medida (Opcional)</label>
                   <Select value={newUnit} onValueChange={setNewUnit} disabled={fusionMutation.isPending || isLoadingUnits || !targetId}>
-                    <SelectTrigger className="w-full bg-white">
-                      <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona una unidad"} />
+                    <SelectTrigger className="w-full bg-white text-xs h-9">
+                      <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
                     </SelectTrigger>
                     <SelectContent>
                       {units.map(unit => (
@@ -174,19 +183,32 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col justify-end pb-2">
-                  <div className="flex items-center space-x-2 border rounded-md p-2 bg-white">
-                    <Checkbox 
-                      id="exempt-fusion" 
-                      checked={isExempt} 
-                      onCheckedChange={(checked) => setIsExempt(checked as boolean)}
-                      disabled={fusionMutation.isPending || !targetId}
-                    />
-                    <label htmlFor="exempt-fusion" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Exento de IVA
-                    </label>
-                  </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Categoría Final</label>
+                  <Select value={newCategory} onValueChange={setNewCategory} disabled={fusionMutation.isPending || isLoadingCategories || !targetId}>
+                    <SelectTrigger className="w-full bg-white text-xs h-9">
+                      <SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Selecciona categoría"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Sin categoría</SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+
+              <div className="flex items-center space-x-2 border rounded-md p-2 bg-white">
+                <Checkbox 
+                  id="exempt-fusion" 
+                  checked={isExempt} 
+                  onCheckedChange={(checked) => setIsExempt(checked as boolean)}
+                  disabled={fusionMutation.isPending || !targetId}
+                />
+                <label htmlFor="exempt-fusion" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Exento de IVA (Material no gravable)
+                </label>
               </div>
             </div>
           </div>

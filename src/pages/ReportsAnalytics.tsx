@@ -47,6 +47,7 @@ import {
     getPurchaseHistoryReport,
     getAllSuppliers,
     getAllMaterials,
+    searchMaterials,
     getPriceHistoryByMaterialId,
     searchMaterialsBySupplier,
     searchSuppliersByMaterial
@@ -199,10 +200,13 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
     }, [priceHistory, currency, materials, selectedMaterialIds]);
 
     const searchMaterialsLocal = async (query: string) => {
-        const q = normalizeString(query);
-        let base = materials.map((m: any) => ({ 
+        // Use the database RPC search to find all materials (including those without history)
+        const dbResults = await searchMaterials(query);
+        
+        let base = dbResults.map((m: any) => ({ 
             id: m.id, 
             name: m.name,
+            code: m.code,
             search_aliases: m.search_aliases || []
         }));
 
@@ -212,12 +216,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
             base = base.filter(m => supplierMatIds.has(m.id));
         }
 
-        if (!q) return base;
-        return base.filter((m: any) => {
-            const normalizedName = normalizeString(m.name);
-            const normalizedAliases = (m.search_aliases || []).map((a: string) => normalizeString(a));
-            return normalizedName.includes(q) || normalizedAliases.some((a: string) => a.includes(q));
-        });
+        return base;
     };
 
     const COLORS = ['#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#7B1FA2'];
