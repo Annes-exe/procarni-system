@@ -229,7 +229,7 @@ export const getPurchaseHistoryReport = async ({
         name
       )
     `)
-    .order('purchase_orders(created_at)', { ascending: false });
+    .order('created_at', { foreignTable: 'purchase_orders', ascending: false });
 
   if (supplierId) {
     query = query.eq('purchase_orders.supplier_id', supplierId);

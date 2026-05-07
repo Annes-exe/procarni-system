@@ -9,11 +9,15 @@ const VAPID_SUBJECT = 'mailto:sistemasprocarni2025@gmail.com';
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
-webpush.setVapidDetails(
-  VAPID_SUBJECT,
-  VAPID_PUBLIC_KEY!,
-  VAPID_PRIVATE_KEY!
-);
+if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  console.error("CRITICAL: VAPID keys are not set in environment variables.");
+} else {
+  webpush.setVapidDetails(
+    VAPID_SUBJECT,
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +32,8 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
+    console.log("Payload recibido:", JSON.stringify(payload, null, 2));
+    
     let record = null;
     let userId = null;
 
@@ -35,8 +41,8 @@ serve(async (req) => {
       record = payload.record;
       userId = record.user_id;
       
-      // We allow 'reminder' and explicit 'RETRY' requests
       if (payload.type !== 'RETRY' && record.type !== 'reminder') {
+        console.log(`Notificación ignorada (tipo: ${record.type})`);
         return new Response(JSON.stringify({ message: "Notificación ignorada" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -45,10 +51,12 @@ serve(async (req) => {
     } else if (payload.test === true) {
       record = {
         title: 'Notificaciones Activadas',
-        message: 'Notificaciones Activadas en este dispositivo'
+        message: '¡Excelente! Las notificaciones están funcionando en este dispositivo.'
       };
       userId = payload.user_id;
+      console.log(`Enviando notificación de prueba para usuario: ${userId}`);
     } else {
+      console.error("Payload inválido:", payload);
       return new Response(JSON.stringify({ message: "Payload inválido" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -56,6 +64,7 @@ serve(async (req) => {
     }
 
     if (!userId) {
+       console.error("No se encontró userId en el payload");
        return new Response(JSON.stringify({ message: "Falta user_id." }), { 
          status: 400, 
          headers: { ...corsHeaders, "Content-Type": "application/json" } 
@@ -63,19 +72,20 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    console.log(`Buscando suscripciones para user_id: ${userId}`);
+    console.log(`Buscando suscripciones activas para user_id: ${userId}`);
+    
     const { data: subscriptions, error } = await supabase
       .from('user_push_subscriptions')
       .select('endpoint, auth_key, p256dh_key')
       .eq('user_id', userId);
 
     if (error) {
-      console.error('Error buscando suscripciones:', error);
+      console.error('Error DB buscando suscripciones:', error);
       return new Response(JSON.stringify({ error: 'Error DB' }), { status: 500, headers: corsHeaders });
     }
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log('No se encontraron suscripciones activas para este usuario.');
+      console.log(`No hay suscripciones para el usuario ${userId}. Asegúrate de que el usuario haya aceptado notificaciones en el dispositivo.`);
       return new Response(JSON.stringify({ message: "Sin suscripciones" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -85,23 +95,29 @@ serve(async (req) => {
     console.log(`Enviando push a ${subscriptions.length} dispositivo(s).`);
 
     const pushPayload = JSON.stringify({
-      title: record.title || 'Recordatorio de Compras',
+      title: record.title || 'Sistema Procarni',
       body: record.message || '',
       icon: '/Sis-Prov.png',
       badge: '/badge-72x72.png',
-      data: { url: '/' }
+      data: { 
+        url: '/',
+        notificationId: record.id
+      }
     });
-
 
     const sendPromises = subscriptions.map((sub: any) => {
       const pushSubscription = {
         endpoint: sub.endpoint,
         keys: { auth: sub.auth_key, p256dh: sub.p256dh_key }
       };
+      
       return webpush.sendNotification(pushSubscription, pushPayload)
+        .then(() => console.log(`Push enviado con éxito a: ${sub.endpoint.substring(0, 30)}...`))
         .catch((err: any) => {
-            console.error('Error al enviar Push', sub.endpoint, err);
+            console.error('Error al enviar Push:', sub.endpoint.substring(0, 30), err.message);
+            // Si la suscripción ya no es válida (410 Gone o 404), la eliminamos
             if (err.statusCode === 410 || err.statusCode === 404) {
+               console.log(`Eliminando suscripción inválida: ${sub.endpoint.substring(0, 30)}`);
                return supabase
                  .from('user_push_subscriptions')
                  .delete()
@@ -113,10 +129,11 @@ serve(async (req) => {
     await Promise.all(sendPromises);
 
     return new Response(
-      JSON.stringify({ message: "Push enviado" }),
+      JSON.stringify({ message: "Proceso de envío completado" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
+    console.error("Error inesperado en la función:", err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" }

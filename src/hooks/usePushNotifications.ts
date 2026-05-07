@@ -86,16 +86,15 @@ export function usePushNotifications() {
           auth_key: subscriptionJSON.keys.auth,
           p256dh_key: subscriptionJSON.keys.p256dh,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id, endpoint' });
+        }, { onConflict: 'user_id,endpoint' });
 
       if (error) {
         console.error('Error guardando la suscripción en la base de datos:', error);
       } else {
-        // Enviar notificación de éxito inmediata
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ test: true, user_id: session.user.id }),
+        // Enviar notificación de éxito inmediata usando el cliente de supabase
+        // Esto automáticamente añade el Authorization header
+        await supabase.functions.invoke('send-notification', {
+          body: { test: true, user_id: session.user.id },
         }).catch(e => console.error("Error enviando notificación de bienvenida", e));
       }
 

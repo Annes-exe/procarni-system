@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
+import { normalizeString } from '@/utils/normalization';
 import SmartSearch from '@/components/SmartSearch';
 import {
     getPurchaseHistoryReport,
@@ -198,8 +199,12 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
     }, [priceHistory, currency, materials, selectedMaterialIds]);
 
     const searchMaterialsLocal = async (query: string) => {
-        const q = query.toLowerCase();
-        let base = materials.map((m: any) => ({ id: m.id, name: m.name }));
+        const q = normalizeString(query);
+        let base = materials.map((m: any) => ({ 
+            id: m.id, 
+            name: m.name,
+            search_aliases: m.search_aliases || []
+        }));
 
         if (selectedSupplierId !== 'all') {
             const supplierMaterials = await searchMaterialsBySupplier(selectedSupplierId, '');
@@ -208,7 +213,11 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
         }
 
         if (!q) return base;
-        return base.filter((m: any) => m.name.toLowerCase().includes(q));
+        return base.filter((m: any) => {
+            const normalizedName = normalizeString(m.name);
+            const normalizedAliases = (m.search_aliases || []).map((a: string) => normalizeString(a));
+            return normalizedName.includes(q) || normalizedAliases.some((a: string) => a.includes(q));
+        });
     };
 
     const COLORS = ['#D32F2F', '#1976D2', '#388E3C', '#FBC02D', '#7B1FA2'];
@@ -548,11 +557,11 @@ const ReportsAnalytics = () => {
     const searchResults = useMemo(() => {
         let results = filteredData;
         if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
+            const query = normalizeString(searchQuery);
             results = results.filter((item: any) => {
-                const nameMatch = (item.materials?.name || '').toLowerCase().includes(query);
-                const supplierMatch = (item.purchase_orders?.suppliers?.name || '').toLowerCase().includes(query);
-                const aliasMatch = item.materials?.search_aliases?.some((alias: string) => alias.toLowerCase().includes(query));
+                const nameMatch = normalizeString(item.materials?.name || '').includes(query);
+                const supplierMatch = normalizeString(item.purchase_orders?.suppliers?.name || '').includes(query);
+                const aliasMatch = item.materials?.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
                 return nameMatch || supplierMatch || aliasMatch;
             });
         }
