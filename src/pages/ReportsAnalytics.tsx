@@ -38,6 +38,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
@@ -92,6 +93,7 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 // Price Variation Component (Complex logic separated)
 const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>> }) => {
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
     const [localNames, setLocalNames] = useState<Record<string, string>>({});
 
     const { data: priceHistory = [] } = useQuery({
@@ -229,28 +231,27 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
         <div className="space-y-6">
             <Card className="border-gray-200 shadow-sm bg-white">
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <CardTitle className="text-lg font-semibold text-gray-800">Tendencia de Precios</CardTitle>
                             <CardDescription>Comparativa de costos unitarios en el tiempo.</CardDescription>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
                             {selectedMaterialIds.length === 1 && (
                                 <PriceHistoryDownloadButton
                                     materialId={selectedMaterialIds[0]}
                                     materialName={materials.find((m: any) => m.id === selectedMaterialIds[0])?.name || 'Material'}
                                     variant="outline"
+                                    className="w-full sm:w-auto shadow-sm"
                                 />
                             )}
-                            <div className="w-[250px]">
+                            <div className="w-full sm:w-[250px]">
                                 <SmartSearch
-                                    placeholder="Agregar material al gráfico"
+                                    placeholder="Agregar material..."
                                     fetchFunction={searchMaterialsLocal}
                                     onSelect={(item) => {
                                         if (!selectedMaterialIds.includes(item.id)) {
-                                            // Store name locally in case it's missing from the prop
                                             setLocalNames(prev => ({ ...prev, [item.id]: item.name }));
-
                                             if (selectedMaterialIds.length >= 5) {
                                                 setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
                                             } else {
@@ -276,8 +277,8 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                         })}
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="h-[400px] w-full mt-4">
+                <CardContent className="p-2 sm:p-6">
+                    <div className={cn("w-full mt-4", isMobile ? "h-[300px]" : "h-[400px]")}>
                         {selectedMaterialIds.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-lg">
                                 <TrendingUp className="h-8 w-8 mb-2 opacity-50" />
@@ -333,40 +334,26 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
             </Card>
 
             {/* Variation Table */}
-            <Card className="border-gray-200 shadow-sm bg-white">
-                <CardHeader className="py-4 border-b">
-                    <CardTitle className="text-sm font-medium">Última Variación de Precio</CardTitle>
+            <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
+                <CardHeader className="py-4 border-b bg-gray-50/30">
+                    <CardTitle className="text-sm font-semibold text-gray-700">Variación de Precios Reciente</CardTitle>
                 </CardHeader>
-                <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
-                    <Table>
-                        <TableHeader className="bg-gray-50/50">
-                            <TableRow>
-                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Material</TableHead>
-                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
-                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Actual</TableHead>
-                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Anterior</TableHead>
-                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Variación</TableHead>
-                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Fecha</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                <div className="rounded-md border-0 sm:border border-gray-100 overflow-hidden bg-white">
+                    {isMobile ? (
+                        <div className="divide-y divide-gray-100">
                             {variationTableData.map((item: any, idx) => (
-                                <TableRow
-                                    key={idx}
-                                    className={cn("hover:bg-gray-50/50 transition-colors", item.orderId && "cursor-pointer")}
+                                <div 
+                                    key={idx} 
+                                    className="p-4 space-y-3 active:bg-gray-50 transition-colors"
                                     onClick={() => item.orderId && navigate(`/purchase-orders/${item.orderId}`)}
                                 >
-                                    <TableCell className="pl-4 py-3 font-medium text-procarni-dark">{item.material}</TableCell>
-                                    <TableCell className="py-3 text-gray-600">{item.supplier}</TableCell>
-                                    <TableCell className="py-3 text-right font-mono">
-                                        {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
-                                    </TableCell>
-                                    <TableCell className="py-3 text-right font-mono text-gray-500">
-                                        {item.isNew ? '-' : `${currency === 'USD' ? '$' : 'Bs'}${item.previousPrice.toFixed(2)}`}
-                                    </TableCell>
-                                    <TableCell className="py-3 text-right">
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1 max-w-[70%]">
+                                            <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.material}</h4>
+                                            <p className="text-xs text-gray-500 truncate">{item.supplier}</p>
+                                        </div>
                                         {item.isNew ? (
-                                            <Badge variant="outline">Nuevo</Badge>
+                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Nuevo</Badge>
                                         ) : (
                                             <Badge
                                                 variant="outline"
@@ -379,24 +366,98 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                                                 {item.change > 0 && '+'}{item.percent.toFixed(1)}%
                                             </Badge>
                                         )}
-                                    </TableCell>
-                                    <TableCell className="pr-4 py-3 text-right text-sm text-gray-600">
-                                        <div className="flex items-center justify-end gap-1">
-                                            {format(new Date(item.date), 'dd/MM/yy')}
-                                            {item.orderId && <ArrowUpRight className="h-3 w-3 text-gray-400" />}
+                                    </div>
+                                    <div className="flex justify-between items-end text-sm">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider">Precio</p>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="font-mono font-bold text-procarni-dark">
+                                                    {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
+                                                </span>
+                                                {!item.isNew && (
+                                                    <span className="font-mono text-xs text-gray-400 line-through">
+                                                        {currency === 'USD' ? '$' : 'Bs'}{item.previousPrice.toFixed(2)}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </TableCell>
-                                </TableRow>
+                                        <div className="text-right">
+                                            <div className="flex items-center justify-end gap-1 text-gray-500 text-xs">
+                                                <CalendarIcon className="h-3 w-3" />
+                                                {format(new Date(item.date), 'dd/MM/yy')}
+                                            </div>
+                                            {item.orderId && <p className="text-[10px] text-procarni-primary font-medium mt-1">Ver Orden <ArrowUpRight className="inline h-2 w-2" /></p>}
+                                        </div>
+                                    </div>
+                                </div>
                             ))}
                             {variationTableData.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-gray-500">
-                                        Selecciona materiales para ver sus variaciones.
-                                    </TableCell>
-                                </TableRow>
+                                <div className="p-8 text-center text-gray-500 text-sm italic">
+                                    Selecciona materiales para ver sus variaciones.
+                                </div>
                             )}
-                        </TableBody>
-                    </Table>
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader className="bg-gray-50/50">
+                                <TableRow>
+                                    <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Material</TableHead>
+                                    <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
+                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Actual</TableHead>
+                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Anterior</TableHead>
+                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Variación</TableHead>
+                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Fecha</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {variationTableData.map((item: any, idx) => (
+                                    <TableRow
+                                        key={idx}
+                                        className={cn("hover:bg-gray-50/50 transition-colors", item.orderId && "cursor-pointer")}
+                                        onClick={() => item.orderId && navigate(`/purchase-orders/${item.orderId}`)}
+                                    >
+                                        <TableCell className="pl-4 py-3 font-medium text-procarni-dark">{item.material}</TableCell>
+                                        <TableCell className="py-3 text-gray-600">{item.supplier}</TableCell>
+                                        <TableCell className="py-3 text-right font-mono">
+                                            {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell className="py-3 text-right font-mono text-gray-500">
+                                            {item.isNew ? '-' : `${currency === 'USD' ? '$' : 'Bs'}${item.previousPrice.toFixed(2)}`}
+                                        </TableCell>
+                                        <TableCell className="py-3 text-right">
+                                            {item.isNew ? (
+                                                <Badge variant="outline">Nuevo</Badge>
+                                            ) : (
+                                                <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                        item.change > 0 ? "bg-red-50 text-red-700 border-red-200" :
+                                                            item.change < 0 ? "bg-green-50 text-green-700 border-green-200" :
+                                                                "bg-gray-50 text-gray-700 border-gray-200"
+                                                    )}
+                                                >
+                                                    {item.change > 0 && '+'}{item.percent.toFixed(1)}%
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="pr-4 py-3 text-right text-sm text-gray-600">
+                                            <div className="flex items-center justify-end gap-1">
+                                                {format(new Date(item.date), 'dd/MM/yy')}
+                                                {item.orderId && <ArrowUpRight className="h-3 w-3 text-gray-400" />}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {variationTableData.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-gray-500">
+                                            Selecciona materiales para ver sus variaciones.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    )}
                 </div>
             </Card>
         </div>
@@ -406,6 +467,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
 // --- Main Component ---
 const ReportsAnalytics = () => {
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
     const [searchParams, setSearchParams] = useSearchParams();
     const initialTab = searchParams.get('tab') || 'search';
     const materialIdFromUrl = searchParams.get('materialId');
@@ -587,15 +649,18 @@ const ReportsAnalytics = () => {
 
     return (
         <div className="container mx-auto p-4 pb-20">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Reportes & Análisis</h1>
-                    <p className="text-muted-foreground text-sm">Inteligencia de negocios y control financiero.</p>
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6">
+                <div className="space-y-1">
+                    <h1 className="text-3xl font-extrabold text-procarni-dark tracking-tight">Reportes & Análisis</h1>
+                    <p className="text-muted-foreground text-sm flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-procarni-primary" />
+                        Monitoreo inteligente de costos y proveedores.
+                    </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
                     {/* Currency Toggle */}
-                    <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+                    <div className="flex items-center bg-gray-100/80 backdrop-blur-sm rounded-lg p-1 border border-gray-200 self-start sm:self-auto">
                         <button
                             onClick={() => setCurrency('USD')}
                             className={cn(
@@ -617,8 +682,8 @@ const ReportsAnalytics = () => {
                     </div>
 
                     {/* Supplier Select */}
-                    <div className="flex items-center gap-2">
-                        <div className="w-[200px] md:w-[250px]">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial">
+                        <div className="w-full sm:w-[220px]">
                             <SmartSearch
                                 placeholder="Buscar proveedor..."
                                 displayValue={selectedSupplierName}
@@ -633,6 +698,7 @@ const ReportsAnalytics = () => {
                                 supplierName={selectedSupplierName}
                                 variant="outline"
                                 asChild={false}
+                                className="shadow-sm"
                             />
                         )}
                     </div>
@@ -643,11 +709,11 @@ const ReportsAnalytics = () => {
                             <Button
                                 variant={"outline"}
                                 className={cn(
-                                    "h-9 justify-start text-left font-normal text-xs bg-white",
+                                    "h-9 justify-start text-left font-normal text-xs bg-white shadow-sm w-full sm:w-auto",
                                     !date.from && "text-muted-foreground"
                                 )}
                             >
-                                <CalendarIcon className="mr-2 h-3 w-3" />
+                                <CalendarIcon className="mr-2 h-3.5 w-3.5 text-gray-500" />
                                 {date.from ? (
                                     date.to ? (
                                         <>{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</>
@@ -655,7 +721,7 @@ const ReportsAnalytics = () => {
                                         format(date.from, "dd/MM/yy")
                                     )
                                 ) : (
-                                    <span>Seleccionar fechas</span>
+                                    <span>Seleccionar periodo</span>
                                 )}
                             </Button>
                         </PopoverTrigger>
@@ -666,7 +732,7 @@ const ReportsAnalytics = () => {
                                 defaultMonth={date.from}
                                 selected={date}
                                 onSelect={(range: any) => setDate(range || { from: undefined, to: undefined })}
-                                numberOfMonths={2}
+                                numberOfMonths={isMobile ? 1 : 2}
                                 locale={es}
                             />
                         </PopoverContent>
@@ -719,18 +785,18 @@ const ReportsAnalytics = () => {
 
                 {/* --- Tabs System --- */}
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                    <TabsList className="bg-white border border-gray-200 p-1 h-auto flex flex-wrap max-w-full overflow-x-auto">
-                        <TabsTrigger value="search" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
-                            Buscador de Compras
+                    <TabsList className="bg-gray-100/50 border border-gray-200 p-1 h-auto flex flex-nowrap overflow-x-auto scrollbar-hide justify-start sm:justify-center">
+                        <TabsTrigger value="search" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                            Buscador
                         </TabsTrigger>
-                        <TabsTrigger value="cashflow" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
+                        <TabsTrigger value="cashflow" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
                             Flujo de Caja
                         </TabsTrigger>
-                        <TabsTrigger value="price-variation" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
-                            Variación de Precios
+                        <TabsTrigger value="price-variation" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                            Tendencias
                         </TabsTrigger>
-                        <TabsTrigger value="top-suppliers" className="px-4 data-[state=active]:bg-gray-100 data-[state=active]:text-procarni-primary">
-                            Top Proveedores
+                        <TabsTrigger value="top-suppliers" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                            Proveedores
                         </TabsTrigger>
                     </TabsList>
 
@@ -756,63 +822,112 @@ const ReportsAnalytics = () => {
                                 </div>
                             </CardHeader>
                             <div className="rounded-md overflow-hidden bg-white max-h-[600px] overflow-y-auto">
-                                <Table>
-                                    <TableHeader className="bg-gray-50/50 sticky top-0 z-10 shadow-sm">
-                                        <TableRow>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[120px]">Fecha</TableHead>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Material</TableHead>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Cant.</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Unit.</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Total</TableHead>
-                                            <TableHead className="text-center font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3 w-[80px]">O.C.</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
+                                {isMobile ? (
+                                    <div className="divide-y divide-gray-100">
                                         {searchResults.map((item: any) => (
-                                            <TableRow
-                                                key={item.id}
-                                                className="hover:bg-gray-50/80 transition-colors"
+                                            <div 
+                                                key={item.id} 
+                                                className="p-4 space-y-3 active:bg-gray-50 transition-colors"
+                                                onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)}
                                             >
-                                                <TableCell className="pl-4 py-3 text-sm text-gray-600">
-                                                    {format(new Date(item.created_at), 'dd/MM/yyyy')}
-                                                </TableCell>
-                                                <TableCell className="py-3">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-procarni-dark font-medium text-sm">{item.materials?.name}</span>
-                                                        <span className="text-[10px] text-muted-foreground mt-0.5" title="Frecuencia de compra en el periodo">
-                                                            Comprado {materialFrequencies[item.materials?.name || 'Desconocido']} veces
+                                                <div className="flex justify-between items-start">
+                                                    <div className="space-y-1 max-w-[70%]">
+                                                        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                                                            {format(new Date(item.created_at), 'dd/MM/yyyy')}
                                                         </span>
+                                                        <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name}</h4>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell className="py-3 text-gray-600 text-sm">{item.purchase_orders.suppliers.name}</TableCell>
-                                                <TableCell className="py-3 text-right text-sm">
-                                                    {item.quantity} <span className="text-xs text-gray-400">{item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und'}</span>
-                                                </TableCell>
-                                                <TableCell className="py-3 text-right font-mono text-sm">
-                                                    {currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </TableCell>
-                                                <TableCell className="py-3 text-right font-mono font-medium text-sm text-procarni-dark">
-                                                    {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </TableCell>
-                                                <TableCell className="pr-4 py-3 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-procarni-primary hover:bg-procarni-primary/10" onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)} title={`Ver ${item.purchase_orders.sequence_number || 'Orden'}`}>
-                                                        <ArrowUpRight className="h-4 w-4" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
+                                                    <Badge variant="ghost" className="text-procarni-primary bg-procarni-primary/10">
+                                                        #{item.purchase_orders.sequence_number || 'OC'}
+                                                    </Badge>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Proveedor</p>
+                                                        <p className="text-gray-700 truncate text-xs">{item.purchase_orders.suppliers.name}</p>
+                                                    </div>
+                                                    <div className="text-right space-y-1">
+                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Total</p>
+                                                        <p className="font-mono font-bold text-procarni-dark text-xs">
+                                                            {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-1 border-t border-gray-50">
+                                                    <span className="text-[10px] text-gray-400">
+                                                        {item.quantity} {item.units_of_measure?.name || item.unit || 'Und'}
+                                                    </span>
+                                                    <span className="text-[10px] text-procarni-primary font-medium flex items-center gap-1">
+                                                        Ver detalles <ArrowUpRight className="h-2.5 w-2.5" />
+                                                    </span>
+                                                </div>
+                                            </div>
                                         ))}
                                         {searchResults.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={7} className="h-32 text-center text-gray-500">
-                                                    {filteredData.length === 0
-                                                        ? "No hay compras registradas en este periodo con los filtros actuales."
-                                                        : "No se encontraron coincidencias para la búsqueda."}
-                                                </TableCell>
-                                            </TableRow>
+                                            <div className="p-12 text-center text-gray-500 italic text-sm">
+                                                No se encontraron resultados.
+                                            </div>
                                         )}
-                                    </TableBody>
-                                </Table>
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader className="bg-gray-50/50 sticky top-0 z-10 shadow-sm">
+                                            <TableRow>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[120px]">Fecha</TableHead>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Material</TableHead>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Cant.</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Unit.</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Total</TableHead>
+                                                <TableHead className="text-center font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3 w-[80px]">O.C.</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {searchResults.map((item: any) => (
+                                                <TableRow
+                                                    key={item.id}
+                                                    className="hover:bg-gray-50/80 transition-colors"
+                                                >
+                                                    <TableCell className="pl-4 py-3 text-sm text-gray-600">
+                                                        {format(new Date(item.created_at), 'dd/MM/yyyy')}
+                                                    </TableCell>
+                                                    <TableCell className="py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-procarni-dark font-medium text-sm">{item.materials?.name}</span>
+                                                            <span className="text-[10px] text-muted-foreground mt-0.5" title="Frecuencia de compra en el periodo">
+                                                                Comprado {materialFrequencies[item.materials?.name || 'Desconocido']} veces
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="py-3 text-gray-600 text-sm">{item.purchase_orders.suppliers.name}</TableCell>
+                                                    <TableCell className="py-3 text-right text-sm">
+                                                        {item.quantity} <span className="text-xs text-gray-400">{item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und'}</span>
+                                                    </TableCell>
+                                                    <TableCell className="py-3 text-right font-mono text-sm">
+                                                        {currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                    <TableCell className="py-3 text-right font-mono font-medium text-sm text-procarni-dark">
+                                                        {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                    <TableCell className="pr-4 py-3 text-center">
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-procarni-primary hover:bg-procarni-primary/10" onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)} title={`Ver ${item.purchase_orders.sequence_number || 'Orden'}`}>
+                                                            <ArrowUpRight className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {searchResults.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                                                        {filteredData.length === 0
+                                                            ? "No hay compras registradas en este periodo con los filtros actuales."
+                                                            : "No se encontraron coincidencias para la búsqueda."}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                )}
                             </div>
                         </Card>
                     </TabsContent>
@@ -824,8 +939,8 @@ const ReportsAnalytics = () => {
                                 <CardTitle className="text-lg font-semibold text-gray-800">Evolución del Gasto</CardTitle>
                                 <CardDescription>Análisis temporal de compras en {currency}.</CardDescription>
                             </CardHeader>
-                            <CardContent className="pl-0">
-                                <div className="h-[350px] w-full mt-4">
+                            <CardContent className="p-2 sm:p-6">
+                                <div className={cn("w-full mt-4", isMobile ? "h-[280px]" : "h-[350px]")}>
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -863,48 +978,89 @@ const ReportsAnalytics = () => {
                             <CardHeader className="border-b border-gray-100 bg-gray-50/50 py-4">
                                 <CardTitle className="text-sm font-medium">Últimas 10 Transacciones (Desglose)</CardTitle>
                             </CardHeader>
-                            <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
-                                <Table>
-                                    <TableHeader className="bg-gray-50/50">
-                                        <TableRow>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[120px]">Fecha</TableHead>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Material</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Monto</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3 w-[100px]">Estado</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
+                            <div className="rounded-md border-0 sm:border border-gray-100 overflow-hidden bg-white">
+                                {isMobile ? (
+                                    <div className="divide-y divide-gray-100">
                                         {filteredData.slice(0, 10).map((item: any) => (
-                                            <TableRow
-                                                key={item.id}
-                                                className="hover:bg-gray-50/80 cursor-pointer transition-colors"
+                                            <div 
+                                                key={item.id} 
+                                                className="p-4 space-y-3 active:bg-gray-50 transition-colors"
                                                 onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)}
                                             >
-                                                <TableCell className="pl-4 py-3 font-medium text-gray-600">
-                                                    {format(new Date(item.created_at), 'dd MMM yyyy')}
-                                                </TableCell>
-                                                <TableCell className="py-3 text-procarni-dark">{item.purchase_orders.suppliers.name}</TableCell>
-                                                <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name}</TableCell>
-                                                <TableCell className="py-3 text-right font-mono font-medium">
-                                                    {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                                </TableCell>
-                                                <TableCell className="pr-4 py-3 text-right">
-                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 capitalize">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                                                            {format(new Date(item.created_at), 'dd MMM yyyy')}
+                                                        </span>
+                                                        <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.purchase_orders.suppliers.name}</h4>
+                                                    </div>
+                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] h-5 py-0 px-2 capitalize">
                                                         {item.purchase_orders.status}
                                                     </Badge>
-                                                </TableCell>
-                                            </TableRow>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div className="space-y-1 max-w-[60%]">
+                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Material</p>
+                                                        <p className="text-gray-600 truncate text-xs">{item.materials?.name}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Monto</p>
+                                                        <p className="font-mono font-bold text-procarni-dark text-sm">
+                                                            {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         ))}
                                         {filteredData.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={5} className="h-24 text-center text-gray-500">
-                                                    No hay datos para este periodo.
-                                                </TableCell>
-                                            </TableRow>
+                                            <div className="p-8 text-center text-gray-500 text-sm">
+                                                No hay datos para este periodo.
+                                            </div>
                                         )}
-                                    </TableBody>
-                                </Table>
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader className="bg-gray-50/50">
+                                            <TableRow>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[120px]">Fecha</TableHead>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Material</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Monto</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3 w-[100px]">Estado</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredData.slice(0, 10).map((item: any) => (
+                                                <TableRow
+                                                    key={item.id}
+                                                    className="hover:bg-gray-50/80 cursor-pointer transition-colors"
+                                                    onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)}
+                                                >
+                                                    <TableCell className="pl-4 py-3 font-medium text-gray-600">
+                                                        {format(new Date(item.created_at), 'dd MMM yyyy')}
+                                                    </TableCell>
+                                                    <TableCell className="py-3 text-procarni-dark">{item.purchase_orders.suppliers.name}</TableCell>
+                                                    <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name}</TableCell>
+                                                    <TableCell className="py-3 text-right font-mono font-medium">
+                                                        {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                    <TableCell className="pr-4 py-3 text-right">
+                                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 capitalize">
+                                                            {item.purchase_orders.status}
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {filteredData.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="h-24 text-center text-gray-500">
+                                                        No hay datos para este periodo.
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                )}
                             </div>
                         </Card>
                     </TabsContent>
@@ -928,28 +1084,59 @@ const ReportsAnalytics = () => {
                                 <CardTitle className="text-lg font-semibold text-gray-800">Top Proveedores</CardTitle>
                                 <CardDescription>Proveedores con mayor volumen de facturación.</CardDescription>
                             </CardHeader>
-                            <CardContent className="pl-0">
-                                <div className="h-[400px] w-full mt-4">
+                            <CardContent className="p-2 sm:p-6">
+                                <div className={cn("w-full mt-4", isMobile ? "h-[350px]" : "h-[400px]")}>
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart layout="vertical" data={topSuppliersData} margin={{ top: 20, right: 30, left: 100, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                                            <XAxis
-                                                type="number"
-                                                stroke="#9ca3af"
-                                                fontSize={12}
-                                                tickLine={false}
-                                                axisLine={false}
-                                                tickFormatter={(value) => `${currency === 'USD' ? '$' : ''}${value.toLocaleString('en-US', { notation: 'compact' })}`}
-                                            />
-                                            <YAxis
-                                                dataKey="name"
-                                                type="category"
-                                                stroke="#4b5563"
-                                                fontSize={12}
-                                                tickLine={false}
-                                                axisLine={false}
-                                                width={150}
-                                            />
+                                        <BarChart 
+                                            layout={isMobile ? "horizontal" : "vertical"} 
+                                            data={topSuppliersData.slice(0, isMobile ? 3 : 10)} 
+                                            margin={{ top: 20, right: 30, left: isMobile ? 20 : 100, bottom: isMobile ? 40 : 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" vertical={isMobile} horizontal={!isMobile} stroke="#e5e7eb" />
+                                            {isMobile ? (
+                                                <>
+                                                    <XAxis
+                                                        dataKey="name"
+                                                        type="category"
+                                                        stroke="#4b5563"
+                                                        fontSize={10}
+                                                        tickLine={false}
+                                                        axisLine={false}
+                                                        interval={0}
+                                                        angle={-45}
+                                                        textAnchor="end"
+                                                        height={60}
+                                                    />
+                                                    <YAxis
+                                                        type="number"
+                                                        stroke="#9ca3af"
+                                                        fontSize={12}
+                                                        tickLine={false}
+                                                        axisLine={false}
+                                                        tickFormatter={(value) => `${currency === 'USD' ? '$' : ''}${value.toLocaleString('en-US', { notation: 'compact' })}`}
+                                                    />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <XAxis
+                                                        type="number"
+                                                        stroke="#9ca3af"
+                                                        fontSize={12}
+                                                        tickLine={false}
+                                                        axisLine={false}
+                                                        tickFormatter={(value) => `${currency === 'USD' ? '$' : ''}${value.toLocaleString('en-US', { notation: 'compact' })}`}
+                                                    />
+                                                    <YAxis
+                                                        dataKey="name"
+                                                        type="category"
+                                                        stroke="#4b5563"
+                                                        fontSize={12}
+                                                        tickLine={false}
+                                                        axisLine={false}
+                                                        width={150}
+                                                    />
+                                                </>
+                                            )}
                                             <Tooltip
                                                 content={<CustomTooltip currency={currency} />}
                                                 cursor={{ fill: '#f3f4f6' }}
@@ -957,8 +1144,8 @@ const ReportsAnalytics = () => {
                                             <Bar
                                                 dataKey="value"
                                                 fill="#D32F2F"
-                                                radius={[0, 4, 4, 0]}
-                                                barSize={20}
+                                                radius={isMobile ? [4, 4, 0, 0] : [0, 4, 4, 0]}
+                                                barSize={isMobile ? 40 : 20}
                                             />
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -970,54 +1157,100 @@ const ReportsAnalytics = () => {
                             <CardHeader className="border-b border-gray-100 bg-gray-50/50 py-4">
                                 <CardTitle className="text-sm font-medium">Ranking de Proveedores</CardTitle>
                             </CardHeader>
-                            <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
-                                <Table>
-                                    <TableHeader className="bg-gray-50/50">
-                                        <TableRow>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[50px]">#</TableHead>
-                                            <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Total Comprado</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Cant. Órdenes</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Última Compra</TableHead>
-                                            <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">% del Total</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {topSuppliersData.map((item: any, index: number) => {
-                                            return (
-                                                <TableRow key={index} className="hover:bg-gray-50/50">
-                                                    <TableCell className="pl-4 py-3 text-gray-500 font-mono">{index + 1}</TableCell>
-                                                    <TableCell className="py-3 font-medium text-procarni-dark">{item.name}</TableCell>
-                                                    <TableCell className="py-3 text-right font-mono font-medium">
-                                                        {currency === 'USD' ? '$' : 'Bs'}{item.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                                    </TableCell>
-                                                    <TableCell className="py-3 text-right text-gray-600">{item.orderCount}</TableCell>
-                                                    <TableCell className="py-3 text-right text-gray-500 text-sm">
-                                                        {item.lastDate ? (
-                                                            item.lastOrderId ? (
-                                                                <Button
-                                                                    variant="link"
-                                                                    className="h-auto p-0 text-gray-500 hover:text-blue-600 font-normal"
-                                                                    onClick={() => navigate(`/purchase-orders/${item.lastOrderId}`)}
-                                                                >
-                                                                    {format(new Date(item.lastDate), 'dd/MM/yy')}
-                                                                    <ArrowUpRight className="h-3 w-3 ml-1" />
-                                                                </Button>
-                                                            ) : (
-                                                                format(new Date(item.lastDate), 'dd/MM/yy')
-                                                            )
-                                                        ) : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="pr-4 py-3 text-right">
-                                                        <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                                                            {((item.value / kpis.totalSpend) * 100).toFixed(1)}%
-                                                        </Badge>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
+                            <div className="rounded-md border-0 sm:border border-gray-100 overflow-hidden bg-white">
+                                {isMobile ? (
+                                    <div className="divide-y divide-gray-100">
+                                        {topSuppliersData.slice(0, 5).map((item: any, index: number) => (
+                                            <div key={index} className="p-4 space-y-3">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-[10px] font-bold text-gray-500">
+                                                            {index + 1}
+                                                        </span>
+                                                        <h4 className="font-bold text-procarni-dark text-sm">{item.name}</h4>
+                                                    </div>
+                                                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 text-[10px]">
+                                                        {((item.value / kpis.totalSpend) * 100).toFixed(1)}% del total
+                                                    </Badge>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Total Facturado</p>
+                                                        <p className="font-mono font-bold text-procarni-dark text-xs">
+                                                            {currency === 'USD' ? '$' : 'Bs'}{item.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right space-y-1">
+                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Órdenes</p>
+                                                        <p className="text-gray-600 text-xs font-medium">{item.orderCount} transacciones</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center pt-2 border-t border-gray-50">
+                                                    <span className="text-[10px] text-gray-400">
+                                                        Última: {item.lastDate ? format(new Date(item.lastDate), 'dd/MM/yy') : '-'}
+                                                    </span>
+                                                    {item.lastOrderId && (
+                                                        <Button
+                                                            variant="link"
+                                                            className="h-auto p-0 text-[10px] text-procarni-primary hover:text-procarni-primary/80 font-medium"
+                                                            onClick={() => navigate(`/purchase-orders/${item.lastOrderId}`)}
+                                                        >
+                                                            Ver última OC <ArrowUpRight className="h-2.5 w-2.5 ml-0.5" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader className="bg-gray-50/50">
+                                            <TableRow>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[50px]">#</TableHead>
+                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Total Comprado</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Cant. Órdenes</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Última Compra</TableHead>
+                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">% del Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {topSuppliersData.map((item: any, index: number) => {
+                                                return (
+                                                    <TableRow key={index} className="hover:bg-gray-50/50">
+                                                        <TableCell className="pl-4 py-3 text-gray-500 font-mono">{index + 1}</TableCell>
+                                                        <TableCell className="py-3 font-medium text-procarni-dark">{item.name}</TableCell>
+                                                        <TableCell className="py-3 text-right font-mono font-medium">
+                                                            {currency === 'USD' ? '$' : 'Bs'}{item.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                        </TableCell>
+                                                        <TableCell className="py-3 text-right text-gray-600">{item.orderCount}</TableCell>
+                                                        <TableCell className="py-3 text-right text-gray-500 text-sm">
+                                                            {item.lastDate ? (
+                                                                item.lastOrderId ? (
+                                                                    <Button
+                                                                        variant="link"
+                                                                        className="h-auto p-0 text-gray-500 hover:text-blue-600 font-normal"
+                                                                        onClick={() => navigate(`/purchase-orders/${item.lastOrderId}`)}
+                                                                    >
+                                                                        {format(new Date(item.lastDate), 'dd/MM/yy')}
+                                                                        <ArrowUpRight className="h-3 w-3 ml-1" />
+                                                                    </Button>
+                                                                ) : (
+                                                                    format(new Date(item.lastDate), 'dd/MM/yy')
+                                                                )
+                                                            ) : '-'}
+                                                        </TableCell>
+                                                        <TableCell className="pr-4 py-3 text-right">
+                                                            <Badge variant="secondary" className="bg-gray-100 text-gray-700">
+                                                                {((item.value / kpis.totalSpend) * 100).toFixed(1)}%
+                                                            </Badge>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                )}
                             </div>
                         </Card>
                     </TabsContent>
