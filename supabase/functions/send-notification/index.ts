@@ -41,7 +41,7 @@ serve(async (req) => {
       record = payload.record;
       userId = record.user_id;
       
-      if (payload.type !== 'RETRY' && record.type !== 'reminder') {
+      if (payload.type !== 'RETRY' && !['reminder', 'price_alert'].includes(record.type)) {
         console.log(`Notificación ignorada (tipo: ${record.type})`);
         return new Response(JSON.stringify({ message: "Notificación ignorada" }), {
           status: 200,
@@ -94,13 +94,35 @@ serve(async (req) => {
 
     console.log(`Enviando push a ${subscriptions.length} dispositivo(s).`);
 
+    let targetUrl = '/';
+    if (record.type === 'price_alert') {
+      targetUrl = `/reports?tab=price-variation&materialId=${record.resource_id}`;
+    } else {
+      switch (record.resource_type) {
+        case 'quote_request':
+          targetUrl = `/quote-requests/${record.resource_id}`;
+          break;
+        case 'purchase_order':
+          targetUrl = `/purchase-orders/${record.resource_id}`;
+          break;
+        case 'service_order':
+          targetUrl = `/service-orders/${record.resource_id}`;
+          break;
+        case 'material':
+          targetUrl = `/material-management`;
+          break;
+        default:
+          targetUrl = '/notifications';
+      }
+    }
+
     const pushPayload = JSON.stringify({
       title: record.title || 'Sistema Procarni',
       body: record.message || '',
       icon: '/Sis-Prov.png',
       badge: '/badge-72x72.png',
       data: { 
-        url: '/',
+        url: targetUrl,
         notificationId: record.id
       }
     });
