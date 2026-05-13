@@ -9,6 +9,7 @@ import SidebarNav from './SidebarNav';
 import ScrollToTopButton from './ScrollToTopButton';
 import { DynamicBreadcrumbs } from './DynamicBreadcrumbs';
 import NotificationBell from './NotificationBell';
+import CurrencyCalculator from './CurrencyCalculator';
 import GlobalSearch from './GlobalSearch';
 import { 
   Menu, 
@@ -139,6 +140,7 @@ const Layout = () => {
           >
             <Search className="h-5 w-5" />
           </Button>
+          <CurrencyCalculator />
           <NotificationBell />
           <UserDropdown />
         </div>
@@ -243,6 +245,7 @@ const Layout = () => {
                 </kbd>
               </button>
             </div>
+            <CurrencyCalculator />
             <NotificationBell />
             <div className="h-6 w-px bg-border/60 mx-1"></div>
             <UserDropdown />
