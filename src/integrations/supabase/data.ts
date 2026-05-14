@@ -159,16 +159,19 @@ export const searchMaterialsBySupplier = async (supplierId: string, query: strin
     return [];
   }
 
-  let materials = relations.map(sm => {
-    // Force cast to any to avoid TS error on join
+  const uniqueMaterialsMap = new Map<string, any>();
+  
+  relations.forEach(sm => {
     const mat = sm.materials as any;
-    if (!mat) return null;
+    if (mat && !uniqueMaterialsMap.has(mat.id)) {
+      uniqueMaterialsMap.set(mat.id, {
+        ...mat,
+        specification: sm.specification,
+      });
+    }
+  });
 
-    return {
-      ...mat,
-      specification: sm.specification,
-    };
-  }).filter(m => m !== null);
+  let materials = Array.from(uniqueMaterialsMap.values());
 
   // Client-side filtering based on query
   if (query.trim()) {
