@@ -75,6 +75,20 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const isMobile = useIsMobile();
+  const [isAssociating, setIsAssociating] = useState<string | null>(null);
+  const [associatedMaterials, setAssociatedMaterials] = useState<Set<string>>(new Set());
+
+  const { data: associatedMaterialIds = new Set<string>(), refetch: refetchAssociated } = useQuery({
+    queryKey: ['supplier_materials_ids', supplierId],
+    queryFn: async () => {
+      if (!supplierId) return new Set<string>();
+      const materials = await searchMaterialsBySupplier(supplierId, '');
+      const materialIds = materials.map(m => m.id);
+      setAssociatedMaterials(new Set(materialIds));
+      return new Set<string>(materialIds);
+    },
+    enabled: !!supplierId,
+  });
 
 
 
@@ -96,6 +110,30 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
   const handleMaterialAdded = (material: any) => {
     // Lógica post-creación
+    refetchAssociated();
+  };
+
+  const handleAssociateMaterial = async (materialId: string, unitId: string, materialName: string) => {
+    if (!userId || !supplierId || !materialId || !unitId) return;
+
+    setIsAssociating(materialId);
+    try {
+      const result = await createSupplierMaterialRelation({
+        supplier_id: supplierId,
+        material_id: materialId,
+        unit_id: unitId,
+        user_id: userId
+      });
+
+      if (result.success) {
+        showSuccess(`Material "${materialName}" asociado exitosamente.`);
+        await refetchAssociated();
+      }
+    } catch (error) {
+      console.error("Error associating material:", error);
+    } finally {
+      setIsAssociating(null);
+    }
   };
 
 
@@ -272,7 +310,8 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           <div className="flex justify-between items-center w-full pr-6">
             <div className="flex items-center gap-3 overflow-hidden">
               <div className={`h-8 w-1 rounded-full ${
-                !item.material_id ? 'bg-gray-300' : 'bg-procarni-primary'
+                !item.material_id ? 'bg-gray-300' : 
+                associatedMaterialIds.has(item.material_id) ? 'bg-procarni-primary' : 'bg-amber-500'
               }`}></div>
               <div className="flex flex-col items-start text-left min-w-0">
                 <div className="flex items-center gap-2">
@@ -309,8 +348,25 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             {/* Col 1-4: BUSCADOR DIRECTO (Reemplaza Lupa) */}
             <div className="col-span-4 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex justify-between items-center">
-                <span>Producto / Material</span>
-
+                <span>Producto / Material
+                  {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-1.5 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50 gap-1 font-bold animate-pulse-subtle"
+                      onClick={() => handleAssociateMaterial(item.material_id!, item.unit_id!, item.material_name)}
+                      disabled={isAssociating === item.material_id}
+                    >
+                      {isAssociating === item.material_id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Link className="h-3 w-3" />
+                      )}
+                      Vincular
+                    </Button>
+                  )}
+                </span>
               </label>
               <div className="space-y-2">
                 <SmartSearch
@@ -320,10 +376,16 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   displayValue={item.material_name}
                   selectedId={item.material_id}
                   disabled={!supplierId}
-                  className={`w-full h-9 bg-white border-gray-200`}
+                  className={`w-full h-9 bg-white ${item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
                   icon={<Search className="h-4 w-4 text-gray-400" />}
                 />
-
+                
+                {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded border border-amber-100 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <AlertTriangle className="h-3 w-3 text-amber-600" />
+                    <span className="text-[10px] text-amber-700 font-medium">Este material no está asociado a este proveedor.</span>
+                  </div>
+                )}
               </div>
             </div>
 

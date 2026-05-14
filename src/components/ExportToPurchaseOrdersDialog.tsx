@@ -207,6 +207,15 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
             return;
         }
 
+        const unassociatedItems = selectedGroups.flatMap(g =>
+            g.items.filter(i => i.selected && !isAssociated(g.supplierId, i.material.id, i.quote.unit_id))
+        );
+
+        if (unassociatedItems.length > 0) {
+            showError(`Hay ${unassociatedItems.length} materiales que no están asociados a sus proveedores. Por favor, vincúlalos antes de continuar.`);
+            return;
+        }
+
 
 
         setStep(2);
@@ -441,6 +450,33 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
                                                                     </div>
                                                                 </div>
                                                                 
+                                                                {!isAssociated(group.supplierId, item.material.id, item.quote.unit_id) && (
+                                                                    <div className="mt-2 flex items-center justify-between bg-red-50 border border-red-100 rounded-md px-3 py-1.5 animate-pulse-subtle">
+                                                                        <span className="text-[10px] text-red-700 font-bold flex items-center gap-1 uppercase tracking-tight">
+                                                                            <AlertTriangle className="h-3.5 w-3.5" /> No asociado
+                                                                        </span>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="secondary" 
+                                                                            className="h-7 px-3 text-[10px] bg-procarni-secondary text-white hover:bg-green-700 gap-1 font-bold shadow-sm border-none"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                handleAssociateSupplier(group.supplierId, item.material.id, item.quote.unit_id, group.supplierName);
+                                                                            }}
+                                                                            disabled={isAssociating === `${item.material.id}-${group.supplierId}-${item.quote.unit_id}`}
+                                                                        >
+                                                                            {isAssociating === `${item.material.id}-${group.supplierId}-${item.quote.unit_id}` ? (
+                                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            ) : (
+                                                                                <>
+                                                                                    <LinkIcon className="h-3 w-3" />
+                                                                                    Vincular Material
+                                                                                </>
+                                                                            )}
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
 
                                                             </div>
                                                         </label>

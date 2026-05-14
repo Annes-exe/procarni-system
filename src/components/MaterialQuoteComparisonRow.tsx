@@ -457,6 +457,25 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                               </div>
                               
 
+                              {quote.supplierId && !isAssociated(material.id, quote.supplierId, quote.unit_id) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 ml-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAssociateSupplier(quote.supplierId, material.id, quote.unit_id || '', quote.supplierName || '');
+                                  }}
+                                  disabled={isAssociating === `${material.id}-${quote.supplierId}`}
+                                  title="Vincular material al proveedor"
+                                >
+                                  {isAssociating === `${material.id}-${quote.supplierId}` ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Link className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3">
