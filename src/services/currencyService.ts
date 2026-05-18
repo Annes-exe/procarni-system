@@ -15,6 +15,46 @@ export interface HistoryRate {
 
 const BASE_URL = 'https://ve.dolarapi.com/v1';
 
+export const parseLocalDate = (dateStr: string) => {
+  try {
+    const cleanStr = dateStr.substring(0, 10);
+    const [year, month, day] = cleanStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  } catch (e) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+};
+
+export const getEffectiveRate = (currentRate: CurrencyRate | null, history: HistoryRate[]) => {
+  if (!currentRate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const currentDateObj = parseLocalDate(currentRate.fechaActualizacion);
+
+  if (currentDateObj.getTime() > today.getTime()) {
+    return currentRate;
+  }
+
+  const futureHistoryRate = history.find(item => {
+    const itemDate = parseLocalDate(item.fecha);
+    return itemDate.getTime() > today.getTime();
+  });
+
+  if (futureHistoryRate) {
+    return {
+      ...currentRate,
+      valor: futureHistoryRate.valor,
+      promedio: futureHistoryRate.promedio,
+      fechaActualizacion: `${futureHistoryRate.fecha}T00:00:00-04:00`
+    };
+  }
+
+  return currentRate;
+};
+
 export const currencyService = {
   async getUsdRate(): Promise<CurrencyRate> {
     const response = await fetch(`${BASE_URL}/dolares/oficial`);
