@@ -8,6 +8,46 @@ const corsHeaders = {
     'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+const parseLocalDate = (dateStr: string) => {
+  try {
+    const cleanStr = dateStr.substring(0, 10);
+    const [year, month, day] = cleanStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  } catch (e) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+};
+
+const getEffectiveRate = (currentRate: any, history: any[]) => {
+  if (!currentRate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const currentDateObj = parseLocalDate(currentRate.fechaActualizacion);
+
+  if (currentDateObj.getTime() > today.getTime()) {
+    return currentRate;
+  }
+
+  const futureHistoryRate = history.find((item: any) => {
+    const itemDate = parseLocalDate(item.fecha);
+    return itemDate.getTime() > today.getTime();
+  });
+
+  if (futureHistoryRate) {
+    return {
+      ...currentRate,
+      valor: futureHistoryRate.valor,
+      promedio: futureHistoryRate.promedio,
+      fechaActualizacion: `${futureHistoryRate.fecha}T00:00:00-04:00`
+    };
+  }
+
+  return currentRate;
+};
+
 // --- CONSTANTS ---
 const PROC_RED = rgb(0.533, 0.039, 0.039); // #880a0a
 const LIGHT_GRAY = rgb(0.9, 0.9, 0.9);
@@ -962,20 +1002,30 @@ serve(async (req: Request) => {
         let effectiveExchangeRate = order.exchange_rate;
 
         if (!effectiveExchangeRate || effectiveExchangeRate <= 0) {
-            console.log('[generate-so-pdf] Exchange rate missing. Fetching daily rate...');
+            console.log('[generate-so-pdf] Exchange rate missing. Fetching daily rate with robust logic...');
             try {
-                const rateResponse = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-                if (rateResponse.ok) {
+                const baseCurrencyUrl = order.base_currency === 'EUR' ? 'euros' : 'dolares';
+                const [rateResponse, historyResponse] = await Promise.all([
+                    fetch(`https://ve.dolarapi.com/v1/${baseCurrencyUrl}/oficial`),
+                    fetch(`https://ve.dolarapi.com/v1/historicos/${baseCurrencyUrl}/oficial`)
+                ]);
+
+                if (rateResponse.ok && historyResponse.ok) {
                     const rateData = await rateResponse.json();
-                    const rate = rateData.promedio || rateData.valor;
-                    if (typeof rate === 'number' && rate > 0) {
-                        effectiveExchangeRate = rate;
-                        console.log(`[generate-so-pdf] Fetched daily rate: ${effectiveExchangeRate}`);
-                    } else {
-                        console.warn('[generate-so-pdf] Invalid rate data received from API');
+                    const historyData = await historyResponse.json();
+                    
+                    const effective = getEffectiveRate(rateData, historyData);
+                    if (effective) {
+                        const rate = effective.promedio || effective.valor;
+                        if (typeof rate === 'number' && rate > 0) {
+                            effectiveExchangeRate = rate;
+                            console.log(`[generate-so-pdf] Fetched effective rate: ${effectiveExchangeRate} para ${baseCurrencyUrl}`);
+                        } else {
+                            console.warn('[generate-so-pdf] Invalid rate data computed.');
+                        }
                     }
                 } else {
-                    console.warn('[generate-so-pdf] Failed to fetch daily rate from API. Status:', rateResponse.status);
+                    console.warn('[generate-so-pdf] Failed to fetch rate/history from API.');
                 }
             } catch (rateError) {
                 console.warn('[generate-so-pdf] Error fetching daily rate:', rateError);
