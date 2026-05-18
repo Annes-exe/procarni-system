@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { currencyService, getEffectiveRate, parseLocalDate } from '@/services/currencyService';
 
 interface ExchangeRateInputProps {
   baseCurrency: 'USD' | 'EUR';
@@ -35,7 +36,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
   const [rateSource, setRateSource] = useState<'custom' | 'daily'>('daily');
   const [isLoadingRate, setIsLoadingRate] = useState(false);
-  const [isStale, setIsStale] = useState(false);
+  const [nextDayWarningStr, setNextDayWarningStr] = useState<string | null>(null);
   const [history, setHistory] = useState<RateHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -43,34 +44,29 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const fetchDailyRate = useCallback(async () => {
     setIsLoadingRate(true);
     try {
-      const endpoint = baseCurrency === 'EUR'
-        ? 'https://ve.dolarapi.com/v1/euros/oficial'
-        : 'https://ve.dolarapi.com/v1/dolares/oficial';
+      const [rateObj, historyList] = await Promise.all([
+        baseCurrency === 'EUR' ? currencyService.getEurRate() : currencyService.getUsdRate(),
+        baseCurrency === 'EUR' ? currencyService.getEurHistory() : currencyService.getUsdHistory()
+      ]);
 
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error('Failed to fetch daily rate');
-      }
-      const data = await response.json();
+      const effective = getEffectiveRate(rateObj, historyList);
+      if (!effective) throw new Error('No se pudo obtener la tasa');
 
-      const rate = data.promedio || data.valor;
-      const updateDate = data.fechaActualizacion;
+      const rate = effective.promedio || effective.valor;
 
       if (typeof rate === 'number' && rate > 0) {
         setDailyRate(rate);
 
-        // Holiday detection logic: check if the update date is today
-        if (updateDate) {
-          const apiDate = new Date(updateDate);
-          const today = new Date();
-          const isSameDay = apiDate.getUTCFullYear() === today.getUTCFullYear() &&
-            apiDate.getUTCMonth() === today.getUTCMonth() &&
-            apiDate.getUTCDate() === today.getUTCDate();
+        const updateDateObj = parseLocalDate(effective.fechaActualizacion);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-          setIsStale(!isSameDay);
+        if (updateDateObj.getTime() > today.getTime()) {
+           setNextDayWarningStr(format(updateDateObj, "eeee dd 'de' MMMM", { locale: es }));
+        } else {
+           setNextDayWarningStr(null);
         }
 
-        // showSuccess removed from here to avoid noise on auto-fetch
         return rate;
       } else {
         throw new Error('Formato de tasa de cambio inválido.');
@@ -89,14 +85,9 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   const fetchHistory = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
-      const endpoint = baseCurrency === 'EUR'
-        ? 'https://ve.dolarapi.com/v1/historicos/euros/oficial'
-        : 'https://ve.dolarapi.com/v1/historicos/dolares/oficial';
-      const response = await fetch(endpoint);
-      if (!response.ok) throw new Error('Failed to fetch history');
-      const data = await response.json();
+      const historyList = await (baseCurrency === 'EUR' ? currencyService.getEurHistory() : currencyService.getUsdHistory());
       // Reverse to show most recent first and take last 15 days
-      setHistory(data.slice(-15).reverse());
+      setHistory(historyList.slice(-15).reverse());
     } catch (e) {
       console.error('[ExchangeRateInput] Error fetching history:', e);
     } finally {
@@ -322,19 +313,22 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
         />
       )}
 
-      {!compact && isStale && (
-        <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 mt-1 flex items-start gap-1">
-          <Info className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
-          <span>
-            <strong>Tasa no actualizada:</strong> La tasa oficial del BCV no coincide con la fecha de hoy. Esto suele ocurrir en feriados o fines de semana. Se recomienda usar una <strong>tasa personalizada</strong>.
-          </span>
-        </p>
+      {!compact && nextDayWarningStr && (
+        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 mt-2">
+          <Calendar className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+          <div className="flex-1">
+            <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Tasa del Día Siguiente</p>
+            <p className="text-[10px] text-gray-600 font-medium mt-0.5 leading-relaxed">
+              Por feriado o día bancario, se está utilizando la tasa oficial del próximo día hábil ({nextDayWarningStr}).
+            </p>
+          </div>
+        </div>
       )}
 
-      {!compact && !isStale && (
-        <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1">
-          <Info className="h-3 w-3 inline mr-1 text-blue-500" />
-          Tasa oficial actualizada para el cierre del día.
+      {!compact && !nextDayWarningStr && (
+        <p className="text-[11px] text-muted-foreground bg-blue-50/50 p-2 rounded border border-blue-100/50 mt-1 flex items-start gap-1">
+          <Info className="h-3 w-3 inline mt-0.5 text-blue-500 shrink-0" />
+          <span>Tasa oficial actualizada para el cierre del día.</span>
         </p>
       )}
     </div>

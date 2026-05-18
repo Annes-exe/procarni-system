@@ -12,7 +12,7 @@ import {
   Calendar,
   Loader2
 } from 'lucide-react';
-import { currencyService, CurrencyRate, HistoryRate } from '@/services/currencyService';
+import { currencyService, CurrencyRate, HistoryRate, getEffectiveRate, parseLocalDate } from '@/services/currencyService';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -38,6 +38,26 @@ const CurrencyCalculator = () => {
   const [selectedUsdRate, setSelectedUsdRate] = useState<number | null>(null);
   const [selectedEurRate, setSelectedEurRate] = useState<number | null>(null);
 
+  const effectiveUsdRate = getEffectiveRate(usdRate, usdHistory);
+  const effectiveEurRate = getEffectiveRate(eurRate, eurHistory);
+
+  const getNextDayWarningDate = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activeRate = activeCurrency === 'USD' ? effectiveUsdRate : activeCurrency === 'EUR' ? effectiveEurRate : null;
+    if (!activeRate) return null;
+
+    const rateDate = parseLocalDate(activeRate.fechaActualizacion);
+
+    if (rateDate.getTime() > today.getTime()) {
+      return format(rateDate, "eeee dd 'de' MMMM", { locale: es });
+    }
+    return null;
+  };
+
+  const nextDayDateStr = getNextDayWarningDate();
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -53,8 +73,11 @@ const CurrencyCalculator = () => {
       setUsdHistory(usdHist);
       setEurHistory(eurHist);
       
-      if (!selectedUsdRate) setSelectedUsdRate(usd.promedio || usd.valor);
-      if (!selectedEurRate) setSelectedEurRate(eur.promedio || eur.valor);
+      const effUsd = getEffectiveRate(usd, usdHist);
+      const effEur = getEffectiveRate(eur, eurHist);
+
+      if (!selectedUsdRate) setSelectedUsdRate(effUsd ? (effUsd.promedio || effUsd.valor) : (usd.promedio || usd.valor));
+      if (!selectedEurRate) setSelectedEurRate(effEur ? (effEur.promedio || effEur.valor) : (eur.promedio || eur.valor));
     } catch (error) {
       console.error('Error fetching currency data:', error);
     } finally {
@@ -123,9 +146,17 @@ const CurrencyCalculator = () => {
   };
 
   const resetRates = () => {
-    if (usdRate) setSelectedUsdRate(usdRate.promedio || usdRate.valor);
-    if (eurRate) setSelectedEurRate(eurRate.promedio || eurRate.valor);
-    if (vesValue) calculateFromVes(vesValue);
+    const targetUsd = effectiveUsdRate ? (effectiveUsdRate.promedio || effectiveUsdRate.valor) : null;
+    const targetEur = effectiveEurRate ? (effectiveEurRate.promedio || effectiveEurRate.valor) : null;
+
+    if (targetUsd) setSelectedUsdRate(targetUsd);
+    if (targetEur) setSelectedEurRate(targetEur);
+    
+    const num = parseFloat(vesValue);
+    if (!isNaN(num)) {
+      if (targetUsd) setUsdValue((num / targetUsd).toFixed(2));
+      if (targetEur) setEurValue((num / targetEur).toFixed(2));
+    }
   };
 
   return (
@@ -186,6 +217,24 @@ const CurrencyCalculator = () => {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-4"
               >
+                {/* Warning Banner for Next Day Rate */}
+                {nextDayDateStr && (
+                  <m.div 
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10 }}
+                    className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5"
+                  >
+                    <Calendar className="h-4 w-4 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Tasa del Día Siguiente</p>
+                      <p className="text-[10px] text-gray-600 font-medium mt-0.5 leading-relaxed">
+                        Por feriado o día bancario, se está utilizando la tasa oficial del próximo día hábil ({nextDayDateStr}).
+                      </p>
+                    </div>
+                  </m.div>
+                )}
+
                 {/* Inputs */}
                 <div className="space-y-3">
                   <div className="relative">
@@ -272,7 +321,9 @@ const CurrencyCalculator = () => {
                       {activeCurrency === 'USD' ? selectedUsdRate?.toFixed(2) : selectedEurRate?.toFixed(2)}
                       <span className="text-[10px] text-gray-400 ml-1 font-medium">VES / {activeCurrency}</span>
                     </span>
-                    {(activeCurrency === 'USD' ? selectedUsdRate !== usdRate?.promedio : selectedEurRate !== eurRate?.promedio) && (
+                    {(activeCurrency === 'USD' 
+                      ? selectedUsdRate !== (effectiveUsdRate?.promedio || effectiveUsdRate?.valor) 
+                      : selectedEurRate !== (effectiveEurRate?.promedio || effectiveEurRate?.valor)) && (
                       <Button 
                         variant="link" 
                         className="h-auto p-0 text-[10px] text-amber-600 font-bold"
