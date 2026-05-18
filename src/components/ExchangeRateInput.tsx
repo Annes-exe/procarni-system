@@ -86,8 +86,8 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     setIsLoadingHistory(true);
     try {
       const historyList = await (baseCurrency === 'EUR' ? currencyService.getEurHistory() : currencyService.getUsdHistory());
-      // Reverse to show most recent first and take last 15 days
-      setHistory(historyList.slice(-15).reverse());
+      // Take the most recent 15 days (the list is already reversed/most recent first)
+      setHistory(historyList.slice(0, 15));
     } catch (e) {
       console.error('[ExchangeRateInput] Error fetching history:', e);
     } finally {
