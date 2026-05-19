@@ -28,6 +28,7 @@ export type Supplier = {
   code: string | null;
   city: string | null;
   alert_comment: string | null;
+  website: string | null;
 };
 
 export type Material = {

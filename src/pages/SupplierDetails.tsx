@@ -58,6 +58,7 @@ interface SupplierDetailsData {
   phone?: string;
   phone_2?: string;
   instagram?: string;
+  website?: string;
   address?: string;
   city?: string | null;
   state?: string | null;
@@ -557,6 +558,24 @@ const SupplierDetails = () => {
                     placeholder="N/A"
                     renderDisplay={(v) => v ? (
                       <a href={`https://instagram.com/${String(v).replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {String(v)}
+                      </a>
+                    ) : <p className={valueClass}>N/A</p>}
+                  />
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Globe className="h-4 w-4 text-gray-400 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <span className={microLabelClass}>Enlace (Sitio Web)</span>
+                  <InlineEditableCell
+                    value={supplier.website || ''}
+                    onSave={handleInlineSave('website')}
+                    alwaysShowIcon={isMobile}
+                    displayClassName="text-sm font-medium"
+                    placeholder="N/A"
+                    renderDisplay={(v) => v ? (
+                      <a href={String(v).startsWith('http') ? String(v) : `https://${String(v)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
                         {String(v)}
                       </a>
                     ) : <p className={valueClass}>N/A</p>}

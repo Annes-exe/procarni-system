@@ -328,6 +328,7 @@ const supplierFormSchema = z.object({
   phone: z.string().optional().or(z.literal('')), // MODIFIED: Made optional
   phone_2: z.string().optional().or(z.literal('')),
   instagram: z.string().optional().or(z.literal('')),
+  website: z.string().url('URL inválida. Ej: https://ejemplo.com').optional().or(z.literal('')),
   address: z.string().optional().or(z.literal('')),
   city: z.string().optional().nullable(),
   state: z.string().optional().nullable(),
@@ -361,6 +362,7 @@ interface SupplierFormProps {
     phone?: string;
     phone_2?: string;
     instagram?: string;
+    website?: string;
     address?: string;
     city?: string | null;
     state?: string | null;
@@ -408,6 +410,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       phone: '',
       phone_2: '',
       instagram: '',
+      website: '',
       address: '',
       city: '',
       state: '',
@@ -475,6 +478,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         phone: initialData.phone || '',
         phone_2: initialData.phone_2 || '',
         instagram: initialData.instagram || '',
+        website: initialData.website || '',
         address: initialData.address || '',
         city: initialData.city || '',
         state: initialData.state || '',
@@ -493,6 +497,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         phone: '',
         phone_2: '',
         instagram: '',
+        website: '',
         address: '',
         city: '',
         state: '',
@@ -1004,6 +1009,25 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                         <span className="absolute left-3 top-2.5 text-gray-400 h-4 w-4">@</span>
                         <Input placeholder="usuario" {...field} value={field.value || ''} className="h-9 pl-8" />
                       </div>
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="website"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Enlace (Sitio Web)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="url"
+                        placeholder="https://ejemplo.com"
+                        {...field}
+                        value={field.value || ''}
+                        className="h-9"
+                      />
                     </FormControl>
                     <FormMessage className="text-[10px]" />
                   </FormItem>
