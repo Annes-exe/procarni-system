@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link } from 'lucide-react';
+import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link, Loader2 } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterialsBySupplier, getAllUnits, createSupplierMaterialRelation } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
