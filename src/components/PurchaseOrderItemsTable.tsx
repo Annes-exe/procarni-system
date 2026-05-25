@@ -349,7 +349,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             <div className="col-span-4 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex justify-between items-center">
                 <span>Producto / Material
-                  {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
+                  {item.material_id && item.unit_id && !associatedMaterialIds.has(item.material_id) && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -376,11 +376,11 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   displayValue={item.material_name}
                   selectedId={item.material_id}
                   disabled={!supplierId}
-                  className={`w-full h-9 bg-white ${item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
+                  className={`w-full h-9 bg-white ${item.material_id && !associatedMaterialIds.has(item.material_id) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
                   icon={<Search className="h-4 w-4 text-gray-400" />}
                 />
                 
-                {item.material_id && item.unit_id && !associatedMaterialIds.has(`${item.material_id}-${item.unit_id}`) && (
+                {item.material_id && !associatedMaterialIds.has(item.material_id) && (
                   <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded border border-amber-100 animate-in fade-in slide-in-from-top-1 duration-300">
                     <AlertTriangle className="h-3 w-3 text-amber-600" />
                     <span className="text-[10px] text-amber-700 font-medium">Este material no está asociado a este proveedor.</span>
