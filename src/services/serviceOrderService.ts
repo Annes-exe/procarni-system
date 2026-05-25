@@ -175,8 +175,15 @@ export const serviceOrderService = {
         // 2. Create Services (Items)
         if (items && items.length > 0) {
             const orderItems = items.map(item => ({
-                ...item,
                 order_id: newOrder.id,
+                description: item.description,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                tax_rate: item.tax_rate ?? 0.16,
+                is_exempt: !!item.is_exempt,
+                sales_percentage: item.sales_percentage || 0,
+                discount_percentage: item.discount_percentage || 0,
+                was_recalculated: !!item.was_recalculated,
             }));
 
             const { error: itemsError } = await supabase
@@ -193,8 +200,21 @@ export const serviceOrderService = {
         // 3. Create Materials
         if (materials && materials.length > 0) {
             const orderMaterials = materials.map(mat => ({
-                ...mat,
                 service_order_id: newOrder.id,
+                supplier_id: mat.supplier_id,
+                material_id: mat.material_id || null,
+                material_name: mat.material_name || '',
+                supplier_code: mat.supplier_code || null,
+                description: mat.description || null,
+                quantity: mat.quantity,
+                unit: mat.unit || null,
+                unit_price: mat.unit_price,
+                tax_rate: mat.tax_rate ?? 0.16,
+                is_exempt: mat.is_exempt || false,
+                sales_percentage: mat.sales_percentage || 0,
+                discount_percentage: mat.discount_percentage || 0,
+                unit_id: mat.unit_id || null,
+                was_recalculated: !!mat.was_recalculated,
             }));
 
             const { error: materialsError } = await supabase
@@ -275,8 +295,15 @@ export const serviceOrderService = {
 
         if (items && items.length > 0) {
             const orderItems = items.map(item => ({
-                ...item,
                 order_id: id,
+                description: item.description,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                tax_rate: item.tax_rate ?? 0.16,
+                is_exempt: !!item.is_exempt,
+                sales_percentage: item.sales_percentage || 0,
+                discount_percentage: item.discount_percentage || 0,
+                was_recalculated: !!item.was_recalculated,
             }));
             const { error: insertItemsError } = await supabase.from('service_order_items').insert(orderItems);
             if (insertItemsError) {
@@ -298,8 +325,21 @@ export const serviceOrderService = {
 
         if (materials && materials.length > 0) {
             const orderMaterials = materials.map(mat => ({
-                ...mat,
                 service_order_id: id,
+                supplier_id: mat.supplier_id,
+                material_id: mat.material_id || null,
+                material_name: mat.material_name || '',
+                supplier_code: mat.supplier_code || null,
+                description: mat.description || null,
+                quantity: mat.quantity,
+                unit: mat.unit || null,
+                unit_price: mat.unit_price,
+                tax_rate: mat.tax_rate ?? 0.16,
+                is_exempt: mat.is_exempt || false,
+                sales_percentage: mat.sales_percentage || 0,
+                discount_percentage: mat.discount_percentage || 0,
+                unit_id: mat.unit_id || null,
+                was_recalculated: mat.was_recalculated || false,
             }));
             const { error: insertMaterialsError } = await supabase.from('service_order_materials').insert(orderMaterials);
             if (insertMaterialsError) {

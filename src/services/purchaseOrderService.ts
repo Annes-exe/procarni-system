@@ -142,8 +142,20 @@ export const purchaseOrderService = {
         // 2. Create Items
         if (items && items.length > 0) {
             const orderItems = items.map(item => ({
-                ...item,
                 order_id: newOrder.id,
+                material_id: item.material_id || null,
+                material_name: item.material_name,
+                supplier_code: item.supplier_code || null,
+                description: item.description || null,
+                quantity: item.quantity,
+                unit: item.unit || null,
+                unit_price: item.unit_price,
+                tax_rate: item.tax_rate ?? 0.16,
+                is_exempt: !!item.is_exempt,
+                sales_percentage: item.sales_percentage || 0,
+                discount_percentage: item.discount_percentage || 0,
+                unit_id: item.unit_id || null,
+                was_recalculated: !!item.was_recalculated,
             }));
 
             const { error: itemsError } = await supabase
@@ -227,8 +239,20 @@ export const purchaseOrderService = {
 
         if (items && items.length > 0) {
             const orderItems = items.map(item => ({
-                ...item,
                 order_id: id,
+                material_id: item.material_id || null,
+                material_name: item.material_name,
+                supplier_code: item.supplier_code || null,
+                description: item.description || null,
+                quantity: item.quantity,
+                unit: item.unit || null,
+                unit_price: item.unit_price,
+                tax_rate: item.tax_rate ?? 0.16,
+                is_exempt: !!item.is_exempt,
+                sales_percentage: item.sales_percentage || 0,
+                discount_percentage: item.discount_percentage || 0,
+                unit_id: item.unit_id || null,
+                was_recalculated: !!item.was_recalculated,
             }));
 
             const { error: insertError } = await supabase
