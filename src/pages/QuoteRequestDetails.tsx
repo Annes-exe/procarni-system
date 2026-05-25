@@ -476,7 +476,11 @@ const QuoteRequestDetails = () => {
           <div className="space-y-1">
             <span className={microLabelClass}>Proveedor</span>
             {/* @ts-ignore */}
-            <p className={valueClass}>{request.suppliers?.name || 'N/A'}</p>
+            <p className={valueClass}>
+              <Link to={`/suppliers/${request.supplier_id}`} className="hover:underline text-procarni-primary font-semibold">
+                {request.suppliers?.name || 'N/A'}
+              </Link>
+            </p>
             {/* @ts-ignore */}
             {(request.suppliers?.email || request.suppliers?.phone) && (
               <p className="text-xs text-gray-500">

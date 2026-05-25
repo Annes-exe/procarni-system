@@ -549,7 +549,11 @@ const ServiceOrderDetails = () => {
           <div className="space-y-1">
             <span className={microLabelClass}>Proveedor</span>
             {/* @ts-ignore */}
-            <p className={valueClass}>{order.suppliers?.name || 'N/A'}</p>
+            <p className={valueClass}>
+              <Link to={`/suppliers/${order.supplier_id}`} className="hover:underline text-procarni-primary font-semibold">
+                {order.suppliers?.name || 'N/A'}
+              </Link>
+            </p>
             {/* @ts-ignore */}
             <p className="text-xs text-gray-500">{order.suppliers?.rif}</p>
           </div>
