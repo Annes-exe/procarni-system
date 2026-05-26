@@ -187,6 +187,13 @@ export const searchMaterialsBySupplier = async (supplierId: string, query: strin
   return materials;
 };
 
+const toLocalDateString = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // NEW FUNCTION: Get Purchase History Report with filters
 export const getPurchaseHistoryReport = async ({
   supplierId,
@@ -232,7 +239,7 @@ export const getPurchaseHistoryReport = async ({
         name
       )
     `)
-    .order('created_at', { foreignTable: 'purchase_orders', ascending: false });
+    .order('issue_date', { foreignTable: 'purchase_orders', ascending: false });
 
   if (supplierId) {
     query = query.eq('purchase_orders.supplier_id', supplierId);
@@ -243,14 +250,11 @@ export const getPurchaseHistoryReport = async ({
   }
 
   if (startDate) {
-    query = query.gte('purchase_orders.created_at', startDate.toISOString());
+    query = query.gte('purchase_orders.issue_date', toLocalDateString(startDate));
   }
 
   if (endDate) {
-    // Set time to end of day for the end date to include the full day
-    const endOfDay = new Date(endDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    query = query.lte('purchase_orders.created_at', endOfDay.toISOString());
+    query = query.lte('purchase_orders.issue_date', toLocalDateString(endDate));
   }
 
   if (status) {

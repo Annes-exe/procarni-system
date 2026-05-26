@@ -470,8 +470,18 @@ serve(async (req: Request) => {
 
       drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       
-      const docDate = order.created_at;
-      drawText(state, `Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
+      const docDate = order.issue_date || order.created_at;
+      let docDateFormatted = '';
+      if (order.issue_date) {
+        const parts = order.issue_date.split('-');
+        if (parts.length === 3) {
+          docDateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+        }
+      }
+      if (!docDateFormatted) {
+        docDateFormatted = new Date(order.created_at).toLocaleDateString('es-VE');
+      }
+      drawText(state, `Fecha Emisión: ${docDateFormatted}`, titleX, state.y - LINE_HEIGHT, { size: 10 });
 
       if (order.print_date) {
         drawText(state, `Fecha Impresión: ${new Date(order.print_date).toLocaleDateString('es-VE')}`, titleX, state.y - LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });

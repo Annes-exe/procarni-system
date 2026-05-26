@@ -553,6 +553,14 @@ const ReportsAnalytics = () => {
         }),
     });
 
+    // Helper function to safely get the date of a purchase order item for display/sorting/grouping
+    const getPurchaseOrderDate = (item: any): Date => {
+        if (item.purchase_orders?.issue_date) {
+            return new Date(item.purchase_orders.issue_date + 'T12:00:00');
+        }
+        return new Date(item.purchase_orders?.created_at || item.created_at);
+    };
+
     // --- Traceability & Transformations ---
 
     // Filter by currency directly on the data for calculations
@@ -562,7 +570,7 @@ const ReportsAnalytics = () => {
                 item.purchase_orders.currency === currency &&
                 ['Approved', 'Archived'].includes(item.purchase_orders.status)
             )
-            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
     }, [purchaseData, currency]);
 
     const kpis = useMemo(() => {
@@ -594,7 +602,7 @@ const ReportsAnalytics = () => {
     const cashFlowData = useMemo(() => {
         const months: Record<string, number> = {};
         filteredData.forEach((item: any) => {
-            const m = format(new Date(item.created_at), 'MMM', { locale: es });
+            const m = format(getPurchaseOrderDate(item), 'MMM', { locale: es });
             months[m] = (months[m] || 0) + (item.unit_price * item.quantity);
         });
         return Object.entries(months).map(([name, value]) => ({ name, value }));
@@ -612,8 +620,9 @@ const ReportsAnalytics = () => {
             grouped[supName].orderCount += 1;
 
             // Update last date
-            if (!grouped[supName].lastDate || new Date(item.created_at) > new Date(grouped[supName].lastDate!)) {
-                grouped[supName].lastDate = item.created_at;
+            const itemDate = getPurchaseOrderDate(item);
+            if (!grouped[supName].lastDate || itemDate > new Date(grouped[supName].lastDate!)) {
+                grouped[supName].lastDate = itemDate.toISOString();
                 grouped[supName].lastOrderId = item.purchase_orders?.id;
             }
         });
@@ -833,7 +842,7 @@ const ReportsAnalytics = () => {
                                                 <div className="flex justify-between items-start">
                                                     <div className="space-y-1 max-w-[70%]">
                                                         <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                                                            {format(new Date(item.created_at), 'dd/MM/yyyy')}
+                                                            {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                         </span>
                                                         <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name}</h4>
                                                     </div>
@@ -889,7 +898,7 @@ const ReportsAnalytics = () => {
                                                     className="hover:bg-gray-50/80 transition-colors"
                                                 >
                                                     <TableCell className="pl-4 py-3 text-sm text-gray-600">
-                                                        {format(new Date(item.created_at), 'dd/MM/yyyy')}
+                                                        {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                     </TableCell>
                                                     <TableCell className="py-3">
                                                         <div className="flex flex-col">
@@ -990,7 +999,7 @@ const ReportsAnalytics = () => {
                                                 <div className="flex justify-between items-start">
                                                     <div className="space-y-1">
                                                         <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                                                            {format(new Date(item.created_at), 'dd MMM yyyy')}
+                                                            {format(getPurchaseOrderDate(item), 'dd MMM yyyy')}
                                                         </span>
                                                         <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.purchase_orders.suppliers.name}</h4>
                                                     </div>
@@ -1037,7 +1046,7 @@ const ReportsAnalytics = () => {
                                                     onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)}
                                                 >
                                                     <TableCell className="pl-4 py-3 font-medium text-gray-600">
-                                                        {format(new Date(item.created_at), 'dd MMM yyyy')}
+                                                        {format(getPurchaseOrderDate(item), 'dd MMM yyyy')}
                                                     </TableCell>
                                                     <TableCell className="py-3 text-procarni-dark">{item.purchase_orders.suppliers.name}</TableCell>
                                                     <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name}</TableCell>

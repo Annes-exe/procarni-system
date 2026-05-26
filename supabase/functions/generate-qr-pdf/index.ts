@@ -223,7 +223,17 @@ serve(async (req) => {
     drawText(`Nº: ${request.id.substring(0, 8)}`, width - margin - 100, y, { font: boldFont, size: 10 });
     
     const docDate = request.issue_date || request.created_at;
-    drawText(`Fecha Emisión: ${new Date(docDate).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight);
+    let docDateFormatted = '';
+    if (request.issue_date) {
+      const parts = request.issue_date.split('-');
+      if (parts.length === 3) {
+        docDateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/YYYY
+      }
+    }
+    if (!docDateFormatted) {
+      docDateFormatted = new Date(request.created_at).toLocaleDateString('es-VE');
+    }
+    drawText(`Fecha Emisión: ${docDateFormatted}`, width - margin - 100, y - lineHeight);
     
     if (request.print_date) {
       drawText(`Fecha Impresión: ${new Date(request.print_date).toLocaleDateString('es-VE')}`, width - margin - 100, y - lineHeight * 2.5, { size: 8, color: DARK_GRAY });

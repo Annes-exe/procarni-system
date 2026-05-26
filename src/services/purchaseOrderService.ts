@@ -376,6 +376,13 @@ export const purchaseOrderService = {
         endDate?: Date;
         status?: string;
     }) => {
+        const toLocalDateString = (d: Date): string => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
         let query = supabase
             .from('purchase_order_items')
             .select(`
@@ -384,6 +391,7 @@ export const purchaseOrderService = {
           id,
           sequence_number,
           created_at,
+          issue_date,
           status,
           currency,
           exchange_rate,
@@ -392,16 +400,12 @@ export const purchaseOrderService = {
         ),
         materials ( name, code, category, unit )
       `)
-            .order('created_at', { ascending: false });
+            .order('issue_date', { foreignTable: 'purchase_orders', ascending: false });
 
         if (supplierId) query = query.eq('purchase_orders.supplier_id', supplierId);
         if (materialId) query = query.eq('material_id', materialId);
-        if (startDate) query = query.gte('created_at', startDate.toISOString());
-        if (endDate) {
-            const endOfDay = new Date(endDate);
-            endOfDay.setHours(23, 59, 59, 999);
-            query = query.lte('created_at', endOfDay.toISOString());
-        }
+        if (startDate) query = query.gte('purchase_orders.issue_date', toLocalDateString(startDate));
+        if (endDate) query = query.lte('purchase_orders.issue_date', toLocalDateString(endDate));
         if (status) query = query.eq('purchase_orders.status', status);
 
         const { data, error } = await query;

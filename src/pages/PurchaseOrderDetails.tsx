@@ -595,7 +595,7 @@ const PurchaseOrderDetails = () => {
           <div className="space-y-1">
             <span className={microLabelClass}>Fecha Emisión</span>
             <p className={valueClass}>
-              {format(new Date(order.created_at), 'PPP', { locale: es })}
+              {order.issue_date ? format(parseDateForDisplay(order.issue_date), 'PPP', { locale: es }) : format(new Date(order.created_at), 'PPP', { locale: es })}
             </p>
           </div>
 

@@ -27,6 +27,13 @@ const PurchaseHistory = () => {
         to: endOfMonth(new Date()),
     });
 
+    const getPurchaseOrderDate = (item: any): Date => {
+        if (item.purchase_orders?.issue_date) {
+            return new Date(item.purchase_orders.issue_date + 'T12:00:00');
+        }
+        return new Date(item.purchase_orders?.created_at || item.created_at);
+    };
+
     const { data: historyData, isLoading, refetch } = useQuery({
         queryKey: ['purchaseHistory', selectedSupplier?.id, selectedMaterial?.id, date.from, date.to],
         queryFn: () => getPurchaseHistoryReport({
@@ -255,7 +262,7 @@ const PurchaseHistory = () => {
                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                         <div>
                                             <span className="text-gray-500 block">Fecha</span>
-                                            <span className="font-medium">{format(new Date(item.purchase_orders.created_at), 'dd/MM/yy')}</span>
+                                            <span className="font-medium">{format(getPurchaseOrderDate(item), 'dd/MM/yy')}</span>
                                         </div>
                                         <div className="text-right">
                                             <span className="text-gray-500 block">Cantidad</span>
@@ -297,7 +304,7 @@ const PurchaseHistory = () => {
                                     {historyData.map((item: any) => (
                                         <TableRow key={item.id} className="hover:bg-gray-50/50 transition-colors">
                                             <TableCell className="text-[13px] text-gray-600 font-medium">
-                                                {format(new Date(item.purchase_orders.created_at), 'dd/MM/yy')}
+                                                {format(getPurchaseOrderDate(item), 'dd/MM/yy')}
                                             </TableCell>
                                             <TableCell className="text-[13px] text-gray-900 font-medium">#{item.purchase_orders.sequence_number}</TableCell>
                                             <TableCell className="text-[13px] text-gray-600 max-w-[200px] truncate" title={item.purchase_orders.suppliers.name}>
