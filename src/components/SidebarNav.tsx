@@ -1,9 +1,14 @@
 "use client";
 
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { 
+  ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, 
+  ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
+  BarChart3, ChevronDown, Home
+} from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
+import { m, AnimatePresence } from 'framer-motion';
 
 const navItems = [
   {
@@ -45,14 +50,22 @@ const navItems = [
   }
 ];
 
+const categoryIcons: Record<string, React.ReactNode> = {
+  'Inicio': <Home className="h-[18px] w-[18px]" />,
+  'Operaciones': <Briefcase className="h-[18px] w-[18px]" />,
+  'Reportes': <BarChart3 className="h-[18px] w-[18px]" />,
+  'Maestros': <Box className="h-[18px] w-[18px]" />,
+  'Admin': <Cog className="h-[18px] w-[18px]" />,
+};
+
 interface SidebarNavProps {
   forceExpanded?: boolean;
 }
 
-import { m } from 'framer-motion';
-
 const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
   const { role } = useSession();
+  const location = useLocation();
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
 
   // Filter categories based on role
   const filteredNavItems = navItems.filter(category => {
@@ -62,61 +75,171 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
     return true;
   });
 
+  // Auto-open category matching current path
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const activeCategory = filteredNavItems.find(category => 
+      category.items.some(item => item.to === currentPath)
+    );
+    if (activeCategory) {
+      setOpenCategories(prev => ({
+        ...prev,
+        [activeCategory.category]: true
+      }));
+    }
+  }, [location.pathname, role]);
+
+  const toggleCategory = (categoryName: string) => {
+    setOpenCategories(prev => ({
+      ...prev,
+      [categoryName]: !prev[categoryName]
+    }));
+  };
+
   const springTransition = { type: "spring", damping: 25, stiffness: 200 };
 
   return (
-    <nav className="mt-2 flex flex-col gap-5 px-2">
-      {filteredNavItems.map((category) => (
-        <div key={category.category} className="flex flex-col gap-1">
-          <m.p 
-            initial={false}
-            animate={{ 
-              opacity: forceExpanded ? 1 : 0,
-              x: forceExpanded ? 5 : -10 
-            }}
-            transition={springTransition}
-            className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 px-5 mb-1 whitespace-nowrap overflow-hidden"
-          >
-            {category.category}
-          </m.p>
-          {category.items.map((item) => {
-            const isOrdersCategory = category.category === 'Operaciones';
+    <nav className="mt-2 flex flex-col gap-2 px-2">
+      {filteredNavItems.map((category) => {
+        const hasSubItems = category.items.length > 1;
+        const isOpen = !!openCategories[category.category];
+        const isCurrentCategoryActive = category.items.some(item => item.to === location.pathname);
 
-            const activeClasses = isOrdersCategory
-              ? 'bg-procarni-secondary/10 text-procarni-secondary shadow-sm ring-1 ring-procarni-secondary/20'
-              : 'bg-procarni-primary/10 text-procarni-primary shadow-sm ring-1 ring-procarni-primary/20';
+        // If it does not have sub-items (e.g. Inicio / Dashboard), render direct NavLink
+        if (!hasSubItems) {
+          const item = category.items[0];
+          const activeClasses = 'bg-procarni-primary/10 text-procarni-primary shadow-sm ring-1 ring-procarni-primary/20';
+          const hoverClasses = 'text-gray-500 hover:bg-gray-50 hover:text-procarni-blue hover:translate-x-1';
 
-            const hoverClasses = 'text-gray-500 hover:bg-gray-50 hover:text-procarni-blue hover:translate-x-1';
-
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `flex flex-nowrap items-center h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden ${isActive ? activeClasses : hoverClasses
-                  } justify-start group/item`
-                }
-                title={!forceExpanded ? item.label : undefined}
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex flex-nowrap items-center h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden ${
+                  isActive ? activeClasses : hoverClasses
+                } justify-start group/item`
+              }
+              title={!forceExpanded ? item.label : undefined}
+            >
+              <div className="flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
+                {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[18px] w-[18px]' })}
+              </div>
+              <m.span 
+                initial={false}
+                animate={{ 
+                  opacity: forceExpanded ? 1 : 0,
+                  x: forceExpanded ? 0 : -20 
+                }}
+                transition={springTransition}
+                className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block"
               >
-                <div className="flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
-                  {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[18px] w-[18px]' })}
+                {item.label}
+              </m.span>
+            </NavLink>
+          );
+        }
+
+        // Accordion Category
+        return (
+          <div key={category.category} className="flex flex-col gap-1">
+            {/* Accordion Trigger */}
+            <button
+              onClick={() => toggleCategory(category.category)}
+              className={`flex flex-nowrap items-center w-full h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden justify-between group/cat text-left ${
+                isCurrentCategoryActive 
+                  ? 'text-procarni-primary bg-procarni-primary/5 font-extrabold' 
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-procarni-blue'
+              }`}
+              title={!forceExpanded ? category.category : undefined}
+            >
+              <div className="flex items-center justify-start flex-1 min-w-0">
+                <div className="flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/cat:scale-110">
+                  {categoryIcons[category.category] || <Box className="h-[18px] w-[18px]" />}
                 </div>
-                <m.span 
+                <m.span
                   initial={false}
                   animate={{ 
                     opacity: forceExpanded ? 1 : 0,
                     x: forceExpanded ? 0 : -20 
                   }}
                   transition={springTransition}
-                  className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block"
+                  className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block overflow-hidden text-ellipsis"
                 >
-                  {item.label}
+                  {category.category}
                 </m.span>
-              </NavLink>
-            );
-          })}
-        </div>
-      ))}
+              </div>
+
+              {/* Chevron indicator */}
+              <m.div
+                initial={false}
+                animate={{ 
+                  opacity: forceExpanded ? 1 : 0,
+                  rotate: isOpen ? 180 : 0 
+                }}
+                transition={springTransition}
+                className="flex-shrink-0 ml-2"
+              >
+                <ChevronDown className="h-4 w-4 text-gray-400 group-hover/cat:text-procarni-blue transition-colors" />
+              </m.div>
+            </button>
+
+            {/* Accordion Content */}
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <m.div
+                  initial="collapsed"
+                  animate="open"
+                  exit="collapsed"
+                  variants={{
+                    open: { opacity: 1, height: "auto", transition: { duration: 0.2, ease: "easeOut" } },
+                    collapsed: { opacity: 0, height: 0, transition: { duration: 0.15, ease: "easeIn" } }
+                  }}
+                  className="overflow-hidden flex flex-col gap-1 pl-4"
+                >
+                  {category.items.map((item) => {
+                    const isOrdersCategory = category.category === 'Operaciones';
+
+                    const activeClasses = isOrdersCategory
+                      ? 'bg-procarni-secondary/10 text-procarni-secondary shadow-sm ring-1 ring-procarni-secondary/20'
+                      : 'bg-procarni-primary/10 text-procarni-primary shadow-sm ring-1 ring-procarni-primary/20';
+
+                    const hoverClasses = 'text-gray-500 hover:bg-gray-50 hover:text-procarni-blue hover:translate-x-1';
+
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={({ isActive }) =>
+                          `flex flex-nowrap items-center h-[2.5rem] px-[11px] rounded-[0.8rem] transition-all duration-300 overflow-hidden ${
+                            isActive ? activeClasses : hoverClasses
+                          } justify-start group/item`
+                        }
+                        title={!forceExpanded ? item.label : undefined}
+                      >
+                        <div className="flex-shrink-0 w-[30px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
+                          {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[16px] w-[16px]' })}
+                        </div>
+                        <m.span 
+                          initial={false}
+                          animate={{ 
+                            opacity: forceExpanded ? 1 : 0,
+                            x: forceExpanded ? 0 : -20 
+                          }}
+                          transition={springTransition}
+                          className="whitespace-nowrap ml-3 text-[12.5px] font-semibold tracking-tight inline-block"
+                        >
+                          {item.label}
+                        </m.span>
+                      </NavLink>
+                    );
+                  })}
+                </m.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
     </nav>
   );
 };
