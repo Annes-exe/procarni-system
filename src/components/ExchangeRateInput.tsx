@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { currencyService, getEffectiveRate, parseLocalDate } from '@/services/currencyService';
+import { currencyService, getEffectiveRate, parseLocalDate, toLocalDateString, findRateForDate } from '@/services/currencyService';
 
 interface ExchangeRateInputProps {
   baseCurrency: 'USD' | 'EUR';
@@ -19,6 +19,7 @@ interface ExchangeRateInputProps {
   onExchangeRateChange: (value: number | undefined) => void;
   disableAutoFetch?: boolean;
   compact?: boolean;
+  issueDate?: Date;
 }
 
 interface RateHistoryItem {
@@ -32,6 +33,7 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
   onExchangeRateChange,
   disableAutoFetch = false,
   compact = false,
+  issueDate,
 }) => {
   const [dailyRate, setDailyRate] = useState<number | undefined>(undefined);
   const [rateSource, setRateSource] = useState<'custom' | 'daily'>('daily');
@@ -95,30 +97,102 @@ const ExchangeRateInput: React.FC<ExchangeRateInputProps> = ({
     }
   }, [baseCurrency]);
 
-  // Effect to manage rate fetching and default selection when currency changes
+  const resolvedIssueDate = React.useMemo(() => {
+    return issueDate || new Date();
+  }, [issueDate]);
+
+  const isFirstRender = React.useRef(true);
+  const lastProcessedKey = React.useRef<string>('');
+  const exchangeRateRef = React.useRef(exchangeRate);
+
   useEffect(() => {
-    // We always try to fetch the daily rate so it's available in the dropdown
-    fetchDailyRate().then(rate => {
-      if (rate) {
-        if (!disableAutoFetch) {
-          setRateSource('daily');
-          if (rate !== exchangeRate) {
+    exchangeRateRef.current = exchangeRate;
+  }, [exchangeRate]);
+
+  // Effect to manage rate fetching and default selection when currency or emission date changes
+  useEffect(() => {
+    const dateStr = toLocalDateString(resolvedIssueDate);
+    const key = `${baseCurrency}-${dateStr}`;
+
+    if (lastProcessedKey.current === key) return;
+    lastProcessedKey.current = key;
+
+    const initializeOrUpdateRate = async () => {
+      setIsLoadingRate(true);
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const compareDate = new Date(resolvedIssueDate);
+        compareDate.setHours(0, 0, 0, 0);
+
+        const isTodayOrFuture = compareDate.getTime() >= today.getTime();
+
+        if (isFirstRender.current) {
+          isFirstRender.current = false;
+          if (disableAutoFetch) {
+            // First render with auto-fetch disabled: resolve historical rate but preserve the prop value
+            const historyList = await (baseCurrency === 'EUR' ? currencyService.getEurHistory() : currencyService.getUsdHistory());
+            setHistory(historyList.slice(0, 15));
+
+            let resolvedRate: number | undefined;
+            if (isTodayOrFuture) {
+              const dailyRateObj = baseCurrency === 'EUR' ? await currencyService.getEurRate() : await currencyService.getUsdRate();
+              const effective = getEffectiveRate(dailyRateObj, historyList);
+              resolvedRate = effective ? (effective.promedio || effective.valor) : undefined;
+            } else {
+              const matched = findRateForDate(resolvedIssueDate, historyList);
+              resolvedRate = matched ? (matched.promedio || matched.valor) : undefined;
+            }
+
+            const currentExchangeRate = exchangeRateRef.current;
+            if (resolvedRate !== undefined && currentExchangeRate !== undefined && Math.abs(resolvedRate - currentExchangeRate) < 0.001) {
+              setDailyRate(resolvedRate);
+              setRateSource('daily');
+            } else {
+              setDailyRate(resolvedRate);
+              setRateSource('custom');
+            }
+            return;
+          }
+        }
+
+        // Normal flow (subsequent changes, or first render with disableAutoFetch = false)
+        if (isTodayOrFuture) {
+          const rate = await fetchDailyRate();
+          if (rate) {
+            setRateSource('daily');
             onExchangeRateChange(rate);
           }
         } else {
-          // If auto fetch is disabled (e.g. loading an existing record),
-          // we just set the rate source based on if it matches the daily rate or not.
-          // Note: Since exchangeRate might be from props, we leave rateSource as 'custom' 
-          // initially, unless we want to try and match it. For simplicity, we just 
-          // do nothing to the external state.
+          const historyList = await (baseCurrency === 'EUR' ? currencyService.getEurHistory() : currencyService.getUsdHistory());
+          setHistory(historyList.slice(0, 15));
+
+          const matched = findRateForDate(resolvedIssueDate, historyList);
+          if (matched) {
+            const rate = matched.promedio || matched.valor;
+            setDailyRate(rate);
+            setRateSource('daily');
+            onExchangeRateChange(rate);
+
+            const matchedDate = parseLocalDate(matched.fecha);
+            const formattedMatchedDate = format(matchedDate, "dd/MM/yyyy");
+            showSuccess(`Tasa oficial seleccionada para el ${format(resolvedIssueDate, "dd/MM/yyyy")}: ${rate.toFixed(2)} VES/${baseCurrency} (Tasa del ${formattedMatchedDate})`);
+          } else {
+            showWarning(`No se encontró tasa histórica para el ${format(resolvedIssueDate, "dd/MM/yyyy")}. Ingrese una tasa personalizada.`);
+            setRateSource('custom');
+            onExchangeRateChange(undefined);
+          }
         }
-      } else {
-        if (!disableAutoFetch) {
-          setRateSource('custom');
-        }
+      } catch (e) {
+        console.error('[ExchangeRateInput] Error resolving rate:', e);
+      } finally {
+        setIsLoadingRate(false);
       }
-    });
-  }, [baseCurrency, fetchDailyRate, onExchangeRateChange, disableAutoFetch]);
+    };
+
+    initializeOrUpdateRate();
+  }, [resolvedIssueDate, baseCurrency, disableAutoFetch, fetchDailyRate, onExchangeRateChange]);
 
   // Effect to synchronize external exchangeRate state with internal rateSource/dailyRate
   useEffect(() => {

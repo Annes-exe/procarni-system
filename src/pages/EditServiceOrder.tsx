@@ -70,6 +70,7 @@ interface ServiceOrderMaterialForm {
     is_exempt: boolean;
     supplier_code?: string;
     unit?: string;
+    unit_id?: string | null;
     description?: string;
     sales_percentage: number | null;
     discount_percentage: number | null;
@@ -211,6 +212,7 @@ const EditServiceOrder = () => {
                             is_exempt: mat.is_exempt,
                             supplier_code: mat.supplier_code || undefined,
                             unit: mat.unit || undefined,
+                            unit_id: mat.unit_id || null,
                             description: mat.description || '',
                             // Use the historical name if available, fallback to relation name
                             material_name: mat.material_name || mat.materials?.name || 'Material',
@@ -332,6 +334,7 @@ const EditServiceOrder = () => {
                 material_name: item.name,
                 description: '', // Reset description or keep it? usually reset or empty if selecting new material
                 unit: item.unit,
+                unit_id: item.unit_id || null,
                 is_exempt: item.is_exempt || false,
                 // Reset price and quantity? user might want to keep it or it might be in the material?
                 // usually material doesn't have a default price in this context unless from price history (not implemented yet for auto-fill)
@@ -449,6 +452,7 @@ const EditServiceOrder = () => {
                     is_exempt: item.is_exempt,
                     supplier_code: item.supplier_code || null,
                     unit: item.unit || null,
+                    unit_id: item.unit_id || null,
                     description: item.description || null,
                     sales_percentage: item.sales_percentage,
                     discount_percentage: item.discount_percentage,
@@ -549,6 +553,7 @@ const EditServiceOrder = () => {
                             onObservationsChange={setObservations}
                             supplierId={supplierId}
                             supplierName={supplierName}
+                            disableAutoFetch={true}
                         />
                     </CardContent>
                 </Card>

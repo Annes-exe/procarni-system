@@ -47,6 +47,7 @@ interface PurchaseOrderDetailsFormProps {
   onObservationsChange: (value: string) => void;
   onSupplierSelect?: (supplier: any) => void;
   onAddNewSupplier?: () => void;
+  disableAutoFetch?: boolean;
 }
 
 const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
@@ -75,6 +76,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   onObservationsChange,
   onSupplierSelect,
   onAddNewSupplier,
+  disableAutoFetch = false,
 }) => {
   // Fetch supplier details to get default payment terms
   const { data: supplierDetails } = useQuery({
@@ -286,6 +288,8 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
                   baseCurrency={baseCurrency}
                   exchangeRate={exchangeRate}
                   onExchangeRateChange={onExchangeRateChange}
+                  issueDate={issueDate}
+                  disableAutoFetch={disableAutoFetch}
                 />
               </div>
             </div>

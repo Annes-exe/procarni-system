@@ -17,7 +17,7 @@ const PROC_RED = rgb(0.533, 0.039, 0.039); // #880a0a
 const LIGHT_GRAY = rgb(0.9, 0.9, 0.9); // Borde de tabla muy fino
 const DARK_GRAY = rgb(0.5, 0.5, 0.5); // Detalles de la empresa
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -343,7 +343,7 @@ serve(async (req) => {
 
     return response;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('[generate-qr-pdf] Error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,

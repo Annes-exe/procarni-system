@@ -515,6 +515,7 @@ const GeneratePurchaseOrder = () => {
             onObservationsChange={setObservations}
             onSupplierSelect={handleSupplierSelect}
             onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
+            disableAutoFetch={!!quoteRequest?.exchange_rate}
           />
 
         </CardContent>

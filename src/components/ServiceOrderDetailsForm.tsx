@@ -51,6 +51,7 @@ interface ServiceOrderDetailsFormProps {
   supplierName?: string;
   onSupplierSelect?: (supplier: any) => void;
   onAddNewSupplier?: () => void;
+  disableAutoFetch?: boolean;
 }
 
 const SERVICE_TYPES = [
@@ -89,6 +90,7 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   supplierName,
   onSupplierSelect,
   onAddNewSupplier,
+  disableAutoFetch = false,
 }) => {
 
   return (
@@ -292,6 +294,8 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
                   baseCurrency={baseCurrency}
                   exchangeRate={exchangeRate}
                   onExchangeRateChange={onExchangeRateChange}
+                  issueDate={issueDate}
+                  disableAutoFetch={disableAutoFetch}
                 />
               </div>
             </div>

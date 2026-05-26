@@ -27,6 +27,41 @@ export const parseLocalDate = (dateStr: string) => {
   }
 };
 
+export const toLocalDateString = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const findRateForDate = (targetDate: Date, history: HistoryRate[]): HistoryRate | null => {
+  const targetTime = targetDate.getTime();
+  
+  // 1. Try to find exact match
+  const targetStr = toLocalDateString(targetDate);
+  const exact = history.find(item => item.fecha.startsWith(targetStr));
+  if (exact) return exact;
+
+  // 2. If no exact match, find the closest preceding date
+  let closestPreceding: HistoryRate | null = null;
+  let minDiff = Infinity;
+  
+  for (const item of history) {
+    const itemDate = parseLocalDate(item.fecha);
+    const itemTime = itemDate.getTime();
+    
+    if (itemTime <= targetTime) {
+      const diff = targetTime - itemTime;
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPreceding = item;
+      }
+    }
+  }
+  
+  return closestPreceding;
+};
+
 export const getEffectiveRate = (currentRate: CurrencyRate | null, history: HistoryRate[]) => {
   if (!currentRate) return null;
   const today = new Date();
@@ -72,13 +107,13 @@ export const currencyService = {
     const response = await fetch(`${BASE_URL}/historicos/dolares/oficial`);
     if (!response.ok) throw new Error('Failed to fetch USD history');
     const data = await response.json();
-    return data.slice(-30).reverse(); // Last 30 days, most recent first
+    return data.reverse(); // Most recent first
   },
 
   async getEurHistory(): Promise<HistoryRate[]> {
     const response = await fetch(`${BASE_URL}/historicos/euros/oficial`);
     if (!response.ok) throw new Error('Failed to fetch EUR history');
     const data = await response.json();
-    return data.slice(-30).reverse(); // Last 30 days, most recent first
+    return data.reverse(); // Most recent first
   }
 };

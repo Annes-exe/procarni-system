@@ -396,6 +396,7 @@ const EditPurchaseOrder = () => {
             onObservationsChange={setObservations}
             onSupplierSelect={handleSupplierSelect}
             onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
+            disableAutoFetch={true}
           />
 
 
