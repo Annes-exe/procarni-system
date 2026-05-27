@@ -525,6 +525,7 @@ export type ProductionOrderJSON = {
   peso_crudo_total_kg: number;
   materiales_requeridos: {
     material_id?: string;
+    codigo_origen?: string;
     nombre_material: string;
     cantidad_teorica: number;
     unidad_medida: string;

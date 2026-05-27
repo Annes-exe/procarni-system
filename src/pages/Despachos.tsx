@@ -9,6 +9,8 @@ import {
 import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +23,8 @@ import {
   getMaterialsInventory,
   registrarSalidaProduccion,
   registrarSalidaVenta,
+  getMaterialAliases,
+  saveMaterialAliases,
 } from '@/integrations/supabase/services/inventoryService';
 import {
   MaterialInventory,
@@ -149,31 +153,106 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
   const [showSubstitutePicker, setShowSubstitutePicker] = useState(false);
   const [substituteSearch, setSubstituteSearch] = useState('');
 
+  const [unmappedItems, setUnmappedItems] = useState<any[]>([]);
+  const [pendingMappings, setPendingMappings] = useState<Record<string, string>>({});
+  const [importedRecipeRaw, setImportedRecipeRaw] = useState<any[]>([]);
+
   const inventoryMap = useMemo(() => {
     const map = new Map<string, MaterialInventory>();
     inventory.forEach(m => map.set(m.material_id, m));
     return map;
   }, [inventory]);
 
-  const handleOrdenParsed = (json: ProductionOrderJSON) => {
+  const handleOrdenParsed = async (json: ProductionOrderJSON) => {
     setOrden(json);
-    const newRows: DespachoRow[] = json.materiales_requeridos.map(item => {
-      // Try to find by material_id first, fallback to name matching
-      let mat = item.material_id ? inventoryMap.get(item.material_id) : undefined;
-      if (!mat) {
-        mat = inventory.find(m =>
-          (m.materials?.name ?? '').toLowerCase().includes(item.nombre_material.toLowerCase())
-        );
+    
+    try {
+      const knownAliases = await getMaterialAliases();
+      const unmapped: any[] = [];
+      const newRows: DespachoRow[] = [];
+      
+      json.materiales_requeridos.forEach(item => {
+        let matId = item.material_id;
+        
+        // Match using alias if not explicitly provided
+        if (!matId && item.codigo_origen) {
+          matId = knownAliases[item.codigo_origen];
+        }
+
+        let mat = matId ? inventoryMap.get(matId) : undefined;
+        
+        // Fallback match by exact name
+        if (!mat) {
+          mat = inventory.find(m =>
+            (m.materials?.name ?? '').toLowerCase() === item.nombre_material.toLowerCase()
+          );
+        }
+        
+        if (mat) {
+          newRows.push({
+            materialInventory: mat,
+            cantidadTeorica: item.cantidad_teorica,
+            cantidadReal: String(item.cantidad_teorica),
+            isSubstitute: false,
+          });
+        } else if (item.codigo_origen) {
+          unmapped.push(item);
+        }
+      });
+      
+      setImportedRecipeRaw(json.materiales_requeridos);
+
+      if (unmapped.length > 0) {
+        setUnmappedItems(unmapped);
+        setRows(newRows);
+      } else {
+        setUnmappedItems([]);
+        setRows(newRows);
       }
-      if (!mat) return null;
-      return {
-        materialInventory: mat,
-        cantidadTeorica: item.cantidad_teorica,
-        cantidadReal: String(item.cantidad_teorica),
-        isSubstitute: false,
-      };
-    }).filter(Boolean) as DespachoRow[];
-    setRows(newRows);
+    } catch (error) {
+      console.error("Error checking aliases:", error);
+      toast.error('Error al procesar los materiales de la receta.');
+    }
+  };
+
+  const handleSaveMappings = async () => {
+    const mappingKeys = Object.keys(pendingMappings);
+    if (mappingKeys.length !== unmappedItems.length) {
+      toast.error("Por favor, empareja todos los materiales antes de continuar.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const mappingsToSave = mappingKeys.map(external_code => ({
+        external_code,
+        material_id: pendingMappings[external_code]
+      }));
+
+      await saveMaterialAliases(mappingsToSave);
+
+      const resolvedRows: DespachoRow[] = unmappedItems.map(item => {
+        const matId = pendingMappings[item.codigo_origen];
+        const mat = inventoryMap.get(matId);
+        if (!mat) return null;
+        return {
+          materialInventory: mat,
+          cantidadTeorica: item.cantidad_teorica,
+          cantidadReal: String(item.cantidad_teorica),
+          isSubstitute: false,
+        };
+      }).filter(Boolean) as DespachoRow[];
+
+      setRows(prev => [...prev, ...resolvedRows]);
+      setUnmappedItems([]);
+      setPendingMappings({});
+      toast.success("Alias guardados exitosamente.");
+    } catch (error) {
+      console.error("Error guardando los alias", error);
+      toast.error("Error guardando las equivalencias de materiales.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const totalDespachado = rows.reduce((a, r) => a + (parseFloat(r.cantidadReal) || 0), 0);
@@ -256,8 +335,65 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
 
       {orden && (
         <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-          {/* Capsule header */}
-          <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl px-5 py-4 text-white">
+          {unmappedItems.length > 0 && (
+            <Alert variant="destructive" className="bg-amber-50 border-amber-400 text-amber-900">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <AlertTitle className="text-amber-900 font-bold text-base">Nuevos Materiales Detectados</AlertTitle>
+              <AlertDescription className="mt-2">
+                <p className="mb-4 text-amber-800">
+                  El sistema de recetas incluyó códigos que aún no están emparejados con tu almacén. 
+                  Selecciona a qué material equivalen para que el sistema lo aprenda para siempre.
+                </p>
+                
+                <div className="space-y-3 bg-white p-4 rounded-xl border border-amber-200 shadow-sm">
+                  {unmappedItems.map(item => (
+                    <div key={item.codigo_origen} className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <div className="flex-1">
+                        <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 mr-2 border border-slate-200 shadow-sm">
+                          {item.codigo_origen}
+                        </span>
+                        <span className="font-semibold text-slate-800">{item.nombre_material}</span>
+                        <span className="ml-2 text-sm font-medium text-slate-500">({fmt(item.cantidad_teorica)} {item.unidad_medida})</span>
+                      </div>
+                      
+                      <div className="w-full sm:w-1/2">
+                        <Select
+                          onValueChange={(value) => setPendingMappings(prev => ({ ...prev, [item.codigo_origen]: value }))}
+                        >
+                          <SelectTrigger className={pendingMappings[item.codigo_origen] ? "border-emerald-500 ring-emerald-500 bg-emerald-50/30" : "border-amber-300"}>
+                            <SelectValue placeholder="Seleccionar equivalencia..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inventory.map(m => (
+                              <SelectItem key={m.material_id} value={m.material_id}>
+                                {m.materials?.name} ({m.sku})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <Button 
+                    onClick={handleSaveMappings} 
+                    disabled={submitting}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md"
+                  >
+                    {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                    Emparejar y Continuar
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {unmappedItems.length === 0 && (
+            <>
+              {/* Capsule header */}
+              <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl px-5 py-4 text-white">
             <div className="flex flex-wrap gap-4 text-sm">
               <div>
                 <p className="text-white/60 text-xs uppercase tracking-wider">Producto</p>
@@ -448,17 +584,19 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
             )}
           </AnimatePresence>
 
-          <Button
-            id="btn-confirmar-salida-produccion"
-            onClick={handleSubmit}
-            disabled={submitting || isDeviationHigh}
-            className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white font-bold text-base"
-          >
-            {submitting
-              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Registrando salida...</>
-              : <><Factory className="h-5 w-5 mr-2" />Confirmar Salida a Producción — Orden {orden.orden_id}</>
-            }
-          </Button>
+              <Button
+                id="btn-confirmar-salida-produccion"
+                onClick={handleSubmit}
+                disabled={submitting || isDeviationHigh}
+                className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white font-bold text-base"
+              >
+                {submitting
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Registrando salida...</>
+                  : <><Factory className="h-5 w-5 mr-2" />Confirmar Salida a Producción — Orden {orden.orden_id}</>
+                }
+              </Button>
+            </>
+          )}
         </m.div>
       )}
     </div>

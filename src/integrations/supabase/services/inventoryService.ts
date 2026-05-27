@@ -348,3 +348,41 @@ export const cerrarPeriodoInventario = async (
   if (error) throw error;
   return data;
 };
+
+// ============================================================
+// DICCIONARIO JUST-IN-TIME (Aliases)
+// ============================================================
+
+// Función para obtener todos los alias conocidos
+export const getMaterialAliases = async () => {
+  const { data, error } = await supabase
+    .from('material_aliases')
+    .select('material_id, external_code');
+
+  if (error) {
+    console.error('Error fetching aliases:', error);
+    throw error;
+  }
+  
+  // Retornamos un mapa (Record) para búsquedas instantáneas O(1) en el frontend
+  const aliasMap: Record<string, string> = {};
+  data?.forEach(alias => {
+    aliasMap[alias.external_code] = alias.material_id;
+  });
+  
+  return aliasMap;
+};
+
+// Función para guardar los nuevos emparejamientos que haga el analista
+export const saveMaterialAliases = async (mappings: { material_id: string; external_code: string }[]) => {
+  if (mappings.length === 0) return;
+
+  const { error } = await supabase
+    .from('material_aliases')
+    .insert(mappings);
+
+  if (error) {
+    console.error('Error saving aliases:', error);
+    throw error;
+  }
+};
