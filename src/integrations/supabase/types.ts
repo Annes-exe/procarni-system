@@ -343,3 +343,190 @@ export type SupplierMaterialPayload = {
   unit_id: string | null;
   specification?: string;
 };
+
+// ============================================================
+// MÓDULO DE INVENTARIO
+// ============================================================
+
+export type InventoryCategory = 'MPF' | 'MPS' | 'EMP' | 'ETQ';
+
+export type InventoryTransactionType =
+  | 'IN_PURCHASE'     // Entrada desde Orden de Compra
+  | 'IN_DIRECT'       // Entrada directa
+  | 'OUT_PRODUCTION'  // Salida a producción
+  | 'ADJUSTMENT_LOSS' // Merma de traslado (automática) o pérdida manual
+  | 'ADJUSTMENT_ADD'  // Sobrante de conteo o ajuste positivo
+  | 'ADJUSTMENT_MANUAL' // Ajuste manual genérico (legacy)
+  | 'OUT_SALE'        // Salida por venta directa
+  | 'REVERSAL';       // Reverso de auditoría
+
+export type InventoryPeriodStatus = 'ABIERTO' | 'CERRADO';
+
+// Familia de prefijos de SKU (inventory_families)
+export type InventoryFamily = {
+  id: string;
+  category: InventoryCategory;
+  prefix: string;
+  description: string | null;
+  current_sequence: number;
+  created_at: string;
+  updated_at: string;
+};
+
+// Material habilitado para almacén (materials_inventory + join materials)
+export type MaterialInventory = {
+  material_id: string;
+  sku: string;
+  inventory_category: InventoryCategory;
+  unit: string;
+  last_purchase_price: number;
+  current_stock: number;
+  average_unit_cost: number;
+  total_value: number;
+  min_stock_alert: number;
+  is_active: boolean;
+  notes: string | null;
+  enabled_by: string | null;
+  enabled_at: string;
+  updated_at: string;
+  // Join a materials
+  materials?: {
+    id: string;
+    code: string | null;
+    name: string;
+    category: string | null;
+    unit: string | null;
+  };
+};
+
+// Transacción del Kardex (inventory_transactions)
+export type InventoryTransaction = {
+  id: string;
+  material_id: string;
+  transaction_date: string;
+  transaction_type: InventoryTransactionType;
+  quantity: number;             // + entrada / - salida
+  expected_quantity: number | null;
+  actual_quantity: number | null;
+  unit_cost: number;
+  total_cost: number;           // Columna generada: quantity * unit_cost
+  stock_after: number | null;   // Snapshot post-transacción
+  avg_cost_after: number | null;
+  reference_doc: string | null;
+  destination_data: Record<string, unknown> | null; // JSONB libre (capsulas, evidencia cloudinary, etc.)
+  reverses_id: string | null;
+  reason_code: string | null;   // Para ADJUSTMENT_LOSS / ADJUSTMENT_ADD
+  sale_reference: string | null; // Para OUT_SALE
+  created_by: string | null;
+  created_at: string;
+  audit_note: string | null;
+  // Join a materials_inventory
+  materials_inventory?: {
+    sku: string;
+    unit: string;
+    materials?: { name: string; code: string | null };
+  };
+};
+
+// Periodo contable (inventory_periods)
+export type InventoryPeriod = {
+  id: string;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  status: InventoryPeriodStatus;
+  closed_by: string | null;
+  closed_at: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+// Motivo de ajuste manual (inventory_adjustment_reasons)
+export type InventoryAdjustmentReason = {
+  id: string;
+  code: string;
+  description: string;
+  applies_to: 'LOSS' | 'ADD' | 'BOTH';
+  is_active: boolean;
+  created_at: string;
+};
+
+// Snapshot diario (inventory_snapshots)
+export type InventorySnapshot = {
+  id: string;
+  snapshot_date: string;
+  material_id: string;
+  stock_quantity: number;
+  average_unit_cost: number;
+  total_value: number;
+  created_at: string;
+};
+
+// Payloads de los RPCs
+export type RecepcionPayload = {
+  p_material_id: string;
+  p_transaction_type: 'IN_PURCHASE' | 'IN_DIRECT';
+  p_peso_guia: number;
+  p_peso_recibido: number;
+  p_unit_cost: number;
+  p_reference_doc: string;
+  p_transaction_date?: string;
+};
+
+export type SalidaProduccionItem = {
+  material_id: string;
+  cantidad_real: number;
+  cantidad_teorica?: number;
+  material_original_id?: string | null;
+  nota?: string | null;
+};
+
+export type SalidaProduccionPayload = {
+  p_orden_id: string;
+  p_destination_data: Record<string, unknown>;
+  p_items: SalidaProduccionItem[];
+  p_transaction_date?: string;
+};
+
+export type SalidaVentaPayload = {
+  p_material_id: string;
+  p_cantidad: number;
+  p_sale_reference: string;
+  p_cliente: string;
+  p_transaction_date?: string;
+};
+
+export type AjusteInventarioPayload = {
+  p_material_id: string;
+  p_transaction_type: 'ADJUSTMENT_LOSS' | 'ADJUSTMENT_ADD';
+  p_cantidad: number;
+  p_reason_code: string;
+  p_observacion: string;
+  p_reference_doc?: string;
+  p_transaction_date?: string;
+};
+
+// Metadatos de evidencia Cloudinary (guardados en destination_data)
+export type CloudinaryEvidenceMeta = {
+  tipo: 'EVIDENCIA_ENTRADA_DIRECTA';
+  secure_url: string;
+  public_id: string;
+  format: string;
+  bytes: number;
+};
+
+// Contrato del archivo JSON de Orden de Producción
+export type ProductionOrderJSON = {
+  orden_id: string;
+  producto_fabricado: string;
+  presentacion: string;
+  fecha_produccion: string;
+  lotes_planificados: number;
+  peso_crudo_total_kg: number;
+  materiales_requeridos: {
+    material_id?: string;
+    nombre_material: string;
+    cantidad_teorica: number;
+    unidad_medida: string;
+  }[];
+};
