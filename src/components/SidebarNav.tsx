@@ -5,7 +5,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { 
   ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, 
   ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
-  BarChart3, ChevronDown, Home
+  BarChart3, ChevronDown, Home, Warehouse, Download
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { m, AnimatePresence } from 'framer-motion';
@@ -23,6 +23,16 @@ const navItems = [
       { to: '/quote-request-management', icon: <FileQuestion className="h-5 w-5" />, label: 'Cotizaciones' },
       { to: '/purchase-order-management', icon: <ShoppingCart className="h-5 w-5" />, label: 'Órdenes de Compra' },
       { to: '/service-order-management', icon: <Briefcase className="h-5 w-5" />, label: 'Órdenes de Servicio' },
+    ]
+  },
+  {
+    category: 'Inventario',
+    items: [
+      { to: '/inventory', icon: <Warehouse className="h-5 w-5" />, label: 'Stock Global' },
+      { to: '/inventory/receptions', icon: <Download className="h-5 w-5" />, label: 'Recepciones' },
+      { to: '/inventory/dispatches', icon: <Upload className="h-5 w-5" />, label: 'Despachos' },
+      { to: '/inventory/kardex', icon: <ScrollText className="h-5 w-5" />, label: 'Historial Kardex' },
+      { to: '/inventory/closings', icon: <Cog className="h-5 w-5" />, label: 'Cierres y Ajustes' },
     ]
   },
   {
@@ -53,6 +63,7 @@ const navItems = [
 const categoryIcons: Record<string, React.ReactNode> = {
   'Inicio': <Home className="h-[18px] w-[18px]" />,
   'Operaciones': <Briefcase className="h-[18px] w-[18px]" />,
+  'Inventario': <Warehouse className="h-[18px] w-[18px]" />,
   'Reportes': <BarChart3 className="h-[18px] w-[18px]" />,
   'Maestros': <Box className="h-[18px] w-[18px]" />,
   'Admin': <Cog className="h-[18px] w-[18px]" />,

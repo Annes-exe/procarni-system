@@ -38,6 +38,13 @@ import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
 import Notifications from "./pages/Notifications";
 import GroupManagement from "./pages/GroupManagement";
 
+// Inventory Module Pages
+import StockGlobal from "./pages/StockGlobal";
+import Recepciones from "./pages/Recepciones";
+import Despachos from "./pages/Despachos";
+import HistorialKardex from "./pages/HistorialKardex";
+import CierresYAjustes from "./pages/CierresYAjustes";
+
 import { LazyMotion, domAnimation } from "framer-motion";
 
 const queryClient = new QueryClient();
@@ -88,6 +95,13 @@ const App = () => (
                   <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/group-management" element={<GroupManagement />} />
+                  
+                  {/* Inventory Module Routes */}
+                  <Route path="/inventory" element={<StockGlobal />} />
+                  <Route path="/inventory/receptions" element={<Recepciones />} />
+                  <Route path="/inventory/dispatches" element={<Despachos />} />
+                  <Route path="/inventory/kardex" element={<HistorialKardex />} />
+                  <Route path="/inventory/closings" element={<CierresYAjustes />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

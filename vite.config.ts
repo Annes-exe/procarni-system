@@ -17,6 +17,9 @@ export default defineConfig(() => ({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+      },
       devOptions: {
         enabled: true,
         type: 'module'
