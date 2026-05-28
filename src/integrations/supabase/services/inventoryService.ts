@@ -30,21 +30,25 @@ export const getMaterialsInventory = async (): Promise<MaterialInventory[]> => {
       )
     `)
     .eq('is_active', true)
-    .order('sku');
+    .order('sku')
+    .limit(10000); // Override PostgREST's default 1000-row cap
 
   if (error) throw error;
   return (data ?? []) as MaterialInventory[];
 };
 
 /** Materiales del catálogo general que aún NO están en inventario */
-export const getMaterialsNotInInventory = async (): Promise<
+export const getMaterialsNotInInventory = async (
+  search?: string
+): Promise<
   { id: string; name: string; code: string | null; category: string | null; unit: string | null }[]
 > => {
   // Step 1: get IDs already in inventory
   const { data: enabled, error: errEnabled } = await supabase
     .from('materials_inventory')
     .select('material_id')
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .limit(10000); // Override PostgREST's default 1000-row cap
 
   if (errEnabled) throw errEnabled;
 
@@ -53,14 +57,21 @@ export const getMaterialsNotInInventory = async (): Promise<
   // Step 2: fetch all materials excluding those IDs
   let query = supabase
     .from('materials')
-    .select('id, name, code, category, unit')
-    .order('name');
+    .select('id, name, code, category, unit');
 
   if (enabledIds.length > 0) {
     query = query.not('id', 'in', `(${enabledIds.map(id => `"${id}"`).join(',')})`);
   }
 
-  const { data, error } = await query;
+  if (search && search.trim() !== '') {
+    const q = search.trim();
+    query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%`);
+  }
+
+  const { data, error } = await query
+    .order('name')
+    .limit(100); // Return up to 100 candidate matches
+
   if (error) throw error;
   return data ?? [];
 };

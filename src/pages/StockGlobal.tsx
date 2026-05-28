@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { m, AnimatePresence } from 'framer-motion';
+import { useDebounce } from 'use-debounce';
 import {
   Warehouse, Plus, Search, AlertTriangle, TrendingUp,
   DollarSign, Package, ChevronRight, X, Loader2,
@@ -112,6 +113,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch] = useDebounce(search, 300);
   const [selectedMaterial, setSelectedMaterial] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [category, setCategory] = useState<InventoryCategory | ''>('');
   const [unit, setUnit] = useState('kg');
@@ -126,18 +128,14 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
   });
 
   const { data: candidates = [], isLoading: loadingCandidates } = useQuery({
-    queryKey: ['materialsNotInInventory'],
-    queryFn: getMaterialsNotInInventory,
+    queryKey: ['materialsNotInInventory', debouncedSearch],
+    queryFn: () => getMaterialsNotInInventory(debouncedSearch),
     enabled: open,
   });
 
   const filteredCandidates = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return candidates.slice(0, 30);
-    return candidates.filter(
-      m => m.name.toLowerCase().includes(q) || (m.code ?? '').toLowerCase().includes(q)
-    ).slice(0, 30);
-  }, [candidates, search]);
+    return candidates.slice(0, 30);
+  }, [candidates]);
 
   const nextSku = useMemo(() => {
     if (!category) return '—';
