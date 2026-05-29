@@ -134,7 +134,6 @@ export const getPurchaseOrdersAprobadas = async () => {
   return data ?? [];
 };
 
-/** Ítems de una OC que también tienen registro en materials_inventory */
 export const getPurchaseOrderItemsHabilitados = async (orderId: string) => {
   const { data, error } = await supabase
     .from('purchase_order_items')
@@ -145,18 +144,30 @@ export const getPurchaseOrderItemsHabilitados = async (orderId: string) => {
       quantity,
       unit_price,
       unit,
-      materials_inventory!inner (
-        material_id,
-        sku,
-        average_unit_cost,
-        current_stock
+      materials!inner (
+        id,
+        materials_inventory!inner (
+          material_id,
+          sku,
+          average_unit_cost,
+          current_stock
+        )
       )
     `)
     .eq('order_id', orderId)
     .not('material_id', 'is', null);
 
   if (error) throw error;
-  return data ?? [];
+  
+  return (data ?? []).map((item: any) => ({
+    id: item.id,
+    material_id: item.material_id,
+    material_name: item.material_name,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    unit: item.unit,
+    materials_inventory: item.materials?.materials_inventory || null
+  }));
 };
 
 // ============================================================
