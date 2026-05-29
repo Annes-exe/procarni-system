@@ -263,7 +263,7 @@ CREATE TRIGGER trg_check_inventory_period
 
 -- ------------------------------------------------------------
 -- 4.3 CEREBRO: Actualizar CPP y stock en materials_inventory
---     Se ejecuta DESPUÉS de cada INSERT en el Kardex.
+--     Se ejecuta ANTES de cada INSERT en el Kardex.
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.fn_update_inventory_cpp()
 RETURNS TRIGGER
@@ -285,13 +285,15 @@ BEGIN
   WHERE  material_id = NEW.material_id
   FOR UPDATE;
 
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'El material % no está habilitado para inventario o está inactivo.', NEW.material_id;
+  END IF;
+
   -- Calcular nuevo stock
   v_new_stock := v_current_stock + NEW.quantity;
 
   -- Calcular nuevo CPP (solo en entradas positivas)
-  -- Fórmula CPP: (Stock_Actual * CPP_Actual + Cantidad_Nueva * Costo_Nuevo) / Stock_Nuevo
   IF NEW.quantity > 0 THEN
-    -- Entrada: recalcular promedio ponderado
     IF v_new_stock > 0 THEN
       v_new_avg_cost := (
         (v_current_stock * v_current_avg_cost) + (NEW.quantity * NEW.unit_cost)
@@ -320,19 +322,17 @@ BEGIN
     updated_at = NOW()
   WHERE material_id = NEW.material_id;
 
-  -- Grabar el snapshot del stock en la propia fila del Kardex (denormalización de auditoría)
-  UPDATE public.inventory_transactions
-  SET
-    stock_after    = v_new_stock,
-    avg_cost_after = v_new_avg_cost
-  WHERE id = NEW.id;
+  -- Asignar el snapshot del stock directamente a las columnas del registro antes de insertarse
+  NEW.stock_after    := v_new_stock;
+  NEW.avg_cost_after := v_new_avg_cost;
 
-  RETURN NULL; -- AFTER trigger no retorna NEW
+  RETURN NEW;
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_update_inventory_cpp ON public.inventory_transactions;
 CREATE TRIGGER trg_update_inventory_cpp
-  AFTER INSERT ON public.inventory_transactions
+  BEFORE INSERT ON public.inventory_transactions
   FOR EACH ROW EXECUTE FUNCTION public.fn_update_inventory_cpp();
 
 
@@ -421,9 +421,9 @@ BEGIN
   -- Construir nota de auditoría si hay merma
   IF v_merma > 0 THEN
     v_audit_note := FORMAT(
-      'Merma de traslado detectada: %.4f kg (Guía: %.4f kg | Recibido: %.4f kg). '
+      'Merma de traslado detectada: %s kg (Guía: %s kg | Recibido: %s kg). '
       'Ajuste automático ADJUSTMENT_LOSS generado.',
-      v_merma, p_peso_guia, p_peso_recibido
+      ROUND(v_merma, 4), ROUND(p_peso_guia, 4), ROUND(p_peso_recibido, 4)
     );
   END IF;
 
