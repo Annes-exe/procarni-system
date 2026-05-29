@@ -126,6 +126,7 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
             <NavLink
               key={item.to}
               to={item.to}
+              end
               className={({ isActive }) =>
                 `flex flex-nowrap items-center h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden ${
                   isActive ? activeClasses : hoverClasses
@@ -221,6 +222,7 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        end
                         className={({ isActive }) =>
                           `flex flex-nowrap items-center h-[2.5rem] px-[11px] rounded-[0.8rem] transition-all duration-300 overflow-hidden ${
                             isActive ? activeClasses : hoverClasses

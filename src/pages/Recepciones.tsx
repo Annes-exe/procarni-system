@@ -125,7 +125,9 @@ const EvidenceZone = ({ file, previewUrl, onFileSelected, label = 'Foto de factu
   );
 };
 
-// ─── Tab 1: Desde OC ──────────────────────────────────────────────────────────
+// ─── Tab 1: Desde OC ────────────────------------------------------------------
+
+const EMPTY_ITEMS_ARRAY: any[] = [];
 
 const TabDesdeOC = () => {
   const queryClient = useQueryClient();
@@ -140,7 +142,7 @@ const TabDesdeOC = () => {
     queryFn: getPurchaseOrdersAprobadas,
   });
 
-  const { data: items = [], isLoading: loadingItems } = useQuery({
+  const { data: items = EMPTY_ITEMS_ARRAY, isLoading: loadingItems } = useQuery({
     queryKey: ['poItems', selectedOrderId],
     queryFn: () => getPurchaseOrderItemsHabilitados(selectedOrderId),
     enabled: !!selectedOrderId,
@@ -173,7 +175,10 @@ const TabDesdeOC = () => {
         return initialRows;
       });
     } else {
-      setRows({});
+      setRows(prev => {
+        if (Object.keys(prev).length === 0) return prev;
+        return {};
+      });
     }
   }, [items]);
 
