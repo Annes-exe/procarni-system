@@ -134,6 +134,20 @@ export const getPurchaseOrdersAprobadas = async () => {
   return data ?? [];
 };
 
+/** Obtiene las referencias de OCs que ya tienen al menos un registro en la tabla de transacciones de inventario */
+export const getRegisteredOCReferences = async (): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from('inventory_transactions')
+    .select('reference_doc')
+    .like('reference_doc', 'OC-%');
+
+  if (error) throw error;
+  const refs = (data ?? [])
+    .map(r => r.reference_doc)
+    .filter((ref): ref is string => !!ref);
+  return Array.from(new Set(refs));
+};
+
 export const getPurchaseOrderItemsHabilitados = async (orderId: string) => {
   const { data, error } = await supabase
     .from('purchase_order_items')

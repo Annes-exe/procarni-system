@@ -28,6 +28,7 @@ import {
   getAdjustmentReasons,
   registrarRecepcion,
   registrarAjusteInventario,
+  getRegisteredOCReferences,
 } from '@/integrations/supabase/services/inventoryService';
 import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
@@ -145,6 +146,11 @@ const TabDesdeOC = () => {
     enabled: !!selectedOrderId,
   });
 
+  const { data: registeredOCs = [] } = useQuery({
+    queryKey: ['registeredOCReferences'],
+    queryFn: getRegisteredOCReferences,
+  });
+
   // Prefill rows with PO quantity and unit price when items load
   React.useEffect(() => {
     if (items && items.length > 0) {
@@ -233,6 +239,7 @@ const TabDesdeOC = () => {
       );
 
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['registeredOCReferences'] });
       const totalMerma = results.reduce((a, r) => a + (r.merma_kg ?? 0), 0);
       toast.success(`✅ ${validItems.length} recepción(es) registrada(s). Merma total: ${fmt(totalMerma)} kg`);
       setSelectedOrderId('');
@@ -256,12 +263,28 @@ const TabDesdeOC = () => {
             <SelectValue placeholder={loadingOrders ? 'Cargando órdenes...' : 'Selecciona una OC aprobada...'} />
           </SelectTrigger>
           <SelectContent>
-            {(orders as any[]).map(o => (
-              <SelectItem key={o.id} value={o.id}>
-                <span className="font-mono font-bold mr-2">OC-{o.sequence_number}</span>
-                <span className="text-slate-500">{o.suppliers?.name} — {format(new Date(o.created_at), 'dd/MM/yyyy')}</span>
-              </SelectItem>
-            ))}
+            {(orders as any[]).map(o => {
+              const alreadyEntered = (registeredOCs as string[]).includes(`OC-${o.sequence_number}`);
+              return (
+                <SelectItem key={o.id} value={o.id} className={alreadyEntered ? "bg-amber-50/50 hover:bg-amber-50" : ""}>
+                  <div className="flex items-center justify-between w-full gap-2">
+                    <span>
+                      <span className={cn("font-mono font-bold mr-2", alreadyEntered ? "line-through text-slate-400" : "text-slate-900")}>
+                        OC-{o.sequence_number}
+                      </span>
+                      <span className={alreadyEntered ? "text-slate-400/80" : "text-slate-500"}>
+                        {o.suppliers?.name} — {format(new Date(o.created_at), 'dd/MM/yyyy')}
+                      </span>
+                    </span>
+                    {alreadyEntered && (
+                      <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300 text-[10px] py-0 px-1.5 h-4.5 font-bold uppercase tracking-wider">
+                        Ingresada
+                      </Badge>
+                    )}
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
