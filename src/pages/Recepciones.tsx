@@ -145,6 +145,32 @@ const TabDesdeOC = () => {
     enabled: !!selectedOrderId,
   });
 
+  // Prefill rows with PO quantity and unit price when items load
+  React.useEffect(() => {
+    if (items && items.length > 0) {
+      setRows(prev => {
+        // If the keys in prev match the new items exactly, we keep the user's edits
+        const itemIds = (items as any[]).map(item => item.id);
+        const hasAllKeys = itemIds.every(id => id in prev);
+        if (hasAllKeys && Object.keys(prev).length === itemIds.length) {
+          return prev;
+        }
+
+        const initialRows: Record<string, { pesoGuia: string; pesoRecibido: string; precio: string }> = {};
+        (items as any[]).forEach(item => {
+          initialRows[item.id] = {
+            pesoGuia: String(item.quantity),
+            pesoRecibido: '',
+            precio: String(item.unit_price),
+          };
+        });
+        return initialRows;
+      });
+    } else {
+      setRows({});
+    }
+  }, [items]);
+
   const handleFileChange = (f: File | null) => {
     setEvidenceFile(f);
     if (f && f.type.startsWith('image/')) {
@@ -154,11 +180,15 @@ const TabDesdeOC = () => {
     }
   };
 
-  const getRow = (itemId: string, defaultPrice: number) =>
-    rows[itemId] ?? { pesoGuia: '', pesoRecibido: '', precio: String(defaultPrice) };
+  const getRow = (itemId: string, defaultPrice: number, defaultQuantity = 0) =>
+    rows[itemId] ?? {
+      pesoGuia: defaultQuantity > 0 ? String(defaultQuantity) : '',
+      pesoRecibido: '',
+      precio: String(defaultPrice)
+    };
 
-  const setRowField = (itemId: string, field: string, value: string) => {
-    setRows(prev => ({ ...prev, [itemId]: { ...getRow(itemId, 0), [field]: value } }));
+  const setRowField = (itemId: string, field: string, value: string, defaultPrice = 0, defaultQuantity = 0) => {
+    setRows(prev => ({ ...prev, [itemId]: { ...getRow(itemId, defaultPrice, defaultQuantity), [field]: value } }));
   };
 
   const handleSubmit = async () => {
@@ -269,7 +299,7 @@ const TabDesdeOC = () => {
                   </TableRow>
                 ) : (
                   (items as any[]).map(item => {
-                    const r = getRow(item.id, item.unit_price);
+                    const r = getRow(item.id, item.unit_price, item.quantity);
                     const g = parseFloat(r.pesoGuia) || 0;
                     const rv = parseFloat(r.pesoRecibido) || 0;
                     return (
@@ -290,7 +320,7 @@ const TabDesdeOC = () => {
                             type="number" min="0" step="0.01"
                             placeholder="0.00"
                             value={r.pesoGuia}
-                            onChange={e => setRowField(item.id, 'pesoGuia', e.target.value)}
+                            onChange={e => setRowField(item.id, 'pesoGuia', e.target.value, item.unit_price, item.quantity)}
                             className="w-24 h-8 text-right text-sm ml-auto"
                           />
                         </TableCell>
@@ -299,7 +329,7 @@ const TabDesdeOC = () => {
                             type="number" min="0" step="0.01"
                             placeholder="= Guía"
                             value={r.pesoRecibido}
-                            onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value)}
+                            onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value, item.unit_price, item.quantity)}
                             className="w-24 h-8 text-right text-sm ml-auto"
                           />
                         </TableCell>
@@ -307,7 +337,7 @@ const TabDesdeOC = () => {
                           <Input
                             type="number" min="0" step="0.000001"
                             value={r.precio}
-                            onChange={e => setRowField(item.id, 'precio', e.target.value)}
+                            onChange={e => setRowField(item.id, 'precio', e.target.value, item.unit_price, item.quantity)}
                             className="w-28 h-8 text-right text-sm ml-auto"
                           />
                         </TableCell>
