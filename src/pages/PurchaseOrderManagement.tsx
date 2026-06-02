@@ -27,6 +27,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
+  'Received': 'Recibida',
 };
 
 const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
@@ -81,6 +82,7 @@ const PurchaseOrderManagement = () => {
     switch (tab) {
       case 'active': return 'Active';
       case 'approved': return 'Approved';
+      case 'received': return 'Received';
       case 'archived': return 'Archived';
       case 'rejected': return 'Rejected';
       case 'all': return 'All';
@@ -272,6 +274,8 @@ const PurchaseOrderManagement = () => {
         return 'bg-red-100 text-red-800 border-red-200';
       case 'Archived':
         return 'bg-gray-100 text-gray-600 border-gray-200';
+      case 'Received':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -492,6 +496,7 @@ const PurchaseOrderManagement = () => {
                 ) : (
                   <>
                     <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
+                    <TabsTrigger value="received" className="text-xs md:text-sm">Recibidas</TabsTrigger>
                     <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
                     <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                   </>

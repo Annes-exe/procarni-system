@@ -18,7 +18,7 @@ export const purchaseOrderService = {
     /**
      * Fetch all Purchase Orders filtered by status
      */
-    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
+    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'Received' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
         let query = supabase
             .from('purchase_orders')
             .select('*, suppliers(name), companies(name)')
@@ -28,6 +28,8 @@ export const purchaseOrderService = {
             query = query.in('status', ['Draft']);
         } else if (statusFilter === 'Approved') {
             query = query.eq('status', 'Approved');
+        } else if (statusFilter === 'Received') {
+            query = query.eq('status', 'Received');
         } else if (statusFilter === 'Archived') {
             query = query.eq('status', 'Archived');
         } else if (statusFilter === 'Rejected') {
@@ -49,7 +51,7 @@ export const purchaseOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'All' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'Received' | 'All' = 'Active'
     ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -65,6 +67,8 @@ export const purchaseOrderService = {
         query = query.in('status', ['Draft']);
       } else if (statusFilter === 'Approved') {
         query = query.eq('status', 'Approved');
+      } else if (statusFilter === 'Received') {
+        query = query.eq('status', 'Received');
       } else if (statusFilter === 'Archived') {
         query = query.eq('status', 'Archived');
       } else if (statusFilter === 'Rejected') {

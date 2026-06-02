@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Download } from 'lucide-react';
 
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -73,7 +73,7 @@ interface PurchaseOrderDetailsData {
   companies: CompanyDetails;
   currency: 'USD' | 'VES';
   exchange_rate?: number | null;
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Received';
   created_at: string;
   created_by?: string;
   user_id: string;
@@ -92,6 +92,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Approved': 'Aprobada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
+  'Received': 'Recibida',
 };
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
@@ -400,6 +401,7 @@ const PurchaseOrderDetails = () => {
       case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
+      case 'Received': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       default: return 'bg-gray-50 text-gray-500';
     }
   };
@@ -464,7 +466,18 @@ const PurchaseOrderDetails = () => {
         {/* Action Toolbar */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <div className="flex items-center gap-2 ml-auto">
-            {/* Primary Actions: Approve and Edit */}
+            {/* Primary Actions: Approve, Edit, or Receive */}
+            {order.status === 'Approved' && (
+              <Button
+                onClick={() => navigate(`/inventory/receptions?orderId=${order.id}`)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm font-bold"
+                size="sm"
+              >
+                <Download className="h-4 w-4" />
+                <span>Registrar Recepción</span>
+              </Button>
+            )}
+
             {(order.status === 'Draft' || role === 'admin') && order.status !== 'Approved' && order.status !== 'Archived' && (
               <Button
                 onClick={() => setIsApproveConfirmOpen(true)}

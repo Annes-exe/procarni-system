@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { m, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import {
   PackagePlus, Download, Clipboard, AlertTriangle, CheckCircle2,
   Upload, X, Image as ImageIcon, Loader2, Search, Plus
@@ -35,6 +36,7 @@ import {
 import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
 import { MaterialInventory } from '@/integrations/supabase/types';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 import {
   Dialog,
   DialogContent,
@@ -303,7 +305,9 @@ const EMPTY_ITEMS_ARRAY: any[] = [];
 
 const TabDesdeOC = () => {
   const queryClient = useQueryClient();
-  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [searchParams] = useSearchParams();
+  const orderIdParam = searchParams.get('orderId') || '';
+  const [selectedOrderId, setSelectedOrderId] = useState(orderIdParam);
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rows, setRows] = useState<Record<string, { pesoGuia: string; pesoRecibido: string; precio: string }>>({});
@@ -314,6 +318,12 @@ const TabDesdeOC = () => {
     unit: string;
     unit_price: number;
   } | null>(null);
+
+  React.useEffect(() => {
+    if (orderIdParam) {
+      setSelectedOrderId(orderIdParam);
+    }
+  }, [orderIdParam]);
 
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['purchaseOrdersAprobadas'],
@@ -426,10 +436,14 @@ const TabDesdeOC = () => {
         })
       );
 
+      // Update Purchase Order status to 'Received'
+      await purchaseOrderService.updateStatus(selectedOrderId, 'Received' as any);
+
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       queryClient.invalidateQueries({ queryKey: ['registeredOCReferences'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrdersAprobadas'] });
       const totalMerma = results.reduce((a, r) => a + (r.merma_kg ?? 0), 0);
-      toast.success(`✅ ${validItems.length} recepción(es) registrada(s). Merma total: ${fmt(totalMerma)} kg`);
+      toast.success(`✅ ${validItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido. Merma total: ${fmt(totalMerma)} kg`);
       setSelectedOrderId('');
       setRows({});
       setEvidenceFile(null);
