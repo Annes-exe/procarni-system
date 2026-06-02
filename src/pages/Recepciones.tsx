@@ -29,10 +29,19 @@ import {
   registrarRecepcion,
   registrarAjusteInventario,
   getRegisteredOCReferences,
+  enableMaterialForInventory,
+  getInventoryFamilies,
 } from '@/integrations/supabase/services/inventoryService';
 import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
 import { MaterialInventory } from '@/integrations/supabase/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -125,7 +134,170 @@ const EvidenceZone = ({ file, previewUrl, onFileSelected, label = 'Foto de factu
   );
 };
 
-// ─── Tab 1: Desde OC ────────────────------------------------------------------
+// ─── Tab 1: Desde OC ──────────────────────────────────────────────────────────
+
+interface LocalHabilitarModalProps {
+  material: {
+    id: string;
+    name: string;
+    unit: string;
+    unit_price: number;
+  } | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarModalProps) => {
+  const queryClient = useQueryClient();
+  const [category, setCategory] = useState<'MPF' | 'MPS' | 'EMP' | 'ETQ' | ''>('');
+  const [unit, setUnit] = useState(material?.unit ?? 'kg');
+  const [minStock, setMinStock] = useState('0');
+  const [initialCost, setInitialCost] = useState(String(material?.unit_price ?? 0));
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const { data: families = [] } = useQuery({
+    queryKey: ['inventoryFamilies'],
+    queryFn: getInventoryFamilies,
+    enabled: !!material,
+  });
+
+  const nextSku = React.useMemo(() => {
+    if (!category) return '—';
+    const fam = families.find((f: any) => f.category === category);
+    if (!fam) return '—';
+    return `${fam.prefix}-${String(fam.current_sequence + 1).padStart(3, '0')}`;
+  }, [category, families]);
+
+  React.useEffect(() => {
+    if (material) {
+      setUnit(material.unit);
+      setInitialCost(String(material.unit_price));
+    }
+  }, [material]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!material || !category) return;
+    setLoading(false); // standard loading state
+    setLoading(true);
+    try {
+      await enableMaterialForInventory({
+        material_id: material.id,
+        inventory_category: category,
+        unit: unit.trim() || 'kg',
+        min_stock_alert: parseFloat(minStock) || 0,
+        last_purchase_price: parseFloat(initialCost) || 0,
+        notes: notes.trim() || undefined,
+      });
+      toast.success(`✅ Material habilitado en inventario.`);
+      queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryFamilies'] });
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message ?? 'Error al habilitar el material.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!material} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-800">
+            <PackagePlus className="h-5 w-5 text-emerald-600" />
+            Habilitar para Almacén
+          </DialogTitle>
+          <DialogDescription>
+            Configura los parámetros del material para poder recibirlo en inventario.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          {/* Material Name info */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Material</span>
+            <span className="text-sm font-bold text-slate-800">{material?.name}</span>
+          </div>
+
+          {/* Category selection */}
+          <div className="space-y-1.5">
+            <Label htmlFor="local-inv-category">Categoría de Inventario *</Label>
+            <Select value={category} onValueChange={(v: any) => setCategory(v)}>
+              <SelectTrigger id="local-inv-category">
+                <SelectValue placeholder="Selecciona una categoría..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MPF">
+                  <span className="font-mono font-bold mr-2 text-red-600">MPF</span>
+                  <span className="text-slate-600">Materia Prima Fresca</span>
+                </SelectItem>
+                <SelectItem value="MPS">
+                  <span className="font-mono font-bold mr-2 text-amber-600">MPS</span>
+                  <span className="text-slate-600">Materia Prima Seca</span>
+                </SelectItem>
+                <SelectItem value="EMP">
+                  <span className="font-mono font-bold mr-2 text-blue-600">EMP</span>
+                  <span className="text-slate-600">Empaques</span>
+                </SelectItem>
+                <SelectItem value="ETQ">
+                  <span className="font-mono font-bold mr-2 text-violet-600">ETQ</span>
+                  <span className="text-slate-600">Etiquetas</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* SKU preview if category selected */}
+          {category && (
+            <div className="bg-slate-900 rounded-lg px-4 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">SKU Asignado</span>
+              <span className="font-mono font-black text-lg text-emerald-400">{nextSku}</span>
+            </div>
+          )}
+
+          {/* Unit, min stock, unit cost */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="local-inv-unit">Unidad *</Label>
+              <Input id="local-inv-unit" value={unit} onChange={e => setUnit(e.target.value)} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="local-inv-min-stock">Alerta mín.</Label>
+              <Input id="local-inv-min-stock" type="number" min="0" value={minStock} onChange={e => setMinStock(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="local-inv-cost">Costo *</Label>
+              <Input id="local-inv-cost" type="number" min="0" step="0.000001" value={initialCost} onChange={e => setInitialCost(e.target.value)} required />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <Label htmlFor="local-inv-notes">Notas (opcional)</Label>
+            <Textarea
+              id="local-inv-notes"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Detalles sobre almacenamiento o proveedor..."
+            />
+          </div>
+
+          <Button
+            type="submit"
+            disabled={!category || loading}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 mt-2"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+            {loading ? 'Habilitando...' : 'Habilitar y Guardar'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const EMPTY_ITEMS_ARRAY: any[] = [];
 
@@ -136,6 +308,12 @@ const TabDesdeOC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rows, setRows] = useState<Record<string, { pesoGuia: string; pesoRecibido: string; precio: string }>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [materialToEnable, setMaterialToEnable] = useState<{
+    id: string;
+    name: string;
+    unit: string;
+    unit_price: number;
+  } | null>(null);
 
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['purchaseOrdersAprobadas'],
@@ -202,14 +380,19 @@ const TabDesdeOC = () => {
     setRows(prev => ({ ...prev, [itemId]: { ...getRow(itemId, defaultPrice, defaultQuantity), [field]: value } }));
   };
 
+  const handleEnableSuccess = () => {
+    setMaterialToEnable(null);
+    queryClient.invalidateQueries({ queryKey: ['poItems', selectedOrderId] });
+  };
+
   const handleSubmit = async () => {
     if (!selectedOrderId || items.length === 0) return;
     const validItems = (items as any[]).filter(item => {
       const r = getRow(item.id, item.unit_price);
-      return parseFloat(r.pesoGuia) > 0;
+      return item.materials_inventory && parseFloat(r.pesoGuia) > 0;
     });
     if (validItems.length === 0) {
-      toast.error('Ingresa el Peso Guía de al menos un ítem.');
+      toast.error('Ingresa el Peso Guía de al menos un ítem habilitado.');
       return;
     }
 
@@ -322,55 +505,91 @@ const TabDesdeOC = () => {
                 ) : items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-slate-400 text-sm">
-                      Esta OC no tiene materiales habilitados para almacén.
+                      Esta OC no tiene materiales asociados.
                     </TableCell>
                   </TableRow>
                 ) : (
                   (items as any[]).map(item => {
+                    const hasInventory = !!item.materials_inventory;
                     const r = getRow(item.id, item.unit_price, item.quantity);
                     const g = parseFloat(r.pesoGuia) || 0;
                     const rv = parseFloat(r.pesoRecibido) || 0;
                     return (
-                      <TableRow key={item.id} className="group">
+                      <TableRow key={item.id} className={cn("group transition-colors", !hasInventory && "bg-amber-50/20 hover:bg-amber-50/30")}>
                         <TableCell className="pl-4 font-semibold text-sm text-slate-700">
                           {item.material_name}
                         </TableCell>
                         <TableCell>
-                          <span className="font-mono text-xs text-slate-500">
-                            {item.materials_inventory?.sku ?? '—'}
-                          </span>
+                          {hasInventory ? (
+                            <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-2 py-0.5">
+                              {item.materials_inventory.sku}
+                            </span>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-750 border-amber-200 text-[10px] py-0 px-1.5 h-4.5 font-bold uppercase tracking-wider">
+                              No habilitado
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right text-sm font-mono text-slate-500">
                           {fmt(item.quantity)} {item.unit}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Input
-                            type="number" min="0" step="0.01"
-                            placeholder="0.00"
-                            value={r.pesoGuia}
-                            onChange={e => setRowField(item.id, 'pesoGuia', e.target.value, item.unit_price, item.quantity)}
-                            className="w-24 h-8 text-right text-sm ml-auto"
-                          />
+                          {hasInventory ? (
+                            <Input
+                              type="number" min="0" step="0.01"
+                              placeholder="0.00"
+                              value={r.pesoGuia}
+                              onChange={e => setRowField(item.id, 'pesoGuia', e.target.value, item.unit_price, item.quantity)}
+                              className="w-24 h-8 text-right text-sm ml-auto"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-450 font-mono select-none block text-right pr-2">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Input
-                            type="number" min="0" step="0.01"
-                            placeholder="= Guía"
-                            value={r.pesoRecibido}
-                            onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value, item.unit_price, item.quantity)}
-                            className="w-24 h-8 text-right text-sm ml-auto"
-                          />
+                          {hasInventory ? (
+                            <Input
+                              type="number" min="0" step="0.01"
+                              placeholder="= Guía"
+                              value={r.pesoRecibido}
+                              onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value, item.unit_price, item.quantity)}
+                              className="w-24 h-8 text-right text-sm ml-auto"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-450 font-mono select-none block text-right pr-2">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Input
-                            type="number" min="0" step="0.000001"
-                            value={r.precio}
-                            onChange={e => setRowField(item.id, 'precio', e.target.value, item.unit_price, item.quantity)}
-                            className="w-28 h-8 text-right text-sm ml-auto"
-                          />
+                          {hasInventory ? (
+                            <Input
+                              type="number" min="0" step="0.000001"
+                              value={r.precio}
+                              onChange={e => setRowField(item.id, 'precio', e.target.value, item.unit_price, item.quantity)}
+                              className="w-28 h-8 text-right text-sm ml-auto"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-450 font-mono select-none block text-right pr-2">—</span>
+                          )}
                         </TableCell>
-                        <TableCell className="pr-4">
-                          {g > 0 && rv > 0 && <MermaIndicator guia={g} recibido={rv} />}
+                        <TableCell className="pr-4 text-right">
+                          {hasInventory ? (
+                            g > 0 && rv > 0 && <MermaIndicator guia={g} recibido={rv} />
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setMaterialToEnable({
+                                id: item.material_id,
+                                name: item.material_name,
+                                unit: item.unit ?? 'kg',
+                                unit_price: item.unit_price ?? 0
+                              })}
+                              className="h-7 text-xs font-bold border-amber-250 text-amber-700 bg-white hover:bg-amber-50 hover:text-amber-800"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Habilitar
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -398,6 +617,12 @@ const TabDesdeOC = () => {
           </Button>
         </m.div>
       )}
+
+      <LocalHabilitarModal
+        material={materialToEnable}
+        onClose={() => setMaterialToEnable(null)}
+        onSuccess={handleEnableSuccess}
+      />
     </div>
   );
 };

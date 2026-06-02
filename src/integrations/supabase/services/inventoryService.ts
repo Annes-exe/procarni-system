@@ -158,9 +158,9 @@ export const getPurchaseOrderItemsHabilitados = async (orderId: string) => {
       quantity,
       unit_price,
       unit,
-      materials!inner (
+      materials (
         id,
-        materials_inventory!inner (
+        materials_inventory (
           material_id,
           sku,
           average_unit_cost,
