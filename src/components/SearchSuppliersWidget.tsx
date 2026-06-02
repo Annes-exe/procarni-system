@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Search, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SmartSearch from './SmartSearch';
-import { searchMaterials } from '@/integrations/supabase/data';
+import { searchMaterialsAndCategories } from '@/integrations/supabase/data';
 
 const SearchSuppliersWidget = () => {
     const navigate = useNavigate();
-    const [selectedMaterial, setSelectedMaterial] = useState<{ id: string; name: string } | null>(null);
-    const [lastMaterial, setLastMaterial] = useState<{ id: string; name: string } | null>(null);
+    const [selectedMaterial, setSelectedMaterial] = useState<{ id: string; name: string; isCategory?: boolean; category?: string } | null>(null);
+    const [lastMaterial, setLastMaterial] = useState<{ id: string; name: string; isCategory?: boolean; category?: string } | null>(null);
 
     useEffect(() => {
         const saved = localStorage.getItem('last_searched_material');
@@ -22,11 +22,12 @@ const SearchSuppliersWidget = () => {
         }
     }, []);
 
-    const handleSearch = (material?: { id: string; name: string }) => {
+    const handleSearch = (material?: { id: string; name: string; isCategory?: boolean; category?: string }) => {
         const target = material || selectedMaterial;
         if (target) {
             localStorage.setItem('last_searched_material', JSON.stringify(target));
-            navigate(`/search-suppliers-by-material?query=${encodeURIComponent(target.name)}`);
+            const searchQuery = target.isCategory && target.category ? target.category : target.name;
+            navigate(`/search-suppliers-by-material?query=${encodeURIComponent(searchQuery)}`);
         }
     };
 
@@ -42,17 +43,17 @@ const SearchSuppliersWidget = () => {
                     </CardTitle>
                 </div>
                 <CardDescription className="text-[13px] text-gray-500 font-medium italic">
-                    Encuentra qué proveedores ofrecen un material específico.
+                    Encuentra qué proveedores ofrecen un material específico o categoría.
                 </CardDescription>
             </CardHeader>
             <CardContent className="p-7">
                 <div className="flex flex-col gap-5">
                     <div className="space-y-1.5">
-                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Material Objetivo</label>
+                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Material o Categoría Objetivo</label>
                         <SmartSearch
-                            placeholder="Escribe el nombre del material..."
+                            placeholder="Escribe el nombre del material o categoría..."
                             onSelect={(item) => setSelectedMaterial(item)}
-                            fetchFunction={searchMaterials}
+                            fetchFunction={searchMaterialsAndCategories}
                             displayValue={selectedMaterial?.name || ''}
                             selectedId={selectedMaterial?.id}
                         />

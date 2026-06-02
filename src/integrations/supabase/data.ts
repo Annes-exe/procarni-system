@@ -21,6 +21,7 @@ import {
   updateMaterial,
   deleteMaterial,
   searchMaterials,
+  searchMaterialsAndCategories,
   getMaterialByName,
   getPaginatedMaterials,
   getAllCompanies,
@@ -104,7 +105,14 @@ export const searchSuppliersByMaterial = async (materialId: string, query: strin
         name,
         rif,
         code,
-        city
+        city,
+        email,
+        phone,
+        phone_2,
+        instagram,
+        payment_terms,
+        credit_days,
+        status
       ),
       specification
     `)
@@ -125,6 +133,72 @@ export const searchSuppliersByMaterial = async (materialId: string, query: strin
       specification: sm.specification,
     }
   });
+
+  // Client-side filtering based on query
+  if (query.trim()) {
+    const lowerCaseQuery = query.toLowerCase();
+    suppliers = suppliers.filter(s =>
+      s.name.toLowerCase().includes(lowerCaseQuery) ||
+      (s.rif && s.rif.toLowerCase().includes(lowerCaseQuery)) ||
+      (s.code && s.code.toLowerCase().includes(lowerCaseQuery))
+    );
+  }
+
+  return suppliers;
+};
+
+// NEW FUNCTION: Search suppliers associated with a specific material category
+export const searchSuppliersByCategory = async (categoryName: string, query: string): Promise<any[]> => {
+  if (!categoryName) {
+    return [];
+  }
+
+  let selectQuery = supabase
+    .from('supplier_materials')
+    .select(`
+      suppliers!inner (
+        id,
+        name,
+        rif,
+        code,
+        city,
+        email,
+        phone,
+        phone_2,
+        instagram,
+        payment_terms,
+        credit_days,
+        status
+      ),
+      materials!inner (
+        category
+      ),
+      specification
+    `)
+    .eq('materials.category', categoryName)
+    .limit(10000);
+
+  const { data: relations, error } = await selectQuery;
+
+  if (error) {
+    console.error('[searchSuppliersByCategory] Error:', error);
+    return [];
+  }
+
+  // Deduplicate suppliers (since a supplier could be linked to multiple materials in the same category)
+  const supplierMap = new Map<string, any>();
+  
+  relations.forEach(sm => {
+    const sup = sm.suppliers as any;
+    if (sup && !supplierMap.has(sup.id)) {
+      supplierMap.set(sup.id, {
+        ...sup,
+        specification: sm.specification || '',
+      });
+    }
+  });
+
+  let suppliers = Array.from(supplierMap.values());
 
   // Client-side filtering based on query
   if (query.trim()) {
@@ -285,6 +359,7 @@ export {
   updateMaterial,
   deleteMaterial,
   searchMaterials,
+  searchMaterialsAndCategories,
   getPaginatedMaterials,
   getAllCompanies,
   createCompany,

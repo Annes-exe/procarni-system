@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from '@/components/ui/badge';
 
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterials, searchSuppliersByMaterial } from '@/integrations/supabase/data';
+import { searchMaterialsAndCategories, searchSuppliersByMaterial, searchSuppliersByCategory } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -45,6 +45,7 @@ const SearchSuppliersByMaterial = () => {
   const isMobile = useIsMobile();
 
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<SupplierResult[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
   const [initialQuery, setInitialQuery] = useState<string | null>(null);
@@ -73,10 +74,36 @@ const SearchSuppliersByMaterial = () => {
     }
   };
 
-  const handleMaterialSelect = async (material: Material) => {
-    setSelectedMaterial(material);
+  const fetchSuppliersByCategoryName = async (categoryName: string) => {
+    setIsLoadingSuppliers(true);
+    setSuppliers([]);
+    setSelectedCity('all');
+    try {
+      const fetchedSuppliers = await searchSuppliersByCategory(categoryName, '');
+      setSuppliers(fetchedSuppliers);
+    } catch (error) {
+      console.error('Error fetching suppliers by category:', error);
+      showError('Error al cargar los proveedores para esta categoría.');
+    } finally {
+      setIsLoadingSuppliers(false);
+    }
+  };
+
+  const handleMaterialSelect = async (item: any) => {
     setInitialQuery(null);
-    await fetchSuppliers(material.id);
+    if (item?.isCategory) {
+      setSelectedMaterial(null);
+      setSelectedCategory(item.category);
+      await fetchSuppliersByCategoryName(item.category);
+    } else {
+      setSelectedCategory(null);
+      setSelectedMaterial(item);
+      if (item?.id) {
+        await fetchSuppliers(item.id);
+      } else {
+        setSuppliers([]);
+      }
+    }
   };
 
   useEffect(() => {
@@ -85,17 +112,35 @@ const SearchSuppliersByMaterial = () => {
       setInitialQuery(queryFromUrl);
       const searchAndLoad = async () => {
         try {
-          const results = await searchMaterials(queryFromUrl);
+          const results = await searchMaterialsAndCategories(queryFromUrl);
           if (results.length > 0) {
-            const material = results[0];
-            setSelectedMaterial(material);
-            await fetchSuppliers(material.id);
+            const cleanQuery = queryFromUrl.replace(/^Categoría:\s*/i, '').trim();
+            const exactCategoryMatch = results.find(
+              r => r.isCategory && r.category.toLowerCase() === cleanQuery.toLowerCase()
+            );
+
+            if (exactCategoryMatch) {
+              setSelectedMaterial(null);
+              setSelectedCategory(exactCategoryMatch.category);
+              await fetchSuppliersByCategoryName(exactCategoryMatch.category);
+            } else {
+              const match = results[0];
+              if (match.isCategory) {
+                setSelectedMaterial(null);
+                setSelectedCategory(match.category);
+                await fetchSuppliersByCategoryName(match.category);
+              } else {
+                setSelectedCategory(null);
+                setSelectedMaterial(match);
+                await fetchSuppliers(match.id);
+              }
+            }
           } else {
-            showError(`No se encontró un material que coincida con "${queryFromUrl}".`);
+            showError(`No se encontró un material o categoría que coincida con "${queryFromUrl}".`);
           }
         } catch (error) {
-          console.error('Error searching material on initial load:', error);
-          showError('Error al buscar el material inicial.');
+          console.error('Error searching material/category on initial load:', error);
+          showError('Error al buscar el material o categoría inicial.');
         }
       };
       searchAndLoad();
@@ -103,10 +148,6 @@ const SearchSuppliersByMaterial = () => {
   }, [searchParams]);
 
   const handleCreateQuoteRequest = (supplier: SupplierResult) => {
-    if (!selectedMaterial) {
-      showError('No se ha seleccionado un material.');
-      return;
-    }
     navigate('/generate-quote', {
       state: {
         supplier: supplier,
@@ -145,22 +186,23 @@ const SearchSuppliersByMaterial = () => {
         <div className="w-full md:w-80 lg:w-96">
           <div className="relative group">
             <SmartSearch
-              placeholder="¿Qué material buscas?"
+              placeholder="¿Qué material o categoría buscas?"
               onSelect={handleMaterialSelect}
-              fetchFunction={searchMaterials}
-              displayValue={selectedMaterial?.name || initialQuery || ''}
-              selectedId={selectedMaterial?.id}
+              fetchFunction={searchMaterialsAndCategories}
+              displayValue={selectedMaterial?.name || (selectedCategory ? `Categoría: ${selectedCategory}` : '') || initialQuery || ''}
+              selectedId={selectedMaterial?.id || (selectedCategory ? `category:${selectedCategory}` : undefined)}
             />
-            {!selectedMaterial && !initialQuery && (
+            {!selectedMaterial && !selectedCategory && !initialQuery && (
               <Search className="absolute right-3 top-2.5 h-4 w-4 text-gray-300 pointer-events-none group-focus-within:text-procarni-secondary" />
             )}
-            {selectedMaterial && (
+            {(selectedMaterial || selectedCategory) && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="absolute right-1 top-1 h-7 w-7 text-gray-400 hover:text-red-500 rounded-full"
                 onClick={() => {
                   setSelectedMaterial(null);
+                  setSelectedCategory(null);
                   setSuppliers([]);
                 }}
               >
@@ -199,13 +241,29 @@ const SearchSuppliersByMaterial = () => {
         </div>
       )}
 
+      {selectedCategory && (
+        <div className="mb-10 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="flex items-center gap-4 bg-procarni-secondary/5 border border-procarni-secondary/10 p-4 rounded-xl">
+            <div className="bg-procarni-secondary/10 p-2 rounded-lg">
+              <Tag className="h-5 w-5 text-procarni-secondary" />
+            </div>
+            <div className="flex-1">
+              <span className={microLabelClass}>Categoría Seleccionada</span>
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-lg font-bold text-procarni-dark">{selectedCategory}</h2>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PHASE 3: RESULTS SECTION */}
       {isLoadingSuppliers ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-procarni-secondary" />
           <p className="text-gray-400 font-medium animate-pulse">Buscando los mejores proveedores...</p>
         </div>
-      ) : selectedMaterial ? (
+      ) : (selectedMaterial || selectedCategory) ? (
         suppliers.length > 0 ? (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-4">
@@ -328,11 +386,11 @@ const SearchSuppliersByMaterial = () => {
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-[13px] text-gray-600">
                               <CreditCard className="h-3.5 w-3.5 text-gray-300 shrink-0" />
-                              <span>{supplier.payment_terms}</span>
+                              <span>{supplier.payment_terms || 'No especificado'}</span>
                             </div>
                             <div className="flex items-center gap-2 text-[13px] text-gray-600">
                               <Clock className="h-3.5 w-3.5 text-gray-300 shrink-0" />
-                              <span>{supplier.credit_days} días crédito</span>
+                              <span>{supplier.credit_days !== undefined && supplier.credit_days !== null ? `${supplier.credit_days} días crédito` : 'Sin días de crédito'}</span>
                             </div>
                           </div>
                         </div>
@@ -360,10 +418,20 @@ const SearchSuppliersByMaterial = () => {
             </div>
             <div className="text-center space-y-1">
               <h3 className="text-gray-800 font-bold">Sin proveedores vinculados</h3>
-              <p className="text-sm text-gray-400 max-w-[280px]">No hemos encontrado proveedores que ofrezcan "{selectedMaterial.name}" actualmente.</p>
+              <p className="text-sm text-gray-400 max-w-[280px]">
+                No hemos encontrado proveedores que ofrezcan {selectedMaterial ? `"${selectedMaterial.name}"` : `artículos de la categoría "${selectedCategory}"`} actualmente.
+              </p>
             </div>
-            <Button variant="outline" className="mt-2 text-procarni-primary bg-white border-gray-200" onClick={() => setSelectedMaterial(null)}>
-              Probar con otro material
+            <Button 
+              variant="outline" 
+              className="mt-2 text-procarni-primary bg-white border-gray-200" 
+              onClick={() => {
+                setSelectedMaterial(null);
+                setSelectedCategory(null);
+                setSuppliers([]);
+              }}
+            >
+              Probar con otro material o categoría
             </Button>
           </div>
         )
@@ -379,7 +447,7 @@ const SearchSuppliersByMaterial = () => {
           <div className="text-center space-y-2">
             <h3 className="text-2xl font-bold text-procarni-dark">Comienza tu búsqueda</h3>
             <p className="text-gray-400 max-w-[400px]">
-              Ingresa el nombre o código del producto que necesitas para listar los proveedores recomendados.
+              Ingresa el nombre o código del producto o categoría que necesitas para listar los proveedores recomendados.
             </p>
           </div>
         </div>

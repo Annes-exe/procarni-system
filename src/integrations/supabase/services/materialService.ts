@@ -133,6 +133,49 @@ const MaterialService = {
     return (data as Material[]) || [];
   },
 
+  searchWithCategories: async (query: string): Promise<any[]> => {
+    const cleanQuery = query.replace(/^Categoría:\s*/i, '').trim();
+    if (!cleanQuery) {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .order('name', { ascending: true })
+        .limit(10000);
+
+      if (error) {
+        console.error('[MaterialService.searchWithCategories] Error fetching default materials:', error);
+        return [];
+      }
+      return data;
+    }
+
+    // 1. Fetch matching categories
+    const { data: categories, error: catError } = await supabase
+      .from('material_categories')
+      .select('id, name')
+      .ilike('name', `%${cleanQuery}%`)
+      .limit(5);
+
+    const categoryResults = (categories || []).map(cat => ({
+      id: `category:${cat.name}`,
+      name: `Categoría: ${cat.name}`,
+      code: 'Categoría de Materiales',
+      category: cat.name,
+      isCategory: true
+    }));
+
+    // 2. Fetch matching materials using RPC
+    const { data, error } = await supabase.rpc('search_materials_by_substring', { search_query: cleanQuery });
+
+    if (error) {
+      console.error('[MaterialService.searchWithCategories] Error calling search RPC:', error);
+      return categoryResults;
+    }
+
+    const materialResults = (data as Material[]) || [];
+    return [...categoryResults, ...materialResults];
+  },
+
   mergeMaterials: async (targetId: string, sourceIds: string[]): Promise<boolean> => {
     const { error } = await supabase.rpc('merge_materials_with_alias', {
       p_target_material_id: targetId,
@@ -212,6 +255,7 @@ export const {
   update: updateMaterial,
   delete: deleteMaterial,
   search: searchMaterials,
+  searchWithCategories: searchMaterialsAndCategories,
   mergeMaterials,
   getByName: getMaterialByName,
   getPaginated: getPaginatedMaterials,
