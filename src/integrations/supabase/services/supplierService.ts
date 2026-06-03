@@ -315,7 +315,7 @@ const SupplierService = {
 
     if (dataQualityFilter === 'MissingCritical') {
       // Datos Críticos: rif, phone, address (incluye RIFs genéricos SR o J000000)
-      query = query.or('rif.is.null,rif.eq."",rif.like.SR*,rif.ilike.J000000*,phone.is.null,phone.eq."",address.is.null,address.eq.""');
+      query = query.or('rif.is.null,rif.eq."",rif.like.SR%,rif.ilike.J000000%,phone.is.null,phone.eq."",address.is.null,address.eq.""');
     } else if (dataQualityFilter === 'MissingSecondary') {
       // Datos Secundarios: email, instagram, phone_2, payment_terms
       query = query.or('email.is.null,email.eq."",instagram.is.null,instagram.eq."",phone_2.is.null,phone_2.eq."",payment_terms.is.null,payment_terms.eq.""');
