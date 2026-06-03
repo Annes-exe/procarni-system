@@ -321,7 +321,7 @@ const DraggableGroupedMaterialItem = ({
 const supplierFormSchema = z.object({
   // El código se autogenera y no se gestiona en el formulario, por lo que se elimina de aquí.
   rif: z.string().min(1, 'RIF es requerido').refine((val) => validateRif(val) !== null, {
-    message: 'Formato de RIF inválido. Ej: J123456789 o *',
+    message: 'Formato de RIF inválido. Ej: J123456789 o SR',
   }),
   name: z.string().min(1, 'Nombre es requerido'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
@@ -472,7 +472,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       })) || [];
 
       form.reset({
-        rif: initialData.rif?.startsWith('*') ? '*' : (initialData.rif || ''),
+        rif: initialData.rif?.startsWith('SR') ? 'SR' : (initialData.rif || ''),
         name: initialData.name || '',
         email: initialData.email || '',
         phone: initialData.phone || '',
@@ -613,12 +613,12 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       return;
     }
 
-    if (finalRif === '*') {
-      if (initialData?.rif?.startsWith('*')) {
+    if (finalRif === 'SR') {
+      if (initialData?.rif?.startsWith('SR')) {
         finalRif = initialData.rif;
       } else {
         const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
-        finalRif = '*' + invisibleSuffix;
+        finalRif = 'SR' + invisibleSuffix;
       }
     }
 

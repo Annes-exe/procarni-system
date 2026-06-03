@@ -10,7 +10,8 @@
 export const validateRif = (rif: string): string | null => {
   if (!rif) return null;
 
-  if (rif.trim().startsWith('*')) return rif.trim();
+  const trimmed = rif.trim().toUpperCase();
+  if (trimmed.startsWith('SR')) return trimmed;
 
   // Eliminar guiones, espacios y convertir a mayúsculas
   const normalizedRif = rif.replace(/[- ]/g, '').toUpperCase();
@@ -27,11 +28,11 @@ export const validateRif = (rif: string): string | null => {
 };
 
 /**
- * Determina si un RIF es genérico (formato J0000000XX o "*").
+ * Determina si un RIF es genérico (formato J0000000XX o "SR").
  * @param rif El RIF a verificar.
  * @returns true si el RIF es genérico.
  */
 export const isGenericRif = (rif: string): boolean => {
   if (!rif) return false;
-  return rif === '*' || rif.toUpperCase().startsWith('J000000');
+  return rif.trim().toUpperCase().startsWith('SR') || rif.toUpperCase().startsWith('J000000');
 };

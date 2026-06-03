@@ -17,7 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 const companyFormSchema = z.object({
   name: z.string().min(1, { message: 'El nombre es requerido.' }),
   rif: z.string().min(1, { message: 'El RIF es requerido.' }).refine((val) => validateRif(val) !== null, {
-    message: 'Formato de RIF inválido. Ej: J123456789 o *',
+    message: 'Formato de RIF inválido. Ej: J123456789 o SR',
   }),
   logo_url: z.string().url({ message: 'Debe ser una URL válida.' }).optional().or(z.literal('')),
   cloudinary_public_id: z.string().optional().or(z.literal('')),
@@ -54,7 +54,7 @@ const CompanyForm: React.FC<CompanyFormProps> = ({ initialData, onSubmit, onCanc
     if (initialData) {
       form.reset({
         ...initialData,
-        rif: initialData.rif?.startsWith('*') ? '*' : (initialData.rif || ''),
+        rif: initialData.rif?.startsWith('SR') ? 'SR' : (initialData.rif || ''),
         logo_url: initialData.logo_url || '',
         cloudinary_public_id: initialData.cloudinary_public_id || '',
       });
@@ -114,12 +114,12 @@ const CompanyForm: React.FC<CompanyFormProps> = ({ initialData, onSubmit, onCanc
       return;
     }
 
-    if (finalRif === '*') {
-      if (initialData?.rif?.startsWith('*')) {
+    if (finalRif === 'SR') {
+      if (initialData?.rif?.startsWith('SR')) {
         finalRif = initialData.rif;
       } else {
         const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
-        finalRif = '*' + invisibleSuffix;
+        finalRif = 'SR' + invisibleSuffix;
       }
     }
 
