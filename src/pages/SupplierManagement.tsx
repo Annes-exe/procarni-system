@@ -10,7 +10,7 @@ import InlineEditableCell from '@/components/InlineEditableCell';
 
 import { getPaginatedSuppliers, createSupplier, updateSupplier, deleteSupplier, getSupplierDetails } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
-import { isGenericRif } from '@/utils/validators';
+import { isGenericRif, validateRif } from '@/utils/validators';
 import SupplierForm from '@/components/SupplierForm';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
@@ -177,7 +177,27 @@ const SupplierManagement = () => {
   const inlineUpdateMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: string; value: string }) => {
       const { supabase } = await import('@/integrations/supabase/client');
-      const payload = (field === 'name' || field === 'rif') ? { [field]: value.toUpperCase() } : { [field]: value };
+      
+      let payloadValue: string | null = value;
+
+      if (field === 'rif') {
+        const validated = validateRif(value);
+        if (!validated) {
+          throw new Error('Formato de RIF inválido. Ej: J123456789 o SR');
+        }
+        if (validated === 'SR') {
+          // Generar sufijo invisible para evadir constraint unique
+          const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
+          payloadValue = 'SR' + invisibleSuffix;
+        } else {
+          payloadValue = validated;
+        }
+      } else if (field === 'name') {
+        payloadValue = value.toUpperCase();
+      }
+
+      const payload = { [field]: payloadValue };
+      
       const { error } = await supabase
         .from('suppliers')
         .update(payload)
@@ -192,7 +212,7 @@ const SupplierManagement = () => {
       if (err?.code === '23505') {
         showError('El RIF ingresado ya pertenece a otro proveedor. Verifícalo e intenta de nuevo.');
       } else {
-        showError('No se pudo actualizar el campo. Intenta de nuevo.');
+        showError(err.message || 'No se pudo actualizar el campo. Intenta de nuevo.');
       }
     },
   });

@@ -26,7 +26,7 @@ const STATUS_OPTIONS = ['Active', 'Inactive'];
 
 const supplierCreationSchema = z.object({
   rif: z.string().min(1, 'RIF es requerido').refine((val) => validateRif(val) !== null, {
-    message: 'Formato de RIF inválido. Ej: J123456789',
+    message: 'Formato de RIF inválido. Ej: J123456789 o SR',
   }),
   name: z.string().min(1, 'Nombre es requerido'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
@@ -75,10 +75,16 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
       return;
     }
 
-    const normalizedRif = validateRif(data.rif);
-    if (!normalizedRif) {
+    let finalRif = validateRif(data.rif);
+    if (!finalRif) {
       form.setError('rif', { message: 'Formato de RIF inválido.' });
       return;
+    }
+
+    if (finalRif === 'SR') {
+      // Generar sufijo invisible usando caracteres de espacio de ancho cero (U+200B a U+200D) para evitar conflictos de constraint unique
+      const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
+      finalRif = 'SR' + invisibleSuffix;
     }
 
     // Validaciones manuales para campos condicionales
@@ -95,7 +101,7 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
     setIsSubmitting(true);
 
     const supplierData = {
-      rif: normalizedRif,
+      rif: finalRif,
       name: data.name.toUpperCase(),
       email: data.email || null,
       phone: data.phone || null,

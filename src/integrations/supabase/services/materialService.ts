@@ -247,6 +247,81 @@ const MaterialService = {
     
     return { data: data as Material[], totalCount: count || 0 };
   },
+
+  getRecentMaterials: async (): Promise<Material[]> => {
+    try {
+      // 1. Obtener los últimos 15 materiales creados
+      const { data: createdData, error: createdError } = await supabase
+        .from('materials')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      if (createdError) throw createdError;
+
+      // 2. Obtener los últimos materiales usados en órdenes de compra (items)
+      const { data: usedPOData, error: usedPOError } = await supabase
+        .from('purchase_order_items')
+        .select('material_id')
+        .order('created_at', { ascending: false })
+        .limit(40);
+
+      // 3. Obtener los últimos materiales usados en órdenes de servicio
+      const { data: usedSOData, error: usedSOError } = await supabase
+        .from('service_order_materials')
+        .select('material_id')
+        .order('created_at', { ascending: false })
+        .limit(40);
+
+      const usedIds = new Set<string>();
+      if (!usedPOError && usedPOData) {
+        usedPOData.forEach(item => {
+          if (item.material_id) usedIds.add(item.material_id);
+        });
+      }
+      if (!usedSOError && usedSOData) {
+        usedSOData.forEach(item => {
+          if (item.material_id) usedIds.add(item.material_id);
+        });
+      }
+
+      let usedMaterials: Material[] = [];
+      if (usedIds.size > 0) {
+        const { data: fetchedUsed, error: fetchUsedError } = await supabase
+          .from('materials')
+          .select('*')
+          .in('id', Array.from(usedIds).slice(0, 15));
+
+        if (!fetchUsedError && fetchedUsed) {
+          usedMaterials = fetchedUsed;
+        }
+      }
+
+      // Combinar: primero los usados recientemente, luego los creados recientemente
+      const merged = [...usedMaterials, ...(createdData || [])];
+      
+      // De-duplicar por id
+      const seen = new Set<string>();
+      const result: Material[] = [];
+      for (const item of merged) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          result.push(item);
+        }
+      }
+
+      return result.slice(0, 12);
+    } catch (e) {
+      console.error('[MaterialService.getRecentMaterials] Error:', e);
+      // Fallback a los creados recientemente
+      const { data } = await supabase
+        .from('materials')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      return data || [];
+    }
+  },
 };
 
 export const {
@@ -259,4 +334,5 @@ export const {
   mergeMaterials,
   getByName: getMaterialByName,
   getPaginated: getPaginatedMaterials,
+  getRecentMaterials,
 } = MaterialService;
