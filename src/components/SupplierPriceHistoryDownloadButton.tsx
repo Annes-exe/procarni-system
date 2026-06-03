@@ -10,12 +10,11 @@ const sanitizeFilename = (filename: string): string => {
   return filename.replace(/[/\\?%*:|"<>]/g, '-');
 };
 
-interface SupplierPriceHistoryDownloadButtonProps {
+interface SupplierPriceHistoryDownloadButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   supplierId: string;
   supplierName: string;
   startDate?: Date;
   endDate?: Date;
-  disabled?: boolean;
   asChild?: boolean;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
 }
@@ -28,6 +27,8 @@ const SupplierPriceHistoryDownloadButton = React.forwardRef<HTMLButtonElement, S
   disabled = false,
   asChild = false,
   variant = 'ghost',
+  className,
+  ...props
 }, ref) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -101,11 +102,12 @@ const SupplierPriceHistoryDownloadButton = React.forwardRef<HTMLButtonElement, S
 
   return (
     <Button
+      {...props}
       onClick={handleDownload}
       disabled={isDownloading || disabled || !supplierId}
       variant={variant}
       asChild={asChild}
-      className={cn("flex items-center gap-2", !asChild ? "bg-blue-600 text-white hover:bg-blue-700" : "w-full justify-start")}
+      className={cn("flex items-center gap-2", !asChild ? "bg-blue-600 text-white hover:bg-blue-700" : "w-full justify-start", className)}
       ref={ref}
     >
       <span className="flex items-center gap-2">

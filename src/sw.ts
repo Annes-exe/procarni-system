@@ -25,6 +25,7 @@ self.addEventListener('push', (event) => {
       icon: data.icon || '/pwa-192x192.png',
       badge: data.badge || '/favicon.ico',
       data: data.data || {},
+      // @ts-ignore - vibrate is not always typed in standard service worker library options
       vibrate: data.vibrate || [100, 50, 100],
     };
 

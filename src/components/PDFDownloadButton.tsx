@@ -6,7 +6,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
-interface PDFDownloadButtonProps {
+interface PDFDownloadButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   requestId?: string; // For quote requests
   orderId?: string; // For purchase orders
   fileName?: string; // Optional static filename
@@ -15,9 +15,7 @@ interface PDFDownloadButtonProps {
   label?: string;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
   size?: 'default' | 'sm' | 'lg' | 'icon' | null | undefined;
-  disabled?: boolean; // Added disabled prop
   asChild?: boolean; // NEW: Added asChild prop
-  className?: string;
 }
 
 const PDFDownloadButton = React.forwardRef<HTMLButtonElement, PDFDownloadButtonProps>(({

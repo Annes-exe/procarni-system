@@ -28,7 +28,7 @@ export type Supplier = {
   code: string | null;
   city: string | null;
   alert_comment: string | null;
-  website: string | null;
+  website?: string | null;
 };
 
 export type Material = {
@@ -112,11 +112,12 @@ export type PurchaseOrderItem = {
   updated_at: string | null;
   supplier_code: string | null;
   unit: string | null;
-  unit_id: string | null; // ADDED
+  unit_id?: string | null; // ADDED
   material_id: string | null;
   description: string | null; // ADDED
   sales_percentage: number | null; // NEW
   discount_percentage: number | null; // NEW
+  was_recalculated?: boolean;
 };
 
 export type QuoteRequest = {
@@ -284,6 +285,8 @@ export type ServiceOrder = {
   created_at: string | null;
   supplier?: Supplier;
   company?: Company;
+  suppliers?: any;
+  companies?: any;
   service_order_items?: ServiceOrderItem[];
   service_order_materials?: ServiceOrderMaterial[];
 };
@@ -299,6 +302,7 @@ export type ServiceOrderItem = {
   sales_percentage: number | null;
   discount_percentage: number | null;
   created_at: string | null;
+  was_recalculated?: boolean;
 };
 
 export type ServiceOrderMaterial = {
@@ -312,10 +316,12 @@ export type ServiceOrderMaterial = {
   is_exempt: boolean;
   supplier_code: string | null;
   unit: string | null;
-  unit_id: string | null; // ADDED
+  unit_id?: string | null; // ADDED
   description: string | null;
   sales_percentage: number | null;
   discount_percentage: number | null;
+  material_name?: string | null;
+  was_recalculated?: boolean;
   suppliers?: {
     name: string;
   };
