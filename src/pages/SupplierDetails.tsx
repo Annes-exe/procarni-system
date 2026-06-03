@@ -9,7 +9,7 @@ import InlineEditableCell from '@/components/InlineEditableCell';
 import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { detectLocation } from '@/utils/location-detector';
-import { isGenericRif } from '@/utils/validators';
+import { isGenericRif, validateRif } from '@/utils/validators';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -200,11 +200,25 @@ const SupplierDetails = () => {
     mutationFn: async ({ field, value }: { field: string; value: string | number }) => {
       const { supabase } = await import('@/integrations/supabase/client');
       
-      let payload: any = { [field]: value };
+      let payloadValue: any = value;
       
-      if (field === 'name' || field === 'rif') {
-        payload[field] = String(value).toUpperCase();
+      if (field === 'rif') {
+        const validated = validateRif(String(value));
+        if (!validated) {
+          throw new Error('Formato de RIF inválido. Ej: J123456789 o SR');
+        }
+        if (validated === 'SR') {
+          // Generar sufijo invisible para evadir constraint unique
+          const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
+          payloadValue = 'SR' + invisibleSuffix;
+        } else {
+          payloadValue = validated;
+        }
+      } else if (field === 'name') {
+        payloadValue = String(value).toUpperCase();
       }
+      
+      const payload = { [field]: payloadValue };
       
       // Auto-detect location when address changes
       if (field === 'address') {
