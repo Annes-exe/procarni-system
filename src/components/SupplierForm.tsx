@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getAllMaterials, searchMaterials } from '@/integrations/supabase/data';
+import { getAllMaterials, searchMaterials, getRecentMaterials } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { validateRif } from '@/utils/validators';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
@@ -581,12 +581,20 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
-  // Search materials when searchTerm changes
+  // Search materials when searchTerm changes or load suggestions on empty search
   useEffect(() => {
     const search = async () => {
-      // If searchTerm is empty, no need to search, but perhaps show a default list or empty
       if (!searchTerm.trim()) {
-        setSearchResults([]);
+        setIsSearching(true);
+        try {
+          const results = await getRecentMaterials();
+          setSearchResults(results || []);
+        } catch (error) {
+          console.error('Error fetching recent materials:', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
         return;
       }
 
@@ -766,6 +774,11 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                     </div>
 
                     <div className="max-h-56 overflow-y-auto pr-1">
+                      {!searchTerm.trim() && searchResults.length > 0 && (
+                        <p className="text-[10px] text-gray-400 font-semibold mb-2 pl-1">
+                          Últimos materiales creados o usados:
+                        </p>
+                      )}
                       <SortableContext 
                         id="available-zone"
                         items={searchResults.map(m => m.id)}
