@@ -321,7 +321,7 @@ const DraggableGroupedMaterialItem = ({
 const supplierFormSchema = z.object({
   // El código se autogenera y no se gestiona en el formulario, por lo que se elimina de aquí.
   rif: z.string().min(1, 'RIF es requerido').refine((val) => validateRif(val) !== null, {
-    message: 'Formato de RIF inválido. Ej: J123456789',
+    message: 'Formato de RIF inválido. Ej: J123456789 o *',
   }),
   name: z.string().min(1, 'Nombre es requerido'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
@@ -472,7 +472,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       })) || [];
 
       form.reset({
-        rif: initialData.rif || '',
+        rif: initialData.rif?.startsWith('*') ? '*' : (initialData.rif || ''),
         name: initialData.name || '',
         email: initialData.email || '',
         phone: initialData.phone || '',
@@ -607,10 +607,19 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
   }, [searchTerm]);
 
   const handleFormSubmit = (data: SupplierFormValues) => {
-    const normalizedRif = validateRif(data.rif);
-    if (!normalizedRif) {
+    let finalRif = validateRif(data.rif);
+    if (!finalRif) {
       form.setError('rif', { message: 'Formato de RIF inválido.' });
       return;
+    }
+
+    if (finalRif === '*') {
+      if (initialData?.rif?.startsWith('*')) {
+        finalRif = initialData.rif;
+      } else {
+        const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
+        finalRif = '*' + invisibleSuffix;
+      }
     }
 
     // Validaciones manuales para campos condicionales
@@ -628,7 +637,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     // Asegurarse de que custom_payment_terms sea null si no es 'Otro'
     const finalData = {
       ...data,
-      rif: normalizedRif,
+      rif: finalRif,
       city: data.city || null,
       state: data.state || null,
       name: data.name.toUpperCase(), // Ensure name is uppercase before submission
