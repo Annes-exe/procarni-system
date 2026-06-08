@@ -77,8 +77,8 @@ const NuevoPeriodoModal = ({ open, onClose }: NuevoPeriodoModalProps) => {
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarCheck className="h-5 w-5 text-emerald-600" />
+          <DialogTitle className="flex items-center gap-2 text-procarni-dark">
+            <CalendarCheck className="h-5 w-5 text-procarni-secondary" />
             Crear Nuevo Periodo Contable
           </DialogTitle>
           <DialogDescription>
@@ -113,7 +113,7 @@ const NuevoPeriodoModal = ({ open, onClose }: NuevoPeriodoModalProps) => {
           <Button
             type="submit"
             disabled={isPending}
-            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            className="w-full h-11 bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 font-bold"
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PlusCircle className="h-4 w-4 mr-2" />}
             Crear Periodo
@@ -152,7 +152,7 @@ const CierrePeriodoModal = ({ period, onClose }: CierrePeriodoModalProps) => {
     <Dialog open={!!period} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-700">
+          <DialogTitle className="flex items-center gap-2 text-procarni-primary">
             <Lock className="h-5 w-5" />
             Cerrar Periodo Contable
           </DialogTitle>
@@ -162,17 +162,17 @@ const CierrePeriodoModal = ({ period, onClose }: CierrePeriodoModalProps) => {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+        <div className="bg-procarni-primary/5 border border-procarni-primary/20 rounded-xl p-4 space-y-3">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-red-800">
+            <AlertTriangle className="h-5 w-5 text-procarni-primary flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-procarni-primary">
               <p className="font-bold mb-1">¿Confirmas el cierre del periodo?</p>
               <p className="font-semibold">{period.period_name}</p>
-              <p className="text-red-600 text-xs mt-1">
+              <p className="opacity-90 text-xs mt-1">
                 {format(new Date(period.start_date + 'T12:00:00'), 'dd MMM yyyy', { locale: es })} —{' '}
                 {format(new Date(period.end_date + 'T12:00:00'), 'dd MMM yyyy', { locale: es })}
               </p>
-              <p className="text-red-600 text-xs mt-2">
+              <p className="opacity-90 text-xs mt-2">
                 El sistema generará un snapshot del inventario al momento del cierre.
               </p>
             </div>
@@ -181,7 +181,7 @@ const CierrePeriodoModal = ({ period, onClose }: CierrePeriodoModalProps) => {
             <Button
               id="btn-confirmar-cierre-periodo"
               onClick={() => setConfirming(true)}
-              className="w-full h-9 bg-red-100 hover:bg-red-200 text-red-700 font-bold text-sm"
+              className="w-full h-9 bg-procarni-primary/10 hover:bg-procarni-primary/20 text-procarni-primary hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 font-bold text-sm"
             >
               Entiendo, quiero proceder al cierre
             </Button>
@@ -190,7 +190,7 @@ const CierrePeriodoModal = ({ period, onClose }: CierrePeriodoModalProps) => {
               id="btn-ejecutar-cierre-periodo"
               onClick={() => mutate(period.id)}
               disabled={isPending}
-              className="w-full h-9 bg-red-600 hover:bg-red-700 text-white font-bold text-sm"
+              className="w-full h-9 bg-procarni-primary hover:bg-procarni-primary/90 text-white shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 font-bold text-sm"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
               {isPending ? 'Cerrando periodo...' : 'Cerrar Definitivamente'}
@@ -219,7 +219,7 @@ const TabPeriodos = () => {
         <Button
           id="btn-nuevo-periodo"
           onClick={() => setNewModalOpen(true)}
-          className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          className="gap-2 bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 font-bold"
         >
           <PlusCircle className="h-4 w-4" />
           Nuevo Periodo
@@ -269,7 +269,7 @@ const TabPeriodos = () => {
                     className={cn(
                       'font-bold text-xs',
                       p.status === 'ABIERTO'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        ? 'bg-procarni-secondary/10 text-procarni-secondary border-procarni-secondary/20'
                         : 'bg-slate-100 text-slate-500 border-slate-300'
                     )}
                   >
@@ -292,7 +292,7 @@ const TabPeriodos = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => setPeriodToClose(p)}
-                      className="h-7 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                      className="h-7 text-xs gap-1 text-procarni-primary border-procarni-primary/20 hover:bg-procarni-primary/5 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 font-bold"
                     >
                       <Lock className="h-3 w-3" />
                       Cerrar
@@ -380,7 +380,7 @@ const TabAjusteNegativo = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-800">
+      <div className="bg-procarni-primary/5 border border-procarni-primary/20 rounded-xl px-4 py-3 text-sm text-procarni-primary">
         <strong>Ajuste de Pérdida (ADJUSTMENT_LOSS):</strong> Úsalo para deshidratación, deterioro/daño o faltantes de conteo físico.
         El impacto financiero se valoriza al CPP del material.
       </div>
@@ -411,8 +411,8 @@ const TabAjusteNegativo = () => {
                       <span className="text-sm font-semibold text-slate-800">{m.materials?.name}</span>
                     </div>
                     <div className="text-right flex-shrink-0 ml-3">
-                      <p className="text-xs text-slate-400">Stock: {fmt(m.current_stock)} {m.unit}</p>
-                      <p className="text-xs text-slate-400 font-mono">CPP: ${fmt(m.average_unit_cost, 4)}</p>
+                      <p className="text-xs text-slate-405 font-semibold">Stock: {fmt(m.current_stock)} {m.unit}</p>
+                      <p className="text-xs text-slate-405 font-mono">CPP: ${fmt(m.average_unit_cost, 4)}</p>
                     </div>
                   </button>
                 ))}
@@ -420,12 +420,12 @@ const TabAjusteNegativo = () => {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            <span className="font-mono text-xs text-red-600 font-bold">{selectedMaterial.sku}</span>
-            <span className="text-sm font-semibold text-red-800 flex-1">{selectedMaterial.materials?.name}</span>
-            <span className="text-xs text-red-500">Stock: {fmt(selectedMaterial.current_stock)} {selectedMaterial.unit}</span>
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+            <span className="font-mono text-xs text-slate-500 font-bold">{selectedMaterial.sku}</span>
+            <span className="text-sm font-semibold text-slate-800 flex-1">{selectedMaterial.materials?.name}</span>
+            <span className="text-xs text-procarni-primary font-bold">Stock: {fmt(selectedMaterial.current_stock)} {selectedMaterial.unit}</span>
             <button type="button" onClick={() => setSelectedMaterial(null)}>
-              <X className="h-4 w-4 text-red-400 hover:text-red-700" />
+              <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
             </button>
           </div>
         )}
@@ -443,7 +443,7 @@ const TabAjusteNegativo = () => {
             className={cn(!stockSuficiente && 'border-red-400 bg-red-50')}
           />
           {selectedMaterial && qty > 0 && !stockSuficiente && (
-            <p className="text-xs text-red-600">Stock insuficiente (máx. {fmt(selectedMaterial.current_stock)})</p>
+            <p className="text-xs text-procarni-primary font-semibold">Stock insuficiente (máx. {fmt(selectedMaterial.current_stock)})</p>
           )}
         </div>
         <div className="space-y-1.5">
@@ -483,13 +483,13 @@ const TabAjusteNegativo = () => {
         <m.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-red-900 rounded-xl px-5 py-4 flex items-center justify-between"
+          className="bg-procarni-primary rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl"
         >
           <div>
-            <p className="text-xs text-red-300 uppercase tracking-wider">Impacto Financiero Estimado</p>
-            <p className="text-xs text-red-400 mt-0.5">{fmt(qty)} {selectedMaterial.unit} × ${fmt(selectedMaterial.average_unit_cost, 4)} CPP</p>
+            <p className="text-xs text-red-205 uppercase tracking-wider font-semibold">Impacto Financiero Estimado</p>
+            <p className="text-xs text-red-205 mt-0.5">{fmt(qty)} {selectedMaterial.unit} × ${fmt(selectedMaterial.average_unit_cost, 4)} CPP</p>
           </div>
-          <p className="font-mono text-2xl font-black text-red-200">-${fmt(impacto)}</p>
+          <p className="font-mono text-2xl font-black text-white">-${fmt(impacto)}</p>
         </m.div>
       )}
 
@@ -497,7 +497,7 @@ const TabAjusteNegativo = () => {
         id="btn-confirmar-ajuste-negativo"
         type="submit"
         disabled={submitting || !selectedMaterial || !cantidad || !reasonCode || !observacion.trim() || !stockSuficiente}
-        className="w-full h-11 bg-red-600 hover:bg-red-700 text-white font-bold"
+        className="w-full h-11 bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}
         {submitting ? 'Registrando...' : 'Confirmar Ajuste de Pérdida'}
@@ -509,19 +509,24 @@ const TabAjusteNegativo = () => {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const CierresYAjustes = () => {
+  const [activeTab, setActiveTab] = useState<'periodos' | 'ajuste-negativo'>('periodos');
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 pb-24">
-      {/* Header */}
-      <div className="mb-8 max-w-6xl mx-auto">
-        <div className="flex items-center gap-2 mb-1">
-          <Archive className="h-6 w-6 text-slate-700" />
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
-            Cierres y Ajustes
-          </h1>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+      {/* ── Page Header ────────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto mb-6 animate-in fade-in duration-300">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-procarni-blue shadow-lg flex items-center justify-center flex-shrink-0">
+            <Archive className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-procarni-dark leading-none">
+              Cierres y Ajustes
+            </h1>
+            <p className="text-sm text-slate-500 font-medium italic mt-0.5">
+              Gestión de periodos contables y ajustes manuales de inventario
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-slate-500 ml-8">
-          Gestión de periodos contables y ajustes manuales de inventario
-        </p>
       </div>
 
       <m.div
@@ -529,40 +534,62 @@ const CierresYAjustes = () => {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-6xl mx-auto"
       >
-        <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-5">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              Panel de Control Contable
-            </CardTitle>
-            <CardDescription className="text-slate-300 text-sm">
-              Gestiona los periodos que enmarcan las transacciones y registra las pérdidas operativas
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <Tabs defaultValue="periodos">
-              <TabsList className="w-full grid grid-cols-2 mb-6 bg-slate-100 p-1 rounded-xl h-auto">
-                <TabsTrigger
+        <Card className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden">
+          {/* Top Bar with integrated tab toggle */}
+          <div className="bg-procarni-blue px-7 py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <ClipboardList className="h-5 w-5 text-white/60 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-white font-bold text-base leading-tight">Panel de Control Contable</p>
+                  <p className="text-white/50 text-xs mt-0.5 truncate">Periodos contables y ajustes de pérdida operativa</p>
+                </div>
+              </div>
+              {/* Toggle tabs inside top-bar */}
+              <div className="flex gap-1.5 bg-white/10 p-1 rounded-xl flex-shrink-0">
+                <button
                   id="tab-periodos"
-                  value="periodos"
-                  className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  onClick={() => setActiveTab('periodos')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                    activeTab === 'periodos'
+                      ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
                 >
-                  <CalendarCheck className="h-4 w-4 mr-1.5" />
-                  Periodos Contables
-                </TabsTrigger>
-                <TabsTrigger
+                  <CalendarCheck className="h-4 w-4" />
+                  Periodos
+                </button>
+                <button
                   id="tab-ajuste-negativo"
-                  value="ajuste-negativo"
-                  className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  onClick={() => setActiveTab('ajuste-negativo')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                    activeTab === 'ajuste-negativo'
+                      ? 'bg-procarni-primary text-white shadow-lg'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
                 >
-                  <TrendingDown className="h-4 w-4 mr-1.5" />
+                  <TrendingDown className="h-4 w-4" />
                   Ajuste de Pérdida
-                </TabsTrigger>
-              </TabsList>
+                </button>
+              </div>
+            </div>
+          </div>
 
-              <TabsContent value="periodos"><TabPeriodos /></TabsContent>
-              <TabsContent value="ajuste-negativo"><TabAjusteNegativo /></TabsContent>
-            </Tabs>
+          <CardContent className="p-6">
+            <AnimatePresence mode="wait">
+              {activeTab === 'periodos' && (
+                <m.div key="periodos" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <TabPeriodos />
+                </m.div>
+              )}
+              {activeTab === 'ajuste-negativo' && (
+                <m.div key="ajuste-negativo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <TabAjusteNegativo />
+                </m.div>
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
       </m.div>

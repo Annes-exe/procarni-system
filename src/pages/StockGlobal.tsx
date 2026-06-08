@@ -36,10 +36,10 @@ import { InventoryCategory, MaterialInventory } from '@/integrations/supabase/ty
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<InventoryCategory, { bg: string; text: string; border: string }> = {
-  MPF: { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200' },
-  MPS: { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200' },
-  EMP: { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
-  ETQ: { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+  MPF: { bg: 'bg-red-50',     text: 'text-procarni-primary', border: 'border-procarni-primary/20' },
+  MPS: { bg: 'bg-amber-50',   text: 'text-procarni-alert',   border: 'border-procarni-alert/20' },
+  EMP: { bg: 'bg-blue-50',    text: 'text-procarni-blue',    border: 'border-procarni-blue/20' },
+  ETQ: { bg: 'bg-slate-100',  text: 'text-procarni-dark',    border: 'border-procarni-dark/20' },
 };
 
 const CATEGORY_LABELS: Record<InventoryCategory, string> = {
@@ -59,31 +59,34 @@ interface KpiCardProps {
   value: React.ReactNode;
   subtitle?: string;
   icon: React.ReactNode;
-  gradientClass: string;
+  iconColorClass: string;
   delay?: number;
 }
 
-const KpiCard = ({ title, value, subtitle, icon, gradientClass, delay = 0 }: KpiCardProps) => (
+const KpiCard = ({ title, value, subtitle, icon, iconColorClass, delay = 0 }: KpiCardProps) => (
   <m.div
-    initial={{ opacity: 0, y: 20 }}
+    initial={{ opacity: 0, y: 30 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.4, ease: 'easeOut' }}
+    transition={{ delay, duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
   >
-    <Card className={cn('relative overflow-hidden border-0 shadow-lg', gradientClass)}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1 flex-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-widest text-white/70">{title}</p>
-            <div className="text-3xl font-black text-white leading-none truncate">{value}</div>
-            {subtitle && <p className="text-xs text-white/60 mt-1">{subtitle}</p>}
+    <Card className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500">
+      <m.div whileHover={{ y: -6 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={cn('p-3 rounded-2xl transition-all duration-500', iconColorClass)}>
+            {React.cloneElement(icon as React.ReactElement, { className: 'h-5 w-5' })}
           </div>
-          <div className="flex-shrink-0 ml-3 bg-white/20 rounded-xl p-3">
-            {React.cloneElement(icon as React.ReactElement, { className: 'h-6 w-6 text-white' })}
-          </div>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">KPI</div>
         </div>
-        {/* Decorative circle */}
-        <div className="absolute -bottom-4 -right-4 h-24 w-24 rounded-full bg-white/10" />
-      </CardContent>
+        <div>
+          <div className="text-[28px] font-black text-gray-900 tracking-tighter mb-1 leading-tight truncate">{value}</div>
+          <div className="text-sm font-bold text-procarni-blue mb-0.5">{title}</div>
+          {subtitle && <p className="text-[12px] text-gray-500 font-medium">{subtitle}</p>}
+        </div>
+      </m.div>
+      {/* Background icon decoration */}
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+        {React.cloneElement(icon as React.ReactElement, { className: 'h-24 w-24 -mr-8 -mt-8 rotate-12' })}
+      </div>
     </Card>
   </m.div>
 );
@@ -184,8 +187,8 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-            <BadgeCheck className="h-5 w-5 text-emerald-600" />
+          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-procarni-dark">
+            <BadgeCheck className="h-5 w-5 text-procarni-secondary" />
             Habilitar Material para Inventario
           </DialogTitle>
           <DialogDescription>
@@ -236,11 +239,11 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
           /* Step 2: Configure */
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Selected material pill */}
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-              <Package className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-              <span className="text-sm font-bold text-emerald-800 flex-1">{selectedMaterial.name}</span>
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <Package className="h-4 w-4 text-slate-500 flex-shrink-0" />
+              <span className="text-sm font-bold text-slate-800 flex-1">{selectedMaterial.name}</span>
               <button type="button" onClick={() => setSelectedMaterial(null)}>
-                <X className="h-4 w-4 text-emerald-500 hover:text-emerald-700" />
+                <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
               </button>
             </div>
 
@@ -267,10 +270,10 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
               <m.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="bg-gray-900 rounded-lg px-4 py-3 flex items-center justify-between"
+                className="bg-procarni-dark rounded-lg px-4 py-3 flex items-center justify-between"
               >
                 <span className="text-xs text-gray-400 uppercase tracking-wider">SKU que se asignará</span>
-                <span className="font-mono font-black text-xl text-emerald-400">{nextSku}</span>
+                <span className="font-mono font-black text-xl text-procarni-secondary">{nextSku}</span>
               </m.div>
             )}
 
@@ -299,7 +302,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
             <Button
               type="submit"
               disabled={!category || isPending}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11 font-bold text-sm"
+              className="w-full bg-procarni-secondary hover:bg-procarni-secondary/90 text-white h-11 font-bold text-sm"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BadgeCheck className="h-4 w-4 mr-2" />}
               {isPending ? 'Habilitando...' : `Habilitar con SKU ${nextSku}`}
@@ -353,51 +356,51 @@ const StockGlobal = () => {
 
   const SkeletonRow = () => (
     <TableRow>
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 9 }).map((_, i) => (
         <TableCell key={i}><Skeleton className="h-4 w-full" /></TableCell>
       ))}
     </TableRow>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 pb-24">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateX(-8px); }
           to   { opacity: 1; transform: translateX(0); }
         }
       `}</style>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Warehouse className="h-6 w-6 text-slate-700" />
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
+
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
               Stock Global
             </h1>
+            <p className="text-[13px] text-gray-500 font-medium italic">
+              Centro de mando del inventario Procarni
+            </p>
           </div>
-          <p className="text-sm text-slate-500 ml-8">
-            Centro de mando del inventario Procarni
-          </p>
+          <Button
+            id="btn-habilitar-material"
+            onClick={() => setModalOpen(true)}
+            className="bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-lg shadow-procarni-secondary/20 gap-2 h-10 px-5 font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <Plus className="h-4 w-4" />
+            Habilitar Material
+          </Button>
         </div>
-        <Button
-          id="btn-habilitar-material"
-          onClick={() => setModalOpen(true)}
-          className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-lg shadow-emerald-200 gap-2 h-11 font-bold"
-        >
-          <Plus className="h-4 w-4" />
-          Habilitar Material
-        </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {/* ── KPI Cards ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 max-w-6xl mx-auto">
         <KpiCard
           title="Valor Total del Inventario"
           value={`$${fmt(kpis.totalValue)}`}
           subtitle={`${inventory.length} materiales habilitados`}
           icon={<DollarSign />}
-          gradientClass="bg-gradient-to-br from-slate-800 to-slate-700"
+          iconColorClass="bg-procarni-blue/10 text-procarni-blue"
           delay={0}
         />
         <KpiCard
@@ -405,9 +408,9 @@ const StockGlobal = () => {
           value={kpis.criticalCount}
           subtitle={kpis.criticalCount === 0 ? 'Sin alertas activas' : 'materiales bajo mínimo'}
           icon={<AlertTriangle />}
-          gradientClass={kpis.criticalCount > 0
-            ? 'bg-gradient-to-br from-red-600 to-rose-500'
-            : 'bg-gradient-to-br from-emerald-600 to-emerald-500'}
+          iconColorClass={kpis.criticalCount > 0
+            ? 'bg-procarni-primary/10 text-procarni-primary'
+            : 'bg-procarni-secondary/10 text-procarni-secondary'}
           delay={0.1}
         />
         <KpiCard
@@ -419,45 +422,56 @@ const StockGlobal = () => {
             ? format(new Date(kpis.lastClosed.closed_at ?? kpis.lastClosed.end_date), 'dd MMM yyyy', { locale: es })
             : 'Ningún periodo cerrado aún'}
           icon={<TrendingUp />}
-          gradientClass="bg-gradient-to-br from-violet-600 to-indigo-600"
+          iconColorClass="bg-slate-100 text-slate-500"
           delay={0.2}
         />
       </div>
 
-      {/* Table Section */}
+      {/* ── Main Card ────────────────────────────────────────────── */}
       <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+        className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden max-w-6xl mx-auto"
       >
-        {/* Table Toolbar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              id="stock-search"
-              placeholder="Buscar por SKU o nombre..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9 bg-slate-50 border-slate-200 h-9"
-            />
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {(['ALL', 'MPF', 'MPS', 'EMP', 'ETQ'] as const).map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all',
-                  categoryFilter === cat
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
-                )}
-              >
-                {cat === 'ALL' ? 'Todos' : cat}
-              </button>
-            ))}
+        {/* Dark Top Bar */}
+        <div className="bg-procarni-blue px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <Package className="h-4 w-4 text-white/50 flex-shrink-0" />
+              <span className="text-sm font-bold text-white uppercase tracking-wide">Materiales en Inventario</span>
+              <span className="text-xs bg-white/10 text-white/70 px-2.5 py-0.5 rounded-full font-mono font-bold flex-shrink-0">
+                {filtered.length}
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
+                <Input
+                  id="stock-search"
+                  placeholder="Buscar por SKU o nombre..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-white/10 border-white/15 text-white placeholder:text-white/40 h-9 text-sm w-56 focus-visible:ring-white/30 focus-visible:bg-white/15 focus-visible:border-white/40"
+                />
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {(['ALL', 'MPF', 'MPS', 'EMP', 'ETQ'] as const).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-200',
+                      categoryFilter === cat
+                        ? 'bg-white text-procarni-dark border-white shadow-sm'
+                        : 'bg-white/10 text-white/60 border-white/15 hover:bg-white/20 hover:text-white hover:border-white/30'
+                    )}
+                  >
+                    {cat === 'ALL' ? 'Todos' : cat}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -466,14 +480,14 @@ const StockGlobal = () => {
           <Table>
             <TableHeader className="bg-slate-50/70">
               <TableRow>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 pl-5 py-3">SKU</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 pl-6 py-3">SKU</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Material</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Categoría</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">Último Costo</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">CPP</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">Stock Actual</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Unidad</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right pr-5 py-3">Valor Stock</TableHead>
+                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right pr-6 py-3">Valor Stock</TableHead>
                 <TableHead className="py-3" />
               </TableRow>
             </TableHeader>
@@ -482,9 +496,11 @@ const StockGlobal = () => {
                 Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-32 text-center text-slate-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <Package className="h-8 w-8 opacity-30" />
+                  <TableCell colSpan={9} className="h-36 text-center text-slate-400">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <Package className="h-7 w-7 opacity-30" />
+                      </div>
                       <p className="text-sm">
                         {inventory.length === 0
                           ? 'Aún no hay materiales habilitados. ¡Habilita el primero!'
@@ -505,17 +521,17 @@ const StockGlobal = () => {
                       }}
                       className={cn(
                         'group border-b border-slate-50 hover:bg-slate-50/80 transition-colors',
-                        isLow && 'bg-red-50/40'
+                        isLow && 'bg-amber-50/20 hover:bg-amber-50/40'
                       )}
                     >
-                      <TableCell className="pl-5 py-3">
-                        <span className="font-mono font-bold text-sm text-slate-700">{m.sku}</span>
+                      <TableCell className="pl-6 py-4">
+                        <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-2 py-0.5 rounded-md">{m.sku}</span>
                       </TableCell>
-                      <TableCell className="py-3">
+                      <TableCell className="py-4">
                         <div className="flex items-center gap-2">
                           {isLow && (
                             <span title="Stock bajo mínimo">
-                              <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                              <AlertTriangle className="h-3.5 w-3.5 text-procarni-alert flex-shrink-0" />
                             </span>
                           )}
                           <span className="text-sm font-semibold text-slate-800">
@@ -523,38 +539,38 @@ const StockGlobal = () => {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-3">
+                      <TableCell className="py-4">
                         <CategoryBadge category={m.inventory_category} />
                       </TableCell>
-                      <TableCell className="py-3 text-right font-mono text-sm text-slate-600">
+                      <TableCell className="py-4 text-right font-mono text-sm text-slate-500">
                         ${fmt(m.last_purchase_price, 4)}
                       </TableCell>
-                      <TableCell className="py-3 text-right">
+                      <TableCell className="py-4 text-right">
                         <span className="font-mono text-sm font-bold text-slate-800">
                           ${fmt(m.average_unit_cost, 4)}
                         </span>
                       </TableCell>
-                      <TableCell className="py-3 text-right">
+                      <TableCell className="py-4 text-right">
                         <span className={cn(
                           'font-mono text-sm font-bold',
-                          isLow ? 'text-red-600' : 'text-emerald-700'
+                          isLow ? 'text-procarni-alert' : 'text-procarni-secondary'
                         )}>
                           {fmt(m.current_stock, 2)}
                         </span>
                       </TableCell>
-                      <TableCell className="py-3 text-sm text-slate-500">{m.unit}</TableCell>
-                      <TableCell className="pr-5 py-3 text-right">
+                      <TableCell className="py-4 text-sm text-slate-500">{m.unit}</TableCell>
+                      <TableCell className="pr-6 py-4 text-right">
                         <span className="font-mono text-sm font-semibold text-slate-700">
                           ${fmt(m.total_value)}
                         </span>
                       </TableCell>
-                      <TableCell className="py-3">
+                      <TableCell className="py-4">
                         <Button
                           id={`btn-kardex-${m.material_id}`}
                           variant="ghost"
                           size="sm"
                           onClick={() => navigate(`/inventory/kardex?materialId=${m.material_id}`)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs gap-1 text-slate-500"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 text-xs gap-1 text-procarni-blue hover:bg-procarni-blue/10 font-semibold"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           Kardex
@@ -570,11 +586,11 @@ const StockGlobal = () => {
 
         {/* Footer */}
         {filtered.length > 0 && (
-          <div className="px-5 py-3 border-t border-slate-100 flex justify-between items-center">
+          <div className="px-6 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
             <p className="text-xs text-slate-400">
               {filtered.length} de {inventory.length} materiales
             </p>
-            <p className="text-xs font-bold text-slate-700">
+            <p className="text-xs font-bold text-procarni-dark">
               Valor filtrado: ${fmt(filtered.reduce((a, m) => a + m.total_value, 0))}
             </p>
           </div>

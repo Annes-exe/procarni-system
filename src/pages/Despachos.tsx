@@ -3,8 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { m, AnimatePresence } from 'framer-motion';
 import {
   Upload, FileJson, AlertTriangle, CheckCircle2, Loader2,
-  Search, X, Plus, Factory, ShoppingBag, ArrowRight,
-  Coins, PackageOpen, Info, Trash2
+  Search, X, Plus, Factory, ShoppingBag, PackageOpen, Info, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -112,7 +111,7 @@ const JsonDropZone = ({ onParsed, isLoaded, ordenId, onClear }: JsonDropZoneProp
         className={cn(
           'border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-all',
           dragging
-            ? 'border-violet-400 bg-violet-50'
+            ? 'border-procarni-blue/50 bg-procarni-blue/5'
             : 'border-slate-200 bg-slate-50 hover:border-slate-400 hover:bg-white'
         )}
       >
@@ -125,9 +124,9 @@ const JsonDropZone = ({ onParsed, isLoaded, ordenId, onClear }: JsonDropZoneProp
         />
         <div className={cn(
           'rounded-2xl p-4 transition-colors',
-          dragging ? 'bg-violet-100' : 'bg-slate-100'
+          dragging ? 'bg-procarni-blue/10' : 'bg-slate-100'
         )}>
-          <FileJson className={cn('h-10 w-10', dragging ? 'text-violet-500' : 'text-slate-400')} />
+          <FileJson className={cn('h-10 w-10', dragging ? 'text-procarni-blue' : 'text-slate-400')} />
         </div>
         <div className="text-center">
           <p className="text-base font-bold text-slate-700">Arrastra el archivo de Orden de Producción</p>
@@ -393,7 +392,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
           {unmappedItems.length === 0 && (
             <>
               {/* Capsule header */}
-              <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl px-5 py-4 text-white">
+              <div className="bg-gradient-to-r from-procarni-dark to-procarni-blue rounded-xl px-5 py-4 text-white">
             <div className="flex flex-wrap gap-4 text-sm">
               <div>
                 <p className="text-white/60 text-xs uppercase tracking-wider">Producto</p>
@@ -475,7 +474,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                         <div>
                           <p className="text-sm font-semibold text-slate-800">{row.materialInventory.materials?.name}</p>
                           {row.isSubstitute && (
-                            <Badge variant="outline" className="text-xs mt-0.5 text-violet-700 border-violet-200 bg-violet-50">
+                            <Badge variant="outline" className="text-xs mt-0.5 text-procarni-blue border-procarni-blue/20 bg-procarni-blue/5">
                               Sustituto
                             </Badge>
                           )}
@@ -526,7 +525,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
               variant="outline"
               size="sm"
               onClick={() => setShowSubstitutePicker(true)}
-              className="gap-1.5 text-violet-700 border-violet-200 hover:bg-violet-50"
+              className="gap-1.5 text-procarni-blue border-procarni-blue/20 hover:bg-procarni-blue/5"
             >
               <Plus className="h-4 w-4" />
               Agregar Sustituto
@@ -544,11 +543,11 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="border border-violet-200 rounded-xl overflow-hidden bg-violet-50/50"
+                className="border border-procarni-blue/20 rounded-xl overflow-hidden bg-procarni-blue/5"
               >
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-violet-800 font-bold">Seleccionar material sustituto</Label>
+                    <Label className="text-procarni-blue font-bold">Seleccionar material sustituto</Label>
                     <button onClick={() => setShowSubstitutePicker(false)}>
                       <X className="h-4 w-4 text-slate-400" />
                     </button>
@@ -588,7 +587,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                 id="btn-confirmar-salida-produccion"
                 onClick={handleSubmit}
                 disabled={submitting || isDeviationHigh}
-                className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white font-bold text-base"
+                className="w-full h-12 bg-procarni-blue hover:bg-procarni-blue/90 text-white font-bold text-base shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
               >
                 {submitting
                   ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Registrando salida...</>
@@ -658,8 +657,8 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Info banner */}
-      <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-        <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 bg-procarni-alert/5 border border-procarni-alert/20 rounded-xl px-4 py-3 text-sm text-procarni-alert">
+        <Info className="h-4 w-4 flex-shrink-0 mt-0.5 text-procarni-alert" />
         <p>
           <strong>Nota Contable:</strong> Se registra el <strong>Costo de Salida (CPP)</strong>, no el precio de venta al cliente.
           El precio de venta pertenece al módulo de facturación.
@@ -698,12 +697,12 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
             <span className="font-mono text-xs text-slate-500 font-bold">{selectedMaterial.sku}</span>
-            <span className="text-sm font-semibold text-slate-800 flex-1">{selectedMaterial.materials?.name}</span>
-            <span className="text-xs text-slate-500">Stock: {fmt(selectedMaterial.current_stock)} {selectedMaterial.unit}</span>
+            <span className="text-sm font-semibold text-slate-850 flex-1">{selectedMaterial.materials?.name}</span>
+            <span className="text-xs text-procarni-secondary font-bold">Stock: {fmt(selectedMaterial.current_stock)} {selectedMaterial.unit}</span>
             <button type="button" onClick={() => setSelectedMaterial(null)}>
-              <X className="h-4 w-4 text-slate-400 hover:text-red-500" />
+              <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
             </button>
           </div>
         )}
@@ -721,7 +720,7 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
             className={cn(!stockSuficiente && 'border-red-400 bg-red-50')}
           />
           {selectedMaterial && qty > 0 && (
-            <p className={cn('text-xs', stockSuficiente ? 'text-emerald-600' : 'text-red-600')}>
+            <p className={cn('text-xs font-semibold', stockSuficiente ? 'text-procarni-secondary' : 'text-procarni-primary')}>
               {stockSuficiente ? `✓ Stock suficiente` : `✗ Máx. ${fmt(selectedMaterial.current_stock)} ${selectedMaterial.unit}`}
             </p>
           )}
@@ -742,11 +741,11 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
         <m.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-slate-900 rounded-xl px-5 py-4 flex items-center justify-between"
+          className="bg-procarni-dark rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl"
         >
           <div>
-            <p className="text-xs text-slate-400 uppercase tracking-wider">Costo de Salida (CPP)</p>
-            <p className="text-xs text-slate-500 mt-0.5">≠ Precio de venta al cliente</p>
+            <p className="text-xs text-slate-405 uppercase tracking-wider">Costo de Salida (CPP)</p>
+            <p className="text-xs text-slate-405 mt-0.5">≠ Precio de venta al cliente</p>
           </div>
           <div className="text-right">
             <p className="font-mono text-2xl font-black text-white">${fmt(costoSalida)}</p>
@@ -759,7 +758,7 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
         id="btn-confirmar-salida-venta"
         type="submit"
         disabled={submitting || !selectedMaterial || !cantidad || !cliente || !saleReference || !stockSuficiente}
-        className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-bold text-base"
+        className="w-full h-12 bg-procarni-alert hover:bg-procarni-alert/90 text-white font-bold text-base shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
       >
         {submitting
           ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Registrando venta...</>
@@ -783,81 +782,76 @@ const Despachos = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 pb-24">
-      {/* Header */}
-      <div className="mb-8 max-w-6xl mx-auto">
-        <div className="flex items-center gap-2 mb-1">
-          <PackageOpen className="h-6 w-6 text-slate-700" />
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Despachos</h1>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto mb-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+            Despachos
+          </h1>
+          <p className="text-[13px] text-gray-500 font-medium italic">
+            Centro de operaciones de salidas del almacén
+          </p>
         </div>
-        <p className="text-sm text-slate-500 ml-8">Centro de operaciones de salidas del almacén</p>
-      </div>
-
-      {/* Mode toggle */}
-      <div className="flex items-center gap-3 mb-8 max-w-6xl mx-auto">
-        <div className="bg-slate-100 border border-slate-200 rounded-xl p-1 flex gap-1">
-          <button
-            id="toggle-produccion"
-            onClick={() => setMode('produccion')}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all',
-              mode === 'produccion'
-                ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
-                : 'text-slate-500 hover:text-slate-700'
-            )}
-          >
-            <Factory className="h-4 w-4" />
-            Salida a Producción
-          </button>
-          <button
-            id="toggle-venta"
-            onClick={() => setMode('venta')}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all',
-              mode === 'venta'
-                ? 'bg-amber-500 text-white shadow-md shadow-amber-200'
-                : 'text-slate-500 hover:text-slate-700'
-            )}
-          >
-            <ShoppingBag className="h-4 w-4" />
-            Salida por Venta
-          </button>
-        </div>
-        <ArrowRight className="h-4 w-4 text-slate-300" />
-        <Badge
-          variant="outline"
-          className={cn(
-            'font-bold px-3 py-1',
-            mode === 'produccion' ? 'border-violet-200 text-violet-700 bg-violet-50' : 'border-amber-200 text-amber-700 bg-amber-50'
-          )}
-        >
-          {mode === 'produccion' ? 'Carga Mágica JSON' : 'Venta Directa'}
-        </Badge>
       </div>
 
       <m.div
-        key={mode}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-6xl mx-auto"
       >
-        <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className={cn(
-            'text-white px-6 py-5',
-            mode === 'produccion'
-              ? 'bg-gradient-to-r from-violet-700 to-indigo-600'
-              : 'bg-gradient-to-r from-amber-600 to-orange-500'
-          )}>
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              {mode === 'produccion' ? <Factory className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
-              {mode === 'produccion' ? 'Salida a Producción — Carga Mágica' : 'Salida por Venta Directa'}
-            </CardTitle>
-            <CardDescription className="text-white/70 text-sm">
-              {mode === 'produccion'
-                ? 'Carga el archivo JSON de la Orden de Producción para autocompletar la tabla'
-                : 'Registra la salida valorizada al Costo Promedio Ponderado (CPP)'}
-            </CardDescription>
-          </CardHeader>
+        <Card className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden">
+          {/* Dark Top Bar with integrated mode toggle */}
+          <div className="bg-procarni-blue px-6 py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                {mode === 'produccion'
+                  ? <Factory className="h-5 w-5 text-white/60 flex-shrink-0" />
+                  : <ShoppingBag className="h-5 w-5 text-procarni-alert flex-shrink-0" />
+                }
+                <div className="min-w-0">
+                  <p className="text-white font-bold text-base leading-tight">
+                    {mode === 'produccion' ? 'Salida a Producción — Carga Mágica' : 'Salida por Venta Directa'}
+                  </p>
+                  <p className="text-white/50 text-xs mt-0.5 truncate">
+                    {mode === 'produccion'
+                      ? 'Carga el archivo JSON de la Orden de Producción para autocompletar la tabla'
+                      : 'Registra la salida valorizada al Costo Promedio Ponderado (CPP)'}
+                  </p>
+                </div>
+              </div>
+              {/* Toggle inside top-bar */}
+              <div className="flex gap-1.5 bg-white/10 p-1 rounded-xl flex-shrink-0">
+                <button
+                  id="toggle-produccion"
+                  onClick={() => setMode('produccion')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                    mode === 'produccion'
+                      ? 'bg-procarni-blue text-white shadow-lg'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
+                >
+                  <Factory className="h-4 w-4" />
+                  Producción
+                </button>
+                <button
+                  id="toggle-venta"
+                  onClick={() => setMode('venta')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                    mode === 'venta'
+                      ? 'bg-procarni-alert text-white shadow-lg'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Venta
+                </button>
+              </div>
+            </div>
+          </div>
+
           <CardContent className="p-6">
             {isLoading ? (
               <div className="space-y-4">
@@ -866,8 +860,15 @@ const Despachos = () => {
             ) : (
               <AnimatePresence mode="wait">
                 {mode === 'produccion'
-                  ? <SalidaProduccion key="produccion" inventory={inventory} />
-                  : <SalidaVenta key="venta" inventory={inventory} />
+                  ? (
+                    <m.div key="produccion" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                      <SalidaProduccion inventory={inventory} />
+                    </m.div>
+                  ) : (
+                    <m.div key="venta" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                      <SalidaVenta inventory={inventory} />
+                    </m.div>
+                  )
                 }
               </AnimatePresence>
             )}

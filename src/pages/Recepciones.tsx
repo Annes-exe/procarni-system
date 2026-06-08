@@ -253,9 +253,9 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
 
           {/* SKU preview if category selected */}
           {category && (
-            <div className="bg-slate-900 rounded-lg px-4 py-2.5 flex items-center justify-between">
+            <div className="bg-procarni-dark rounded-lg px-4 py-2.5 flex items-center justify-between">
               <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">SKU Asignado</span>
-              <span className="font-mono font-black text-lg text-emerald-400">{nextSku}</span>
+              <span className="font-mono font-black text-lg text-procarni-secondary">{nextSku}</span>
             </div>
           )}
 
@@ -290,7 +290,7 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
           <Button
             type="submit"
             disabled={!category || loading}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 mt-2"
+            className="w-full bg-procarni-secondary hover:bg-procarni-secondary/90 text-white font-bold h-10 mt-2"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
             {loading ? 'Habilitando...' : 'Habilitar y Guardar'}
@@ -624,7 +624,7 @@ const TabDesdeOC = () => {
             id="btn-confirmar-recepcion-oc"
             onClick={handleSubmit}
             disabled={submitting}
-            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            className="w-full h-11 bg-procarni-secondary hover:bg-procarni-secondary/90 text-white font-bold shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
             {submitting ? 'Registrando...' : 'Confirmar Recepción'}
@@ -765,12 +765,12 @@ const TabEntradaDirecta = () => {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-            <span className="font-mono text-xs text-emerald-600 font-bold">{selectedMaterial.sku}</span>
-            <span className="text-sm font-semibold text-emerald-800 flex-1">{selectedMaterial.materials?.name}</span>
-            <span className="text-xs text-emerald-600">Stock: {fmt(selectedMaterial.current_stock)} {selectedMaterial.unit}</span>
+          <div className="flex items-center gap-2 bg-procarni-secondary/5 border border-procarni-secondary/20 rounded-lg px-3 py-2">
+            <span className="font-mono text-xs text-procarni-secondary font-bold">{selectedMaterial.sku}</span>
+            <span className="text-sm font-semibold text-procarni-dark flex-1">{selectedMaterial.materials?.name}</span>
+            <span className="text-xs text-procarni-secondary font-semibold">Stock: {fmt(selectedMaterial.current_stock)} {selectedMaterial.unit}</span>
             <button type="button" onClick={() => setSelectedMaterial(null)}>
-              <X className="h-4 w-4 text-emerald-500 hover:text-red-500" />
+              <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
             </button>
           </div>
         )}
@@ -827,7 +827,7 @@ const TabEntradaDirecta = () => {
         id="btn-confirmar-entrada-directa"
         type="submit"
         disabled={submitting || !selectedMaterial || !pesoGuia}
-        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+        className="w-full h-11 bg-procarni-secondary hover:bg-procarni-secondary/90 text-white font-bold shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
         {submitting ? 'Registrando...' : 'Confirmar Entrada Directa'}
@@ -893,7 +893,7 @@ const TabAjustePositivo = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+      <div className="bg-procarni-blue/5 border border-procarni-blue/20 rounded-xl px-4 py-3 text-sm text-procarni-blue">
         <strong>Ajuste Positivo (ADJUSTMENT_ADD):</strong> Úsalo para sobrantes detectados en conteo físico. El stock aumenta al CPP actual sin modificar el costo promedio.
       </div>
 
@@ -929,11 +929,11 @@ const TabAjustePositivo = () => {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-            <span className="font-mono text-xs text-emerald-600 font-bold">{selectedMaterial.sku}</span>
-            <span className="text-sm font-semibold text-emerald-800 flex-1">{selectedMaterial.materials?.name}</span>
+          <div className="flex items-center gap-2 bg-procarni-secondary/5 border border-procarni-secondary/20 rounded-lg px-3 py-2">
+            <span className="font-mono text-xs text-procarni-secondary font-bold">{selectedMaterial.sku}</span>
+            <span className="text-sm font-semibold text-procarni-dark flex-1">{selectedMaterial.materials?.name}</span>
             <button type="button" onClick={() => setSelectedMaterial(null)}>
-              <X className="h-4 w-4 text-emerald-500 hover:text-red-500" />
+              <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
             </button>
           </div>
         )}
@@ -975,7 +975,7 @@ const TabAjustePositivo = () => {
         id="btn-confirmar-ajuste-positivo"
         type="submit"
         disabled={submitting || !selectedMaterial || !cantidad || !reasonCode || !observacion.trim()}
-        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold"
+        className="w-full h-11 bg-procarni-blue hover:bg-procarni-blue/90 text-white font-bold shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
         {submitting ? 'Registrando...' : 'Confirmar Ajuste Positivo'}
@@ -987,17 +987,24 @@ const TabAjustePositivo = () => {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const Recepciones = () => {
+  const [activeTab, setActiveTab] = useState<'desde-oc' | 'directa' | 'ajuste-positivo'>('desde-oc');
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 pb-24">
-      {/* Header */}
-      <div className="mb-8 max-w-6xl mx-auto">
-        <div className="flex items-center gap-2 mb-1">
-          <Download className="h-6 w-6 text-slate-700" />
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Recepciones</h1>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+      {/* ── Page Header ────────────────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto mb-6 animate-in fade-in duration-300">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-procarni-blue shadow-lg flex items-center justify-center flex-shrink-0">
+            <Download className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-procarni-dark leading-none">
+              Recepciones
+            </h1>
+            <p className="text-sm text-slate-500 font-medium italic mt-0.5">
+              Centro de entradas al almacén — elimina el flujo de WhatsApp
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-slate-500 ml-8">
-          Centro de entradas al almacén — elimina el flujo de WhatsApp
-        </p>
       </div>
 
       <m.div
@@ -1005,49 +1012,80 @@ const Recepciones = () => {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-6xl mx-auto"
       >
-        <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-5">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <PackagePlus className="h-5 w-5" />
-              Registrar Entrada de Inventario
-            </CardTitle>
-            <CardDescription className="text-slate-300 text-sm">
-              Selecciona el tipo de entrada para comenzar
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <Tabs defaultValue="desde-oc">
-              <TabsList className="w-full grid grid-cols-3 mb-6 bg-slate-100 p-1 rounded-xl h-auto">
-                <TabsTrigger
+        <Card className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden">
+          {/* Top Bar with integrated tab toggle */}
+          <div className="bg-procarni-blue px-7 py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <PackagePlus className="h-5 w-5 text-white/60 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-white font-bold text-base leading-tight">Registrar Entrada de Inventario</p>
+                  <p className="text-white/50 text-xs mt-0.5">Selecciona el tipo de entrada</p>
+                </div>
+              </div>
+              {/* Toggle tabs inside top-bar */}
+              <div className="flex gap-1.5 bg-white/10 p-1 rounded-xl flex-shrink-0">
+                <button
                   id="tab-desde-oc"
-                  value="desde-oc"
-                  className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  onClick={() => setActiveTab('desde-oc')}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200',
+                    activeTab === 'desde-oc'
+                      ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
                 >
-                  <Clipboard className="h-4 w-4 mr-1.5" />
+                  <Clipboard className="h-3.5 w-3.5" />
                   Desde OC
-                </TabsTrigger>
-                <TabsTrigger
+                </button>
+                <button
                   id="tab-directa"
-                  value="directa"
-                  className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  onClick={() => setActiveTab('directa')}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200',
+                    activeTab === 'directa'
+                      ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
                 >
-                  <Upload className="h-4 w-4 mr-1.5" />
-                  Entrada Directa
-                </TabsTrigger>
-                <TabsTrigger
+                  <Upload className="h-3.5 w-3.5" />
+                  Directa
+                </button>
+                <button
                   id="tab-ajuste-positivo"
-                  value="ajuste-positivo"
-                  className="rounded-lg py-2.5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  onClick={() => setActiveTab('ajuste-positivo')}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200',
+                    activeTab === 'ajuste-positivo'
+                      ? 'bg-procarni-secondary text-white shadow-lg'
+                      : 'text-white/60 hover:text-white hover:bg-white/10'
+                  )}
                 >
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Ajuste Positivo
-                </TabsTrigger>
-              </TabsList>
+                  <Plus className="h-3.5 w-3.5" />
+                  Ajuste+
+                </button>
+              </div>
+            </div>
+          </div>
 
-              <TabsContent value="desde-oc"><TabDesdeOC /></TabsContent>
-              <TabsContent value="directa"><TabEntradaDirecta /></TabsContent>
-              <TabsContent value="ajuste-positivo"><TabAjustePositivo /></TabsContent>
-            </Tabs>
+          <CardContent className="p-6">
+            <AnimatePresence mode="wait">
+              {activeTab === 'desde-oc' && (
+                <m.div key="desde-oc" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <TabDesdeOC />
+                </m.div>
+              )}
+              {activeTab === 'directa' && (
+                <m.div key="directa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <TabEntradaDirecta />
+                </m.div>
+              )}
+              {activeTab === 'ajuste-positivo' && (
+                <m.div key="ajuste-positivo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                  <TabAjustePositivo />
+                </m.div>
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
       </m.div>
