@@ -990,7 +990,7 @@ const Recepciones = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 pb-24">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8 max-w-6xl mx-auto">
         <div className="flex items-center gap-2 mb-1">
           <Download className="h-6 w-6 text-slate-700" />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Recepciones</h1>
@@ -1003,7 +1003,7 @@ const Recepciones = () => {
       <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-4xl"
+        className="max-w-6xl mx-auto"
       >
         <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-5">
