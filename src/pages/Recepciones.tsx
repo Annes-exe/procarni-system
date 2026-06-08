@@ -893,7 +893,7 @@ const TabAjustePositivo = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="bg-procarni-blue/5 border border-procarni-blue/20 rounded-xl px-4 py-3 text-sm text-procarni-blue">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
         <strong>Ajuste Positivo:</strong> Úsalo para sobrantes detectados en conteo físico. El stock aumenta al CPP actual sin modificar el costo promedio.
       </div>
 
@@ -912,7 +912,7 @@ const TabAjustePositivo = () => {
               />
             </div>
             {materialSearch && (
-              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto bg-white">
                 {filtered.map(m => (
                   <button key={m.material_id} type="button"
                     onClick={() => { setSelectedMaterial(m); setMaterialSearch(''); }}
@@ -929,11 +929,11 @@ const TabAjustePositivo = () => {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 bg-procarni-secondary/5 border border-procarni-secondary/20 rounded-lg px-3 py-2">
-            <span className="font-mono text-xs text-procarni-secondary font-bold">{selectedMaterial.sku}</span>
-            <span className="text-sm font-semibold text-procarni-dark flex-1">{selectedMaterial.materials?.name}</span>
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <span className="font-mono text-xs text-emerald-600 font-bold">{selectedMaterial.sku}</span>
+            <span className="text-sm font-semibold text-slate-800 flex-1">{selectedMaterial.materials?.name}</span>
             <button type="button" onClick={() => setSelectedMaterial(null)}>
-              <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
+              <X className="h-4 w-4 text-emerald-400 hover:text-emerald-700" />
             </button>
           </div>
         )}
@@ -975,7 +975,7 @@ const TabAjustePositivo = () => {
         id="btn-confirmar-ajuste-positivo"
         type="submit"
         disabled={submitting || !selectedMaterial || !cantidad || !reasonCode || !observacion.trim()}
-        className="w-full h-11 bg-procarni-blue hover:bg-procarni-blue/90 text-white font-bold shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
+        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
         {submitting ? 'Registrando...' : 'Confirmar Ajuste Positivo'}
