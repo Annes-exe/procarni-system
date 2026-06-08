@@ -894,7 +894,7 @@ const TabAjustePositivo = () => {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="bg-procarni-blue/5 border border-procarni-blue/20 rounded-xl px-4 py-3 text-sm text-procarni-blue">
-        <strong>Ajuste Positivo (ADJUSTMENT_ADD):</strong> Úsalo para sobrantes detectados en conteo físico. El stock aumenta al CPP actual sin modificar el costo promedio.
+        <strong>Ajuste Positivo:</strong> Úsalo para sobrantes detectados en conteo físico. El stock aumenta al CPP actual sin modificar el costo promedio.
       </div>
 
       {/* Material selector */}
@@ -989,38 +989,40 @@ const TabAjustePositivo = () => {
 const Recepciones = () => {
   const [activeTab, setActiveTab] = useState<'desde-oc' | 'directa' | 'ajuste-positivo'>('desde-oc');
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+    <div className="container mx-auto p-4 pb-20 space-y-6">
       {/* ── Page Header ────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto mb-6 animate-in fade-in duration-300">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-procarni-blue shadow-lg flex items-center justify-center flex-shrink-0">
-            <Download className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-procarni-dark leading-none">
-              Recepciones
-            </h1>
-            <p className="text-sm text-slate-500 font-medium italic mt-0.5">
-              Centro de entradas al almacén — elimina el flujo de WhatsApp
-            </p>
-          </div>
-        </div>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+          Recepciones
+        </h1>
+        <p className="text-[13px] text-gray-500 font-medium italic">
+          Centro de entradas al almacén
+        </p>
       </div>
 
       <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-6xl mx-auto"
       >
-        <Card className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden">
+        <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           {/* Top Bar with integrated tab toggle */}
           <div className="bg-procarni-blue px-7 py-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <PackagePlus className="h-5 w-5 text-white/60 flex-shrink-0" />
+                {activeTab === 'desde-oc' && <Clipboard className="h-5 w-5 text-white/60 flex-shrink-0" />}
+                {activeTab === 'directa' && <Upload className="h-5 w-5 text-white/60 flex-shrink-0" />}
+                {activeTab === 'ajuste-positivo' && <Plus className="h-5 w-5 text-green-400 flex-shrink-0" />}
                 <div className="min-w-0">
-                  <p className="text-white font-bold text-base leading-tight">Registrar Entrada de Inventario</p>
-                  <p className="text-white/50 text-xs mt-0.5">Selecciona el tipo de entrada</p>
+                  <p className="text-white font-bold text-base leading-tight">
+                    {activeTab === 'desde-oc' && 'Recepcionar desde Orden de Compra'}
+                    {activeTab === 'directa' && 'Entrada Directa de Inventario'}
+                    {activeTab === 'ajuste-positivo' && 'Ajuste Positivo de Inventario'}
+                  </p>
+                  <p className="text-white/50 text-xs mt-0.5 truncate">
+                    {activeTab === 'desde-oc' && 'Busca una Orden de Compra aprobada para registrar su ingreso al almacén'}
+                    {activeTab === 'directa' && 'Registra una entrada manual sin orden de compra previa'}
+                    {activeTab === 'ajuste-positivo' && 'Aumenta el stock de un material por excedente o inventario físico'}
+                  </p>
                 </div>
               </div>
               {/* Toggle tabs inside top-bar */}
@@ -1029,7 +1031,7 @@ const Recepciones = () => {
                   id="tab-desde-oc"
                   onClick={() => setActiveTab('desde-oc')}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200',
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
                     activeTab === 'desde-oc'
                       ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
                       : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -1042,7 +1044,7 @@ const Recepciones = () => {
                   id="tab-directa"
                   onClick={() => setActiveTab('directa')}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200',
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
                     activeTab === 'directa'
                       ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
                       : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -1055,14 +1057,14 @@ const Recepciones = () => {
                   id="tab-ajuste-positivo"
                   onClick={() => setActiveTab('ajuste-positivo')}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200',
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
                     activeTab === 'ajuste-positivo'
                       ? 'bg-procarni-secondary text-white shadow-lg'
                       : 'text-white/60 hover:text-white hover:bg-white/10'
                   )}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Ajuste+
+                  Ajuste
                 </button>
               </div>
             </div>

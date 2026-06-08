@@ -782,25 +782,22 @@ const Despachos = () => {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+    <div className="container mx-auto p-4 pb-20 space-y-6">
       {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto mb-6">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
-            Despachos
-          </h1>
-          <p className="text-[13px] text-gray-500 font-medium italic">
-            Centro de operaciones de salidas del almacén
-          </p>
-        </div>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+          Despachos
+        </h1>
+        <p className="text-[13px] text-gray-500 font-medium italic">
+          Centro de operaciones de salidas del almacén
+        </p>
       </div>
 
       <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-6xl mx-auto"
       >
-        <Card className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden">
+        <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           {/* Dark Top Bar with integrated mode toggle */}
           <div className="bg-procarni-blue px-6 py-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

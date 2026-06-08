@@ -363,7 +363,7 @@ const StockGlobal = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+    <div className="container mx-auto p-4 pb-20 space-y-6">
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateX(-8px); }
@@ -372,29 +372,27 @@ const StockGlobal = () => {
       `}</style>
 
       {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
-              Stock Global
-            </h1>
-            <p className="text-[13px] text-gray-500 font-medium italic">
-              Centro de mando del inventario Procarni
-            </p>
-          </div>
-          <Button
-            id="btn-habilitar-material"
-            onClick={() => setModalOpen(true)}
-            className="bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-lg shadow-procarni-secondary/20 gap-2 h-10 px-5 font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <Plus className="h-4 w-4" />
-            Habilitar Material
-          </Button>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+            Stock Global
+          </h1>
+          <p className="text-[13px] text-gray-500 font-medium italic">
+            Centro de mando del inventario Procarni
+          </p>
         </div>
+        <Button
+          id="btn-habilitar-material"
+          onClick={() => setModalOpen(true)}
+          className="bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-lg shadow-procarni-secondary/20 gap-2 h-10 px-5 font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+        >
+          <Plus className="h-4 w-4" />
+          Habilitar Material
+        </Button>
       </div>
 
       {/* ── KPI Cards ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
           title="Valor Total del Inventario"
           value={`$${fmt(kpis.totalValue)}`}
@@ -432,7 +430,7 @@ const StockGlobal = () => {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden max-w-6xl mx-auto"
+        className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden"
       >
         {/* Dark Top Bar */}
         <div className="bg-procarni-blue px-6 py-4">

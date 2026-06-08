@@ -381,7 +381,7 @@ const TabAjusteNegativo = () => {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="bg-procarni-primary/5 border border-procarni-primary/20 rounded-xl px-4 py-3 text-sm text-procarni-primary">
-        <strong>Ajuste de Pérdida (ADJUSTMENT_LOSS):</strong> Úsalo para deshidratación, deterioro/daño o faltantes de conteo físico.
+        <strong>Ajuste de Pérdida:</strong> Úsalo para deshidratación, deterioro/daño o faltantes de conteo físico.
         El impacto financiero se valoriza al CPP del material.
       </div>
 
@@ -511,38 +511,37 @@ const TabAjusteNegativo = () => {
 const CierresYAjustes = () => {
   const [activeTab, setActiveTab] = useState<'periodos' | 'ajuste-negativo'>('periodos');
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 pb-24">
+    <div className="container mx-auto p-4 pb-20 space-y-6">
       {/* ── Page Header ────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto mb-6 animate-in fade-in duration-300">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-procarni-blue shadow-lg flex items-center justify-center flex-shrink-0">
-            <Archive className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-procarni-dark leading-none">
-              Cierres y Ajustes
-            </h1>
-            <p className="text-sm text-slate-500 font-medium italic mt-0.5">
-              Gestión de periodos contables y ajustes manuales de inventario
-            </p>
-          </div>
-        </div>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+          Cierres y Ajustes
+        </h1>
+        <p className="text-[13px] text-gray-500 font-medium italic">
+          Gestión de periodos contables y ajustes manuales de inventario
+        </p>
       </div>
 
       <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-6xl mx-auto"
       >
-        <Card className="bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white border-none rounded-[2rem] overflow-hidden">
+        <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
           {/* Top Bar with integrated tab toggle */}
           <div className="bg-procarni-blue px-7 py-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <ClipboardList className="h-5 w-5 text-white/60 flex-shrink-0" />
+                {activeTab === 'periodos' && <CalendarCheck className="h-5 w-5 text-white/60 flex-shrink-0" />}
+                {activeTab === 'ajuste-negativo' && <TrendingDown className="h-5 w-5 text-red-400 flex-shrink-0" />}
                 <div className="min-w-0">
-                  <p className="text-white font-bold text-base leading-tight">Panel de Control Contable</p>
-                  <p className="text-white/50 text-xs mt-0.5 truncate">Periodos contables y ajustes de pérdida operativa</p>
+                  <p className="text-white font-bold text-base leading-tight">
+                    {activeTab === 'periodos' && 'Periodos Contables de Inventario'}
+                    {activeTab === 'ajuste-negativo' && 'Ajuste de Pérdida Operativa'}
+                  </p>
+                  <p className="text-white/50 text-xs mt-0.5 truncate">
+                    {activeTab === 'periodos' && 'Apertura y cierre de periodos para control de inventario y snapshot de costos'}
+                    {activeTab === 'ajuste-negativo' && 'Disminuye el stock de un material por merma, daño, pérdida u obsolescencia'}
+                  </p>
                 </div>
               </div>
               {/* Toggle tabs inside top-bar */}
