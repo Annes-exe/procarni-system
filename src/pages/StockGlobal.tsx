@@ -32,6 +32,7 @@ import {
   getInventoryPeriods,
 } from '@/integrations/supabase/services/inventoryService';
 import { InventoryCategory, MaterialInventory } from '@/integrations/supabase/types';
+import { getAllUnits } from '@/integrations/supabase/data';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,12 +118,18 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
-  const [selectedMaterial, setSelectedMaterial] = useState<{ id: string; name: string; code: string | null } | null>(null);
+  const [selectedMaterial, setSelectedMaterial] = useState<{ id: string; name: string; code: string | null; category: string | null; unit: string | null } | null>(null);
   const [category, setCategory] = useState<InventoryCategory | ''>('');
-  const [unit, setUnit] = useState('kg');
+  const [unit, setUnit] = useState('KG');
   const [minStock, setMinStock] = useState('0');
   const [initialCost, setInitialCost] = useState('0');
   const [notes, setNotes] = useState('');
+
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+    enabled: open,
+  });
 
   const { data: families = [] } = useQuery({
     queryKey: ['inventoryFamilies'],
@@ -163,7 +170,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
     setSearch('');
     setSelectedMaterial(null);
     setCategory('');
-    setUnit('kg');
+    setUnit('KG');
     setMinStock('0');
     setInitialCost('0');
     setNotes('');
@@ -223,7 +230,19 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => setSelectedMaterial(m)}
+                  onClick={() => {
+                    setSelectedMaterial(m);
+                    const matchedUnit = units.find(u => u.name.toUpperCase() === (m.unit || '').toUpperCase());
+                    if (matchedUnit) {
+                      setUnit(matchedUnit.name);
+                    } else if (m.unit) {
+                      setUnit(m.unit);
+                    } else if (units.length > 0) {
+                      setUnit(units[0].name);
+                    } else {
+                      setUnit('KG');
+                    }
+                  }}
                   className="w-full text-left p-3 hover:bg-gray-50 transition-colors flex items-center justify-between group"
                 >
                   <div>
@@ -281,7 +300,18 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="inv-unit">Unidad *</Label>
-                <Input id="inv-unit" value={unit} onChange={e => setUnit(e.target.value)} placeholder="kg" />
+                <Select value={unit} onValueChange={setUnit} disabled={isLoadingUnits}>
+                  <SelectTrigger id="inv-unit">
+                    <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Unidad"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {units.map((u) => (
+                      <SelectItem key={u.id} value={u.name}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="inv-min-stock">Alerta mínima</Label>
