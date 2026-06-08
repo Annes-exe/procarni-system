@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { m } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { format, subDays, startOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -58,23 +59,36 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // --- Sub-components (Defined before main component) ---
 
-const KpiCard = ({ title, value, prefix = '', isCurrency = true, icon, colorClass }: any) => {
-    return (
-        <Card className="bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {title}
-                </CardTitle>
-                {icon}
-            </CardHeader>
-            <CardContent>
-                <div className={cn("text-2xl font-bold text-gray-900", colorClass)}>
-                    {prefix}{typeof value === 'number' ? value.toLocaleString('en-US', { minimumFractionDigits: isCurrency ? 2 : 0, maximumFractionDigits: isCurrency ? 2 : 0 }) : value}
-                </div>
-            </CardContent>
-        </Card>
-    );
-};
+const fmt = (n: number, dec = 2) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+
+const KpiCard = ({ title, value, subtitle, icon, iconColorClass, delay = 0 }: any) => (
+  <m.div
+    initial={{ opacity: 0, y: 30 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay, duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
+    className="w-full"
+  >
+    <Card className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500">
+      <m.div whileHover={{ y: -6 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={cn('p-3 rounded-2xl transition-all duration-500', iconColorClass)}>
+            {React.cloneElement(icon as React.ReactElement, { className: 'h-5 w-5' })}
+          </div>
+        </div>
+        <div>
+          <div className="text-[28px] font-black text-gray-900 tracking-tighter mb-1 leading-tight truncate" title={typeof value === 'string' ? value : undefined}>{value}</div>
+          <div className="text-sm font-bold text-procarni-blue mb-0.5">{title}</div>
+          {subtitle && <p className="text-[12px] text-gray-500 font-medium">{subtitle}</p>}
+        </div>
+      </m.div>
+      {/* Background icon decoration */}
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+        {React.cloneElement(icon as React.ReactElement, { className: 'h-24 w-24 -mr-8 -mt-8 rotate-12' })}
+      </div>
+    </Card>
+  </m.div>
+);
 
 const CustomTooltip = ({ active, payload, label, currency }: any) => {
     if (active && payload && payload.length) {
@@ -755,41 +769,33 @@ const ReportsAnalytics = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <KpiCard
                         title="Gasto Total"
-                        value={kpis.totalSpend}
-                        prefix={currency === 'USD' ? '$' : 'Bs'}
-                        icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
-                        colorClass="text-emerald-700"
+                        value={`${currency === 'USD' ? '$' : 'Bs'}${fmt(kpis.totalSpend)}`}
+                        icon={<DollarSign />}
+                        iconColorClass="bg-emerald-50 text-emerald-600"
+                        delay={0}
                     />
                     <KpiCard
                         title="Orden Promedio"
-                        value={kpis.avgOrderValue}
-                        prefix={currency === 'USD' ? '$' : 'Bs'}
-                        icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
-                        colorClass="text-blue-700"
+                        value={`${currency === 'USD' ? '$' : 'Bs'}${fmt(kpis.avgOrderValue)}`}
+                        icon={<TrendingUp />}
+                        iconColorClass="bg-blue-50 text-blue-600"
+                        delay={0.1}
                     />
                     <KpiCard
                         title="Total Órdenes"
                         value={kpis.totalOrders}
-                        isCurrency={false}
-                        icon={<ShoppingCart className="h-4 w-4 text-violet-600" />}
-                        colorClass="text-violet-700"
+                        icon={<ShoppingCart />}
+                        iconColorClass="bg-violet-50 text-violet-600"
+                        delay={0.2}
                     />
-                    <Card className="bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                Material Top
-                            </CardTitle>
-                            <Package className="h-4 w-4 text-orange-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-lg font-bold truncate text-gray-900" title={kpis.topMaterial}>
-                                {kpis.topMaterial}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {currency === 'USD' ? '$' : 'Bs'}{kpis.topMaterialSpend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <KpiCard
+                        title="Material Top"
+                        value={kpis.topMaterial}
+                        subtitle={kpis.topMaterial !== '-' ? `${currency === 'USD' ? '$' : 'Bs'}${fmt(kpis.topMaterialSpend)}` : 'Sin compras'}
+                        icon={<Package />}
+                        iconColorClass="bg-orange-50 text-orange-600"
+                        delay={0.3}
+                    />
                 </div>
 
                 {/* --- Tabs System --- */}

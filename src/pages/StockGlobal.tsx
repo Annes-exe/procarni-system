@@ -75,8 +75,8 @@ const KpiCard = ({ title, value, subtitle, icon, iconColorClass, delay = 0 }: Kp
           <div className={cn('p-3 rounded-2xl transition-all duration-500', iconColorClass)}>
             {React.cloneElement(icon as React.ReactElement, { className: 'h-5 w-5' })}
           </div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">KPI</div>
         </div>
+
         <div>
           <div className="text-[28px] font-black text-gray-900 tracking-tighter mb-1 leading-tight truncate">{value}</div>
           <div className="text-sm font-bold text-procarni-blue mb-0.5">{title}</div>
