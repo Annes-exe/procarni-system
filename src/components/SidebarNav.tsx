@@ -23,6 +23,7 @@ const navItems = [
       { to: '/quote-request-management', icon: <FileQuestion className="h-5 w-5" />, label: 'Cotizaciones' },
       { to: '/purchase-order-management', icon: <ShoppingCart className="h-5 w-5" />, label: 'Órdenes de Compra' },
       { to: '/service-order-management', icon: <Briefcase className="h-5 w-5" />, label: 'Órdenes de Servicio' },
+      { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
     ]
   },
   {
@@ -39,7 +40,6 @@ const navItems = [
     category: 'Reportes',
     items: [
       { to: '/reports', icon: <BarChart3 className="h-5 w-5" />, label: 'Centro de Reportes' },
-      { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
     ]
   },
   {
@@ -128,7 +128,7 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
               to={item.to}
               end
               className={({ isActive }) =>
-                `flex flex-nowrap items-center h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden ${
+                `flex flex-nowrap items-center w-full min-w-0 h-[2.875rem] px-[11px] rounded-[0.9rem] transition-all duration-300 overflow-hidden ${
                   isActive ? activeClasses : hoverClasses
                 } justify-start group/item`
               }
@@ -144,7 +144,7 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                   x: forceExpanded ? 0 : -20 
                 }}
                 transition={springTransition}
-                className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block"
+                className="whitespace-nowrap ml-4 text-[13.5px] font-bold tracking-tight inline-block overflow-hidden text-ellipsis"
               >
                 {item.label}
               </m.span>
@@ -207,7 +207,11 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                     open: { opacity: 1, height: "auto", transition: { duration: 0.2, ease: "easeOut" } },
                     collapsed: { opacity: 0, height: 0, transition: { duration: 0.15, ease: "easeIn" } }
                   }}
-                  className="overflow-hidden flex flex-col gap-1 pl-4"
+                  className={
+                    forceExpanded
+                      ? "overflow-hidden flex flex-col gap-1 p-1 bg-gray-50/50 dark:bg-slate-900/30 rounded-2xl border border-gray-100/80 dark:border-slate-800/50 mx-1 my-1"
+                      : "overflow-hidden flex flex-col gap-1 mx-0 my-0 border-none bg-transparent p-0"
+                  }
                 >
                   {category.items.map((item) => {
                     const isOrdersCategory = category.category === 'Operaciones';
@@ -216,22 +220,26 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                       ? 'bg-procarni-secondary/10 text-procarni-secondary shadow-sm ring-1 ring-procarni-secondary/20'
                       : 'bg-procarni-primary/10 text-procarni-primary shadow-sm ring-1 ring-procarni-primary/20';
 
-                    const hoverClasses = 'text-gray-500 hover:bg-gray-50 hover:text-procarni-blue hover:translate-x-1';
+                    const hoverClasses = 'text-gray-500 hover:bg-gray-50 hover:text-procarni-blue';
 
                     return (
                       <NavLink
                         key={item.to}
                         to={item.to}
                         end
-                        className={({ isActive }) =>
-                          `flex flex-nowrap items-center h-[2.5rem] px-[11px] rounded-[0.8rem] transition-all duration-300 overflow-hidden ${
+                        className={({ isActive }) => {
+                          const heightClass = forceExpanded ? 'h-[2.625rem]' : 'h-[2.875rem]';
+                          const paddingClass = forceExpanded ? 'px-2' : 'px-[11px]';
+                          const roundedClass = forceExpanded ? 'rounded-xl' : 'rounded-[0.9rem]';
+                          
+                          return `flex flex-nowrap items-center w-full min-w-0 ${heightClass} ${paddingClass} ${roundedClass} transition-all duration-300 overflow-hidden ${
                             isActive ? activeClasses : hoverClasses
-                          } justify-start group/item`
-                        }
+                          } justify-start group/item`;
+                        }}
                         title={!forceExpanded ? item.label : undefined}
                       >
-                        <div className="flex-shrink-0 w-[30px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110">
-                          {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[16px] w-[16px]' })}
+                        <div className={`flex-shrink-0 w-[38px] flex items-center justify-center transition-transform duration-300 group-hover/item:scale-110 ${forceExpanded ? 'ml-1' : ''}`}>
+                          {React.cloneElement(item.icon as React.ReactElement, { className: 'h-[18px] w-[18px]' })}
                         </div>
                         <m.span 
                           initial={false}
@@ -240,7 +248,7 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
                             x: forceExpanded ? 0 : -20 
                           }}
                           transition={springTransition}
-                          className="whitespace-nowrap ml-3 text-[12.5px] font-semibold tracking-tight inline-block"
+                          className="whitespace-nowrap ml-3 text-[12.5px] font-semibold tracking-tight inline-block overflow-hidden text-ellipsis"
                         >
                           {item.label}
                         </m.span>

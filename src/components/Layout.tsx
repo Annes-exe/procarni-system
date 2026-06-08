@@ -171,7 +171,7 @@ const Layout = () => {
         onMouseEnter={() => setIsExpanded(true)}
         onMouseLeave={() => setIsExpanded(false)}
         initial={false}
-        animate={{ width: isExpanded ? 256 : 76 }}
+        animate={{ width: isExpanded ? 272 : 76 }}
         transition={sidebarTransition}
         className="fixed left-4 top-4 bottom-4 bg-white/80 backdrop-blur-2xl ring-1 ring-white shadow-2xl shadow-gray-300/50 z-50 flex flex-col justify-between rounded-[2.25rem] overflow-hidden border-none text-[13px] will-change-[width]"
       >
@@ -222,7 +222,7 @@ const Layout = () => {
       {/* Contenido Principal con Desplazamiento GPU */}
       <m.div 
         initial={false}
-        animate={{ x: isExpanded ? 180 : 0 }}
+        animate={{ x: isExpanded ? 196 : 0 }}
         transition={sidebarTransition}
         style={{ width: 'calc(100% - 4.75rem)', marginLeft: '4.75rem' }}
         className="flex-1 flex flex-col h-screen overflow-hidden will-change-transform"
