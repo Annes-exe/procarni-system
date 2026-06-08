@@ -511,7 +511,8 @@ const TabAjusteNegativo = () => {
 const CierresYAjustes = () => {
   const [activeTab, setActiveTab] = useState<'periodos' | 'ajuste-negativo'>('periodos');
   return (
-    <div className="container mx-auto p-4 pb-20 space-y-6">
+    <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+      <div className="container mx-auto space-y-6 pb-20">
       {/* ── Page Header ────────────────────────────────────────────── */}
       <div className="flex flex-col gap-1">
         <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
@@ -592,6 +593,7 @@ const CierresYAjustes = () => {
           </CardContent>
         </Card>
       </m.div>
+      </div>
     </div>
   );
 };

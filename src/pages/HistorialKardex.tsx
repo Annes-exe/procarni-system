@@ -207,17 +207,17 @@ const HistorialKardex = () => {
   const selectedMaterialName = inventory.find(m => m.material_id === materialFilter)?.materials?.name ?? '';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 sm:p-6 pb-24">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-1">
-          <ScrollText className="h-6 w-6 text-slate-700" />
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Historial Kardex</h1>
+    <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+      <div className="container mx-auto space-y-6 pb-20">
+        {/* ── Page Header ─────────────────────────────────────────── */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+            Historial Kardex
+          </h1>
+          <p className="text-[13px] text-gray-500 font-medium italic">
+            Auditoría completa e inmutable de todas las transacciones de inventario
+          </p>
         </div>
-        <p className="text-sm text-slate-500 ml-8">
-          Auditoría completa e inmutable de todas las transacciones de inventario
-        </p>
-      </div>
 
       {/* Filters */}
       <m.div
@@ -449,6 +449,7 @@ const HistorialKardex = () => {
           />
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 };

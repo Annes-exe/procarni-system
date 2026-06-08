@@ -363,13 +363,14 @@ const StockGlobal = () => {
   );
 
   return (
-    <div className="container mx-auto p-4 pb-20 space-y-6">
-      <style>{`
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateX(-8px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-      `}</style>
+    <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+      <div className="container mx-auto space-y-6 pb-20">
+        <style>{`
+          @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: translateX(0); }
+          }
+        `}</style>
 
       {/* ── Page Header ─────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -601,6 +602,7 @@ const StockGlobal = () => {
           <HabilitarMaterialModal open={modalOpen} onClose={() => setModalOpen(false)} />
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 };
