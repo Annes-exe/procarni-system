@@ -36,10 +36,10 @@ import { InventoryCategory, MaterialInventory } from '@/integrations/supabase/ty
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<InventoryCategory, { bg: string; text: string; border: string }> = {
-  MPF: { bg: 'bg-red-50',     text: 'text-procarni-primary', border: 'border-procarni-primary/20' },
-  MPS: { bg: 'bg-amber-50',   text: 'text-procarni-alert',   border: 'border-procarni-alert/20' },
-  EMP: { bg: 'bg-blue-50',    text: 'text-procarni-blue',    border: 'border-procarni-blue/20' },
-  ETQ: { bg: 'bg-slate-100',  text: 'text-procarni-dark',    border: 'border-procarni-dark/20' },
+  MPF: { bg: 'bg-red-50', text: 'text-procarni-primary', border: 'border-procarni-primary/20' },
+  MPS: { bg: 'bg-amber-50', text: 'text-procarni-alert', border: 'border-procarni-alert/20' },
+  EMP: { bg: 'bg-blue-50', text: 'text-procarni-blue', border: 'border-procarni-blue/20' },
+  ETQ: { bg: 'bg-slate-100', text: 'text-procarni-dark', border: 'border-procarni-dark/20' },
 };
 
 const CATEGORY_LABELS: Record<InventoryCategory, string> = {
@@ -372,236 +372,236 @@ const StockGlobal = () => {
           }
         `}</style>
 
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
-            Stock Global
-          </h1>
-          <p className="text-[13px] text-gray-500 font-medium italic">
-            Centro de mando del inventario Procarni
-          </p>
-        </div>
-        <Button
-          id="btn-habilitar-material"
-          onClick={() => setModalOpen(true)}
-          className="bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-lg shadow-procarni-secondary/20 gap-2 h-10 px-5 font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
-        >
-          <Plus className="h-4 w-4" />
-          Habilitar Material
-        </Button>
-      </div>
-
-      {/* ── KPI Cards ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KpiCard
-          title="Valor Total del Inventario"
-          value={`$${fmt(kpis.totalValue)}`}
-          subtitle={`${inventory.length} materiales habilitados`}
-          icon={<DollarSign />}
-          iconColorClass="bg-procarni-blue/10 text-procarni-blue"
-          delay={0}
-        />
-        <KpiCard
-          title="Alertas de Stock Crítico"
-          value={kpis.criticalCount}
-          subtitle={kpis.criticalCount === 0 ? 'Sin alertas activas' : 'materiales bajo mínimo'}
-          icon={<AlertTriangle />}
-          iconColorClass={kpis.criticalCount > 0
-            ? 'bg-procarni-primary/10 text-procarni-primary'
-            : 'bg-procarni-secondary/10 text-procarni-secondary'}
-          delay={0.1}
-        />
-        <KpiCard
-          title="Último Cierre Contable"
-          value={kpis.lastClosed
-            ? kpis.lastClosed.period_name
-            : 'Sin cierres'}
-          subtitle={kpis.lastClosed
-            ? format(new Date(kpis.lastClosed.closed_at ?? kpis.lastClosed.end_date), 'dd MMM yyyy', { locale: es })
-            : 'Ningún periodo cerrado aún'}
-          icon={<TrendingUp />}
-          iconColorClass="bg-slate-100 text-slate-500"
-          delay={0.2}
-        />
-      </div>
-
-      {/* ── Main Card ────────────────────────────────────────────── */}
-      <m.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden"
-      >
-        {/* Dark Top Bar */}
-        <div className="bg-procarni-blue px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Package className="h-4 w-4 text-white/50 flex-shrink-0" />
-              <span className="text-sm font-bold text-white uppercase tracking-wide">Materiales en Inventario</span>
-              <span className="text-xs bg-white/10 text-white/70 px-2.5 py-0.5 rounded-full font-mono font-bold flex-shrink-0">
-                {filtered.length}
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
-                <Input
-                  id="stock-search"
-                  placeholder="Buscar por SKU o nombre..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-white/10 border-white/15 text-white placeholder:text-white/40 h-9 text-sm w-56 focus-visible:ring-white/30 focus-visible:bg-white/15 focus-visible:border-white/40"
-                />
-              </div>
-              <div className="flex gap-1.5 flex-wrap">
-                {(['ALL', 'MPF', 'MPS', 'EMP', 'ETQ'] as const).map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all duration-200',
-                      categoryFilter === cat
-                        ? 'bg-white text-procarni-dark border-white shadow-sm'
-                        : 'bg-white/10 text-white/60 border-white/15 hover:bg-white/20 hover:text-white hover:border-white/30'
-                    )}
-                  >
-                    {cat === 'ALL' ? 'Todos' : cat}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* ── Page Header ─────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+              Stock Global
+            </h1>
+            <p className="text-[13px] text-gray-500 font-medium italic">
+              Centro de mando del inventario Procarni
+            </p>
           </div>
+          <Button
+            id="btn-habilitar-material"
+            onClick={() => setModalOpen(true)}
+            className="bg-procarni-secondary hover:bg-procarni-secondary/90 text-white shadow-lg shadow-procarni-secondary/20 gap-2 h-10 px-5 font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+          >
+            <Plus className="h-4 w-4" />
+            Habilitar Material
+          </Button>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-slate-50/70">
-              <TableRow>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 pl-6 py-3">SKU</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Material</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Categoría</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">Último Costo</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">CPP</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">Stock Actual</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Unidad</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right pr-6 py-3">Valor Stock</TableHead>
-                <TableHead className="py-3" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
-              ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-36 text-center text-slate-400">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <Package className="h-7 w-7 opacity-30" />
-                      </div>
-                      <p className="text-sm">
-                        {inventory.length === 0
-                          ? 'Aún no hay materiales habilitados. ¡Habilita el primero!'
-                          : 'Sin resultados para esa búsqueda.'}
-                      </p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((m: MaterialInventory, i) => {
-                  const isLow = m.min_stock_alert > 0 && m.current_stock <= m.min_stock_alert;
-                  return (
-                    <TableRow
-                      key={m.material_id}
-                      style={{
-                        opacity: 0,
-                        animation: `fadeSlideIn 0.35s ease forwards ${i * 0.03}s`,
-                      }}
+        {/* ── KPI Cards ────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KpiCard
+            title="Valor Total del Inventario"
+            value={`$${fmt(kpis.totalValue)}`}
+            subtitle={`${inventory.length} materiales habilitados`}
+            icon={<DollarSign />}
+            iconColorClass="bg-procarni-blue/10 text-procarni-blue"
+            delay={0}
+          />
+          <KpiCard
+            title="Alertas de Stock Crítico"
+            value={kpis.criticalCount}
+            subtitle={kpis.criticalCount === 0 ? 'Sin alertas activas' : 'materiales bajo mínimo'}
+            icon={<AlertTriangle />}
+            iconColorClass={kpis.criticalCount > 0
+              ? 'bg-procarni-primary/10 text-procarni-primary'
+              : 'bg-procarni-secondary/10 text-procarni-secondary'}
+            delay={0.1}
+          />
+          <KpiCard
+            title="Último Cierre Contable"
+            value={kpis.lastClosed
+              ? kpis.lastClosed.period_name
+              : 'Sin cierres'}
+            subtitle={kpis.lastClosed
+              ? format(new Date(kpis.lastClosed.closed_at ?? kpis.lastClosed.end_date), 'dd MMM yyyy', { locale: es })
+              : 'Ningún periodo cerrado aún'}
+            icon={<TrendingUp />}
+            iconColorClass="bg-slate-100 text-slate-500"
+            delay={0.2}
+          />
+        </div>
+
+        {/* ── Main Card ────────────────────────────────────────────── */}
+        <m.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden"
+        >
+          {/* Subtle Light Top Bar */}
+          <div className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Package className="h-4 w-4 text-slate-600 flex-shrink-0" />
+                <span className="text-sm font-extrabold text-slate-800 tracking-tight">Materiales en Inventario</span>
+                <span className="text-xs bg-slate-200 text-slate-700 px-2.5 py-0.5 rounded-full font-mono font-bold flex-shrink-0">
+                  {filtered.length}
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    id="stock-search"
+                    placeholder="Buscar por SKU o nombre..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="pl-9 bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 h-9 text-sm w-56 focus-visible:ring-slate-200 focus-visible:border-slate-300"
+                  />
+                </div>
+                <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl border border-slate-200/20">
+                  {(['ALL', 'MPF', 'MPS', 'EMP', 'ETQ'] as const).map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoryFilter(cat)}
                       className={cn(
-                        'group border-b border-slate-50 hover:bg-slate-50/80 transition-colors',
-                        isLow && 'bg-amber-50/20 hover:bg-amber-50/40'
+                        'px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200',
+                        categoryFilter === cat
+                          ? 'bg-white text-slate-800 shadow-sm border border-slate-200/40'
+                          : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
                       )}
                     >
-                      <TableCell className="pl-6 py-4">
-                        <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-2 py-0.5 rounded-md">{m.sku}</span>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <div className="flex items-center gap-2">
-                          {isLow && (
-                            <span title="Stock bajo mínimo">
-                              <AlertTriangle className="h-3.5 w-3.5 text-procarni-alert flex-shrink-0" />
-                            </span>
-                          )}
-                          <span className="text-sm font-semibold text-slate-800">
-                            {m.materials?.name ?? '—'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <CategoryBadge category={m.inventory_category} />
-                      </TableCell>
-                      <TableCell className="py-4 text-right font-mono text-sm text-slate-500">
-                        ${fmt(m.last_purchase_price, 4)}
-                      </TableCell>
-                      <TableCell className="py-4 text-right">
-                        <span className="font-mono text-sm font-bold text-slate-800">
-                          ${fmt(m.average_unit_cost, 4)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-4 text-right">
-                        <span className={cn(
-                          'font-mono text-sm font-bold',
-                          isLow ? 'text-procarni-alert' : 'text-procarni-secondary'
-                        )}>
-                          {fmt(m.current_stock, 2)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-4 text-sm text-slate-500">{m.unit}</TableCell>
-                      <TableCell className="pr-6 py-4 text-right">
-                        <span className="font-mono text-sm font-semibold text-slate-700">
-                          ${fmt(m.total_value)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <Button
-                          id={`btn-kardex-${m.material_id}`}
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/inventory/kardex?materialId=${m.material_id}`)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 text-xs gap-1 text-procarni-blue hover:bg-procarni-blue/10 font-semibold"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Kardex
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Footer */}
-        {filtered.length > 0 && (
-          <div className="px-6 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <p className="text-xs text-slate-400">
-              {filtered.length} de {inventory.length} materiales
-            </p>
-            <p className="text-xs font-bold text-procarni-dark">
-              Valor filtrado: ${fmt(filtered.reduce((a, m) => a + m.total_value, 0))}
-            </p>
+                      {cat === 'ALL' ? 'Todos' : cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </m.div>
 
-      {/* Modal */}
-      <AnimatePresence>
-        {modalOpen && (
-          <HabilitarMaterialModal open={modalOpen} onClose={() => setModalOpen(false)} />
-        )}
-      </AnimatePresence>
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50/70">
+                <TableRow>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 pl-6 py-3">SKU</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Material</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Categoría</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">Último Costo</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">CPP</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right py-3">Stock Actual</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 py-3">Unidad</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-wider text-slate-500 text-right pr-6 py-3">Valor Stock</TableHead>
+                  <TableHead className="py-3" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+                ) : filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-36 text-center text-slate-400">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                          <Package className="h-7 w-7 opacity-30" />
+                        </div>
+                        <p className="text-sm">
+                          {inventory.length === 0
+                            ? 'Aún no hay materiales habilitados. ¡Habilita el primero!'
+                            : 'Sin resultados para esa búsqueda.'}
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((m: MaterialInventory, i) => {
+                    const isLow = m.min_stock_alert > 0 && m.current_stock <= m.min_stock_alert;
+                    return (
+                      <TableRow
+                        key={m.material_id}
+                        style={{
+                          opacity: 0,
+                          animation: `fadeSlideIn 0.35s ease forwards ${i * 0.03}s`,
+                        }}
+                        className={cn(
+                          'group border-b border-slate-50 hover:bg-slate-50/80 transition-colors',
+                          isLow && 'bg-amber-50/20 hover:bg-amber-50/40'
+                        )}
+                      >
+                        <TableCell className="pl-6 py-4">
+                          <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-2 py-0.5 rounded-md">{m.sku}</span>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <div className="flex items-center gap-2">
+                            {isLow && (
+                              <span title="Stock bajo mínimo">
+                                <AlertTriangle className="h-3.5 w-3.5 text-procarni-alert flex-shrink-0" />
+                              </span>
+                            )}
+                            <span className="text-sm font-semibold text-slate-800">
+                              {m.materials?.name ?? '—'}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <CategoryBadge category={m.inventory_category} />
+                        </TableCell>
+                        <TableCell className="py-4 text-right font-mono text-sm text-slate-500">
+                          ${fmt(m.last_purchase_price, 4)}
+                        </TableCell>
+                        <TableCell className="py-4 text-right">
+                          <span className="font-mono text-sm font-bold text-slate-800">
+                            ${fmt(m.average_unit_cost, 4)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-4 text-right">
+                          <span className={cn(
+                            'font-mono text-sm font-bold',
+                            isLow ? 'text-procarni-alert' : 'text-procarni-secondary'
+                          )}>
+                            {fmt(m.current_stock, 2)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-4 text-sm text-slate-500">{m.unit}</TableCell>
+                        <TableCell className="pr-6 py-4 text-right">
+                          <span className="font-mono text-sm font-semibold text-slate-700">
+                            ${fmt(m.total_value)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Button
+                            id={`btn-kardex-${m.material_id}`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/inventory/kardex?materialId=${m.material_id}`)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-8 text-xs gap-1 text-procarni-blue hover:bg-procarni-blue/10 font-semibold"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Kardex
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Footer */}
+          {filtered.length > 0 && (
+            <div className="px-6 py-3 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <p className="text-xs text-slate-400">
+                {filtered.length} de {inventory.length} materiales
+              </p>
+              <p className="text-xs font-bold text-procarni-dark">
+                Valor filtrado: ${fmt(filtered.reduce((a, m) => a + m.total_value, 0))}
+              </p>
+            </div>
+          )}
+        </m.div>
+
+        {/* Modal */}
+        <AnimatePresence>
+          {modalOpen && (
+            <HabilitarMaterialModal open={modalOpen} onClose={() => setModalOpen(false)} />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

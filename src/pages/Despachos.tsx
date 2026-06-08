@@ -164,29 +164,29 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
 
   const handleOrdenParsed = async (json: ProductionOrderJSON) => {
     setOrden(json);
-    
+
     try {
       const knownAliases = await getMaterialAliases();
       const unmapped: any[] = [];
       const newRows: DespachoRow[] = [];
-      
+
       json.materiales_requeridos.forEach(item => {
         let matId = item.material_id;
-        
+
         // Match using alias if not explicitly provided
         if (!matId && item.codigo_origen) {
           matId = knownAliases[item.codigo_origen];
         }
 
         let mat = matId ? inventoryMap.get(matId) : undefined;
-        
+
         // Fallback match by exact name
         if (!mat) {
           mat = inventory.find(m =>
             (m.materials?.name ?? '').toLowerCase() === item.nombre_material.toLowerCase()
           );
         }
-        
+
         if (mat) {
           newRows.push({
             materialInventory: mat,
@@ -198,7 +198,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
           unmapped.push(item);
         }
       });
-      
+
       setImportedRecipeRaw(json.materiales_requeridos);
 
       if (unmapped.length > 0) {
@@ -340,10 +340,10 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
               <AlertTitle className="text-amber-900 font-bold text-base">Nuevos Materiales Detectados</AlertTitle>
               <AlertDescription className="mt-2">
                 <p className="mb-4 text-amber-800">
-                  El sistema de recetas incluyó códigos que aún no están emparejados con tu almacén. 
+                  El sistema de recetas incluyó códigos que aún no están emparejados con tu almacén.
                   Selecciona a qué material equivalen para que el sistema lo aprenda para siempre.
                 </p>
-                
+
                 <div className="space-y-3 bg-white p-4 rounded-xl border border-amber-200 shadow-sm">
                   {unmappedItems.map(item => (
                     <div key={item.codigo_origen} className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -354,7 +354,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                         <span className="font-semibold text-slate-800">{item.nombre_material}</span>
                         <span className="ml-2 text-sm font-medium text-slate-500">({fmt(item.cantidad_teorica)} {item.unidad_medida})</span>
                       </div>
-                      
+
                       <div className="w-full sm:w-1/2">
                         <Select
                           onValueChange={(value) => setPendingMappings(prev => ({ ...prev, [item.codigo_origen]: value }))}
@@ -376,8 +376,8 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                 </div>
 
                 <div className="mt-5 flex justify-end">
-                  <Button 
-                    onClick={handleSaveMappings} 
+                  <Button
+                    onClick={handleSaveMappings}
                     disabled={submitting}
                     className="bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md"
                   >
@@ -393,195 +393,195 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
             <>
               {/* Capsule header */}
               <div className="bg-gradient-to-r from-procarni-dark to-procarni-blue rounded-xl px-5 py-4 text-white">
-            <div className="flex flex-wrap gap-4 text-sm">
-              <div>
-                <p className="text-white/60 text-xs uppercase tracking-wider">Producto</p>
-                <p className="font-bold">{orden.producto_fabricado}</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs uppercase tracking-wider">Presentación</p>
-                <p className="font-bold">{orden.presentacion}</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs uppercase tracking-wider">Lotes</p>
-                <p className="font-bold">{orden.lotes_planificados}</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs uppercase tracking-wider">Peso Crudo Total</p>
-                <p className="font-bold">{fmt(pesoTotal)} kg</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Deviation bar */}
-          {pesoTotal > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-slate-500">Kg Despachados / Kg Planificados</span>
-                <span className={isDeviationHigh ? 'text-red-600' : 'text-emerald-600'}>
-                  {fmt(totalDespachado)} / {fmt(pesoTotal)} kg ({fmt(deviationPct * 100, 1)}%)
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-all duration-500',
-                    isDeviationHigh ? 'bg-red-500' : 'bg-emerald-500'
-                  )}
-                  style={{ width: `${Math.min((totalDespachado / pesoTotal) * 100, 100)}%` }}
-                />
-              </div>
-              {isDeviationHigh && (
-                <p className="text-xs text-red-600 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  La desviación supera el 10%. Verifica las cantidades antes de confirmar.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Materials table */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="pl-4 font-bold text-xs uppercase text-slate-500">Material</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500">SKU</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Teórico</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Real</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">CPP</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right pr-4">Costo Salida</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-20 text-center text-slate-400 text-sm">
-                      No se encontraron materiales del JSON en el inventario habilitado.
-                    </TableCell>
-                  </TableRow>
-                ) : rows.map((row, idx) => {
-                  const real = parseFloat(row.cantidadReal) || 0;
-                  const teorico = row.cantidadTeorica;
-                  const deviation = teorico > 0 ? Math.abs(real - teorico) / teorico : 0;
-                  const isWarning = deviation > DEVIATION_WARN && !row.isSubstitute;
-                  const costRow = real * row.materialInventory.average_unit_cost;
-
-                  return (
-                    <TableRow key={idx} className={cn(isWarning && 'bg-amber-50/60')}>
-                      <TableCell className="pl-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">{row.materialInventory.materials?.name}</p>
-                          {row.isSubstitute && (
-                            <Badge variant="outline" className="text-xs mt-0.5 text-procarni-blue border-procarni-blue/20 bg-procarni-blue/5">
-                              Sustituto
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <span className="font-mono text-xs text-slate-500">{row.materialInventory.sku}</span>
-                      </TableCell>
-                      <TableCell className="py-3 text-right font-mono text-sm text-slate-500">
-                        {row.isSubstitute ? '—' : fmt(teorico)}
-                      </TableCell>
-                      <TableCell className="py-3 text-right">
-                        <Input
-                          type="number" min="0" step="0.01" placeholder="0.00"
-                          value={row.cantidadReal}
-                          onChange={e => setRowCantidad(idx, e.target.value)}
-                          className={cn(
-                            'w-24 h-8 text-right text-sm ml-auto',
-                            isWarning && 'border-amber-400 bg-amber-50'
-                          )}
-                        />
-                      </TableCell>
-                      <TableCell className="py-3 text-right font-mono text-sm text-slate-600">
-                        ${fmt(row.materialInventory.average_unit_cost, 4)}
-                      </TableCell>
-                      <TableCell className="pr-4 py-3 text-right font-mono text-sm font-bold text-slate-800">
-                        ${fmt(costRow)}
-                      </TableCell>
-                      <TableCell className="py-3">
-                        {row.isSubstitute && (
-                          <button onClick={() => setRows(prev => prev.filter((_, i) => i !== idx))}
-                            className="p-1 hover:bg-red-50 rounded transition-colors">
-                            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                          </button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Total cost + add substitute */}
-          <div className="flex items-center justify-between">
-            <Button
-              id="btn-agregar-sustituto"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSubstitutePicker(true)}
-              className="gap-1.5 text-procarni-blue border-procarni-blue/20 hover:bg-procarni-blue/5"
-            >
-              <Plus className="h-4 w-4" />
-              Agregar Sustituto
-            </Button>
-            <div className="text-right">
-              <p className="text-xs text-slate-400 uppercase tracking-wider">Costo Total de Salida</p>
-              <p className="font-black text-2xl text-slate-800 font-mono">${fmt(costTotal)}</p>
-            </div>
-          </div>
-
-          {/* Substitute picker */}
-          <AnimatePresence>
-            {showSubstitutePicker && (
-              <m.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="border border-procarni-blue/20 rounded-xl overflow-hidden bg-procarni-blue/5"
-              >
-                <div className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-procarni-blue font-bold">Seleccionar material sustituto</Label>
-                    <button onClick={() => setShowSubstitutePicker(false)}>
-                      <X className="h-4 w-4 text-slate-400" />
-                    </button>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div>
+                    <p className="text-white/60 text-xs uppercase tracking-wider">Producto</p>
+                    <p className="font-bold">{orden.producto_fabricado}</p>
                   </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                      placeholder="Buscar por SKU o nombre..."
-                      value={substituteSearch}
-                      onChange={e => setSubstituteSearch(e.target.value)}
-                      className="pl-9 bg-white"
-                      autoFocus
+                  <div>
+                    <p className="text-white/60 text-xs uppercase tracking-wider">Presentación</p>
+                    <p className="font-bold">{orden.presentacion}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-xs uppercase tracking-wider">Lotes</p>
+                    <p className="font-bold">{orden.lotes_planificados}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-xs uppercase tracking-wider">Peso Crudo Total</p>
+                    <p className="font-bold">{fmt(pesoTotal)} kg</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deviation bar */}
+              {pesoTotal > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-slate-500">Kg Despachados / Kg Planificados</span>
+                    <span className={isDeviationHigh ? 'text-red-600' : 'text-emerald-600'}>
+                      {fmt(totalDespachado)} / {fmt(pesoTotal)} kg ({fmt(deviationPct * 100, 1)}%)
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        isDeviationHigh ? 'bg-red-500' : 'bg-emerald-500'
+                      )}
+                      style={{ width: `${Math.min((totalDespachado / pesoTotal) * 100, 100)}%` }}
                     />
                   </div>
-                  {substituteSearch && (
-                    <div className="border rounded-lg divide-y bg-white max-h-40 overflow-y-auto">
-                      {filteredForSubstitute.map(m => (
-                        <button key={m.material_id} type="button"
-                          onClick={() => addSubstitute(m)}
-                          className="w-full text-left p-3 hover:bg-slate-50 flex items-center justify-between"
-                        >
-                          <div>
-                            <span className="font-mono font-bold text-xs text-slate-500 mr-2">{m.sku}</span>
-                            <span className="text-sm font-semibold text-slate-800">{m.materials?.name}</span>
-                          </div>
-                          <span className="text-xs text-slate-400">Stock: {fmt(m.current_stock)} {m.unit}</span>
-                        </button>
-                      ))}
-                    </div>
+                  {isDeviationHigh && (
+                    <p className="text-xs text-red-600 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      La desviación supera el 10%. Verifica las cantidades antes de confirmar.
+                    </p>
                   )}
                 </div>
-              </m.div>
-            )}
-          </AnimatePresence>
+              )}
+
+              {/* Materials table */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="pl-4 font-bold text-xs uppercase text-slate-500">Material</TableHead>
+                      <TableHead className="font-bold text-xs uppercase text-slate-500">SKU</TableHead>
+                      <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Teórico</TableHead>
+                      <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Real</TableHead>
+                      <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">CPP</TableHead>
+                      <TableHead className="font-bold text-xs uppercase text-slate-500 text-right pr-4">Costo Salida</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-20 text-center text-slate-400 text-sm">
+                          No se encontraron materiales del JSON en el inventario habilitado.
+                        </TableCell>
+                      </TableRow>
+                    ) : rows.map((row, idx) => {
+                      const real = parseFloat(row.cantidadReal) || 0;
+                      const teorico = row.cantidadTeorica;
+                      const deviation = teorico > 0 ? Math.abs(real - teorico) / teorico : 0;
+                      const isWarning = deviation > DEVIATION_WARN && !row.isSubstitute;
+                      const costRow = real * row.materialInventory.average_unit_cost;
+
+                      return (
+                        <TableRow key={idx} className={cn(isWarning && 'bg-amber-50/60')}>
+                          <TableCell className="pl-4 py-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{row.materialInventory.materials?.name}</p>
+                              {row.isSubstitute && (
+                                <Badge variant="outline" className="text-xs mt-0.5 text-procarni-blue border-procarni-blue/20 bg-procarni-blue/5">
+                                  Sustituto
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3">
+                            <span className="font-mono text-xs text-slate-500">{row.materialInventory.sku}</span>
+                          </TableCell>
+                          <TableCell className="py-3 text-right font-mono text-sm text-slate-500">
+                            {row.isSubstitute ? '—' : fmt(teorico)}
+                          </TableCell>
+                          <TableCell className="py-3 text-right">
+                            <Input
+                              type="number" min="0" step="0.01" placeholder="0.00"
+                              value={row.cantidadReal}
+                              onChange={e => setRowCantidad(idx, e.target.value)}
+                              className={cn(
+                                'w-24 h-8 text-right text-sm ml-auto',
+                                isWarning && 'border-amber-400 bg-amber-50'
+                              )}
+                            />
+                          </TableCell>
+                          <TableCell className="py-3 text-right font-mono text-sm text-slate-600">
+                            ${fmt(row.materialInventory.average_unit_cost, 4)}
+                          </TableCell>
+                          <TableCell className="pr-4 py-3 text-right font-mono text-sm font-bold text-slate-800">
+                            ${fmt(costRow)}
+                          </TableCell>
+                          <TableCell className="py-3">
+                            {row.isSubstitute && (
+                              <button onClick={() => setRows(prev => prev.filter((_, i) => i !== idx))}
+                                className="p-1 hover:bg-red-50 rounded transition-colors">
+                                <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                              </button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Total cost + add substitute */}
+              <div className="flex items-center justify-between">
+                <Button
+                  id="btn-agregar-sustituto"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSubstitutePicker(true)}
+                  className="gap-1.5 text-procarni-blue border-procarni-blue/20 hover:bg-procarni-blue/5"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar Sustituto
+                </Button>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider">Costo Total de Salida</p>
+                  <p className="font-black text-2xl text-slate-800 font-mono">${fmt(costTotal)}</p>
+                </div>
+              </div>
+
+              {/* Substitute picker */}
+              <AnimatePresence>
+                {showSubstitutePicker && (
+                  <m.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="border border-procarni-blue/20 rounded-xl overflow-hidden bg-procarni-blue/5"
+                  >
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-procarni-blue font-bold">Seleccionar material sustituto</Label>
+                        <button onClick={() => setShowSubstitutePicker(false)}>
+                          <X className="h-4 w-4 text-slate-400" />
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="Buscar por SKU o nombre..."
+                          value={substituteSearch}
+                          onChange={e => setSubstituteSearch(e.target.value)}
+                          className="pl-9 bg-white"
+                          autoFocus
+                        />
+                      </div>
+                      {substituteSearch && (
+                        <div className="border rounded-lg divide-y bg-white max-h-40 overflow-y-auto">
+                          {filteredForSubstitute.map(m => (
+                            <button key={m.material_id} type="button"
+                              onClick={() => addSubstitute(m)}
+                              className="w-full text-left p-3 hover:bg-slate-50 flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-mono font-bold text-xs text-slate-500 mr-2">{m.sku}</span>
+                                <span className="text-sm font-semibold text-slate-800">{m.materials?.name}</span>
+                              </div>
+                              <span className="text-xs text-slate-400">Stock: {fmt(m.current_stock)} {m.unit}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </m.div>
+                )}
+              </AnimatePresence>
 
               <Button
                 id="btn-confirmar-salida-produccion"
@@ -784,95 +784,95 @@ const Despachos = () => {
   return (
     <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       <div className="container mx-auto space-y-6 pb-20">
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
-          Despachos
-        </h1>
-        <p className="text-[13px] text-gray-500 font-medium italic">
-          Centro de operaciones de salidas del almacén
-        </p>
-      </div>
+        {/* ── Page Header ─────────────────────────────────────────── */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+            Despachos
+          </h1>
+          <p className="text-[13px] text-gray-500 font-medium italic">
+            Centro de operaciones de salidas del almacén
+          </p>
+        </div>
 
-      <m.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          {/* Dark Top Bar with integrated mode toggle */}
-          <div className="bg-procarni-blue px-6 py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                {mode === 'produccion'
-                  ? <Factory className="h-5 w-5 text-white/60 flex-shrink-0" />
-                  : <ShoppingBag className="h-5 w-5 text-procarni-alert flex-shrink-0" />
-                }
-                <div className="min-w-0">
-                  <p className="text-white font-bold text-base leading-tight">
-                    {mode === 'produccion' ? 'Salida a Producción — Carga Mágica' : 'Salida por Venta Directa'}
-                  </p>
-                  <p className="text-white/50 text-xs mt-0.5 truncate">
-                    {mode === 'produccion'
-                      ? 'Carga el archivo JSON de la Orden de Producción para autocompletar la tabla'
-                      : 'Registra la salida valorizada al Costo Promedio Ponderado (CPP)'}
-                  </p>
+        <m.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            {/* Dark Top Bar with integrated mode toggle */}
+            <div className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  {mode === 'produccion'
+                    ? <Factory className="h-5 w-5 text-slate-600 flex-shrink-0" />
+                    : <ShoppingBag className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                  }
+                  <div className="min-w-0">
+                    <p className="text-slate-800 font-extrabold text-base leading-tight">
+                      {mode === 'produccion' ? 'Salida a Producción — Carga Mágica' : 'Salida por Venta Directa'}
+                    </p>
+                    <p className="text-slate-500 text-xs mt-0.5 truncate">
+                      {mode === 'produccion'
+                        ? 'Carga el archivo JSON de la Orden de Producción para autocompletar la tabla'
+                        : 'Registra la salida valorizada al Costo Promedio Ponderado (CPP)'}
+                    </p>
+                  </div>
+                </div>
+                {/* Toggle inside top-bar */}
+                <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl flex-shrink-0 border border-slate-200/20">
+                  <button
+                    id="toggle-produccion"
+                    onClick={() => setMode('produccion')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                      mode === 'produccion'
+                        ? 'bg-white text-slate-800 shadow-sm border border-slate-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
+                    )}
+                  >
+                    <Factory className="h-4 w-4" />
+                    Producción
+                  </button>
+                  <button
+                    id="toggle-venta"
+                    onClick={() => setMode('venta')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                      mode === 'venta'
+                        ? 'bg-white text-amber-700 shadow-sm border border-amber-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
+                    )}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    Venta
+                  </button>
                 </div>
               </div>
-              {/* Toggle inside top-bar */}
-              <div className="flex gap-1.5 bg-white/10 p-1 rounded-xl flex-shrink-0">
-                <button
-                  id="toggle-produccion"
-                  onClick={() => setMode('produccion')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
-                    mode === 'produccion'
-                      ? 'bg-procarni-blue text-white shadow-lg'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  )}
-                >
-                  <Factory className="h-4 w-4" />
-                  Producción
-                </button>
-                <button
-                  id="toggle-venta"
-                  onClick={() => setMode('venta')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
-                    mode === 'venta'
-                      ? 'bg-procarni-alert text-white shadow-lg'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  )}
-                >
-                  <ShoppingBag className="h-4 w-4" />
-                  Venta
-                </button>
-              </div>
             </div>
-          </div>
 
-          <CardContent className="p-6">
-            {isLoading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-              </div>
-            ) : (
-              <AnimatePresence mode="wait">
-                {mode === 'produccion'
-                  ? (
-                    <m.div key="produccion" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                      <SalidaProduccion inventory={inventory} />
-                    </m.div>
-                  ) : (
-                    <m.div key="venta" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                      <SalidaVenta inventory={inventory} />
-                    </m.div>
-                  )
-                }
-              </AnimatePresence>
-            )}
-          </CardContent>
-        </Card>
-      </m.div>
+            <CardContent className="p-6">
+              {isLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : (
+                <AnimatePresence mode="wait">
+                  {mode === 'produccion'
+                    ? (
+                      <m.div key="produccion" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                        <SalidaProduccion inventory={inventory} />
+                      </m.div>
+                    ) : (
+                      <m.div key="venta" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                        <SalidaVenta inventory={inventory} />
+                      </m.div>
+                    )
+                  }
+                </AnimatePresence>
+              )}
+            </CardContent>
+          </Card>
+        </m.div>
       </div>
     </div>
   );

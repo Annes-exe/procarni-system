@@ -991,107 +991,107 @@ const Recepciones = () => {
   return (
     <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       <div className="container mx-auto space-y-6 pb-20">
-      {/* ── Page Header ────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
-          Recepciones
-        </h1>
-        <p className="text-[13px] text-gray-500 font-medium italic">
-          Centro de entradas al almacén
-        </p>
-      </div>
+        {/* ── Page Header ────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-1">
+          <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
+            Recepciones
+          </h1>
+          <p className="text-[13px] text-gray-500 font-medium italic">
+            Centro de entradas al almacén
+          </p>
+        </div>
 
-      <m.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-          {/* Top Bar with integrated tab toggle */}
-          <div className="bg-procarni-blue px-7 py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                {activeTab === 'desde-oc' && <Clipboard className="h-5 w-5 text-white/60 flex-shrink-0" />}
-                {activeTab === 'directa' && <Upload className="h-5 w-5 text-white/60 flex-shrink-0" />}
-                {activeTab === 'ajuste-positivo' && <Plus className="h-5 w-5 text-green-400 flex-shrink-0" />}
-                <div className="min-w-0">
-                  <p className="text-white font-bold text-base leading-tight">
-                    {activeTab === 'desde-oc' && 'Recepcionar desde Orden de Compra'}
-                    {activeTab === 'directa' && 'Entrada Directa de Inventario'}
-                    {activeTab === 'ajuste-positivo' && 'Ajuste Positivo de Inventario'}
-                  </p>
-                  <p className="text-white/50 text-xs mt-0.5 truncate">
-                    {activeTab === 'desde-oc' && 'Busca una Orden de Compra aprobada para registrar su ingreso al almacén'}
-                    {activeTab === 'directa' && 'Registra una entrada manual sin orden de compra previa'}
-                    {activeTab === 'ajuste-positivo' && 'Aumenta el stock de un material por excedente o inventario físico'}
-                  </p>
+        <m.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            {/* Top Bar with integrated tab toggle */}
+            <div className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  {activeTab === 'desde-oc' && <Clipboard className="h-5 w-5 text-slate-600 flex-shrink-0" />}
+                  {activeTab === 'directa' && <Upload className="h-5 w-5 text-slate-600 flex-shrink-0" />}
+                  {activeTab === 'ajuste-positivo' && <Plus className="h-5 w-5 text-emerald-600 flex-shrink-0" />}
+                  <div className="min-w-0">
+                    <p className="text-slate-800 font-extrabold text-base leading-tight">
+                      {activeTab === 'desde-oc' && 'Recepcionar desde Orden de Compra'}
+                      {activeTab === 'directa' && 'Entrada Directa de Inventario'}
+                      {activeTab === 'ajuste-positivo' && 'Ajuste Positivo de Inventario'}
+                    </p>
+                    <p className="text-slate-500 text-xs mt-0.5 truncate">
+                      {activeTab === 'desde-oc' && 'Busca una Orden de Compra aprobada para registrar su ingreso al almacén'}
+                      {activeTab === 'directa' && 'Registra una entrada manual sin orden de compra previa'}
+                      {activeTab === 'ajuste-positivo' && 'Aumenta el stock de un material por excedente o inventario físico'}
+                    </p>
+                  </div>
+                </div>
+                {/* Toggle tabs inside top-bar */}
+                <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl flex-shrink-0 border border-slate-200/20">
+                  <button
+                    id="tab-desde-oc"
+                    onClick={() => setActiveTab('desde-oc')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                      activeTab === 'desde-oc'
+                        ? 'bg-white text-slate-800 shadow-sm border border-slate-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
+                    )}
+                  >
+                    <Clipboard className="h-3.5 w-3.5" />
+                    Desde OC
+                  </button>
+                  <button
+                    id="tab-directa"
+                    onClick={() => setActiveTab('directa')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                      activeTab === 'directa'
+                        ? 'bg-white text-slate-800 shadow-sm border border-slate-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
+                    )}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Directa
+                  </button>
+                  <button
+                    id="tab-ajuste-positivo"
+                    onClick={() => setActiveTab('ajuste-positivo')}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
+                      activeTab === 'ajuste-positivo'
+                        ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
+                    )}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Ajuste
+                  </button>
                 </div>
               </div>
-              {/* Toggle tabs inside top-bar */}
-              <div className="flex gap-1.5 bg-white/10 p-1 rounded-xl flex-shrink-0">
-                <button
-                  id="tab-desde-oc"
-                  onClick={() => setActiveTab('desde-oc')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
-                    activeTab === 'desde-oc'
-                      ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  )}
-                >
-                  <Clipboard className="h-3.5 w-3.5" />
-                  Desde OC
-                </button>
-                <button
-                  id="tab-directa"
-                  onClick={() => setActiveTab('directa')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
-                    activeTab === 'directa'
-                      ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  )}
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  Directa
-                </button>
-                <button
-                  id="tab-ajuste-positivo"
-                  onClick={() => setActiveTab('ajuste-positivo')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
-                    activeTab === 'ajuste-positivo'
-                      ? 'bg-procarni-secondary text-white shadow-lg'
-                      : 'text-white/60 hover:text-white hover:bg-white/10'
-                  )}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Ajuste
-                </button>
-              </div>
             </div>
-          </div>
 
-          <CardContent className="p-6">
-            <AnimatePresence mode="wait">
-              {activeTab === 'desde-oc' && (
-                <m.div key="desde-oc" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                  <TabDesdeOC />
-                </m.div>
-              )}
-              {activeTab === 'directa' && (
-                <m.div key="directa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                  <TabEntradaDirecta />
-                </m.div>
-              )}
-              {activeTab === 'ajuste-positivo' && (
-                <m.div key="ajuste-positivo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                  <TabAjustePositivo />
-                </m.div>
-              )}
-            </AnimatePresence>
-          </CardContent>
-        </Card>
-      </m.div>
+            <CardContent className="p-6">
+              <AnimatePresence mode="wait">
+                {activeTab === 'desde-oc' && (
+                  <m.div key="desde-oc" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                    <TabDesdeOC />
+                  </m.div>
+                )}
+                {activeTab === 'directa' && (
+                  <m.div key="directa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                    <TabEntradaDirecta />
+                  </m.div>
+                )}
+                {activeTab === 'ajuste-positivo' && (
+                  <m.div key="ajuste-positivo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                    <TabAjustePositivo />
+                  </m.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+          </Card>
+        </m.div>
       </div>
     </div>
   );

@@ -533,32 +533,32 @@ const CierresYAjustes = () => {
         >
           <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
             {/* Top Bar with integrated tab toggle */}
-            <div className="bg-procarni-blue px-7 py-4">
+            <div className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  {activeTab === 'periodos' && <CalendarCheck className="h-5 w-5 text-white/60 flex-shrink-0" />}
-                  {activeTab === 'ajuste-negativo' && <TrendingDown className="h-5 w-5 text-red-400 flex-shrink-0" />}
+                  {activeTab === 'periodos' && <CalendarCheck className="h-5 w-5 text-slate-600 flex-shrink-0" />}
+                  {activeTab === 'ajuste-negativo' && <TrendingDown className="h-5 w-5 text-red-600 flex-shrink-0" />}
                   <div className="min-w-0">
-                    <p className="text-white font-bold text-base leading-tight">
+                    <p className="text-slate-800 font-extrabold text-base leading-tight">
                       {activeTab === 'periodos' && 'Periodos Contables de Inventario'}
                       {activeTab === 'ajuste-negativo' && 'Ajuste de Pérdida Operativa'}
                     </p>
-                    <p className="text-white/50 text-xs mt-0.5 truncate">
+                    <p className="text-slate-500 text-xs mt-0.5 truncate">
                       {activeTab === 'periodos' && 'Apertura y cierre de periodos para control de inventario y snapshot de costos'}
                       {activeTab === 'ajuste-negativo' && 'Disminuye el stock de un material por merma, daño, pérdida u obsolescencia'}
                     </p>
                   </div>
                 </div>
                 {/* Toggle tabs inside top-bar */}
-                <div className="flex gap-1.5 bg-white/10 p-1 rounded-xl flex-shrink-0">
+                <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl flex-shrink-0 border border-slate-200/20">
                   <button
                     id="tab-periodos"
                     onClick={() => setActiveTab('periodos')}
                     className={cn(
                       'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
                       activeTab === 'periodos'
-                        ? 'bg-procarni-blue text-white shadow-lg ring-1 ring-white/20'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                        ? 'bg-white text-slate-800 shadow-sm border border-slate-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
                     )}
                   >
                     <CalendarCheck className="h-4 w-4" />
@@ -570,8 +570,8 @@ const CierresYAjustes = () => {
                     className={cn(
                       'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200',
                       activeTab === 'ajuste-negativo'
-                        ? 'bg-procarni-primary text-white shadow-lg'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
+                        ? 'bg-white text-red-700 shadow-sm border border-red-200/40'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/40'
                     )}
                   >
                     <TrendingDown className="h-4 w-4" />
