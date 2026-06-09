@@ -232,7 +232,7 @@ const QuoteRequestService = {
   getById: async (id: string): Promise<QuoteRequest | null> => {
     const { data, error } = await supabase
       .from('quote_requests')
-      .select('*, suppliers(*), companies(*), quote_request_items(*, materials(code, name))')
+      .select('*, suppliers(*), companies(*), quote_request_items(*, materials(code, name, unit_id))')
       .eq('id', id)
       .single();
 

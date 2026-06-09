@@ -121,7 +121,7 @@ const QuoteComparison = () => {
           id: item.material_id,
           name: item.material_name,
           code: item.materials?.code || 'N/A',
-          unit_id: item.unit_id || undefined,
+          unit_id: item.unit_id || item.materials?.unit_id || undefined,
         },
         quotes: item.quotes || [],
       })) || [];
@@ -193,7 +193,7 @@ const QuoteComparison = () => {
             unitPrice: 0,
             currency: globalInputCurrency,
             exchangeRate: globalInputCurrency === 'EUR' ? eurExchangeRate : exchangeRate,
-            unit_id: '',
+            unit_id: m.material.unit_id || '',
             unit_name: ''
           }]
         };
@@ -232,6 +232,7 @@ const QuoteComparison = () => {
               id: matId,
               name: matName,
               code: item.materials?.code || (item.material_id ? 'N/A' : 'Sin Código (Legado)'),
+              unit_id: item.unit_id || item.materials?.unit_id || undefined,
             });
           }
         });
@@ -257,7 +258,7 @@ const QuoteComparison = () => {
 
         items.forEach(item => {
           const matId = item.material_id || item.id;
-          let unitId = item.unit_id || '';
+          let unitId = item.unit_id || item.materials?.unit_id || '';
           
           // Fallback: try to find unitId from units list if missing but name is present
           if (!unitId && item.unit) {

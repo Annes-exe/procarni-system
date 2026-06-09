@@ -45,6 +45,7 @@ interface PurchaseOrderItemForm {
   tax_rate?: number;
   is_exempt?: boolean;
   unit?: string;
+  unit_id?: string | null;
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
@@ -57,6 +58,7 @@ interface MaterialSearchResult {
   code: string;
   category?: string;
   unit?: string;
+  unit_id?: string | null;
   is_exempt?: boolean;
   specification?: string;
 }
@@ -148,6 +150,7 @@ const EditPurchaseOrder = () => {
         tax_rate: item.tax_rate,
         is_exempt: item.is_exempt,
         unit: item.unit || 'KG',
+        unit_id: item.unit_id || null,
         was_recalculated: item.was_recalculated || false,
         description: item.description || '',
         sales_percentage: item.sales_percentage || 0,
@@ -186,6 +189,7 @@ const EditPurchaseOrder = () => {
     handleItemChange(index, 'material_id', material.id);
     handleItemChange(index, 'material_name', material.name);
     handleItemChange(index, 'unit', material.unit || 'KG');
+    handleItemChange(index, 'unit_id', material.unit_id || null);
     handleItemChange(index, 'is_exempt', material.is_exempt || false);
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);

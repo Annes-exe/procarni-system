@@ -149,6 +149,7 @@ export type QuoteRequestItem = {
   materials?: { // Added
     code: string | null;
     name: string;
+    unit_id?: string | null;
   };
 };
 
