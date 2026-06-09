@@ -106,10 +106,8 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
     <Popover open={open && !disabled} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (newOpen) {
-        // When opening, if we don't have a selection, clear query to show all
-        if (!selectedItem) {
-          setQuery('');
-        }
+        // Clear query when opening to allow a fresh search immediately
+        setQuery('');
       }
     }}>
       <PopoverTrigger asChild>

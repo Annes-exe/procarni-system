@@ -50,7 +50,7 @@ const QuoteComparisonService = {
       .from('quote_comparison_items')
       .select(`
         *,
-        materials (code, name)
+        materials (code, name, unit_id)
       `)
       .eq('comparison_id', id)
       .order('created_at', { ascending: true });

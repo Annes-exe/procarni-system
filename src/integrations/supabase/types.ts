@@ -150,6 +150,7 @@ export type QuoteRequestItem = {
   materials?: { // Added
     code: string | null;
     name: string;
+    unit_id?: string | null;
   };
 };
 
@@ -536,4 +537,4 @@ export type ProductionOrderJSON = {
     cantidad_teorica: number;
     unidad_medida: string;
   }[];
-};
+};

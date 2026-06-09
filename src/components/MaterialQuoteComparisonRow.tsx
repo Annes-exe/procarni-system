@@ -19,6 +19,7 @@ import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { QuoteEntry } from '@/integrations/supabase/types';
+import { PriceAlert } from './PriceAlert';
 
 interface MaterialSearchResult {
   id: string;
@@ -346,6 +347,13 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                               className="h-9 pl-7 text-sm font-semibold"
                             />
                           </div>
+                          <PriceAlert
+                            materialId={material.id}
+                            unitId={quote.unit_id}
+                            currentPrice={quote.unitPrice || 0}
+                            currency={quote.currency as any}
+                            exchangeRate={quote.exchangeRate}
+                          />
                         </div>
 
                         <div>
@@ -487,6 +495,13 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                                 placeholder="0.00"
                               />
                             </div>
+                            <PriceAlert
+                              materialId={material.id}
+                              unitId={quote.unit_id}
+                              currentPrice={quote.unitPrice || 0}
+                              currency={quote.currency as any}
+                              exchangeRate={quote.exchangeRate}
+                            />
                           </TableCell>
                           <TableCell className="py-3">
                             <Select

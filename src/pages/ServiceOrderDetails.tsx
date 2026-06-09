@@ -21,6 +21,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useIsMobile } from '@/hooks/use-mobile';
 import WhatsAppShareModal from '@/components/WhatsAppShareModal';
 import { OrderDocumentManager } from '@/components/OrderDocumentManager';
+import { PriceAlert } from '@/components/PriceAlert';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,77 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+
+interface SupplierDetails {
+  id: string;
+  name: string;
+  rif: string;
+  email?: string;
+  phone?: string;
+  phone_2?: string;
+  payment_terms: string;
+}
+
+interface CompanyDetails {
+  id: string;
+  name: string;
+  rif: string;
+}
+
+interface ServiceOrderItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+  is_exempt: boolean;
+  sales_percentage?: number | null;
+  discount_percentage?: number | null;
+}
+
+interface ServiceOrderMaterial {
+  id: string;
+  supplier_id: string;
+  material_id: string | null;
+  material_name?: string | null;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+  is_exempt: boolean;
+  supplier_code?: string | null;
+  unit?: string | null;
+  unit_id?: string | null;
+  description?: string | null;
+  sales_percentage?: number | null;
+  discount_percentage?: number | null;
+  materials?: {
+    name: string;
+  } | null;
+}
+
+interface ServiceOrderDetailsData {
+  id: string;
+  sequence_number?: number;
+  issue_date: string;
+  service_date: string;
+  supplier_id: string;
+  suppliers: SupplierDetails;
+  company_id: string;
+  companies: CompanyDetails;
+  equipment_name: string;
+  service_type: string;
+  detailed_service_description: string | null;
+  destination_address: string;
+  observations: string | null;
+  currency: 'USD' | 'VES' | 'EUR';
+  base_currency: 'USD' | 'EUR';
+  exchange_rate: number | null;
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+  user_id: string;
+  created_at: string | null;
+  service_order_items: ServiceOrderItem[];
+  service_order_materials: ServiceOrderMaterial[];
+}
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -70,13 +142,13 @@ const ServiceOrderDetails = () => {
     return new Date(dateString + 'T12:00:00');
   };
 
-  const { data: order, isLoading, error } = useQuery({
+  const { data: order, isLoading, error } = useQuery<ServiceOrderDetailsData | null>({
     queryKey: ['serviceOrderDetails', id],
     queryFn: async () => {
       if (!id) throw new Error('Service Order ID is missing.');
       const details = await serviceOrderService.getById(id);
       if (!details) throw new Error('Service Order not found.');
-      return details;
+      return details as unknown as ServiceOrderDetailsData;
     },
     enabled: !!id,
   });
@@ -739,6 +811,14 @@ const ServiceOrderDetails = () => {
                             {item.unit_price.toFixed(2)}
                           </div>
                         </div>
+                        <PriceAlert
+                          materialId={item.material_id}
+                          unitId={item.unit_id}
+                          currentPrice={item.unit_price}
+                          currency={order.currency}
+                          exchangeRate={order.exchange_rate}
+                          currentOrderId={order.id}
+                        />
                       </div>
                     ))}
                   </div>
@@ -768,6 +848,14 @@ const ServiceOrderDetails = () => {
                                 </Badge>
                               )}
                               {item.description && <span className="text-xs text-gray-500 block mt-0.5">{item.description}</span>}
+                              <PriceAlert
+                                materialId={item.material_id}
+                                unitId={item.unit_id}
+                                currentPrice={item.unit_price}
+                                currency={order.currency}
+                                exchangeRate={order.exchange_rate}
+                                currentOrderId={order.id}
+                              />
                             </TableCell>
                             <TableCell className="text-right font-mono text-sm text-gray-600">{item.quantity}</TableCell>
                             <TableCell className="text-right font-mono text-sm text-gray-600">{item.unit_price.toFixed(2)}</TableCell>

@@ -98,6 +98,7 @@ const GeneratePurchaseOrder = () => {
           let materialId: string | undefined = item.material_id || undefined;
           let supplierCode: string = '';
           let isExempt: boolean = item.is_exempt || false;
+          let unitId: string | undefined = item.unit_id || item.materials?.unit_id || undefined;
 
           if (supplierIdForSearch) {
             try {
@@ -108,6 +109,9 @@ const GeneratePurchaseOrder = () => {
                 materialId = exactMatch.id;
                 supplierCode = exactMatch.code || '';
                 isExempt = exactMatch.is_exempt || false;
+                if (!unitId && exactMatch.unit_id) {
+                  unitId = exactMatch.unit_id;
+                }
               }
             } catch (e) {
               console.error("Error searching material ID during QR conversion:", e);
@@ -123,6 +127,7 @@ const GeneratePurchaseOrder = () => {
             tax_rate: 0.16,
             is_exempt: isExempt,
             unit: item.unit || (units[0]?.name || ''),
+            unit_id: unitId || (units.find((u: any) => u.name === item.unit)?.id || undefined),
             description: item.description || '',
             sales_percentage: 0,
             discount_percentage: 0,
@@ -199,6 +204,7 @@ const GeneratePurchaseOrder = () => {
     if (materialData) {
       // Clear cart to avoid accumulating materials from previous imports
       clearCart();
+      const matchedUnit = units.find((u: any) => u.id === materialData.unit_id);
       addItem({
         material_id: materialData.id,
         material_name: materialData.name,
@@ -207,13 +213,14 @@ const GeneratePurchaseOrder = () => {
         unit_price: 0,
         tax_rate: 0.16,
         is_exempt: materialData.is_exempt || false,
-        unit: materialData.unit || (units[0]?.name || ''),
+        unit: matchedUnit ? matchedUnit.name : (materialData.unit || (units[0]?.name || '')),
+        unit_id: materialData.unit_id || (matchedUnit?.id || undefined),
         description: materialData.specification || '',
         sales_percentage: 0,
         discount_percentage: 0,
       });
     }
-  }, [materialData]);
+  }, [materialData, units]);
 
   const { data: supplierDetails } = useQuery({
     queryKey: ['supplierDetails', supplierId],
@@ -246,6 +253,7 @@ const GeneratePurchaseOrder = () => {
       material_id: material.id,
       material_name: material.name,
       unit: material.unit || (units[0]?.name || ''),
+      unit_id: material.unit_id || (units.find((u: any) => u.name === material.unit)?.id || null),
       is_exempt: material.is_exempt || false,
       description: material.specification || '',
     });
@@ -546,6 +554,7 @@ const GeneratePurchaseOrder = () => {
             supplierId={supplierId}
             supplierName={supplierName}
             currency={currency}
+            exchangeRate={exchangeRate}
             onAddItem={handleAddItem}
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}

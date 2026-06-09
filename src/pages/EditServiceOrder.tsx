@@ -669,6 +669,8 @@ const EditServiceOrder = () => {
                                                     id: item.id || Math.random().toString(36).substr(2, 9),
                                                 })) as any}
                                                 currency={currency}
+                                                exchangeRate={exchangeRate}
+                                                orderId={id}
                                                 onAddItem={() => handleAddSparePartItem(group.supplierId)}
                                                 onRemoveItem={(index) => handleRemoveSparePartItem(group.supplierId, index)}
                                                 onItemChange={(index, field, value) => handleSparePartItemChange(group.supplierId, index, field as any, value)}

@@ -39,6 +39,7 @@ interface PurchaseOrderItem {
   tax_rate: number;
   is_exempt: boolean;
   unit?: string;
+  unit_id?: string | null;
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
@@ -106,6 +107,7 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
   return `OC-${year}-${month}-${seq}`;
 };
 import WhatsAppShareModal from '@/components/WhatsAppShareModal';
+import { PriceAlert } from '@/components/PriceAlert';
 
 const PurchaseOrderDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -670,6 +672,14 @@ const PurchaseOrderDetails = () => {
                         {item.unit_price.toFixed(2)}
                       </div>
                     </div>
+                    <PriceAlert
+                      materialId={item.material_id}
+                      unitId={item.unit_id}
+                      currentPrice={item.unit_price}
+                      currency={order.currency}
+                      exchangeRate={order.exchange_rate}
+                      currentOrderId={order.id}
+                    />
                   </div>
                 );
               })}
@@ -704,6 +714,14 @@ const PurchaseOrderDetails = () => {
                           <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
                         )}
                         <span className="text-[10px] text-gray-400 mt-1 block">Cód: {item.supplier_code || 'N/A'}</span>
+                        <PriceAlert
+                          materialId={item.material_id}
+                          unitId={item.unit_id}
+                          currentPrice={item.unit_price}
+                          currency={order.currency}
+                          exchangeRate={order.exchange_rate}
+                          currentOrderId={order.id}
+                        />
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm text-gray-600">
                         {item.quantity} <span className="text-[10px] text-gray-400 ml-0.5">{item.unit}</span>
