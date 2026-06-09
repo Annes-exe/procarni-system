@@ -672,6 +672,7 @@ const GenerateServiceOrder = () => {
                         supplierId={group.supplierId}
                         supplierName={group.supplierName}
                         currency={currency}
+                        exchangeRate={exchangeRate}
                         onAddItem={() => handleAddSparePartItem(groupIndex)}
                         onRemoveItem={(itemIndex) => handleRemoveSparePartItem(groupIndex, itemIndex)}
                         onItemChange={(itemIndex, field, value) => handleSparePartItemChange(groupIndex, itemIndex, field as any, value)}

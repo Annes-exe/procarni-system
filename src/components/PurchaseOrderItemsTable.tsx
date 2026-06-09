@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
+import { PriceAlert } from './PriceAlert';
 
 interface PurchaseOrderItemForm {
   id?: string;
@@ -50,6 +51,8 @@ interface PurchaseOrderItemsTableProps {
   supplierId: string;
   supplierName: string;
   currency: 'USD' | 'VES' | 'EUR';
+  exchangeRate?: number | null;
+  orderId?: string | null;
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
   onItemChange: (index: number, field: keyof PurchaseOrderItemForm, value: PurchaseOrderItemForm[keyof PurchaseOrderItemForm]) => void;
@@ -63,6 +66,8 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   supplierId,
   supplierName,
   currency,
+  exchangeRate,
+  orderId,
   onAddItem,
   onRemoveItem,
   onItemChange,
@@ -258,6 +263,14 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               }} 
               className="h-9" 
               placeholder="0" 
+            />
+            <PriceAlert
+              materialId={item.material_id}
+              unitId={item.unit_id}
+              currentPrice={item.unit_price || 0}
+              currency={currency}
+              exchangeRate={exchangeRate}
+              currentOrderId={orderId}
             />
           </div>
           <div className="space-y-1">
@@ -494,6 +507,14 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   }}
                 />
               </div>
+              <PriceAlert
+                materialId={item.material_id}
+                unitId={item.unit_id}
+                currentPrice={item.unit_price || 0}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                currentOrderId={orderId}
+              />
             </div>
 
             {/* Col 12: Eliminar */}

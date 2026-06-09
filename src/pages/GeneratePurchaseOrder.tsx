@@ -546,6 +546,7 @@ const GeneratePurchaseOrder = () => {
             supplierId={supplierId}
             supplierName={supplierName}
             currency={currency}
+            exchangeRate={exchangeRate}
             onAddItem={handleAddItem}
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}

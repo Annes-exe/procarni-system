@@ -405,6 +405,8 @@ const EditPurchaseOrder = () => {
             supplierId={supplierId}
             supplierName={supplierName}
             currency={currency}
+            exchangeRate={exchangeRate}
+            orderId={id}
             onAddItem={handleAddItem}
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}
