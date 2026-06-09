@@ -59,6 +59,7 @@ interface SparePartItem {
   tax_rate?: number;
   is_exempt?: boolean;
   unit?: string;
+  unit_id?: string | null;
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;
@@ -261,6 +262,7 @@ const GenerateServiceOrder = () => {
         material_name: material.name,
         supplier_code: material.specification || '',
         unit: material.unit || 'UND',
+        unit_id: material.unit_id || null,
         is_exempt: material.is_exempt || false,
         unit_price: 0
       };
@@ -283,6 +285,7 @@ const GenerateServiceOrder = () => {
           material_name: material.name,
           supplier_code: material.specification || '',
           unit: material.unit || 'UND',
+          unit_id: material.unit_id || null,
           quantity: 1,
           unit_price: 0,
           tax_rate: 0.16,
@@ -441,6 +444,7 @@ const GenerateServiceOrder = () => {
         is_exempt: item.is_exempt ?? false,
         supplier_code: item.supplier_code || null,
         unit: item.unit || null,
+        unit_id: item.unit_id || null,
         sales_percentage: item.sales_percentage || null,
         discount_percentage: item.discount_percentage || null,
       }))
