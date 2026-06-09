@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { PriceInput } from './PriceInput';
 import { PlusCircle, Trash2, Scale, X, CheckCircle2, ChevronRight, Tags, AlertTriangle, Link, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSuppliersByMaterial, getAllSuppliers, createSupplierMaterialRelation } from '@/integrations/supabase/data';
@@ -339,11 +340,9 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Precio ({quote.currency})</label>
                           <div className="relative">
                             <span className="absolute left-3 top-2 text-gray-400 text-xs font-medium mt-0.5">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={quote.unitPrice || ''}
-                              onChange={(e) => onQuoteChange(quote.originalIndex, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            <PriceInput
+                              value={quote.unitPrice || 0}
+                              onChange={(val) => onQuoteChange(quote.originalIndex, 'unitPrice', val)}
                               className="h-9 pl-7 text-sm font-semibold"
                             />
                           </div>
@@ -481,12 +480,9 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                           <TableCell className="py-3">
                             <div className="relative group">
                               <span className="absolute left-3 top-2.5 text-gray-400 text-xs font-medium">{quote.currency === 'USD' ? '$' : 'Bs'}</span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={quote.unitPrice || ''}
-                                onChange={(e) => onQuoteChange(quote.originalIndex, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                onWheel={(e) => (e.target as HTMLElement).blur()}
+                              <PriceInput
+                                value={quote.unitPrice || 0}
+                                onChange={(val) => onQuoteChange(quote.originalIndex, 'unitPrice', val)}
                                 className="h-9 pl-7 text-sm font-semibold bg-white border-gray-200 focus:border-procarni-secondary focus:ring-procarni-secondary/10 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 placeholder="0.00"
                               />

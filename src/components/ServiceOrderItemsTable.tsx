@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PriceInput } from './PriceInput';
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Calculator, StickyNote } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -138,19 +139,16 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
                 </Button>
               </div>
             </div>
-            <Input 
-              type="number" 
-              step="0.01" 
-              value={item.unit_price || ''} 
-              onChange={(e) => {
-                onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value));
+            <PriceInput 
+              value={item.unit_price || 0} 
+              onChange={(val) => {
+                onItemChange(index, 'unit_price', val);
                 if (item.was_recalculated) {
                   onItemChange(index, 'was_recalculated', false);
                 }
               }} 
               className="h-9" 
               placeholder="0" 
-              onWheel={(e) => e.currentTarget.blur()} 
             />
           </div>
           <div className="space-y-1">
@@ -304,18 +302,17 @@ const ServiceOrderItemsTable: React.FC<ServiceOrderItemsTableProps> = ({
               </div>
               <div className="relative">
                 <span className="absolute left-2.5 top-2.5 text-xs text-gray-400 font-medium">{currency === 'USD' ? '$' : currency === 'VES' ? 'Bs' : '€'}</span>
-                <Input
-                  type="number" step="0.01" min="0"
-                  value={item.unit_price || ''}
-                  onChange={(e) => {
-                    onItemChange(index, 'unit_price', e.target.value === '' ? 0 : parseFloat(e.target.value));
+                <PriceInput
+                  value={item.unit_price || 0}
+                  onChange={(val) => {
+                    onItemChange(index, 'unit_price', val);
                     if (item.was_recalculated) {
                       onItemChange(index, 'was_recalculated', false);
                     }
                   }}
                   className="h-9 pl-6 text-right font-semibold bg-gray-50/30 border-gray-200"
                   placeholder="0"
-                  onWheel={(e) => e.currentTarget.blur()}
+                  min="0"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       if (index === items.length - 1) {
