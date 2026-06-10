@@ -76,3 +76,28 @@ $RECYCLE.BIN/
 # --- Re-confirmación de Env ---
 .env
 .env.local
+
+# --- Graphify ---
+.graphify/
+.graphifyignore
+vendor/
+dist/
+*.generated.py
+graphify.md
+graphify-out/
+graphify_out/
+
+# --- Rules and Agent ---
+.antigravity/
+.claude/
+.gemini/
+.agent/
+.agents/
+.rules/
+.workflows/
+.docs/
+AI_RULES.md
+design_guidelines.md
+ai-rules.md
+ai-rules-design.md
+.antigravitycli/
