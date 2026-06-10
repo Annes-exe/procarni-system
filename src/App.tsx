@@ -44,6 +44,7 @@ import Recepciones from "./pages/Recepciones";
 import Despachos from "./pages/Despachos";
 import HistorialKardex from "./pages/HistorialKardex";
 import CierresYAjustes from "./pages/CierresYAjustes";
+import MaterialProfilePlaceholder from "./pages/MaterialProfilePlaceholder";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -102,6 +103,7 @@ const App = () => (
                   <Route path="/inventory/dispatches" element={<Despachos />} />
                   <Route path="/inventory/kardex" element={<HistorialKardex />} />
                   <Route path="/inventory/closings" element={<CierresYAjustes />} />
+                  <Route path="/inventory/material/:id" element={<MaterialProfilePlaceholder />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

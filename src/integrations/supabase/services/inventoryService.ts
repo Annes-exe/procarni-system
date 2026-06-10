@@ -16,8 +16,10 @@ import {
 // ============================================================
 
 /** Lista todos los materiales habilitados para almacén con datos del catálogo */
-export const getMaterialsInventory = async (): Promise<MaterialInventory[]> => {
-  const { data, error } = await supabase
+export const getMaterialsInventory = async (
+  includeInactive = false
+): Promise<MaterialInventory[]> => {
+  let query = supabase
     .from('materials_inventory')
     .select(`
       *,
@@ -28,13 +30,31 @@ export const getMaterialsInventory = async (): Promise<MaterialInventory[]> => {
         category,
         unit
       )
-    `)
-    .eq('is_active', true)
+    `);
+
+  if (!includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query
     .order('sku')
     .limit(10000); // Override PostgREST's default 1000-row cap
 
   if (error) throw error;
   return (data ?? []) as MaterialInventory[];
+};
+
+/** Archiva o desarchiva un material de inventario (cambia is_active) */
+export const toggleMaterialActiveStatus = async (
+  materialId: string,
+  isActive: boolean
+): Promise<void> => {
+  const { error } = await supabase
+    .from('materials_inventory')
+    .update({ is_active: isActive })
+    .eq('material_id', materialId);
+
+  if (error) throw error;
 };
 
 /** Materiales del catálogo general que aún NO están en inventario */
@@ -173,6 +193,7 @@ export const getPurchaseOrderItemsHabilitados = async (orderId: string) => {
 
   if (error) throw error;
   
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((item: any) => ({
     id: item.id,
     material_id: item.material_id,
