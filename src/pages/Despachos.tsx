@@ -313,7 +313,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
         p_items: items,
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
-      toast.success(`✅ Salida a producción registrada — Orden ${orden.orden_id} | Costo total: $${fmt(costTotal)}`);
+      toast.success(`Salida a producción registrada — Orden ${orden.orden_id} | Costo total: $${fmt(costTotal)}`);
       setOrden(null);
       setRows([]);
     } catch (err: any) {
@@ -641,7 +641,7 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
         p_cliente: cliente.trim(),
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
-      toast.success(`✅ Salida por venta registrada — ${fmt(qty)} ${selectedMaterial.unit} de ${selectedMaterial.materials?.name}`);
+      toast.success(`Salida por venta registrada — ${fmt(qty)} ${selectedMaterial.unit} de ${selectedMaterial.materials?.name}`);
       setSelectedMaterial(null);
       setMaterialSearch('');
       setCantidad('');

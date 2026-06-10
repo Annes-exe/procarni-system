@@ -5,7 +5,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { 
   ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, 
   ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
-  BarChart3, ChevronDown, Home, Warehouse, Download
+  BarChart3, ChevronDown, Home, Warehouse, Download, Wrench,
+  Package, Layers
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { m, AnimatePresence } from 'framer-motion';
@@ -22,14 +23,14 @@ const navItems = [
     items: [
       { to: '/quote-request-management', icon: <FileQuestion className="h-5 w-5" />, label: 'Cotizaciones' },
       { to: '/purchase-order-management', icon: <ShoppingCart className="h-5 w-5" />, label: 'Órdenes de Compra' },
-      { to: '/service-order-management', icon: <Briefcase className="h-5 w-5" />, label: 'Órdenes de Servicio' },
+      { to: '/service-order-management', icon: <Wrench className="h-5 w-5" />, label: 'Órdenes de Servicio' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
     ]
   },
   {
     category: 'Inventario',
     items: [
-      { to: '/inventory', icon: <Warehouse className="h-5 w-5" />, label: 'Stock Global' },
+      { to: '/inventory', icon: <Package className="h-5 w-5" />, label: 'Stock Global' },
       { to: '/inventory/receptions', icon: <Download className="h-5 w-5" />, label: 'Recepciones' },
       { to: '/inventory/dispatches', icon: <Upload className="h-5 w-5" />, label: 'Despachos' },
       { to: '/inventory/kardex', icon: <ScrollText className="h-5 w-5" />, label: 'Historial Kardex' },
@@ -46,7 +47,7 @@ const navItems = [
     category: 'Maestros',
     items: [
       { to: '/supplier-management', icon: <Users className="h-5 w-5" />, label: 'Proveedores' },
-      { to: '/material-management', icon: <Box className="h-5 w-5" />, label: 'Materiales' },
+      { to: '/material-management', icon: <Layers className="h-5 w-5" />, label: 'Materiales' },
       { to: '/company-management', icon: <Building2 className="h-5 w-5" />, label: 'Empresas' },
     ]
   },

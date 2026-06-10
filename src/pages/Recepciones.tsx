@@ -192,7 +192,7 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
         last_purchase_price: parseFloat(initialCost) || 0,
         notes: notes.trim() || undefined,
       });
-      toast.success(`✅ Material habilitado en inventario.`);
+      toast.success(`Material habilitado en inventario.`);
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       queryClient.invalidateQueries({ queryKey: ['inventoryFamilies'] });
       onSuccess();
@@ -443,7 +443,7 @@ const TabDesdeOC = () => {
       queryClient.invalidateQueries({ queryKey: ['registeredOCReferences'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrdersAprobadas'] });
       const totalMerma = results.reduce((a, r) => a + (r.merma_kg ?? 0), 0);
-      toast.success(`✅ ${validItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido. Merma total: ${fmt(totalMerma)} kg`);
+      toast.success(`${validItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido. Merma total: ${fmt(totalMerma)} kg`);
       setSelectedOrderId('');
       setRows({});
       setEvidenceFile(null);
@@ -706,7 +706,7 @@ const TabEntradaDirecta = () => {
 
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       const mermaMsg = result.merma_kg > 0 ? ` | Merma: ${fmt(result.merma_kg)} kg` : '';
-      toast.success(`✅ Entrada registrada para ${selectedMaterial.materials?.name}${mermaMsg}`);
+      toast.success(`Entrada registrada para ${selectedMaterial.materials?.name}${mermaMsg}`);
 
       setSelectedMaterial(null);
       setMaterialSearch('');
@@ -878,7 +878,7 @@ const TabAjustePositivo = () => {
         p_observacion: observacion.trim(),
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
-      toast.success(`✅ Ajuste positivo registrado para ${selectedMaterial.materials?.name}`);
+      toast.success(`Ajuste positivo registrado para ${selectedMaterial.materials?.name}`);
       setSelectedMaterial(null);
       setMaterialSearch('');
       setCantidad('');

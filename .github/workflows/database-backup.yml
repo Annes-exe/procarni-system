@@ -35,10 +35,10 @@ jobs:
           
           if [ -s backup_full.sql ]; then
             SIZE=$(stat -c%s "backup_full.sql")
-            echo "✅ Backup generado con éxito. Tamaño: $SIZE bytes."
+            echo "Backup generado con éxito. Tamaño: $SIZE bytes."
             gzip -c backup_full.sql > "backup_procarni_$(date +%Y-%m-%d).sql.gz"
           else
-            echo "❌ ERROR: El archivo de backup está vacío. Revisa la conexión."
+            echo "ERROR: El archivo de backup está vacío. Revisa la conexión."
             exit 1
           fi
 

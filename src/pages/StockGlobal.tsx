@@ -160,7 +160,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       queryClient.invalidateQueries({ queryKey: ['materialsNotInInventory'] });
       queryClient.invalidateQueries({ queryKey: ['inventoryFamilies'] });
-      toast.success(`✅ Material habilitado con SKU ${data.sku}`);
+      toast.success(`Material habilitado con SKU ${data.sku}`);
       handleClose();
     },
     onError: (err: Error) => toast.error(err.message),

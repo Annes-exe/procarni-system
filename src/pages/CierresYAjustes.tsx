@@ -56,7 +56,7 @@ const NuevoPeriodoModal = ({ open, onClose }: NuevoPeriodoModalProps) => {
     mutationFn: crearPeriodoInventario,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['inventoryPeriods'] });
-      toast.success(`✅ Periodo "${data.period_name}" creado correctamente.`);
+      toast.success(`Periodo "${data.period_name}" creado correctamente.`);
       onClose();
       setName(''); setStartDate(''); setEndDate(''); setNotes('');
     },
@@ -140,7 +140,7 @@ const CierrePeriodoModal = ({ period, onClose }: CierrePeriodoModalProps) => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['inventoryPeriods'] });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
-      toast.success(`✅ Periodo "${data.period_name}" cerrado. Snapshot generado.`);
+      toast.success(`Periodo "${data.period_name}" cerrado. Snapshot generado.`);
       onClose();
     },
     onError: (err: Error) => toast.error(err.message),
@@ -364,7 +364,7 @@ const TabAjusteNegativo = () => {
         p_reference_doc: referencia.trim() || undefined,
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
-      toast.success(`✅ Ajuste de pérdida registrado — Impacto: -$${fmt(Math.abs(res.impacto_financiero))}`);
+      toast.success(`Ajuste de pérdida registrado — Impacto: -$${fmt(Math.abs(res.impacto_financiero))}`);
       setSelectedMaterial(null);
       setMaterialSearch('');
       setCantidad('');
