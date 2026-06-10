@@ -30,7 +30,7 @@ import { Switch } from '@/components/ui/switch';
 
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 import {
   getMaterialsInventory,
@@ -453,11 +453,11 @@ const StockGlobal = () => {
 
   // Paginated items
   const paginatedItems = useMemo(() => {
-    const start = (currentPage - 1) * 8;
-    return filtered.slice(start, start + 8);
+    const start = (currentPage - 1) * 7;
+    return filtered.slice(start, start + 7);
   }, [filtered, currentPage]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / 8));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / 7));
 
   // Export handlers
   const exportToExcel = () => {
@@ -503,8 +503,7 @@ const StockGlobal = () => {
       `$${fmt(m.total_value, 2)}`
     ]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 36,
       head: [['SKU', 'Material', 'Cat.', 'Últ. Costo', 'CPP', 'Stock', 'Valor Stock']],
       body: tableBody,
@@ -851,8 +850,8 @@ const StockGlobal = () => {
             <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center bg-slate-50/50 gap-4">
               <div className="flex flex-col sm:flex-row items-center gap-2 text-xs text-slate-500 font-medium">
                 <span>
-                  Mostrando <span className="font-bold text-slate-700">{Math.min(filtered.length, (currentPage - 1) * 8 + 1)}</span> a{' '}
-                  <span className="font-bold text-slate-700">{Math.min(filtered.length, currentPage * 8)}</span> de{' '}
+                  Mostrando <span className="font-bold text-slate-700">{Math.min(filtered.length, (currentPage - 1) * 7 + 1)}</span> a{' '}
+                  <span className="font-bold text-slate-700">{Math.min(filtered.length, currentPage * 7)}</span> de{' '}
                   <span className="font-bold text-slate-700">{filtered.length}</span> materiales
                 </span>
                 <span className="hidden sm:inline text-slate-300">|</span>
