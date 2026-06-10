@@ -184,7 +184,8 @@ export const getPurchaseOrderItemsHabilitados = async (orderId: string) => {
           material_id,
           sku,
           average_unit_cost,
-          current_stock
+          current_stock,
+          inventory_category
         )
       )
     `)
@@ -214,6 +215,7 @@ export interface KardexFilters {
   startDate?: string;
   endDate?: string;
   type?: string;
+  types?: string[];
   limit?: number;
   offset?: number;
 }
@@ -242,7 +244,9 @@ export const getKardex = async (filters: KardexFilters = {}): Promise<InventoryT
     // Incluye todo el día final
     query = query.lte('transaction_date', filters.endDate + 'T23:59:59.999Z');
   }
-  if (filters.type) {
+  if (filters.types && filters.types.length > 0) {
+    query = query.in('transaction_type', filters.types);
+  } else if (filters.type) {
     query = query.eq('transaction_type', filters.type);
   }
 

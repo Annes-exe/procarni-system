@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { m, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import {
-  PackagePlus, Download, Clipboard, AlertTriangle, CheckCircle2,
+  PackagePlus, Clipboard, AlertTriangle, CheckCircle2,
   Upload, X, Image as ImageIcon, Loader2, Search, Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,11 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import {
   getMaterialsInventory,
@@ -32,10 +31,11 @@ import {
   getRegisteredOCReferences,
   enableMaterialForInventory,
   getInventoryFamilies,
+  getKardex,
 } from '@/integrations/supabase/services/inventoryService';
 import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
-import { MaterialInventory } from '@/integrations/supabase/types';
+import { MaterialInventory, InventoryAdjustmentReason, InventoryTransaction, InventoryFamily } from '@/integrations/supabase/types';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import {
   Dialog,
@@ -45,6 +45,33 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+// ─── Local Interfaces ────────────────────────────────────────────────────────
+
+interface POItem {
+  id: string;
+  material_id: string;
+  material_name: string;
+  quantity: number;
+  unit_price: number;
+  unit: string;
+  materials_inventory: {
+    material_id: string;
+    sku: string;
+    average_unit_cost: number;
+    current_stock: number;
+    inventory_category: string;
+  } | null;
+}
+
+interface PurchaseOrderAprobada {
+  id: string;
+  sequence_number: number | null;
+  created_at: string;
+  suppliers: {
+    name: string;
+  } | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (n: number, dec = 2) =>
@@ -53,17 +80,23 @@ const fmt = (n: number, dec = 2) =>
 interface MermaIndicatorProps {
   guia: number;
   recibido: number;
+  unit?: string;
 }
-const MermaIndicator = ({ guia, recibido }: MermaIndicatorProps) => {
+const MermaIndicator = ({ guia, recibido, unit = 'kg' }: MermaIndicatorProps) => {
   const merma = guia - recibido;
   const pct = guia > 0 ? (merma / guia) * 100 : 0;
   if (merma <= 0) return null;
   return (
     <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
       <AlertTriangle className="h-3 w-3" />
-      Merma: {fmt(merma, 2)} ({fmt(pct, 1)}%)
+      Merma: {fmt(merma, 2)} {unit} ({fmt(pct, 1)}%)
     </span>
   );
+};
+
+const hasMerma = (item: POItem) => {
+  const cat = item.materials_inventory?.inventory_category;
+  return cat === 'MPF' || cat === 'MPS';
 };
 
 // ─── Zona de Evidencia ────────────────────────────────────────────────────────
@@ -158,7 +191,7 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { data: families = [] } = useQuery({
+  const { data: families = [] } = useQuery<InventoryFamily[]>({
     queryKey: ['inventoryFamilies'],
     queryFn: getInventoryFamilies,
     enabled: !!material,
@@ -166,7 +199,7 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
 
   const nextSku = React.useMemo(() => {
     if (!category) return '—';
-    const fam = families.find((f: any) => f.category === category);
+    const fam = families.find((f) => f.category === category);
     if (!fam) return '—';
     return `${fam.prefix}-${String(fam.current_sequence + 1).padStart(3, '0')}`;
   }, [category, families]);
@@ -181,7 +214,6 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!material || !category) return;
-    setLoading(false); // standard loading state
     setLoading(true);
     try {
       await enableMaterialForInventory({
@@ -196,8 +228,9 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       queryClient.invalidateQueries({ queryKey: ['inventoryFamilies'] });
       onSuccess();
-    } catch (err: any) {
-      toast.error(err.message ?? 'Error al habilitar el material.');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al habilitar el material.';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -226,7 +259,7 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
           {/* Category selection */}
           <div className="space-y-1.5">
             <Label htmlFor="local-inv-category">Categoría de Inventario *</Label>
-            <Select value={category} onValueChange={(v: any) => setCategory(v)}>
+            <Select value={category} onValueChange={(v) => setCategory(v as typeof category)}>
               <SelectTrigger id="local-inv-category">
                 <SelectValue placeholder="Selecciona una categoría..." />
               </SelectTrigger>
@@ -301,9 +334,13 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
   );
 };
 
-const EMPTY_ITEMS_ARRAY: any[] = [];
+const EMPTY_ITEMS_ARRAY: POItem[] = [];
 
-const TabDesdeOC = () => {
+interface TabProps {
+  onSuccess: () => void;
+}
+
+const TabDesdeOC = ({ onSuccess }: TabProps) => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const orderIdParam = searchParams.get('orderId') || '';
@@ -325,14 +362,39 @@ const TabDesdeOC = () => {
     }
   }, [orderIdParam]);
 
-  const { data: orders = [], isLoading: loadingOrders } = useQuery({
+  const { data: orders = [], isLoading: loadingOrders } = useQuery<PurchaseOrderAprobada[]>({
     queryKey: ['purchaseOrdersAprobadas'],
-    queryFn: getPurchaseOrdersAprobadas,
+    queryFn: async () => {
+      const res = await getPurchaseOrdersAprobadas();
+      return res.map(o => ({
+        id: o.id,
+        sequence_number: o.sequence_number,
+        created_at: o.created_at ?? '',
+        suppliers: o.suppliers ? { name: o.suppliers.name } : null
+      }));
+    }
   });
 
-  const { data: items = EMPTY_ITEMS_ARRAY, isLoading: loadingItems } = useQuery({
+  const { data: items = EMPTY_ITEMS_ARRAY, isLoading: loadingItems } = useQuery<POItem[]>({
     queryKey: ['poItems', selectedOrderId],
-    queryFn: () => getPurchaseOrderItemsHabilitados(selectedOrderId),
+    queryFn: async () => {
+      const res = await getPurchaseOrderItemsHabilitados(selectedOrderId);
+      return res.map(item => ({
+        id: item.id,
+        material_id: item.material_id ?? '',
+        material_name: item.material_name ?? '',
+        quantity: item.quantity ?? 0,
+        unit_price: item.unit_price ?? 0,
+        unit: item.unit ?? 'kg',
+        materials_inventory: item.materials_inventory ? {
+          material_id: item.materials_inventory.material_id,
+          sku: item.materials_inventory.sku,
+          average_unit_cost: item.materials_inventory.average_unit_cost ?? 0,
+          current_stock: item.materials_inventory.current_stock ?? 0,
+          inventory_category: item.materials_inventory.inventory_category
+        } : null
+      }));
+    },
     enabled: !!selectedOrderId,
   });
 
@@ -346,14 +408,14 @@ const TabDesdeOC = () => {
     if (items && items.length > 0) {
       setRows(prev => {
         // If the keys in prev match the new items exactly, we keep the user's edits
-        const itemIds = (items as any[]).map(item => item.id);
+        const itemIds = items.map(item => item.id);
         const hasAllKeys = itemIds.every(id => id in prev);
         if (hasAllKeys && Object.keys(prev).length === itemIds.length) {
           return prev;
         }
 
         const initialRows: Record<string, { pesoGuia: string; pesoRecibido: string; precio: string }> = {};
-        (items as any[]).forEach(item => {
+        items.forEach(item => {
           initialRows[item.id] = {
             pesoGuia: String(item.quantity),
             pesoRecibido: '',
@@ -397,12 +459,12 @@ const TabDesdeOC = () => {
 
   const handleSubmit = async () => {
     if (!selectedOrderId || items.length === 0) return;
-    const validItems = (items as any[]).filter(item => {
+    const validItems = items.filter(item => {
       const r = getRow(item.id, item.unit_price);
       return item.materials_inventory && parseFloat(r.pesoGuia) > 0;
     });
     if (validItems.length === 0) {
-      toast.error('Ingresa el Peso Guía de al menos un ítem habilitado.');
+      toast.error('Ingresa la Cantidad Guía de al menos un ítem habilitado.');
       return;
     }
 
@@ -424,9 +486,10 @@ const TabDesdeOC = () => {
         validItems.map(item => {
           const r = getRow(item.id, item.unit_price);
           const guia = parseFloat(r.pesoGuia);
-          const recibido = parseFloat(r.pesoRecibido) || guia;
+          const isMerma = hasMerma(item);
+          const recibido = isMerma ? (parseFloat(r.pesoRecibido) || guia) : guia;
           return registrarRecepcion({
-            p_material_id: item.materials_inventory.material_id,
+            p_material_id: item.materials_inventory!.material_id,
             p_transaction_type: 'IN_PURCHASE',
             p_peso_guia: guia,
             p_peso_recibido: recibido,
@@ -437,19 +500,20 @@ const TabDesdeOC = () => {
       );
 
       // Update Purchase Order status to 'Received'
-      await purchaseOrderService.updateStatus(selectedOrderId, 'Received' as any);
+      await purchaseOrderService.updateStatus(selectedOrderId, 'Received');
 
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       queryClient.invalidateQueries({ queryKey: ['registeredOCReferences'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrdersAprobadas'] });
+      queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
+      
       const totalMerma = results.reduce((a, r) => a + (r.merma_kg ?? 0), 0);
-      toast.success(`${validItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido. Merma total: ${fmt(totalMerma)} kg`);
-      setSelectedOrderId('');
-      setRows({});
-      setEvidenceFile(null);
-      setPreviewUrl(null);
-    } catch (err: any) {
-      toast.error(err.message ?? 'Error al registrar la recepción.');
+      const mermaText = totalMerma > 0 ? `. Merma total: ${fmt(totalMerma)}` : '';
+      toast.success(`${validItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido${mermaText}`);
+      onSuccess();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al registrar la recepción.';
+      toast.error(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -465,7 +529,7 @@ const TabDesdeOC = () => {
             <SelectValue placeholder={loadingOrders ? 'Cargando órdenes...' : 'Selecciona una OC aprobada...'} />
           </SelectTrigger>
           <SelectContent>
-            {(orders as any[]).map(o => {
+            {orders.map(o => {
               const alreadyEntered = (registeredOCs as string[]).includes(`OC-${o.sequence_number}`);
               return (
                 <SelectItem key={o.id} value={o.id} className={alreadyEntered ? "bg-amber-50/50 hover:bg-amber-50" : ""}>
@@ -494,15 +558,15 @@ const TabDesdeOC = () => {
       {/* Items table */}
       {selectedOrderId && (
         <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white/50 backdrop-blur-sm">
             <Table>
               <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead className="font-bold text-xs uppercase text-slate-500 pl-4">Material</TableHead>
                   <TableHead className="font-bold text-xs uppercase text-slate-500">SKU</TableHead>
                   <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Cant. OC</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Peso Guía</TableHead>
-                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Peso Real</TableHead>
+                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Cantidad Guía</TableHead>
+                  <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Cantidad Real</TableHead>
                   <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Precio/u</TableHead>
                   <TableHead />
                 </TableRow>
@@ -523,20 +587,21 @@ const TabDesdeOC = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  (items as any[]).map(item => {
+                  items.map(item => {
                     const hasInventory = !!item.materials_inventory;
                     const r = getRow(item.id, item.unit_price, item.quantity);
                     const g = parseFloat(r.pesoGuia) || 0;
                     const rv = parseFloat(r.pesoRecibido) || 0;
+                    const isMerma = hasMerma(item);
                     return (
-                      <TableRow key={item.id} className={cn("group transition-colors", !hasInventory && "bg-amber-50/20 hover:bg-amber-50/30")}>
+                      <TableRow key={item.id} className={cn("group transition-colors hover:bg-blue-50/30", !hasInventory && "bg-amber-50/20 hover:bg-amber-50/30")}>
                         <TableCell className="pl-4 font-semibold text-sm text-slate-700">
                           {item.material_name}
                         </TableCell>
                         <TableCell>
                           {hasInventory ? (
                             <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-2 py-0.5">
-                              {item.materials_inventory.sku}
+                              {item.materials_inventory!.sku}
                             </span>
                           ) : (
                             <Badge variant="outline" className="bg-amber-50 text-amber-750 border-amber-200 text-[10px] py-0 px-1.5 h-4.5 font-bold uppercase tracking-wider">
@@ -562,13 +627,17 @@ const TabDesdeOC = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           {hasInventory ? (
-                            <Input
-                              type="number" min="0" step="0.01"
-                              placeholder="= Guía"
-                              value={r.pesoRecibido}
-                              onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value, item.unit_price, item.quantity)}
-                              className="w-24 h-8 text-right text-sm ml-auto"
-                            />
+                            isMerma ? (
+                              <Input
+                                type="number" min="0" step="0.01"
+                                placeholder="= Guía"
+                                value={r.pesoRecibido}
+                                onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value, item.unit_price, item.quantity)}
+                                className="w-24 h-8 text-right text-sm ml-auto"
+                              />
+                            ) : (
+                              <span className="text-xs text-slate-400 select-none block text-right pr-4 font-semibold">N/A</span>
+                            )
                           ) : (
                             <span className="text-xs text-slate-450 font-mono select-none block text-right pr-2">—</span>
                           )}
@@ -587,7 +656,7 @@ const TabDesdeOC = () => {
                         </TableCell>
                         <TableCell className="pr-4 text-right">
                           {hasInventory ? (
-                            g > 0 && rv > 0 && <MermaIndicator guia={g} recibido={rv} />
+                            isMerma && g > 0 && rv > 0 && <MermaIndicator guia={g} recibido={rv} unit={item.unit} />
                           ) : (
                             <Button
                               variant="outline"
@@ -643,7 +712,7 @@ const TabDesdeOC = () => {
 
 // ─── Tab 2: Entrada Directa ───────────────────────────────────────────────────
 
-const TabEntradaDirecta = () => {
+const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
   const queryClient = useQueryClient();
   const [materialSearch, setMaterialSearch] = useState('');
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialInventory | null>(null);
@@ -655,7 +724,7 @@ const TabEntradaDirecta = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: inventory = [] } = useQuery({
+  const { data: inventory = [] } = useQuery<MaterialInventory[]>({
     queryKey: ['materialsInventory'],
     queryFn: getMaterialsInventory,
   });
@@ -665,8 +734,9 @@ const TabEntradaDirecta = () => {
     return m.sku.toLowerCase().includes(q) || (m.materials?.name ?? '').toLowerCase().includes(q);
   }).slice(0, 20);
 
+  const isMerma = !selectedMaterial || selectedMaterial.inventory_category === 'MPF' || selectedMaterial.inventory_category === 'MPS';
   const guia = parseFloat(pesoGuia) || 0;
-  const recibido = parseFloat(pesoRecibido) || 0;
+  const recibido = isMerma ? (parseFloat(pesoRecibido) || guia) : guia;
 
   const handleFileChange = (f: File | null) => {
     setEvidenceFile(f);
@@ -676,48 +746,36 @@ const TabEntradaDirecta = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMaterial || guia <= 0) {
-      toast.error('Selecciona un material y el Peso Guía es obligatorio.');
+      toast.error('Selecciona un material y la cantidad es obligatoria.');
       return;
     }
 
     setSubmitting(true);
     try {
       // Upload evidence to Cloudinary
-      let evidenceData: Record<string, unknown> = {};
       if (evidenceFile) {
-        const res = await uploadToCloudinary(evidenceFile, 'procarni_system/evidencias_inventario');
-        evidenceData = {
-          tipo: 'EVIDENCIA_ENTRADA_DIRECTA',
-          secure_url: res.secure_url,
-          public_id: res.public_id,
-          format: res.format,
-          bytes: res.bytes,
-        };
+        await uploadToCloudinary(evidenceFile, 'procarni_system/evidencias_inventario');
       }
 
       const result = await registrarRecepcion({
         p_material_id: selectedMaterial.material_id,
         p_transaction_type: 'IN_DIRECT',
         p_peso_guia: guia,
-        p_peso_recibido: recibido || guia,
+        p_peso_recibido: recibido,
         p_unit_cost: parseFloat(precio) || selectedMaterial.last_purchase_price,
         p_reference_doc: referencia.trim() || 'ENTRADA-DIRECTA',
       });
 
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
-      const mermaMsg = result.merma_kg > 0 ? ` | Merma: ${fmt(result.merma_kg)} kg` : '';
+      queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
+      
+      const mermaMsg = result.merma_kg > 0 ? ` | Merma: ${fmt(result.merma_kg)} ${selectedMaterial.unit}` : '';
       toast.success(`Entrada registrada para ${selectedMaterial.materials?.name}${mermaMsg}`);
 
-      setSelectedMaterial(null);
-      setMaterialSearch('');
-      setReferencia('');
-      setPesoGuia('');
-      setPesoRecibido('');
-      setPrecio('');
-      setEvidenceFile(null);
-      setPreviewUrl(null);
-    } catch (err: any) {
-      toast.error(err.message ?? 'Error al registrar la entrada.');
+      onSuccess();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al registrar la entrada.';
+      toast.error(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -740,7 +798,7 @@ const TabEntradaDirecta = () => {
               />
             </div>
             {materialSearch && (
-              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto bg-white">
                 {filtered.length === 0 ? (
                   <p className="p-3 text-sm text-slate-400 text-center">Sin resultados</p>
                 ) : filtered.map(m => (
@@ -788,19 +846,21 @@ const TabEntradaDirecta = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className={cn("grid gap-4", isMerma ? "grid-cols-2" : "grid-cols-1")}>
         <div className="space-y-1.5">
-          <Label htmlFor="dir-guia">Peso Guía *</Label>
-          <Input id="dir-guia" type="number" min="0" step="0.01" placeholder="0.00" value={pesoGuia} onChange={e => setPesoGuia(e.target.value)} />
+          <Label htmlFor="dir-guia">{isMerma ? 'Cantidad Guía *' : 'Cantidad Recibida *'}</Label>
+          <Input id="dir-guia" type="number" min="0" step="0.01" placeholder="0.00" value={pesoGuia} onChange={e => setPesoGuia(e.target.value)} required />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="dir-recibido">Peso Real Recibido</Label>
-          <Input id="dir-recibido" type="number" min="0" step="0.01" placeholder="= Peso Guía" value={pesoRecibido} onChange={e => setPesoRecibido(e.target.value)} />
-        </div>
+        {isMerma && (
+          <div className="space-y-1.5">
+            <Label htmlFor="dir-recibido">Cantidad Real Recibida</Label>
+            <Input id="dir-recibido" type="number" min="0" step="0.01" placeholder="= Cantidad Guía" value={pesoRecibido} onChange={e => setPesoRecibido(e.target.value)} />
+          </div>
+        )}
       </div>
 
       {/* Live merma preview */}
-      {guia > 0 && recibido > 0 && recibido !== guia && (
+      {isMerma && selectedMaterial && guia > 0 && recibido > 0 && recibido !== guia && (
         <m.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
           className={cn(
             'flex items-center gap-3 rounded-xl px-4 py-3 border text-sm font-semibold',
@@ -811,8 +871,8 @@ const TabEntradaDirecta = () => {
         >
           {guia > recibido ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
           {guia > recibido
-            ? `Merma de traslado detectada: ${fmt(guia - recibido, 2)} kg (${fmt(((guia - recibido) / guia) * 100, 1)}%)`
-            : `Excedente detectado: +${fmt(recibido - guia, 2)} kg`}
+            ? `Merma de traslado detectada: ${fmt(guia - recibido, 2)} ${selectedMaterial.unit} (${fmt(((guia - recibido) / guia) * 100, 1)}%)`
+            : `Excedente detectado: +${fmt(recibido - guia, 2)} ${selectedMaterial.unit}`}
         </m.div>
       )}
 
@@ -838,7 +898,7 @@ const TabEntradaDirecta = () => {
 
 // ─── Tab 3: Ajuste Positivo ───────────────────────────────────────────────────
 
-const TabAjustePositivo = () => {
+const TabAjustePositivo = ({ onSuccess }: TabProps) => {
   const queryClient = useQueryClient();
   const [materialSearch, setMaterialSearch] = useState('');
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialInventory | null>(null);
@@ -847,12 +907,12 @@ const TabAjustePositivo = () => {
   const [observacion, setObservacion] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: inventory = [] } = useQuery({
+  const { data: inventory = [] } = useQuery<MaterialInventory[]>({
     queryKey: ['materialsInventory'],
     queryFn: getMaterialsInventory,
   });
 
-  const { data: reasons = [] } = useQuery({
+  const { data: reasons = [] } = useQuery<InventoryAdjustmentReason[]>({
     queryKey: ['adjustmentReasons', 'ADD'],
     queryFn: () => getAdjustmentReasons('ADD'),
   });
@@ -878,14 +938,12 @@ const TabAjustePositivo = () => {
         p_observacion: observacion.trim(),
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
       toast.success(`Ajuste positivo registrado para ${selectedMaterial.materials?.name}`);
-      setSelectedMaterial(null);
-      setMaterialSearch('');
-      setCantidad('');
-      setReasonCode('');
-      setObservacion('');
-    } catch (err: any) {
-      toast.error(err.message ?? 'Error al registrar el ajuste.');
+      onSuccess();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al registrar el ajuste.';
+      toast.error(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -922,7 +980,7 @@ const TabAjustePositivo = () => {
                       <span className="font-mono font-bold text-xs text-slate-500 mr-2">{m.sku}</span>
                       <span className="text-sm font-semibold text-slate-800">{m.materials?.name}</span>
                     </div>
-                    <span className="text-xs text-slate-400">CPP: ${fmt(m.average_unit_cost, 4)}</span>
+                    <span className="text-xs text-slate-400 font-medium">CPP: ${fmt(m.average_unit_cost, 4)}</span>
                   </button>
                 ))}
               </div>
@@ -951,7 +1009,7 @@ const TabAjustePositivo = () => {
               <SelectValue placeholder="Selecciona motivo..." />
             </SelectTrigger>
             <SelectContent>
-              {(reasons as any[]).map((r: any) => (
+              {reasons.map((r) => (
                 <SelectItem key={r.code} value={r.code}>{r.description}</SelectItem>
               ))}
             </SelectContent>
@@ -988,6 +1046,17 @@ const TabAjustePositivo = () => {
 
 const Recepciones = () => {
   const [activeTab, setActiveTab] = useState<'desde-oc' | 'directa' | 'ajuste-positivo'>('desde-oc');
+  const [resetKey, setResetKey] = useState(0);
+
+  const handleReset = () => {
+    setResetKey(prev => prev + 1);
+  };
+
+  const { data: recentEntries = [], isLoading: loadingEntries } = useQuery<InventoryTransaction[]>({
+    queryKey: ['kardexEntries'],
+    queryFn: () => getKardex({ types: ['IN_PURCHASE', 'IN_DIRECT'], limit: 10 }),
+  });
+
   return (
     <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       <div className="container mx-auto space-y-6 pb-20">
@@ -1074,21 +1143,118 @@ const Recepciones = () => {
             <CardContent className="p-6">
               <AnimatePresence mode="wait">
                 {activeTab === 'desde-oc' && (
-                  <m.div key="desde-oc" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                    <TabDesdeOC />
+                  <m.div key={`desde-oc-${resetKey}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                    <TabDesdeOC onSuccess={handleReset} />
                   </m.div>
                 )}
                 {activeTab === 'directa' && (
-                  <m.div key="directa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                    <TabEntradaDirecta />
+                  <m.div key={`directa-${resetKey}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                    <TabEntradaDirecta onSuccess={handleReset} />
                   </m.div>
                 )}
                 {activeTab === 'ajuste-positivo' && (
-                  <m.div key="ajuste-positivo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-                    <TabAjustePositivo />
+                  <m.div key={`ajuste-positivo-${resetKey}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+                    <TabAjustePositivo onSuccess={handleReset} />
                   </m.div>
                 )}
               </AnimatePresence>
+            </CardContent>
+          </Card>
+        </m.div>
+
+        {/* ── Recent Entries History (Kardex) ────────────────────────── */}
+        <m.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <PackagePlus className="h-5 w-5 text-procarni-blue" />
+                <div>
+                  <CardTitle className="text-slate-800 font-extrabold text-base leading-tight">
+                    Entradas Recientes al Almacén
+                  </CardTitle>
+                  <CardDescription className="text-slate-500 text-xs mt-0.5">
+                    Historial de las últimas 10 recepciones y entradas registradas en Kardex
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingEntries ? (
+                <div className="p-8 space-y-3">
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                </div>
+              ) : recentEntries.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-sm">
+                  No se han registrado entradas de inventario recientemente.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50">
+                      <TableRow>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 pl-6">Fecha</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500">Material / SKU</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500">Tipo de Entrada</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500">Referencia</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Cantidad</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Costo Unitario</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 text-right pr-6">Valor Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentEntries.map((tx: InventoryTransaction) => {
+                        const name = tx.materials_inventory?.materials?.name ?? '—';
+                        const sku = tx.materials_inventory?.sku ?? '—';
+                        const unit = tx.materials_inventory?.unit ?? '';
+                        return (
+                          <TableRow key={tx.id} className="hover:bg-slate-50/30 transition-colors">
+                            <TableCell className="pl-6 text-sm text-slate-600 font-medium">
+                              {format(new Date(tx.transaction_date), 'dd/MM/yyyy HH:mm', { locale: es })}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">{name}</p>
+                                <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-1.5 py-0.5">
+                                  {sku}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {tx.transaction_type === 'IN_PURCHASE' ? (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200 text-[10px] py-0 px-2 h-5 font-bold uppercase tracking-wider">
+                                  Desde OC
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200 text-[10px] py-0 px-2 h-5 font-bold uppercase tracking-wider">
+                                  Entrada Directa
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm font-mono text-slate-600 font-bold">
+                              {tx.reference_doc ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-mono text-slate-700 font-bold">
+                              {fmt(tx.quantity)} {unit}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-mono text-slate-500">
+                              ${fmt(tx.unit_cost, 4)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-mono text-slate-800 font-black pr-6">
+                              ${fmt(tx.total_cost, 2)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </m.div>
