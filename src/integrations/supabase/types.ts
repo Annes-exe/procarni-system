@@ -117,7 +117,7 @@ export type PurchaseOrderItem = {
   description: string | null; // ADDED
   sales_percentage: number | null; // NEW
   discount_percentage: number | null; // NEW
-  was_recalculated?: boolean;
+  was_recalculated?: boolean | null;
 };
 
 export type QuoteRequest = {
