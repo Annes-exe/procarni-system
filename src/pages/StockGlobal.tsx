@@ -163,6 +163,18 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
     return `${fam.prefix}-${String(fam.current_sequence + 1).padStart(3, '0')}`;
   }, [category, families]);
 
+  useEffect(() => {
+    if (selectedMaterial && units.length > 0) {
+      const matUnit = selectedMaterial.unit || 'KG';
+      const matched = units.find(u => u.name.toUpperCase() === matUnit.toUpperCase());
+      if (matched) {
+        setUnit(matched.name);
+      } else {
+        setUnit(matUnit);
+      }
+    }
+  }, [selectedMaterial, units]);
+
   const { mutate: enable, isPending } = useMutation({
     mutationFn: enableMaterialForInventory,
     onSuccess: (data) => {

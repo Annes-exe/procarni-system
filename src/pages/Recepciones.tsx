@@ -35,6 +35,7 @@ import {
 } from '@/integrations/supabase/services/inventoryService';
 import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
+import { getAllUnits } from '@/integrations/supabase/data';
 import { MaterialInventory, InventoryAdjustmentReason, InventoryTransaction, InventoryFamily } from '@/integrations/supabase/types';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import {
@@ -191,6 +192,12 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const { data: units = [], isLoading: isLoadingUnits } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+    enabled: !!material,
+  });
+
   const { data: families = [] } = useQuery<InventoryFamily[]>({
     queryKey: ['inventoryFamilies'],
     queryFn: getInventoryFamilies,
@@ -206,10 +213,16 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
 
   React.useEffect(() => {
     if (material) {
-      setUnit(material.unit);
+      const matUnit = material.unit || 'kg';
+      const matched = units.find(u => u.name.toUpperCase() === matUnit.toUpperCase());
+      if (matched) {
+        setUnit(matched.name);
+      } else {
+        setUnit(matUnit);
+      }
       setInitialCost(String(material.unit_price));
     }
-  }, [material]);
+  }, [material, units]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,7 +309,18 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="local-inv-unit">Unidad *</Label>
-              <Input id="local-inv-unit" value={unit} onChange={e => setUnit(e.target.value)} required />
+              <Select value={unit} onValueChange={setUnit} disabled={isLoadingUnits}>
+                <SelectTrigger id="local-inv-unit">
+                  <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Unidad"} />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {units.map((u) => (
+                    <SelectItem key={u.id} value={u.name}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="local-inv-min-stock">Alerta mín.</Label>
@@ -701,11 +725,13 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
         </m.div>
       )}
 
-      <LocalHabilitarModal
-        material={materialToEnable}
-        onClose={() => setMaterialToEnable(null)}
-        onSuccess={handleEnableSuccess}
-      />
+      {materialToEnable && (
+        <LocalHabilitarModal
+          material={materialToEnable}
+          onClose={() => setMaterialToEnable(null)}
+          onSuccess={handleEnableSuccess}
+        />
+      )}
     </div>
   );
 };
