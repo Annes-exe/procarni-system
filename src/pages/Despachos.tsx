@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { m, AnimatePresence } from 'framer-motion';
 import {
@@ -146,6 +146,160 @@ const JsonDropZone = ({ onParsed, isLoaded, ordenId, onClear }: JsonDropZoneProp
   );
 };
 
+// ─── SearchableSelect Component ───────────────────────────────────────────────
+
+interface SearchableSelectProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: MaterialInventory[];
+  placeholder?: string;
+}
+
+const SearchableSelect = ({ value, onChange, options, placeholder = "Seleccionar..." }: SearchableSelectProps) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [open]);
+
+  const selectedOption = options.find(opt => opt.material_id === value);
+
+  const filteredOptions = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return options.slice(0, 100);
+    return options.filter(opt =>
+      opt.sku.toLowerCase().includes(q) ||
+      (opt.materials?.name ?? '').toLowerCase().includes(q)
+    ).slice(0, 100);
+  }, [search, options]);
+
+  // Reset focused index when list changes
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [filteredOptions]);
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (open && listRef.current) {
+      const activeEl = listRef.current.children[focusedIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [focusedIndex, open]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        setOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        setFocusedIndex(prev => Math.min(prev + 1, filteredOptions.length - 1));
+        e.preventDefault();
+        break;
+      case 'ArrowUp':
+        setFocusedIndex(prev => Math.max(prev - 1, 0));
+        e.preventDefault();
+        break;
+      case 'Enter':
+        if (filteredOptions.length > 0 && focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          const selected = filteredOptions[focusedIndex];
+          onChange(selected.material_id);
+          setOpen(false);
+        }
+        e.preventDefault();
+        break;
+      case 'Escape':
+        setOpen(false);
+        e.preventDefault();
+        break;
+    }
+  };
+
+  return (
+    <div ref={containerRef} onKeyDown={handleKeyDown} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setSearch(''); }}
+        className={cn(
+          "w-full h-10 px-3 text-left rounded-xl border text-sm flex items-center justify-between transition-all bg-white hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-procarni-blue/20",
+          value ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/10 text-slate-800 font-semibold" : "border-slate-200 text-slate-400"
+        )}
+      >
+        <span className="truncate">
+          {selectedOption ? `${selectedOption.materials?.name} (${selectedOption.sku})` : placeholder}
+        </span>
+        <Search className="h-4 w-4 text-slate-400 ml-2 flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 left-0 right-0 mt-1.5 p-2 bg-white border border-slate-200 shadow-xl rounded-2xl space-y-2 max-h-60 overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="relative flex-shrink-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Buscar por SKU o nombre..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-9 text-xs bg-slate-50 border-slate-100 rounded-lg focus:ring-procarni-blue/20"
+              autoFocus
+            />
+          </div>
+          <div ref={listRef} className="overflow-y-auto flex-1 divide-y divide-slate-50">
+            {filteredOptions.length === 0 ? (
+              <div className="text-center py-4 text-xs text-slate-400">
+                No se encontraron coincidencias
+              </div>
+            ) : (
+              filteredOptions.map((opt, idx) => (
+                <button
+                  key={opt.material_id}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.material_id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "w-full text-left px-2.5 py-2 text-xs transition-colors hover:bg-slate-50 flex items-center justify-between rounded-md",
+                    idx === focusedIndex ? "bg-slate-100 text-slate-900 font-semibold" : "",
+                    opt.material_id === value && idx !== focusedIndex ? "bg-emerald-50/30 text-emerald-850" : "text-slate-700 font-medium"
+                  )}
+                >
+                  <span className="truncate pr-2">
+                    {opt.materials?.name}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5 flex-shrink-0">
+                    {opt.sku}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Flujo: Salida a Producción ───────────────────────────────────────────────
 
 const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => {
@@ -174,21 +328,49 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
       const unmapped: any[] = [];
       const newRows: DespachoRow[] = [];
 
+      // Helper function to clean names for comparison
+      const cleanName = (s: string) => s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/\([^)]*\)/g, "")      // remove everything in parentheses
+        .replace(/[^a-z0-9]/g, " ")      // replace special chars with space
+        .replace(/\s+/g, " ")            // collapse spaces
+        .trim();
+
       json.materiales_requeridos.forEach(item => {
         let matId = item.material_id;
 
-        // Match using alias if not explicitly provided
+        // 1. Match using alias if not explicitly provided
         if (!matId && item.codigo_origen) {
           matId = knownAliases[item.codigo_origen];
         }
 
         let mat = matId ? inventoryMap.get(matId) : undefined;
 
-        // Fallback match by exact name
+        // 2. Fallback: Exact name match (case insensitive, trimmed)
         if (!mat) {
           mat = inventory.find(m =>
-            (m.materials?.name ?? '').toLowerCase() === item.nombre_material.toLowerCase()
+            (m.materials?.name ?? '').toLowerCase().trim() === item.nombre_material.toLowerCase().trim()
           );
+        }
+
+        // 3. Fallback: Cleaned name match (ignoring accents, parentheses, special chars)
+        if (!mat) {
+          mat = inventory.find(m => {
+            const dbClean = cleanName(m.materials?.name ?? '');
+            const jsonClean = cleanName(item.nombre_material);
+            return dbClean !== '' && dbClean === jsonClean;
+          });
+        }
+
+        // 4. Fallback: Partial substring match (if one contains the other)
+        if (!mat) {
+          mat = inventory.find(m => {
+            const dbName = (m.materials?.name ?? '').toLowerCase().trim();
+            const jsonName = item.nombre_material.toLowerCase().trim();
+            return dbName.length > 2 && jsonName.length > 2 && (dbName.includes(jsonName) || jsonName.includes(dbName));
+          });
         }
 
         if (mat) {
@@ -361,20 +543,12 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                       </div>
 
                       <div className="w-full sm:w-1/2">
-                        <Select
-                          onValueChange={(value) => setPendingMappings(prev => ({ ...prev, [item.codigo_origen]: value }))}
-                        >
-                          <SelectTrigger className={pendingMappings[item.codigo_origen] ? "border-emerald-500 ring-emerald-500 bg-emerald-50/30" : "border-amber-300"}>
-                            <SelectValue placeholder="Seleccionar equivalencia..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {inventory.map(m => (
-                              <SelectItem key={m.material_id} value={m.material_id}>
-                                {m.materials?.name} ({m.sku})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          value={pendingMappings[item.codigo_origen] || ''}
+                          onChange={(value) => setPendingMappings(prev => ({ ...prev, [item.codigo_origen]: value }))}
+                          options={inventory}
+                          placeholder="Seleccionar equivalencia..."
+                        />
                       </div>
                     </div>
                   ))}
