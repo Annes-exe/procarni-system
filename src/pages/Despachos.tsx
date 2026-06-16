@@ -6,6 +6,8 @@ import {
   Search, X, Plus, Factory, ShoppingBag, PackageOpen, Info, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -24,11 +26,13 @@ import {
   registrarSalidaVenta,
   getMaterialAliases,
   saveMaterialAliases,
+  getKardex,
 } from '@/integrations/supabase/services/inventoryService';
 import {
   MaterialInventory,
   ProductionOrderJSON,
   SalidaProduccionItem,
+  InventoryTransaction,
 } from '@/integrations/supabase/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -313,6 +317,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
         p_items: items,
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
       toast.success(`Salida a producción registrada — Orden ${orden.orden_id} | Costo total: $${fmt(costTotal)}`);
       setOrden(null);
       setRows([]);
@@ -641,6 +646,7 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
         p_cliente: cliente.trim(),
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
       toast.success(`Salida por venta registrada — ${fmt(qty)} ${selectedMaterial.unit} de ${selectedMaterial.materials?.name}`);
       setSelectedMaterial(null);
       setMaterialSearch('');
@@ -778,7 +784,12 @@ const Despachos = () => {
 
   const { data: inventory = [], isLoading } = useQuery({
     queryKey: ['materialsInventory'],
-    queryFn: getMaterialsInventory,
+    queryFn: () => getMaterialsInventory(),
+  });
+
+  const { data: recentExits = [], isLoading: loadingExits } = useQuery<InventoryTransaction[]>({
+    queryKey: ['kardexEntries'],
+    queryFn: () => getKardex({ types: ['OUT_PRODUCTION', 'OUT_SALE'], limit: 10 }),
   });
 
   return (
@@ -869,6 +880,103 @@ const Despachos = () => {
                     )
                   }
                 </AnimatePresence>
+              )}
+            </CardContent>
+          </Card>
+        </m.div>
+
+        {/* ── Recent Exits History (Kardex) ────────────────────────── */}
+        <m.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <PackageOpen className="h-5 w-5 text-procarni-blue" />
+                <div>
+                  <CardTitle className="text-slate-800 font-extrabold text-base leading-tight">
+                    Salidas Recientes del Almacén
+                  </CardTitle>
+                  <CardDescription className="text-slate-500 text-xs mt-0.5">
+                    Historial de las últimas 10 salidas y despachos registrados en Kardex
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingExits ? (
+                <div className="p-8 space-y-3">
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                </div>
+              ) : recentExits.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-sm">
+                  No se han registrado salidas de inventario recientemente.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50">
+                      <TableRow>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 pl-6">Fecha</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500">Material / SKU</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500">Tipo de Salida</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500">Referencia</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Cantidad</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 text-right">Costo Unitario</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-slate-500 text-right pr-6">Valor Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentExits.map((tx: InventoryTransaction) => {
+                        const name = tx.materials_inventory?.materials?.name ?? '—';
+                        const sku = tx.materials_inventory?.sku ?? '—';
+                        const unit = tx.materials_inventory?.unit ?? '';
+                        return (
+                          <TableRow key={tx.id} className="hover:bg-slate-50/30 transition-colors">
+                            <TableCell className="pl-6 text-sm text-slate-600 font-medium">
+                              {format(new Date(tx.transaction_date), 'dd/MM/yyyy HH:mm', { locale: es })}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">{name}</p>
+                                <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-1.5 py-0.5">
+                                  {sku}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {tx.transaction_type === 'OUT_PRODUCTION' ? (
+                                <Badge variant="outline" className="bg-violet-50 text-violet-800 border-violet-200 text-[10px] py-0 px-1.5 h-5 font-bold uppercase tracking-wide whitespace-nowrap">
+                                  Producción
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200 text-[10px] py-0 px-1.5 h-5 font-bold uppercase tracking-wide whitespace-nowrap">
+                                  Venta Directa
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm font-mono text-slate-600 font-bold">
+                              {tx.reference_doc ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-mono text-slate-700 font-bold">
+                              {fmt(Math.abs(tx.quantity))} {unit}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-mono text-slate-500">
+                              ${fmt(tx.unit_cost, 4)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-mono text-slate-800 font-black pr-6">
+                              ${fmt(Math.abs(tx.total_cost), 2)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

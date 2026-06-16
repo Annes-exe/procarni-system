@@ -227,14 +227,27 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!material || !category) return;
+
+    const parsedMinStock = parseFloat(minStock);
+    if (isNaN(parsedMinStock) || parsedMinStock < 0) {
+      toast.error('La alerta de stock mínimo debe ser un número mayor o igual a 0.');
+      return;
+    }
+
+    const parsedInitialCost = parseFloat(initialCost);
+    if (isNaN(parsedInitialCost) || parsedInitialCost < 0) {
+      toast.error('El costo inicial debe ser un número mayor o igual a 0.');
+      return;
+    }
+
     setLoading(true);
     try {
       await enableMaterialForInventory({
         material_id: material.id,
         inventory_category: category,
         unit: unit.trim() || 'kg',
-        min_stock_alert: parseFloat(minStock) || 0,
-        last_purchase_price: parseFloat(initialCost) || 0,
+        min_stock_alert: parsedMinStock,
+        last_purchase_price: parsedInitialCost,
         notes: notes.trim() || undefined,
       });
       toast.success(`Material habilitado en inventario.`);
@@ -394,7 +407,7 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
         id: o.id,
         sequence_number: o.sequence_number,
         created_at: o.created_at ?? '',
-        suppliers: o.suppliers ? { name: o.suppliers.name } : null
+        suppliers: o.suppliers ? { name: Array.isArray(o.suppliers) ? (o.suppliers[0] as any)?.name : (o.suppliers as any).name } : null
       }));
     }
   });
@@ -483,13 +496,47 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
 
   const handleSubmit = async () => {
     if (!selectedOrderId || items.length === 0) return;
-    const validItems = items.filter(item => {
+
+    // Validate filled rows first
+    const filledItems = items.filter(item => {
+      const hasInventory = !!item.materials_inventory;
+      if (!hasInventory) return false;
       const r = getRow(item.id, item.unit_price);
-      return item.materials_inventory && parseFloat(r.pesoGuia) > 0;
+      return r.pesoGuia.trim() !== '' || r.pesoRecibido.trim() !== '' || r.precio.trim() !== '';
     });
-    if (validItems.length === 0) {
+
+    if (filledItems.length === 0) {
       toast.error('Ingresa la Cantidad Guía de al menos un ítem habilitado.');
       return;
+    }
+
+    for (const item of filledItems) {
+      const r = getRow(item.id, item.unit_price);
+      
+      const guiaVal = parseFloat(r.pesoGuia);
+      if (isNaN(guiaVal) || guiaVal <= 0) {
+        toast.error(`La cantidad guía para "${item.material_name}" debe ser un número mayor a 0.`);
+        return;
+      }
+
+      const isMerma = hasMerma(item);
+      if (isMerma) {
+        if (r.pesoRecibido.trim() === '') {
+          toast.error(`La cantidad real para "${item.material_name}" es obligatoria.`);
+          return;
+        }
+        const recibidoVal = parseFloat(r.pesoRecibido);
+        if (isNaN(recibidoVal) || recibidoVal <= 0) {
+          toast.error(`La cantidad real recibida para "${item.material_name}" debe ser un número mayor a 0.`);
+          return;
+        }
+      }
+
+      const precioVal = parseFloat(r.precio);
+      if (isNaN(precioVal) || precioVal < 0) {
+        toast.error(`El precio para "${item.material_name}" debe ser un número mayor o igual a 0.`);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -507,7 +554,7 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
 
       // Register each item reception
       const results = await Promise.all(
-        validItems.map(item => {
+        filledItems.map(item => {
           const r = getRow(item.id, item.unit_price);
           const guia = parseFloat(r.pesoGuia);
           const isMerma = hasMerma(item);
@@ -517,7 +564,7 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
             p_transaction_type: 'IN_PURCHASE',
             p_peso_guia: guia,
             p_peso_recibido: recibido,
-            p_unit_cost: parseFloat(r.precio) || item.unit_price,
+            p_unit_cost: !isNaN(parseFloat(r.precio)) ? parseFloat(r.precio) : item.unit_price,
             p_reference_doc: `OC-${orders.find(o => o.id === selectedOrderId)?.sequence_number ?? selectedOrderId}`,
           });
         })
@@ -533,7 +580,7 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
       
       const totalMerma = results.reduce((a, r) => a + (r.merma_kg ?? 0), 0);
       const mermaText = totalMerma > 0 ? `. Merma total: ${fmt(totalMerma)}` : '';
-      toast.success(`${validItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido${mermaText}`);
+      toast.success(`${filledItems.length} recepción(es) registrada(s). Estado de OC actualizado a Recibido${mermaText}`);
       onSuccess();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error al registrar la recepción.';
@@ -654,7 +701,7 @@ const TabDesdeOC = ({ onSuccess }: TabProps) => {
                             isMerma ? (
                               <Input
                                 type="number" min="0" step="0.01"
-                                placeholder="= Guía"
+                                placeholder="0.00"
                                 value={r.pesoRecibido}
                                 onChange={e => setRowField(item.id, 'pesoRecibido', e.target.value, item.unit_price, item.quantity)}
                                 className="w-24 h-8 text-right text-sm ml-auto"
@@ -752,7 +799,7 @@ const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
 
   const { data: inventory = [] } = useQuery<MaterialInventory[]>({
     queryKey: ['materialsInventory'],
-    queryFn: getMaterialsInventory,
+    queryFn: () => getMaterialsInventory(),
   });
 
   const filtered = inventory.filter(m => {
@@ -762,7 +809,7 @@ const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
 
   const isMerma = !selectedMaterial || selectedMaterial.inventory_category === 'MPF' || selectedMaterial.inventory_category === 'MPS';
   const guia = parseFloat(pesoGuia) || 0;
-  const recibido = isMerma ? (parseFloat(pesoRecibido) || guia) : guia;
+  const recibido = isMerma ? (parseFloat(pesoRecibido) || 0) : guia;
 
   const handleFileChange = (f: File | null) => {
     setEvidenceFile(f);
@@ -771,8 +818,32 @@ const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMaterial || guia <= 0) {
-      toast.error('Selecciona un material y la cantidad es obligatoria.');
+    if (!selectedMaterial) {
+      toast.error('Selecciona un material.');
+      return;
+    }
+
+    const parsedGuia = parseFloat(pesoGuia);
+    if (isNaN(parsedGuia) || parsedGuia <= 0) {
+      toast.error('La cantidad guía debe ser un número mayor a 0.');
+      return;
+    }
+
+    if (isMerma) {
+      if (pesoRecibido.trim() === '') {
+        toast.error('La cantidad real recibida es obligatoria para materias primas.');
+        return;
+      }
+      const parsedRecibido = parseFloat(pesoRecibido);
+      if (isNaN(parsedRecibido) || parsedRecibido <= 0) {
+        toast.error('La cantidad real recibida debe ser un número mayor a 0.');
+        return;
+      }
+    }
+
+    const parsedPrecio = parseFloat(precio);
+    if (precio.trim() !== '' && (isNaN(parsedPrecio) || parsedPrecio < 0)) {
+      toast.error('El precio unitario debe ser un número mayor o igual a 0.');
       return;
     }
 
@@ -786,9 +857,9 @@ const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
       const result = await registrarRecepcion({
         p_material_id: selectedMaterial.material_id,
         p_transaction_type: 'IN_DIRECT',
-        p_peso_guia: guia,
-        p_peso_recibido: recibido,
-        p_unit_cost: parseFloat(precio) || selectedMaterial.last_purchase_price,
+        p_peso_guia: parsedGuia,
+        p_peso_recibido: isMerma ? (parseFloat(pesoRecibido) || parsedGuia) : parsedGuia,
+        p_unit_cost: !isNaN(parsedPrecio) ? parsedPrecio : selectedMaterial.last_purchase_price,
         p_reference_doc: referencia.trim() || 'ENTRADA-DIRECTA',
       });
 
@@ -879,8 +950,8 @@ const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
         </div>
         {isMerma && (
           <div className="space-y-1.5">
-            <Label htmlFor="dir-recibido">Cantidad Real Recibida</Label>
-            <Input id="dir-recibido" type="number" min="0" step="0.01" placeholder="= Cantidad Guía" value={pesoRecibido} onChange={e => setPesoRecibido(e.target.value)} />
+            <Label htmlFor="dir-recibido">Cantidad Real Recibida *</Label>
+            <Input id="dir-recibido" type="number" min="0" step="0.01" placeholder="0.00" value={pesoRecibido} onChange={e => setPesoRecibido(e.target.value)} required />
           </div>
         )}
       </div>
@@ -935,7 +1006,7 @@ const TabAjustePositivo = ({ onSuccess }: TabProps) => {
 
   const { data: inventory = [] } = useQuery<MaterialInventory[]>({
     queryKey: ['materialsInventory'],
-    queryFn: getMaterialsInventory,
+    queryFn: () => getMaterialsInventory(),
   });
 
   const { data: reasons = [] } = useQuery<InventoryAdjustmentReason[]>({
@@ -950,16 +1021,23 @@ const TabAjustePositivo = ({ onSuccess }: TabProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMaterial || !cantidad || !reasonCode || !observacion.trim()) {
+    if (!selectedMaterial || !reasonCode || !observacion.trim()) {
       toast.error('Todos los campos son obligatorios para un ajuste positivo.');
       return;
     }
+
+    const parsedCantidad = parseFloat(cantidad);
+    if (isNaN(parsedCantidad) || parsedCantidad <= 0) {
+      toast.error('La cantidad a agregar debe ser un número mayor a 0.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await registrarAjusteInventario({
         p_material_id: selectedMaterial.material_id,
         p_transaction_type: 'ADJUSTMENT_ADD',
-        p_cantidad: parseFloat(cantidad),
+        p_cantidad: parsedCantidad,
         p_reason_code: reasonCode,
         p_observacion: observacion.trim(),
       });
@@ -1253,11 +1331,11 @@ const Recepciones = () => {
                             </TableCell>
                             <TableCell>
                               {tx.transaction_type === 'IN_PURCHASE' ? (
-                                <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200 text-[10px] py-0 px-2 h-5 font-bold uppercase tracking-wider">
+                                <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200 text-[10px] py-0 px-1.5 h-5 font-bold uppercase tracking-wide whitespace-nowrap">
                                   Desde OC
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200 text-[10px] py-0 px-2 h-5 font-bold uppercase tracking-wider">
+                                <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200 text-[10px] py-0 px-1.5 h-5 font-bold uppercase tracking-wide whitespace-nowrap">
                                   Entrada Directa
                                 </Badge>
                               )}

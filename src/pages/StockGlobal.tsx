@@ -201,12 +201,25 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMaterial || !category) return;
+
+    const parsedMinStock = parseFloat(minStock);
+    if (isNaN(parsedMinStock) || parsedMinStock < 0) {
+      toast.error('La alerta de stock mínimo debe ser un número mayor o igual a 0.');
+      return;
+    }
+
+    const parsedInitialCost = parseFloat(initialCost);
+    if (isNaN(parsedInitialCost) || parsedInitialCost < 0) {
+      toast.error('El costo inicial debe ser un número mayor o igual a 0.');
+      return;
+    }
+
     enable({
       material_id: selectedMaterial.id,
       inventory_category: category,
       unit: unit.trim() || 'kg',
-      min_stock_alert: parseFloat(minStock) || 0,
-      last_purchase_price: parseFloat(initialCost) || 0,
+      min_stock_alert: parsedMinStock,
+      last_purchase_price: parsedInitialCost,
       notes: notes.trim() || undefined,
     });
   };
