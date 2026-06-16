@@ -691,6 +691,15 @@ BEGIN
     RAISE EXCEPTION 'La transacción % ya tiene un reverso registrado.', p_transaction_id_a_revertir;
   END IF;
 
+  -- Verificar si la transacción pertenece a un periodo contable cerrado
+  IF EXISTS (
+    SELECT 1 FROM public.inventory_periods
+    WHERE v_original.transaction_date::date BETWEEN start_date AND end_date
+      AND status = 'CERRADO'
+  ) THEN
+    RAISE EXCEPTION 'OPERACIÓN DENEGADA: La transacción original pertenece a un periodo contable cerrado y no puede ser revertida.';
+  END IF;
+
   -- Insertar el reverso con cantidad opuesta
   INSERT INTO public.inventory_transactions (
     material_id, transaction_date, transaction_type,

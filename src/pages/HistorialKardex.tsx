@@ -26,8 +26,9 @@ import {
   getMaterialsInventory,
   getKardex,
   registrarReversoInventario,
+  getInventoryPeriods,
 } from '@/integrations/supabase/services/inventoryService';
-import { InventoryTransaction, InventoryTransactionType } from '@/integrations/supabase/types';
+import { InventoryTransaction, InventoryTransactionType, InventoryPeriod } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -221,6 +222,24 @@ const HistorialKardex = () => {
     return map;
   }, [profiles]);
 
+  const { data: periods = [] } = useQuery<InventoryPeriod[]>({
+    queryKey: ['inventoryPeriods'],
+    queryFn: getInventoryPeriods,
+  });
+
+  const isPeriodClosed = useMemo(() => {
+    return (dateStr: string) => {
+      if (!dateStr) return false;
+      const txDate = new Date(dateStr);
+      return periods.some(p => {
+        if (p.status !== 'CERRADO') return false;
+        const start = new Date(p.start_date + 'T00:00:00');
+        const end = new Date(p.end_date + 'T23:59:59');
+        return txDate >= start && txDate <= end;
+      });
+    };
+  }, [periods]);
+
   // Reverse lookup: which tx IDs have a reversal
   const reversedTxIds = useMemo(() => {
     const s = new Set<string>();
@@ -389,7 +408,8 @@ const HistorialKardex = () => {
                   transactions.map(tx => {
                     const isReversed = reversedTxIds.has(tx.id);
                     const isReversal = tx.transaction_type === 'REVERSAL';
-                    const canReverse = !isReversal && !isReversed;
+                    const closedPeriod = isPeriodClosed(tx.transaction_date);
+                    const canReverse = !isReversal && !isReversed && !closedPeriod;
 
                     return (
                       <TableRow
@@ -461,6 +481,11 @@ const HistorialKardex = () => {
                               <RotateCcw className="h-3 w-3" />
                               Reversar
                             </Button>
+                          )}
+                          {!canReverse && !isReversal && !isReversed && closedPeriod && (
+                            <span className="text-xs text-slate-400 italic" title="El periodo contable de esta transacción está cerrado">
+                              Cerrado
+                            </span>
                           )}
                           {isReversed && (
                             <span className="text-xs text-slate-400 italic">Reversado</span>
