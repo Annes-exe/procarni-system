@@ -440,9 +440,20 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
     }
   };
 
-  const totalDespachado = rows.reduce((a, r) => a + (parseFloat(r.cantidadReal) || 0), 0);
+  const totalDespachadoKg = rows
+    .filter(r => r.materialInventory.unit?.toLowerCase() === 'kg')
+    .reduce((a, r) => a + (parseFloat(r.cantidadReal) || 0), 0);
+
+  const totalTeoricoKg = rows
+    .filter(r => r.materialInventory.unit?.toLowerCase() === 'kg')
+    .reduce((a, r) => a + (r.cantidadTeorica || 0), 0);
+
   const pesoTotal = orden?.peso_crudo_total_kg ?? 0;
-  const deviationPct = pesoTotal > 0 ? Math.abs(totalDespachado - pesoTotal) / pesoTotal : 0;
+
+  const deviationPct = totalTeoricoKg > 0
+    ? Math.abs(totalDespachadoKg - totalTeoricoKg) / totalTeoricoKg
+    : (pesoTotal > 0 ? Math.abs(totalDespachadoKg - pesoTotal) / pesoTotal : 0);
+
   const isDeviationHigh = deviationPct > 0.10;
 
   const costTotal = rows.reduce((a, r) => {
@@ -486,6 +497,22 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
       return;
     }
 
+    // Validar stock del lado del cliente
+    const insufficientStockItems = rows.filter(r => {
+      const realVal = parseFloat(r.cantidadReal) || 0;
+      return realVal > r.materialInventory.current_stock;
+    });
+
+    if (insufficientStockItems.length > 0) {
+      const details = insufficientStockItems
+        .map(r => `${r.materialInventory.materials?.name} (${r.materialInventory.sku}) - Requiere: ${fmt(parseFloat(r.cantidadReal))} | Stock: ${fmt(r.materialInventory.current_stock)}`)
+        .join(', ');
+      toast.error(`Stock insuficiente para despachar: ${details}. Verifica y ajusta las cantidades.`, {
+        duration: 8000
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await registrarSalidaProduccion({
@@ -504,7 +531,25 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
       setOrden(null);
       setRows([]);
     } catch (err: any) {
-      toast.error(err.message ?? 'Error al registrar la salida de producción.');
+      let customErrorMsg = err.message ?? 'Error al registrar la salida de producción.';
+      if (err.message && err.message.includes('Stock insuficiente para material')) {
+        const match = err.message.match(/Stock insuficiente para material ([a-f0-9\-]{36})/i);
+        if (match) {
+          const materialId = match[1];
+          const foundRow = rows.find(r => r.materialInventory.material_id === materialId);
+          if (foundRow) {
+            const matName = foundRow.materialInventory.materials?.name ?? 'Material';
+            const sku = foundRow.materialInventory.sku;
+            const stockMatch = err.message.match(/Stock:\s*([0-9\.]+)/i);
+            const reqMatch = err.message.match(/Requerido:\s*([0-9\.]+)/i);
+            const stockVal = stockMatch ? parseFloat(stockMatch[1]) : foundRow.materialInventory.current_stock;
+            const reqVal = reqMatch ? parseFloat(reqMatch[1]) : (parseFloat(foundRow.cantidadReal) || 0);
+            
+            customErrorMsg = `Stock insuficiente para ${matName} (${sku}). Stock disponible: ${fmt(stockVal)}, Requerido: ${fmt(reqVal)}.`;
+          }
+        }
+      }
+      toast.error(customErrorMsg, { duration: 8000 });
     } finally {
       setSubmitting(false);
     }
@@ -598,7 +643,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-slate-500">Kg Despachados / Kg Planificados</span>
                     <span className={isDeviationHigh ? 'text-red-600' : 'text-emerald-600'}>
-                      {fmt(totalDespachado)} / {fmt(pesoTotal)} kg ({fmt(deviationPct * 100, 1)}%)
+                      {fmt(totalDespachadoKg)} / {fmt(totalTeoricoKg > 0 ? totalTeoricoKg : pesoTotal)} kg ({fmt(deviationPct * 100, 1)}%)
                     </span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -607,7 +652,12 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                         'h-full rounded-full transition-all duration-500',
                         isDeviationHigh ? 'bg-red-500' : 'bg-emerald-500'
                       )}
-                      style={{ width: `${Math.min((totalDespachado / pesoTotal) * 100, 100)}%` }}
+                      style={{
+                        width: `${Math.min(
+                          (totalTeoricoKg > 0 ? (totalDespachadoKg / totalTeoricoKg) * 100 : (totalDespachadoKg / pesoTotal) * 100) || 0,
+                          100
+                        )}%`
+                      }}
                     />
                   </div>
                   {isDeviationHigh && (
@@ -645,18 +695,37 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                       const teorico = row.cantidadTeorica;
                       const deviation = teorico > 0 ? Math.abs(real - teorico) / teorico : 0;
                       const isWarning = deviation > DEVIATION_WARN && !row.isSubstitute;
+                      const isStockInsufficient = real > row.materialInventory.current_stock;
                       const costRow = real * row.materialInventory.average_unit_cost;
 
                       return (
-                        <TableRow key={idx} className={cn(isWarning && 'bg-amber-50/60')}>
+                        <TableRow 
+                          key={idx} 
+                          className={cn(
+                            isStockInsufficient 
+                              ? 'bg-red-50/50 hover:bg-red-50/70 transition-colors border-l-2 border-l-red-500' 
+                              : (isWarning ? 'bg-amber-50/60' : '')
+                          )}
+                        >
                           <TableCell className="pl-4 py-3">
                             <div>
                               <p className="text-sm font-semibold text-slate-800">{row.materialInventory.materials?.name}</p>
-                              {row.isSubstitute && (
-                                <Badge variant="outline" className="text-xs mt-0.5 text-procarni-blue border-procarni-blue/20 bg-procarni-blue/5">
-                                  Sustituto
-                                </Badge>
-                              )}
+                              <div className="flex flex-wrap gap-2 items-center mt-1">
+                                {row.isSubstitute && (
+                                  <Badge variant="outline" className="text-xs text-procarni-blue border-procarni-blue/20 bg-procarni-blue/5">
+                                    Sustituto
+                                  </Badge>
+                                )}
+                                <span className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded",
+                                  isStockInsufficient
+                                    ? "bg-red-100 text-red-800 border border-red-200"
+                                    : "bg-slate-100 text-slate-500"
+                                )}>
+                                  {isStockInsufficient ? 'Stock Insuficiente: ' : 'Stock: '}
+                                  {fmt(row.materialInventory.current_stock)} {row.materialInventory.unit}
+                                </span>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-3">
@@ -672,7 +741,9 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                               onChange={e => setRowCantidad(idx, e.target.value)}
                               className={cn(
                                 'w-24 h-8 text-right text-sm ml-auto',
-                                isWarning && 'border-amber-400 bg-amber-50'
+                                isStockInsufficient
+                                  ? 'border-red-400 bg-red-50 text-red-900 focus-visible:ring-red-200'
+                                  : (isWarning && 'border-amber-400 bg-amber-50')
                               )}
                             />
                           </TableCell>
