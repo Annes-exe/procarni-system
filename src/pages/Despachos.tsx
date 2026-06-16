@@ -49,6 +49,7 @@ interface DespachoRow {
   isSubstitute: boolean;
   replacesName?: string;
   originalMaterialId?: string;
+  substituteMaterial?: MaterialInventory;
 }
 
 // ─── JSON Drop Zone ───────────────────────────────────────────────────────────
@@ -441,11 +442,17 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
   };
 
   const totalDespachadoKg = rows
-    .filter(r => r.materialInventory.unit?.toLowerCase() === 'kg')
+    .filter(r => {
+      const activeItem = r.substituteMaterial || r.materialInventory;
+      return activeItem.unit?.toLowerCase() === 'kg';
+    })
     .reduce((a, r) => a + (parseFloat(r.cantidadReal) || 0), 0);
 
   const totalTeoricoKg = rows
-    .filter(r => r.materialInventory.unit?.toLowerCase() === 'kg')
+    .filter(r => {
+      const activeItem = r.substituteMaterial || r.materialInventory;
+      return activeItem.unit?.toLowerCase() === 'kg';
+    })
     .reduce((a, r) => a + (r.cantidadTeorica || 0), 0);
 
   const pesoTotal = orden?.peso_crudo_total_kg ?? 0;
@@ -456,13 +463,60 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
 
   const isDeviationHigh = deviationPct > 0.10;
 
+  const hasInsufficientStock = rows.some(r => {
+    const qty = parseFloat(r.cantidadReal) || 0;
+    const activeItem = r.substituteMaterial || r.materialInventory;
+    return qty > activeItem.current_stock;
+  });
+
   const costTotal = rows.reduce((a, r) => {
     const qty = parseFloat(r.cantidadReal) || 0;
-    return a + qty * r.materialInventory.average_unit_cost;
+    const activeItem = r.substituteMaterial || r.materialInventory;
+    return a + qty * activeItem.average_unit_cost;
   }, 0);
 
   const setRowCantidad = (idx: number, val: string) => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, cantidadReal: val } : r));
+  };
+
+  const getSuggestionsForMaterial = useCallback((origMaterialId: string, category: string) => {
+    const learned = JSON.parse(localStorage.getItem('procarni_substitute_learning') || '{}');
+    const learnedIds: string[] = learned[origMaterialId] || [];
+    
+    const suggestions: MaterialInventory[] = [];
+    
+    // Agregar aprendidos
+    learnedIds.forEach(id => {
+      const mat = inventory.find(m => m.material_id === id && m.is_active && m.current_stock > 0);
+      if (mat) suggestions.push(mat);
+    });
+    
+    // Completar con elementos de la misma categoría que tengan stock
+    const sameCategory = inventory.filter(m => 
+      m.inventory_category === category && 
+      m.material_id !== origMaterialId && 
+      m.is_active && 
+      m.current_stock > 0 &&
+      !suggestions.some(s => s.material_id === m.material_id)
+    );
+    
+    return [...suggestions, ...sameCategory].slice(0, 3);
+  }, [inventory]);
+
+  const handleApplySubstitute = (rowIdx: number, sub: MaterialInventory) => {
+    setRows(prev => prev.map((r, i) => i === rowIdx ? {
+      ...r,
+      substituteMaterial: sub,
+      cantidadReal: r.cantidadReal || String(r.cantidadTeorica)
+    } : r));
+    toast.success(`Sustituto aplicado: ${sub.materials?.name}`);
+  };
+
+  const handleRemoveSubstitute = (rowIdx: number) => {
+    setRows(prev => prev.map((r, i) => i === rowIdx ? {
+      ...r,
+      substituteMaterial: undefined
+    } : r));
   };
 
   const addSubstitute = (mat: MaterialInventory) => {
@@ -485,12 +539,16 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
     if (!orden) return;
     const items: SalidaProduccionItem[] = rows
       .filter(r => parseFloat(r.cantidadReal) > 0)
-      .map(r => ({
-        material_id: r.materialInventory.material_id,
-        cantidad_real: parseFloat(r.cantidadReal),
-        cantidad_teorica: r.cantidadTeorica || undefined,
-        material_original_id: r.originalMaterialId ?? null,
-      }));
+      .map(r => {
+        const hasSub = !!r.substituteMaterial;
+        const activeMat = r.substituteMaterial || r.materialInventory;
+        return {
+          material_id: activeMat.material_id,
+          cantidad_real: parseFloat(r.cantidadReal),
+          cantidad_teorica: r.cantidadTeorica || undefined,
+          material_original_id: hasSub ? r.materialInventory.material_id : null,
+        };
+      });
 
     if (items.length === 0) {
       toast.error('Ingresa las cantidades reales para al menos un material.');
@@ -500,14 +558,18 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
     // Validar stock del lado del cliente
     const insufficientStockItems = rows.filter(r => {
       const realVal = parseFloat(r.cantidadReal) || 0;
-      return realVal > r.materialInventory.current_stock;
+      const activeMat = r.substituteMaterial || r.materialInventory;
+      return realVal > activeMat.current_stock;
     });
 
     if (insufficientStockItems.length > 0) {
       const details = insufficientStockItems
-        .map(r => `${r.materialInventory.materials?.name} (${r.materialInventory.sku}) - Requiere: ${fmt(parseFloat(r.cantidadReal))} | Stock: ${fmt(r.materialInventory.current_stock)}`)
+        .map(r => {
+          const activeMat = r.substituteMaterial || r.materialInventory;
+          return `${activeMat.materials?.name} (${activeMat.sku}) - Requiere: ${fmt(parseFloat(r.cantidadReal))} | Stock: ${fmt(activeMat.current_stock)}`;
+        })
         .join(', ');
-      toast.error(`Stock insuficiente para despachar: ${details}. Verifica y ajusta las cantidades.`, {
+      toast.error(`Stock insuficiente para despachar: ${details}. Reemplaza por un sustituto con stock o ajusta la cantidad.`, {
         duration: 8000
       });
       return;
@@ -525,6 +587,27 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
         },
         p_items: items,
       });
+
+      // Guardar el aprendizaje de sustitutos en localStorage
+      const learned = JSON.parse(localStorage.getItem('procarni_substitute_learning') || '{}');
+      let learnedCount = 0;
+      rows.forEach(r => {
+        if (r.substituteMaterial) {
+          const origId = r.materialInventory.material_id;
+          const substId = r.substituteMaterial.material_id;
+          if (!learned[origId]) {
+            learned[origId] = [];
+          }
+          if (!learned[origId].includes(substId)) {
+            learned[origId] = [substId, ...learned[origId].filter((id: string) => id !== substId)].slice(0, 5);
+            learnedCount++;
+          }
+        }
+      });
+      if (learnedCount > 0) {
+        localStorage.setItem('procarni_substitute_learning', JSON.stringify(learned));
+      }
+
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
       queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
       toast.success(`Salida a producción registrada — Orden ${orden.orden_id} | Costo total: $${fmt(costTotal)}`);
@@ -536,13 +619,17 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
         const match = err.message.match(/Stock insuficiente para material ([a-f0-9\-]{36})/i);
         if (match) {
           const materialId = match[1];
-          const foundRow = rows.find(r => r.materialInventory.material_id === materialId);
+          const foundRow = rows.find(r => 
+            r.materialInventory.material_id === materialId || 
+            r.substituteMaterial?.material_id === materialId
+          );
           if (foundRow) {
-            const matName = foundRow.materialInventory.materials?.name ?? 'Material';
-            const sku = foundRow.materialInventory.sku;
+            const activeMat = foundRow.substituteMaterial || foundRow.materialInventory;
+            const matName = activeMat.materials?.name ?? 'Material';
+            const sku = activeMat.sku;
             const stockMatch = err.message.match(/Stock:\s*([0-9\.]+)/i);
             const reqMatch = err.message.match(/Requerido:\s*([0-9\.]+)/i);
-            const stockVal = stockMatch ? parseFloat(stockMatch[1]) : foundRow.materialInventory.current_stock;
+            const stockVal = stockMatch ? parseFloat(stockMatch[1]) : activeMat.current_stock;
             const reqVal = reqMatch ? parseFloat(reqMatch[1]) : (parseFloat(foundRow.cantidadReal) || 0);
             
             customErrorMsg = `Stock insuficiente para ${matName} (${sku}). Stock disponible: ${fmt(stockVal)}, Requerido: ${fmt(reqVal)}.`;
@@ -695,8 +782,15 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                       const teorico = row.cantidadTeorica;
                       const deviation = teorico > 0 ? Math.abs(real - teorico) / teorico : 0;
                       const isWarning = deviation > DEVIATION_WARN && !row.isSubstitute;
-                      const isStockInsufficient = real > row.materialInventory.current_stock;
-                      const costRow = real * row.materialInventory.average_unit_cost;
+                      
+                      const activeItem = row.substituteMaterial || row.materialInventory;
+                      const isStockInsufficient = real > activeItem.current_stock;
+                      const costRow = real * activeItem.average_unit_cost;
+
+                      const suggestions = getSuggestionsForMaterial(
+                        row.materialInventory.material_id,
+                        row.materialInventory.inventory_category
+                      );
 
                       return (
                         <TableRow 
@@ -704,32 +798,87 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                           className={cn(
                             isStockInsufficient 
                               ? 'bg-red-50/50 hover:bg-red-50/70 transition-colors border-l-2 border-l-red-500' 
-                              : (isWarning ? 'bg-amber-50/60' : '')
+                              : (row.substituteMaterial ? 'bg-emerald-50/20 hover:bg-emerald-50/30 border-l-2 border-l-emerald-500' : (isWarning ? 'bg-amber-50/60' : ''))
                           )}
                         >
                           <TableCell className="pl-4 py-3">
                             <div>
-                              <p className="text-sm font-semibold text-slate-800">{row.materialInventory.materials?.name}</p>
-                              <div className="flex flex-wrap gap-2 items-center mt-1">
+                              <p className={cn("text-sm font-semibold", row.substituteMaterial ? "text-slate-400 line-through" : "text-slate-800")}>
+                                {row.materialInventory.materials?.name}
+                              </p>
+                              
+                              {row.substituteMaterial && (
+                                <div className="text-[11px] font-bold text-emerald-800 mt-1 bg-emerald-100/60 border border-emerald-200/50 rounded px-2 py-0.5 inline-flex items-center gap-1.5 shadow-sm">
+                                  <span>↳ Reemplazado por:</span>
+                                  <span className="underline">{row.substituteMaterial.materials?.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSubstitute(idx)}
+                                    className="p-0.5 hover:bg-emerald-250/50 rounded text-emerald-700 transition-colors ml-1"
+                                    title="Quitar sustituto"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className="flex flex-wrap gap-2 items-center mt-1.5">
                                 {row.isSubstitute && (
                                   <Badge variant="outline" className="text-xs text-procarni-blue border-procarni-blue/20 bg-procarni-blue/5">
-                                    Sustituto
+                                    Sustituto Manual
                                   </Badge>
                                 )}
                                 <span className={cn(
                                   "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded",
                                   isStockInsufficient
                                     ? "bg-red-100 text-red-800 border border-red-200"
-                                    : "bg-slate-100 text-slate-500"
+                                    : (row.substituteMaterial ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-500")
                                 )}>
                                   {isStockInsufficient ? 'Stock Insuficiente: ' : 'Stock: '}
-                                  {fmt(row.materialInventory.current_stock)} {row.materialInventory.unit}
+                                  {fmt(activeItem.current_stock)} {activeItem.unit}
                                 </span>
                               </div>
+
+                              {/* Sección de asignación de sustitutos si hay stock insuficiente y no se ha asignado uno */}
+                              {!row.substituteMaterial && isStockInsufficient && (
+                                <div className="mt-2.5 p-2 bg-red-50/20 border border-red-200/50 rounded-xl space-y-2 max-w-md animate-in fade-in slide-in-from-top-1 duration-200">
+                                  {suggestions.length > 0 && (
+                                    <div className="space-y-1">
+                                      <p className="text-[9px] uppercase tracking-widest text-slate-400 font-extrabold">Sugerencias con Stock:</p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {suggestions.map(sug => (
+                                          <button
+                                            key={sug.material_id}
+                                            type="button"
+                                            onClick={() => handleApplySubstitute(idx, sug)}
+                                            className="text-[10px] font-semibold bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 border border-slate-200 rounded-lg px-2 py-1 transition-all shadow-sm"
+                                          >
+                                            {sug.materials?.name} ({fmt(sug.current_stock)} {sug.unit})
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] uppercase tracking-widest text-slate-400 font-extrabold flex-shrink-0">Otro Sustituto:</span>
+                                    <div className="w-52">
+                                      <SearchableSelect
+                                        value=""
+                                        onChange={(val) => {
+                                          const selected = inventory.find(m => m.material_id === val);
+                                          if (selected) handleApplySubstitute(idx, selected);
+                                        }}
+                                        options={inventory.filter(m => m.material_id !== row.materialInventory.material_id && m.current_stock > 0)}
+                                        placeholder="Buscar en almacén..."
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3">
-                            <span className="font-mono text-xs text-slate-500">{row.materialInventory.sku}</span>
+                            <span className="font-mono text-xs text-slate-500">{activeItem.sku}</span>
                           </TableCell>
                           <TableCell className="py-3 text-right font-mono text-sm text-slate-500">
                             {row.isSubstitute ? '—' : fmt(teorico)}
@@ -748,7 +897,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
                             />
                           </TableCell>
                           <TableCell className="py-3 text-right font-mono text-sm text-slate-600">
-                            ${fmt(row.materialInventory.average_unit_cost, 4)}
+                            ${fmt(activeItem.average_unit_cost, 4)}
                           </TableCell>
                           <TableCell className="pr-4 py-3 text-right font-mono text-sm font-bold text-slate-800">
                             ${fmt(costRow)}
@@ -836,7 +985,7 @@ const SalidaProduccion = ({ inventory }: { inventory: MaterialInventory[] }) => 
               <Button
                 id="btn-confirmar-salida-produccion"
                 onClick={handleSubmit}
-                disabled={submitting || isDeviationHigh}
+                disabled={submitting || isDeviationHigh || hasInsufficientStock}
                 className="w-full h-12 bg-procarni-blue hover:bg-procarni-blue/90 text-white font-bold text-base shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
               >
                 {submitting
@@ -1037,6 +1186,22 @@ const Despachos = () => {
     queryFn: () => getKardex({ types: ['OUT_PRODUCTION', 'OUT_SALE'], limit: 10 }),
   });
 
+  const formatAuditNote = (note: string | null) => {
+    if (!note) return null;
+    if (note.startsWith('SUSTITUTO:')) {
+      const match = note.match(/original ID ([a-f0-9\-]{36})/i);
+      if (match) {
+        const origId = match[1];
+        const origMat = inventory.find(m => m.material_id === origId);
+        if (origMat) {
+          return `Sustituto de: ${origMat.materials?.name ?? 'Material original'}`;
+        }
+      }
+      return 'Material Sustituto';
+    }
+    return note;
+  };
+
   return (
     <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       <div className="container mx-auto space-y-6 pb-20">
@@ -1188,9 +1353,21 @@ const Despachos = () => {
                             <TableCell>
                               <div>
                                 <p className="text-sm font-semibold text-slate-800">{name}</p>
-                                <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-1.5 py-0.5">
-                                  {sku}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-1.5 py-0.5">
+                                    {sku}
+                                  </span>
+                                  {tx.audit_note && (
+                                    <span className={cn(
+                                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
+                                      tx.audit_note.startsWith('SUSTITUTO:')
+                                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                                        : "bg-slate-50 text-slate-600 border-slate-200"
+                                    )}>
+                                      {formatAuditNote(tx.audit_note)}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>
