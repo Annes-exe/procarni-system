@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { m, AnimatePresence } from 'framer-motion';
 import {
   Lock, Unlock, PlusCircle, TrendingDown, Loader2,
   Search, X, AlertTriangle, CheckCircle2, CalendarCheck,
-  ClipboardList, Archive
+  ClipboardList, Archive, History
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 import {
   getInventoryPeriods,
@@ -30,8 +31,9 @@ import {
   crearPeriodoInventario,
   cerrarPeriodoInventario,
   registrarAjusteInventario,
+  getKardex,
 } from '@/integrations/supabase/services/inventoryService';
-import { InventoryPeriod, MaterialInventory } from '@/integrations/supabase/types';
+import { InventoryPeriod, MaterialInventory, InventoryTransaction, InventoryAdjustmentReason } from '@/integrations/supabase/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -364,6 +366,7 @@ const TabAjusteNegativo = () => {
         p_reference_doc: referencia.trim() || undefined,
       });
       queryClient.invalidateQueries({ queryKey: ['materialsInventory'] });
+      queryClient.invalidateQueries({ queryKey: ['kardexEntries'] });
       toast.success(`Ajuste de pérdida registrado — Impacto: -$${fmt(Math.abs(res.impacto_financiero))}`);
       setSelectedMaterial(null);
       setMaterialSearch('');
@@ -506,6 +509,167 @@ const TabAjusteNegativo = () => {
   );
 };
 
+// ─── Historial de Ajustes Recientes (Kardex) ──────────────────────────────────
+
+interface ProfileData {
+  id: string;
+  username: string | null;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+}
+
+const RecentLossAdjustmentsCard = () => {
+  const { data: recentEntries = [], isLoading: loadingEntries } = useQuery<InventoryTransaction[]>({
+    queryKey: ['kardexEntries'],
+    queryFn: () => getKardex({ types: ['ADJUSTMENT_LOSS', 'ADJUSTMENT_MANUAL'], limit: 10 }),
+  });
+
+  const { data: profiles = [] } = useQuery<ProfileData[]>({
+    queryKey: ['profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, email, first_name, last_name');
+      if (error) throw error;
+      return (data ?? []) as ProfileData[];
+    }
+  });
+
+  const { data: reasons = [] } = useQuery<InventoryAdjustmentReason[]>({
+    queryKey: ['adjustmentReasons', 'LOSS'],
+    queryFn: () => getAdjustmentReasons('LOSS'),
+  });
+
+  const reasonMap = useMemo(() => {
+    const map = new Map<string, string>();
+    reasons.forEach((r) => {
+      map.set(r.code, r.description);
+    });
+    return map;
+  }, [reasons]);
+
+  const profileMap = useMemo(() => {
+    const map = new Map<string, string>();
+    profiles.forEach((p) => {
+      let name = p.username;
+      if (!name) {
+        if (p.first_name || p.last_name) {
+          name = [p.first_name, p.last_name].filter(Boolean).join(' ');
+        } else if (p.email) {
+          name = p.email.split('@')[0];
+          name = name.charAt(0).toUpperCase() + name.slice(1);
+        }
+      }
+      map.set(p.id, name || 'Desconocido');
+    });
+    return map;
+  }, [profiles]);
+
+  return (
+    <m.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+    >
+      <Card className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+        <CardHeader className="bg-slate-50/80 backdrop-blur-sm px-7 py-5 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <History className="h-5 w-5 text-procarni-blue" />
+            <div>
+              <CardTitle className="text-slate-800 font-extrabold text-base leading-tight">
+                Ajustes de Pérdida Recientes
+              </CardTitle>
+              <CardDescription className="text-slate-500 text-xs mt-0.5">
+                Historial de los últimos 10 ajustes de pérdida y manuales registrados en Kardex
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingEntries ? (
+            <div className="p-8 space-y-3">
+              <Skeleton className="h-6 w-full" />
+              <Skeleton className="h-6 w-full" />
+              <Skeleton className="h-6 w-full" />
+            </div>
+          ) : recentEntries.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-sm">
+              No se han registrado ajustes de pérdida recientemente.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 pl-6 py-3 whitespace-nowrap">Fecha</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3">Material / SKU</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3">Motivo</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3">Referencia</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3 text-right">Cantidad</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3 text-right">Impacto Financiero</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3">Usuario</TableHead>
+                    <TableHead className="font-bold text-xs uppercase text-slate-500 py-3 pr-6">Nota</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentEntries.map((tx: InventoryTransaction) => {
+                    const name = tx.materials_inventory?.materials?.name ?? '—';
+                    const sku = tx.materials_inventory?.sku ?? '—';
+                    const unit = tx.materials_inventory?.unit ?? '';
+                    const reasonDesc = tx.reason_code ? (reasonMap.get(tx.reason_code) ?? tx.reason_code) : '—';
+                    const userDisplay = tx.created_by ? (profileMap.get(tx.created_by) ?? 'Usuario') : 'Sistema';
+
+                    return (
+                      <TableRow key={tx.id} className="hover:bg-slate-50/30 transition-colors border-b border-slate-50">
+                        <TableCell className="pl-6 text-sm text-slate-600 font-mono whitespace-nowrap">
+                          {format(new Date(tx.transaction_date), 'dd/MM/yyyy HH:mm', { locale: es })}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">{name}</p>
+                            <span className="font-mono text-xs text-slate-500 font-bold bg-slate-100 rounded px-1.5 py-0.5">
+                              {sku}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">
+                          {reasonDesc}
+                        </TableCell>
+                        <TableCell className="text-sm font-mono text-slate-600 font-bold">
+                          {tx.reference_doc ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-mono text-sm font-bold text-red-650 whitespace-nowrap">
+                            -{fmt(Math.abs(tx.quantity))} {unit}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-mono text-sm font-black text-red-600 whitespace-nowrap">
+                            -${fmt(Math.abs(tx.total_cost), 2)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100 whitespace-nowrap">
+                            {userDisplay}
+                          </span>
+                        </TableCell>
+                        <TableCell className="pr-6 max-w-[200px] text-xs text-slate-500 truncate" title={tx.audit_note ?? ''}>
+                          {tx.audit_note ?? '—'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </m.div>
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const CierresYAjustes = () => {
@@ -597,6 +761,8 @@ const CierresYAjustes = () => {
             </CardContent>
           </Card>
         </m.div>
+
+        {activeTab === 'ajuste-negativo' && <RecentLossAdjustmentsCard />}
       </div>
     </div>
   );
