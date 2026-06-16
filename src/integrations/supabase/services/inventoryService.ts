@@ -418,7 +418,7 @@ export const cerrarPeriodoInventario = async (
 export const getMaterialAliases = async () => {
   const { data, error } = await supabase
     .from('material_aliases')
-    .select('material_id, external_code');
+    .select('material_id, alias');
 
   if (error) {
     console.error('Error fetching aliases:', error);
@@ -427,8 +427,8 @@ export const getMaterialAliases = async () => {
   
   // Retornamos un mapa (Record) para búsquedas instantáneas O(1) en el frontend
   const aliasMap: Record<string, string> = {};
-  data?.forEach(alias => {
-    aliasMap[alias.external_code] = alias.material_id;
+  data?.forEach((row: any) => {
+    aliasMap[row.alias] = row.material_id;
   });
   
   return aliasMap;
@@ -438,9 +438,14 @@ export const getMaterialAliases = async () => {
 export const saveMaterialAliases = async (mappings: { material_id: string; external_code: string }[]) => {
   if (mappings.length === 0) return;
 
+  const dbMappings = mappings.map(m => ({
+    material_id: m.material_id,
+    alias: m.external_code
+  }));
+
   const { error } = await supabase
     .from('material_aliases')
-    .insert(mappings);
+    .insert(dbMappings);
 
   if (error) {
     console.error('Error saving aliases:', error);
