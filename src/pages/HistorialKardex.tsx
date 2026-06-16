@@ -28,6 +28,7 @@ import {
   registrarReversoInventario,
 } from '@/integrations/supabase/services/inventoryService';
 import { InventoryTransaction, InventoryTransactionType } from '@/integrations/supabase/types';
+import { supabase } from '@/integrations/supabase/client';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -176,7 +177,7 @@ const HistorialKardex = () => {
 
   const { data: inventory = [] } = useQuery({
     queryKey: ['materialsInventory'],
-    queryFn: getMaterialsInventory,
+    queryFn: () => getMaterialsInventory(),
   });
 
   const filters = useMemo(() => ({
@@ -191,6 +192,34 @@ const HistorialKardex = () => {
     queryKey: ['kardex', filters],
     queryFn: () => getKardex(filters),
   });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, email, first_name, last_name');
+      if (error) throw error;
+      return data ?? [];
+    }
+  });
+
+  const profileMap = useMemo(() => {
+    const map = new Map<string, string>();
+    profiles.forEach((p) => {
+      let name = p.username;
+      if (!name) {
+        if (p.first_name || p.last_name) {
+          name = [p.first_name, p.last_name].filter(Boolean).join(' ');
+        } else if (p.email) {
+          name = p.email.split('@')[0];
+          name = name.charAt(0).toUpperCase() + name.slice(1);
+        }
+      }
+      map.set(p.id, name || 'Desconocido');
+    });
+    return map;
+  }, [profiles]);
 
   // Reverse lookup: which tx IDs have a reversal
   const reversedTxIds = useMemo(() => {
@@ -208,7 +237,7 @@ const HistorialKardex = () => {
 
   return (
     <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-      <div className="container mx-auto space-y-6 pb-20">
+      <div className="w-full max-w-[98%] mx-auto space-y-6 pb-20">
         {/* ── Page Header ─────────────────────────────────────────── */}
         <div className="flex flex-col gap-1">
           <h1 className="text-[30px] font-black text-procarni-blue tracking-tighter leading-none">
@@ -333,6 +362,7 @@ const HistorialKardex = () => {
                   <TableHead className="py-3 text-right font-bold text-xs uppercase text-slate-500 whitespace-nowrap">Stock Post-TX</TableHead>
                   <TableHead className="py-3 text-right font-bold text-xs uppercase text-slate-500">CPP Post-TX</TableHead>
                   <TableHead className="py-3 font-bold text-xs uppercase text-slate-500">Referencia</TableHead>
+                  <TableHead className="py-3 font-bold text-xs uppercase text-slate-500">Usuario</TableHead>
                   <TableHead className="pr-5 py-3 font-bold text-xs uppercase text-slate-500">Nota</TableHead>
                   <TableHead className="py-3" />
                 </TableRow>
@@ -341,14 +371,14 @@ const HistorialKardex = () => {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 12 }).map((_, j) => (
+                      {Array.from({ length: 13 }).map((_, j) => (
                         <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="h-32 text-center text-slate-400">
+                    <TableCell colSpan={13} className="h-32 text-center text-slate-400">
                       <div className="flex flex-col items-center gap-2">
                         <ScrollText className="h-8 w-8 opacity-30" />
                         <p className="text-sm">Sin transacciones para los filtros seleccionados.</p>
@@ -407,6 +437,11 @@ const HistorialKardex = () => {
                         <TableCell className="py-3 max-w-[120px]">
                           <span className="text-xs font-mono text-slate-500 truncate block" title={tx.reference_doc ?? ''}>
                             {tx.reference_doc ?? '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100 whitespace-nowrap">
+                            {tx.created_by ? (profileMap.get(tx.created_by) ?? 'Usuario') : 'Sistema'}
                           </span>
                         </TableCell>
                         <TableCell className="pr-5 py-3 max-w-[200px]">
