@@ -1141,11 +1141,11 @@ const SalidaVenta = ({ inventory }: { inventory: MaterialInventory[] }) => {
         <m.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-procarni-dark rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl"
+          className="bg-procarni-blue rounded-2xl px-5 py-4 flex items-center justify-between shadow-xl"
         >
           <div>
-            <p className="text-xs text-slate-405 uppercase tracking-wider">Costo de Salida (CPP)</p>
-            <p className="text-xs text-slate-405 mt-0.5">≠ Precio de venta al cliente</p>
+            <p className="text-xs text-white/90 font-bold uppercase tracking-wider">Costo de Salida (CPP)</p>
+            <p className="text-xs text-white/70 mt-0.5 font-medium">≠ Precio de venta al cliente</p>
           </div>
           <div className="text-right">
             <p className="font-mono text-2xl font-black text-white">${fmt(costoSalida)}</p>
