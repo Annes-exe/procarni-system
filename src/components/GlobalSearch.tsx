@@ -49,9 +49,13 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onOpenChange }) => {
         return () => clearTimeout(handler);
     }, [query]);
 
-    const handleSelect = (url: string) => {
+    const handleSelect = (item: SearchResult) => {
         onOpenChange(false);
-        navigate(url);
+        if (item.type === 'material') {
+            navigate(`/inventory/material/${item.id}`);
+        } else {
+            navigate(item.url);
+        }
         setQuery('');
     };
 
@@ -110,7 +114,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onOpenChange }) => {
                             {items.map((item) => (
                                 <CommandItem
                                     key={`${item.type}-${item.id}`}
-                                    onSelect={() => handleSelect(item.url)}
+                                    onSelect={() => handleSelect(item)}
                                     className="flex items-center justify-between cursor-pointer"
                                 >
                                     <div className="flex items-center">
@@ -131,7 +135,9 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onOpenChange }) => {
                                                             className="h-7 w-7 text-procarni-secondary hover:text-green-700 hover:bg-green-50 transition-colors"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleSelect(`/search-suppliers-by-material?query=${encodeURIComponent(item.title)}`);
+                                                                onOpenChange(false);
+                                                                navigate(`/search-suppliers-by-material?query=${encodeURIComponent(item.title)}`);
+                                                                setQuery('');
                                                             }}
                                                         >
                                                             <Truck className="h-4 w-4" />

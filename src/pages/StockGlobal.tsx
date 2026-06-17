@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { m, AnimatePresence } from 'framer-motion';
 import { useDebounce } from 'use-debounce';
 import {
@@ -382,6 +382,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
 
 const StockGlobal = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<InventoryCategory | 'ALL'>('ALL');
@@ -389,7 +390,13 @@ const StockGlobal = () => {
 
   // New filters and pagination states
   const [verArchivados, setVerArchivados] = useState(false);
-  const [stockFilter, setStockFilter] = useState<'ALL' | 'WITH_STOCK' | 'LOW_STOCK' | 'NO_STOCK'>('ALL');
+  
+  const filterParam = searchParams.get('filter');
+  const initialStockFilter = ['ALL', 'WITH_STOCK', 'LOW_STOCK', 'NO_STOCK'].includes(filterParam || '') 
+    ? (filterParam as 'ALL' | 'WITH_STOCK' | 'LOW_STOCK' | 'NO_STOCK') 
+    : 'ALL';
+
+  const [stockFilter, setStockFilter] = useState<'ALL' | 'WITH_STOCK' | 'LOW_STOCK' | 'NO_STOCK'>(initialStockFilter);
   const [currentPage, setCurrentPage] = useState(1);
 
   // History modal states
