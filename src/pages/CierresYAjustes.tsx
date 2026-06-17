@@ -325,12 +325,12 @@ const TabAjusteNegativo = () => {
   const [referencia, setReferencia] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: inventory = [] } = useQuery({
+  const { data: inventory = [] } = useQuery<MaterialInventory[], Error>({
     queryKey: ['materialsInventory'],
-    queryFn: getMaterialsInventory,
+    queryFn: () => getMaterialsInventory(),
   });
 
-  const { data: reasons = [] } = useQuery({
+  const { data: reasons = [] } = useQuery<InventoryAdjustmentReason[], Error>({
     queryKey: ['adjustmentReasons', 'LOSS'],
     queryFn: () => getAdjustmentReasons('LOSS'),
   });
