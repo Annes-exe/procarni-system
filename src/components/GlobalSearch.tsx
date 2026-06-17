@@ -52,6 +52,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onOpenChange }) => {
     const handleSelect = (item: SearchResult) => {
         onOpenChange(false);
         if (item.type === 'material') {
+            localStorage.setItem('last_searched_material', JSON.stringify({ id: item.id, name: item.title }));
             navigate(`/inventory/material/${item.id}`);
         } else {
             navigate(item.url);
@@ -136,6 +137,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ open, onOpenChange }) => {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 onOpenChange(false);
+                                                                localStorage.setItem('last_searched_material', JSON.stringify({ id: item.id, name: item.title }));
                                                                 navigate(`/search-suppliers-by-material?query=${encodeURIComponent(item.title)}`);
                                                                 setQuery('');
                                                             }}
