@@ -124,29 +124,31 @@ const SearchManagement = () => {
         </div>
 
         {/* Alert & Badge (Desktop Only) */}
-        <div className="hidden md:flex flex-col items-end gap-3 max-w-[320px] text-right">
+        <div className="hidden md:flex flex-col items-end max-w-[320px]">
           <Card className="border-none bg-blue-50/50 ring-1 ring-blue-100/80 p-3 rounded-2xl shadow-sm text-left">
-            <div className="flex items-start gap-3">
-              <Search className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-blue-900">Búsqueda de Materiales</p>
-                <p className="text-[11px] text-blue-700 mt-0.5 leading-tight">
-                  Para buscar Materiales por Proveedor, utiliza la búsqueda global en la parte superior.
-                </p>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <Search className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-blue-900">Búsqueda de Materiales</p>
+                  <p className="text-[11px] text-blue-700 mt-0.5 leading-tight">
+                    Para buscar Materiales por Proveedor, utiliza la búsqueda global en la parte superior.
+                  </p>
+                </div>
               </div>
+              {lastMaterial && (
+                <button
+                  onClick={() => navigate(`/search-suppliers-by-material?query=${encodeURIComponent(lastMaterial.name)}`)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 hover:bg-white border border-blue-200/60 transition-colors shadow-sm w-full justify-center"
+                >
+                  <Clock className="h-3.5 w-3.5 text-blue-500" />
+                  <span className="text-[11px] font-bold text-blue-800">
+                    Última búsqueda: <span className="font-medium truncate max-w-[150px] inline-block align-bottom">{lastMaterial.name}</span>
+                  </span>
+                </button>
+              )}
             </div>
           </Card>
-          {lastMaterial && (
-            <button
-              onClick={() => navigate(`/search-suppliers-by-material?query=${encodeURIComponent(lastMaterial.name)}`)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50/80 hover:bg-blue-100 border border-blue-200/60 transition-colors shadow-sm"
-            >
-              <Clock className="h-3.5 w-3.5 text-blue-500" />
-              <span className="text-xs font-bold text-blue-800">
-                Última búsqueda: <span className="font-medium truncate max-w-[160px] inline-block align-bottom">{lastMaterial.name}</span>
-              </span>
-            </button>
-          )}
         </div>
       </m.div>
 
@@ -253,7 +255,7 @@ const SearchManagement = () => {
             {/* Alert & Badge (Mobile Only) */}
             <div className="md:hidden">
               <Card className="border-none bg-blue-50/50 ring-1 ring-blue-100 p-4 rounded-2xl shadow-sm">
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-4">
                   <div className="flex items-start gap-3">
                     <Search className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
                     <div>
@@ -265,20 +267,15 @@ const SearchManagement = () => {
                   </div>
 
                   {lastMaterial && (
-                    <div className="pt-3 border-t border-blue-200/50 mt-1 flex items-center flex-wrap gap-2">
-                      <p className="text-[10px] text-blue-600 uppercase tracking-[0.2em] font-black flex items-center mr-2">
-                        Última búsqueda
-                      </p>
-                      <button
-                        onClick={() => navigate(`/search-suppliers-by-material?query=${encodeURIComponent(lastMaterial.name)}`)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100/50 hover:bg-blue-200/50 border border-blue-200/50 transition-colors"
-                      >
-                        <Clock className="h-3 w-3 text-blue-500" />
-                        <span className="text-[11px] font-bold text-blue-800 truncate max-w-[200px]">
-                          {lastMaterial.name}
-                        </span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => navigate(`/search-suppliers-by-material?query=${encodeURIComponent(lastMaterial.name)}`)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/60 hover:bg-white border border-blue-200/60 shadow-sm w-full justify-center transition-colors"
+                    >
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      <span className="text-xs font-bold text-blue-800">
+                        Última búsqueda: <span className="font-medium truncate max-w-[180px] inline-block align-bottom">{lastMaterial.name}</span>
+                      </span>
+                    </button>
                   )}
                 </div>
               </Card>
