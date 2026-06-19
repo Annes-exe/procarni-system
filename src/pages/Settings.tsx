@@ -8,7 +8,8 @@ import { useSession } from '@/components/SessionContextProvider';
 
 import PinConfirmationDialog from '@/components/PinConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Cog, FolderTree } from 'lucide-react';
+import { ArrowLeft, Cog, FolderTree, MapPin } from 'lucide-react';
+import LocationsManager from '@/components/settings/LocationsManager';
 
 const Settings = () => {
   const { session, role, isLoadingSession } = useSession();
@@ -172,6 +173,22 @@ const Settings = () => {
                   <FolderTree className="h-4 w-4 mr-2" />
                   Ir al Gestor de Grupos
                 </Button>
+              </div>
+            </div>
+
+            {/* Locations Management */}
+            <div className="border p-4 rounded-lg">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-procarni-primary flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Gestión de Ubicaciones (Autodetección)
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Administra los estados y ciudades utilizados para autodetectar la ubicación de los proveedores.
+                  </p>
+                </div>
+                <LocationsManager />
               </div>
             </div>
 

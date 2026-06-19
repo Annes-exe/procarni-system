@@ -7,6 +7,10 @@ import {
   getAllMaterialCategories,
   createMaterialCategory,
   deleteMaterialCategory,
+  getLocations,
+  addLocation,
+  updateLocation,
+  deleteLocation,
 } from './services';
 import {
   getAllSuppliers,
@@ -416,4 +420,8 @@ export {
   getAllMaterialCategories,
   createMaterialCategory,
   deleteMaterialCategory,
+  getLocations,
+  addLocation,
+  updateLocation,
+  deleteLocation,
 };
