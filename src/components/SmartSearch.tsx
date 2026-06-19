@@ -22,6 +22,7 @@ interface SmartSearchProps {
   className?: string;
   autoFocus?: boolean;
   icon?: React.ReactNode; // New prop for icon
+  onCreateItem?: (query: string) => void; // New prop for creating item
 }
 
 const SmartSearch: React.FC<SmartSearchProps> = ({
@@ -33,7 +34,8 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   disabled = false,
   className,
   autoFocus,
-  icon
+  icon,
+  onCreateItem
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -102,6 +104,8 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
     setOpen(false);
   };
 
+  const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase());
+
   return (
     <Popover open={open && !disabled} onOpenChange={(newOpen) => {
       setOpen(newOpen);
@@ -136,7 +140,22 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
             autoFocus
           />
           <CommandList className="max-h-60 overflow-y-auto">
-            <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+            <CommandEmpty>
+              No se encontraron resultados.
+              {onCreateItem && query.trim() && (
+                <div className="mt-2 px-2 pb-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setOpen(false); onCreateItem(query.trim()); }}
+                    className="w-full text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary hover:text-white text-xs border-dashed"
+                  >
+                    + Crear "{query.trim()}"
+                  </Button>
+                </div>
+              )}
+            </CommandEmpty>
             <CommandGroup>
               {results.map((item) => (
                 <CommandItem
@@ -159,6 +178,19 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {onCreateItem && query.trim() && results.length > 0 && !exactMatch && (
+              <div className="p-2 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setOpen(false); onCreateItem(query.trim()); }}
+                  className="w-full text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary hover:text-white text-xs border-dashed"
+                >
+                  + Crear "{query.trim()}"
+                </Button>
+              </div>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
