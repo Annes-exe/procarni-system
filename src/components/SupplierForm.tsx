@@ -802,27 +802,55 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                       >
                         <AnimatePresence>
                           {searchResults.length > 0 ? (
-                            searchResults.map((material) => (
-                              <m.div
-                                key={material.id}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                              >
-                                <DraggableMaterialItem 
-                                  id={material.id}
-                                  name={material.name}
-                                  category={material.category}
-                                  code={material.code}
-                                  type="available"
-                                  onClick={() => handleAddMaterial(material)}
-                                  disabled={isMobile}
-                                />
-                              </m.div>
-                            ))
+                            <>
+                              {searchResults.map((material) => (
+                                <m.div
+                                  key={material.id}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                >
+                                  <DraggableMaterialItem 
+                                    id={material.id}
+                                    name={material.name}
+                                    category={material.category}
+                                    code={material.code}
+                                    type="available"
+                                    onClick={() => handleAddMaterial(material)}
+                                    disabled={isMobile}
+                                  />
+                                </m.div>
+                              ))}
+                              {searchTerm.trim() && !searchResults.some(m => m.name.toLowerCase() === searchTerm.trim().toLowerCase()) && (
+                                <m.div 
+                                  initial={{ opacity: 0 }} 
+                                  animate={{ opacity: 1 }} 
+                                  className="mt-3 mb-1 px-1"
+                                >
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsMaterialCreationDialogOpen(true)}
+                                    className="w-full text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary hover:text-white text-xs border-dashed"
+                                  >
+                                    + Crear "{searchTerm}"
+                                  </Button>
+                                </m.div>
+                              )}
+                            </>
                           ) : searchTerm.trim() ? (
-                            <div className="text-[11px] text-center text-muted-foreground py-10 bg-white/50 rounded-lg border border-dashed">
-                              Sin coincidencias para "{searchTerm}"
+                            <div className="text-[11px] text-center text-muted-foreground py-10 bg-white/50 rounded-lg border border-dashed flex flex-col items-center gap-3">
+                              <p>Sin coincidencias para "{searchTerm}"</p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsMaterialCreationDialogOpen(true)}
+                                className="text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary hover:text-white"
+                              >
+                                + Crear "{searchTerm}"
+                              </Button>
                             </div>
                           ) : (
                             <div className="text-[11px] text-center text-gray-400 py-10 bg-white/30 rounded-lg border border-dashed flex flex-col items-center gap-2">
@@ -1263,10 +1291,14 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
 
       <MaterialCreationDialog
         isOpen={isMaterialCreationDialogOpen}
-        onClose={() => setIsMaterialCreationDialogOpen(false)}
+        onClose={() => {
+          setIsMaterialCreationDialogOpen(false);
+          setSearchTerm(''); // Clear search to reset view after creating
+        }}
         onMaterialCreated={handleMaterialCreatedFromDialog}
         supplierId={currentSupplierId}
         supplierName={initialData?.name}
+        initialName={searchTerm}
       />
     </Form>
   );
