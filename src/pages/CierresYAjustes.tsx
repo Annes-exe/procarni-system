@@ -228,7 +228,8 @@ const TabPeriodos = () => {
         </Button>
       </div>
 
-      <div className="border border-slate-200 rounded-xl overflow-hidden">
+      {/* Table Container (Desktop Only) */}
+      <div className="hidden md:block border border-slate-200 rounded-xl overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>
@@ -305,6 +306,79 @@ const TabPeriodos = () => {
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile Cards Container (Mobile Only) */}
+      <div className="md:hidden flex flex-col gap-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="p-4 rounded-2xl border-slate-200"><Skeleton className="h-20 w-full" /></Card>
+          ))
+        ) : periods.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 bg-slate-50/50 rounded-2xl border border-slate-100 text-slate-400">
+            <ClipboardList className="h-8 w-8 opacity-30 mb-2" />
+            <span className="text-sm">No hay periodos contables.</span>
+          </div>
+        ) : periods.map(p => (
+          <Card key={p.id} className="relative overflow-hidden rounded-[1.25rem] border p-4 shadow-sm bg-white">
+            <div className="flex justify-between items-start mb-3 gap-2">
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="font-bold text-[14px] text-procarni-blue line-clamp-1 leading-tight">
+                  {p.period_name}
+                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                    {format(new Date(p.start_date + 'T12:00:00'), 'dd/MM/yy')}
+                  </span>
+                  <span className="text-slate-400 text-[10px]">al</span>
+                  <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                    {format(new Date(p.end_date + 'T12:00:00'), 'dd/MM/yy')}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-shrink-0">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'font-bold text-[10px] px-1.5 py-0',
+                    p.status === 'ABIERTO'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-500 border-slate-300'
+                  )}
+                >
+                  {p.status === 'ABIERTO' ? <Unlock className="h-2.5 w-2.5 mr-1 inline" /> : <Lock className="h-2.5 w-2.5 mr-1 inline" />}
+                  {p.status}
+                </Badge>
+              </div>
+            </div>
+
+            {p.notes && (
+              <div className="text-[10px] text-slate-500 italic line-clamp-2 leading-tight bg-slate-50 p-1.5 rounded-lg border border-slate-100 mt-2">
+                "{p.notes}"
+              </div>
+            )}
+
+            <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+              {p.status === 'ABIERTO' ? (
+                <Button
+                  id={`btn-cerrar-periodo-mob-${p.id}`}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPeriodToClose(p)}
+                  className="h-8 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50 w-full justify-center"
+                >
+                  <Lock className="h-3.5 w-3.5" /> Cerrar Periodo
+                </Button>
+              ) : (
+                <div className="h-8 flex items-center justify-center w-full bg-slate-50 rounded-lg border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Cerrado el {p.closed_at ? format(new Date(p.closed_at), 'dd/MM/yy HH:mm') : '—'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </Card>
+        ))}
       </div>
 
       <NuevoPeriodoModal open={newModalOpen} onClose={() => setNewModalOpen(false)} />

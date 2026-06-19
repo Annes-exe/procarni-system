@@ -80,22 +80,22 @@ const KpiCard = ({ title, value, subtitle, icon, iconColorClass, delay = 0 }: Kp
     transition={{ delay, duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
   >
     <Card className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500">
-      <m.div whileHover={{ y: -6 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className={cn('p-3 rounded-2xl transition-all duration-500', iconColorClass)}>
-            {React.cloneElement(icon as React.ReactElement, { className: 'h-5 w-5' })}
+      <m.div whileHover={{ y: -6 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="p-4 md:p-6">
+        <div className="flex items-center justify-between mb-2 md:mb-4">
+          <div className={cn('p-2.5 md:p-3 rounded-2xl transition-all duration-500', iconColorClass)}>
+            {React.cloneElement(icon as React.ReactElement, { className: 'h-4 w-4 md:h-5 md:w-5' })}
           </div>
         </div>
 
         <div>
-          <div className="text-[28px] font-black text-gray-900 tracking-tighter mb-1 leading-tight truncate">{value}</div>
-          <div className="text-sm font-bold text-procarni-blue mb-0.5">{title}</div>
-          {subtitle && <p className="text-[12px] text-gray-500 font-medium">{subtitle}</p>}
+          <div className="text-2xl md:text-[28px] font-black text-gray-900 tracking-tighter mb-1 leading-tight truncate">{value}</div>
+          <div className="text-xs md:text-sm font-bold text-procarni-blue mb-0.5">{title}</div>
+          {subtitle && <p className="text-[10px] md:text-[12px] text-gray-500 font-medium leading-tight">{subtitle}</p>}
         </div>
       </m.div>
       {/* Background icon decoration */}
       <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-        {React.cloneElement(icon as React.ReactElement, { className: 'h-24 w-24 -mr-8 -mt-8 rotate-12' })}
+        {React.cloneElement(icon as React.ReactElement, { className: 'h-16 w-16 md:h-24 md:w-24 -mr-4 md:-mr-8 -mt-4 md:-mt-8 rotate-12' })}
       </div>
     </Card>
   </m.div>
@@ -739,8 +739,8 @@ const StockGlobal = () => {
             </div>
           </div>
 
-          {/* Table Container with Sticky Headers */}
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto relative">
+          {/* Table Container with Sticky Headers (Desktop Only) */}
+          <div className="hidden md:block overflow-x-auto max-h-[600px] overflow-y-auto relative">
             <Table>
               <TableHeader className="bg-slate-50/90 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
                 <TableRow>

@@ -367,7 +367,7 @@ const HistorialKardex = () => {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50/80">
                 <TableRow>
@@ -497,6 +497,103 @@ const HistorialKardex = () => {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Cards Container (Mobile Only) */}
+          <div className="md:hidden flex flex-col gap-3 p-4 bg-slate-50/30">
+            {isLoading ? (
+               Array.from({ length: 4 }).map((_, i) => (
+                 <Card key={i} className="p-4 rounded-2xl border-slate-200"><Skeleton className="h-24 w-full" /></Card>
+               ))
+            ) : transactions.length === 0 ? (
+               <div className="flex flex-col items-center gap-2 py-10 text-slate-400">
+                  <ScrollText className="h-8 w-8 opacity-30" />
+                  <p className="text-sm text-center">Sin transacciones para los filtros seleccionados.</p>
+               </div>
+            ) : (
+               transactions.map(tx => {
+                 const isReversed = reversedTxIds.has(tx.id);
+                 const isReversal = tx.transaction_type === 'REVERSAL';
+                 const closedPeriod = isPeriodClosed(tx.transaction_date);
+                 const canReverse = !isReversal && !isReversed && !closedPeriod;
+                 
+                 return (
+                   <Card 
+                     key={tx.id} 
+                     className={cn(
+                       "relative overflow-hidden rounded-[1.25rem] border p-4 shadow-sm",
+                       isReversed ? "opacity-60 bg-slate-50" : isReversal ? "bg-slate-50/80 border-slate-300" : "bg-white border-slate-200"
+                     )}
+                   >
+                     <div className="flex justify-between items-start mb-3 gap-2">
+                       <div className="flex flex-col gap-1 min-w-0">
+                         <span className="text-[10px] text-slate-500 font-mono">
+                           {format(new Date(tx.transaction_date), 'dd/MM/yy HH:mm', { locale: es })}
+                         </span>
+                         <span className={cn("font-bold text-[13px] line-clamp-2 leading-tight", isReversed ? "line-through text-slate-500" : "text-procarni-blue")}>
+                           {tx.materials_inventory?.materials?.name ?? '—'}
+                         </span>
+                       </div>
+                       <div className="flex-shrink-0">
+                         <TxBadge type={tx.transaction_type} />
+                       </div>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-2 mt-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Cant. Movimiento</span>
+                          <span className={cn(
+                             "font-mono font-bold text-sm mt-0.5",
+                             isReversed ? "text-slate-400 line-through" : tx.quantity > 0 ? "text-emerald-700" : "text-red-600"
+                           )}>
+                             {tx.quantity > 0 ? '+' : ''}{fmt(tx.quantity)} <span className="text-[10px] font-bold opacity-70 ml-0.5">{tx.materials_inventory?.unit}</span>
+                          </span>
+                        </div>
+                        <div className="flex flex-col text-right">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Costo Total</span>
+                          <span className={cn("font-mono font-bold text-sm text-slate-700 mt-0.5", isReversed && "line-through text-slate-400")}>
+                            ${fmt(Math.abs(tx.total_cost))}
+                          </span>
+                        </div>
+                     </div>
+
+                     <div className="flex flex-col gap-1 mt-3">
+                       <div className="flex justify-between items-center">
+                         <span className="text-[10px] font-bold text-slate-500">Ref: <span className="font-mono text-slate-700">{tx.reference_doc ?? '—'}</span></span>
+                         <span className="text-[10px] font-bold text-slate-500">Usu: <span className="text-slate-700 truncate max-w-[100px] inline-block align-bottom">{tx.created_by ? (profileMap.get(tx.created_by) ?? 'Usu') : 'Sis'}</span></span>
+                       </div>
+                       {tx.audit_note && (
+                         <div className="text-[10px] text-slate-500 italic line-clamp-2 leading-tight bg-slate-50 p-1.5 rounded-lg border border-slate-100 mt-1">
+                           "{tx.audit_note}"
+                         </div>
+                       )}
+                     </div>
+
+                     <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+                       {canReverse ? (
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           onClick={() => setTxToReverse(tx)}
+                           className="h-8 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50 w-full justify-center"
+                         >
+                           <RotateCcw className="h-3.5 w-3.5" /> Reversar
+                         </Button>
+                       ) : (
+                         <div className="h-8 flex items-center justify-center w-full bg-slate-50 rounded-lg border border-slate-100">
+                           {!isReversal && !isReversed && closedPeriod && (
+                             <span className="text-xs text-slate-400 italic font-medium">Periodo Cerrado</span>
+                           )}
+                           {isReversed && (
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reversado</span>
+                           )}
+                         </div>
+                       )}
+                     </div>
+                   </Card>
+                 );
+               })
+            )}
           </div>
         </m.div>
 
