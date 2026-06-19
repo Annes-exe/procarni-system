@@ -1,4 +1,4 @@
-import { VENEZUELA_LOCATIONS, VENEZUELAN_STATES } from '../constants/venezuela-locations';
+import { Location } from '@/integrations/supabase/types';
 
 /**
  * Normalizes a string by removing accents, converting to lowercase, 
@@ -17,8 +17,8 @@ export const normalizeString = (str: string): string => {
  * Robustly detects Venezuelan state and city/municipality from an address string.
  * Handles cases where street names might conflict with state names.
  */
-export const detectLocation = (address: string): { state: string | null, city: string | null } => {
-  if (!address) return { state: null, city: null };
+export const detectLocation = (address: string, dbLocations: Location[] = []): { state: string | null, city: string | null } => {
+  if (!address || dbLocations.length === 0) return { state: null, city: null };
 
   const addressOriginal = address.toLowerCase();
   const addressLower = normalizeString(address);
@@ -26,8 +26,10 @@ export const detectLocation = (address: string): { state: string | null, city: s
   const foundStates: string[] = [];
   const foundCities: { city: string, state: string }[] = [];
 
+  const uniqueStates = Array.from(new Set(dbLocations.map(l => l.state)));
+
   // 1. Identify all state candidates
-  for (const state of VENEZUELAN_STATES) {
+  for (const state of uniqueStates) {
     const stateNormalized = normalizeString(state);
     const stateRegex = new RegExp(`\\b${stateNormalized}\\b`, 'i');
     if (stateRegex.test(addressLower)) {
@@ -36,14 +38,12 @@ export const detectLocation = (address: string): { state: string | null, city: s
   }
 
   // 2. Identify all city candidates
-  for (const [state, cities] of Object.entries(VENEZUELA_LOCATIONS)) {
-    for (const city of cities) {
-      const cityNormalized = normalizeString(city);
-      // We use word boundaries to avoid matching "Mara" inside "Maracaibo"
-      const cityRegex = new RegExp(`\\b${cityNormalized}\\b`, 'i');
-      if (cityRegex.test(addressLower)) {
-        foundCities.push({ city, state });
-      }
+  for (const loc of dbLocations) {
+    const cityNormalized = normalizeString(loc.city);
+    // We use word boundaries to avoid matching "Mara" inside "Maracaibo"
+    const cityRegex = new RegExp(`\\b${cityNormalized}\\b`, 'i');
+    if (cityRegex.test(addressLower)) {
+      foundCities.push({ city: loc.city, state: loc.state });
     }
   }
 
@@ -52,7 +52,7 @@ export const detectLocation = (address: string): { state: string | null, city: s
   const estadoMatch = addressLower.match(/estado\s+([a-z\s]+)/i);
   if (estadoMatch) {
     const candidate = normalizeString(estadoMatch[1]);
-    for (const state of VENEZUELAN_STATES) {
+    for (const state of uniqueStates) {
       if (candidate.startsWith(normalizeString(state))) {
         explicitState = state;
         break;

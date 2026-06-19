@@ -345,3 +345,10 @@ export type SupplierMaterialPayload = {
   unit_id: string | null;
   specification?: string;
 };
+
+export type Location = {
+  id: string;
+  state: string;
+  city: string;
+  created_at: string;
+};
