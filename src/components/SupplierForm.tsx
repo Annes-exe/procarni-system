@@ -13,11 +13,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Check, ChevronsUpDown, Loader2, Plus, X, PlusCircle, Info, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getAllMaterials, searchMaterials, getRecentMaterials } from '@/integrations/supabase/data';
+import { getAllMaterials, searchMaterials, getRecentMaterials, getLocations } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { validateRif } from '@/utils/validators';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
-import { VENEZUELAN_MUNICIPALITIES_FLAT } from '@/constants/venezuela-locations';
+// VENEZUELAN_MUNICIPALITIES_FLAT has been removed in favor of dynamic DB locations
 import { detectLocation } from '@/utils/location-detector';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -401,6 +401,22 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
     queryFn: getAllMaterials,
   });
 
+  const { data: dbLocations = [] } = useQuery({
+    queryKey: ['locations'],
+    queryFn: getLocations,
+  });
+
+  const municipalitiesFlat = React.useMemo(() => {
+    return dbLocations
+      .map(loc => ({
+        city: loc.city,
+        state: loc.state,
+        label: `${loc.city}, ${loc.state}`
+      }))
+      .sort((a, b) => a.city.localeCompare(b.city));
+  }, [dbLocations]);
+
+
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
     defaultValues: {
@@ -445,8 +461,8 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
   const currentAddress = form.watch('address');
 
   useEffect(() => {
-    if (currentAddress) {
-      const { state: detectedState, city: detectedCity } = detectLocation(currentAddress);
+    if (currentAddress && dbLocations.length > 0) {
+      const { state: detectedState, city: detectedCity } = detectLocation(currentAddress, dbLocations);
 
       if (detectedState && form.getValues('state') !== detectedState) {
         form.setValue('state', detectedState, { shouldDirty: true });
@@ -746,15 +762,6 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                 >
                   <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3 flex justify-between items-center">
                     Buscador de Materiales
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-[10px] bg-white border-dashed"
-                      onClick={() => setIsMaterialCreationDialogOpen(true)}
-                    >
-                      <PlusCircle className="mr-1.5 h-3 w-3" /> Nuevo
-                    </Button>
                   </h3>
 
                   <div className="space-y-4">
@@ -786,27 +793,55 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                       >
                         <AnimatePresence>
                           {searchResults.length > 0 ? (
-                            searchResults.map((material) => (
-                              <m.div
-                                key={material.id}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                              >
-                                <DraggableMaterialItem 
-                                  id={material.id}
-                                  name={material.name}
-                                  category={material.category}
-                                  code={material.code}
-                                  type="available"
-                                  onClick={() => handleAddMaterial(material)}
-                                  disabled={isMobile}
-                                />
-                              </m.div>
-                            ))
+                            <>
+                              {searchResults.map((material) => (
+                                <m.div
+                                  key={material.id}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                >
+                                  <DraggableMaterialItem 
+                                    id={material.id}
+                                    name={material.name}
+                                    category={material.category}
+                                    code={material.code}
+                                    type="available"
+                                    onClick={() => handleAddMaterial(material)}
+                                    disabled={isMobile}
+                                  />
+                                </m.div>
+                              ))}
+                              {searchTerm.trim() && !searchResults.some(m => m.name.toLowerCase() === searchTerm.trim().toLowerCase()) && (
+                                <m.div 
+                                  initial={{ opacity: 0 }} 
+                                  animate={{ opacity: 1 }} 
+                                  className="mt-3 mb-1 px-1"
+                                >
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsMaterialCreationDialogOpen(true)}
+                                    className="w-full text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary hover:text-white text-xs border-dashed"
+                                  >
+                                    + Crear "{searchTerm}"
+                                  </Button>
+                                </m.div>
+                              )}
+                            </>
                           ) : searchTerm.trim() ? (
-                            <div className="text-[11px] text-center text-muted-foreground py-10 bg-white/50 rounded-lg border border-dashed">
-                              Sin coincidencias para "{searchTerm}"
+                            <div className="text-[11px] text-center text-muted-foreground py-10 bg-white/50 rounded-lg border border-dashed flex flex-col items-center gap-3">
+                              <p>Sin coincidencias para "{searchTerm}"</p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsMaterialCreationDialogOpen(true)}
+                                className="text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary hover:text-white"
+                              >
+                                + Crear "{searchTerm}"
+                              </Button>
                             </div>
                           ) : (
                             <div className="text-[11px] text-center text-gray-400 py-10 bg-white/30 rounded-lg border border-dashed flex flex-col items-center gap-2">
@@ -1091,7 +1126,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                             )}
                           >
                             {field.value
-                              ? VENEZUELAN_MUNICIPALITIES_FLAT.find(
+                              ? municipalitiesFlat.find(
                                   (m) => m.city === field.value && m.state === form.getValues('state')
                                 )?.label || field.value
                               : "Seleccionar ciudad..."}
@@ -1105,7 +1140,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                           <CommandList className="max-h-48">
                             <CommandEmpty>No se encontró la ciudad.</CommandEmpty>
                             <CommandGroup>
-                              {VENEZUELAN_MUNICIPALITIES_FLAT.map((m) => (
+                              {municipalitiesFlat.map((m) => (
                                 <CommandItem
                                   value={m.label}
                                   key={`${m.city}-${m.state}`}
@@ -1247,10 +1282,14 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
 
       <MaterialCreationDialog
         isOpen={isMaterialCreationDialogOpen}
-        onClose={() => setIsMaterialCreationDialogOpen(false)}
+        onClose={() => {
+          setIsMaterialCreationDialogOpen(false);
+          setSearchTerm(''); // Clear search to reset view after creating
+        }}
         onMaterialCreated={handleMaterialCreatedFromDialog}
         supplierId={currentSupplierId}
         supplierName={initialData?.name}
+        initialName={searchTerm}
       />
     </Form>
   );

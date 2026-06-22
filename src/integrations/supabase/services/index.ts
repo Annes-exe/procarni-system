@@ -15,3 +15,4 @@ export * from './serviceOrderService';
 export * from './searchService';
 export * from './unitService';
 export * from './materialCategoryService';
+export * from './locationService';

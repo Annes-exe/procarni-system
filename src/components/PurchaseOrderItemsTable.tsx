@@ -83,6 +83,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   const isMobile = useIsMobile();
   const [isAssociating, setIsAssociating] = useState<string | null>(null);
   const [associatedMaterials, setAssociatedMaterials] = useState<Set<string>>(new Set());
+  const [materialNameToCreate, setMaterialNameToCreate] = useState('');
 
   const { data: associatedMaterialIds = new Set<string>(), refetch: refetchAssociated } = useQuery({
     queryKey: ['supplier_materials_ids', supplierId],
@@ -175,6 +176,10 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 selectedId={item.material_id}
                 disabled={!supplierId}
                 className="w-full"
+                onCreateItem={(query) => {
+                  setMaterialNameToCreate(query);
+                  setIsAddMaterialDialogOpen(true);
+                }}
               />
 
             </div>
@@ -389,6 +394,10 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   disabled={!supplierId}
                   className={`w-full h-9 bg-white ${item.material_id && !associatedMaterialIds.has(item.material_id) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
                   icon={<Search className="h-4 w-4 text-gray-400" />}
+                  onCreateItem={(query) => {
+                    setMaterialNameToCreate(query);
+                    setIsAddMaterialDialogOpen(true);
+                  }}
                 />
                 
                 {item.material_id && !associatedMaterialIds.has(item.material_id) && (
@@ -642,9 +651,6 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
             Ítems de la Orden
           </h3>
-          <Button variant="outline" size="sm" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="text-xs">
-            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-          </Button>
         </div>
       )}
 
@@ -695,6 +701,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         onMaterialCreated={handleMaterialAdded}
         supplierId={supplierId}
         supplierName={supplierName}
+        initialName={materialNameToCreate}
       />
     </div>
   );

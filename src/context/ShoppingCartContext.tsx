@@ -9,6 +9,7 @@ interface ShoppingCartItem {
   tax_rate?: number;
   is_exempt?: boolean;
   unit?: string;
+  unit_id?: string | null;
   description?: string;
   sales_percentage?: number;
   discount_percentage?: number;

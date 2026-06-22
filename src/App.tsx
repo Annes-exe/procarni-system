@@ -37,6 +37,7 @@ import ReportsAnalytics from "./pages/ReportsAnalytics"; // NEW IMPORT
 import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
 import Notifications from "./pages/Notifications";
 import GroupManagement from "./pages/GroupManagement";
+import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 
 // Inventory Module Pages
 import StockGlobal from "./pages/StockGlobal";
@@ -96,7 +97,6 @@ const App = () => (
                   <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/group-management" element={<GroupManagement />} />
-                  
                   {/* Inventory Module Routes */}
                   <Route path="/inventory" element={<StockGlobal />} />
                   <Route path="/inventory/receptions" element={<Recepciones />} />
@@ -104,6 +104,7 @@ const App = () => (
                   <Route path="/inventory/kardex" element={<HistorialKardex />} />
                   <Route path="/inventory/closings" element={<CierresYAjustes />} />
                   <Route path="/inventory/material/:id" element={<MaterialProfilePlaceholder />} />
+                  <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -21,6 +21,7 @@ interface MaterialCreationDialogProps {
   // supplierId is now optional. If provided, association happens immediately.
   supplierId?: string;
   supplierName?: string; // Optional if supplierId is not provided
+  initialName?: string; // Optional: pre-fill material name
 }
 
 
@@ -31,6 +32,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   onMaterialCreated,
   supplierId,
   supplierName,
+  initialName,
 }) => {
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,7 +47,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     queryFn: getAllMaterialCategories,
   });
 
-  const [materialName, setMaterialName] = useState('');
+  const [materialName, setMaterialName] = useState(initialName || '');
   const [category, setCategory] = useState('');
   const [unit, setUnit] = useState('');
   const [isExempt, setIsExempt] = useState(false);
@@ -69,6 +71,12 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     resetForm();
     onClose();
   };
+
+  useEffect(() => {
+    if (isOpen && initialName) {
+      setMaterialName(initialName);
+    }
+  }, [isOpen, initialName]);
 
   // Effect to enforce is_exempt=true when category is FRESCA
   useEffect(() => {
