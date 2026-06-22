@@ -107,7 +107,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase());
 
   return (
-    <Popover open={open && !disabled} onOpenChange={(newOpen) => {
+    <Popover modal={true} open={open && !disabled} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (newOpen) {
         // Clear query when opening to allow a fresh search immediately

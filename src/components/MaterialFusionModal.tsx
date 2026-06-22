@@ -7,8 +7,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { updateMaterial, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { mergeMaterials } from '@/integrations/supabase/services/materialService';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError, showSuccess } from '@/utils/toast';
-import { Combine, AlertTriangle } from 'lucide-react';
+import { Combine, AlertTriangle, Box } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Material } from '@/integrations/supabase/types';
 
 interface MaterialFusionModalProps {
@@ -95,6 +97,14 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
       // 2. Execute the fusion
       const success = await mergeMaterials(targetId, sourceIds);
       if (!success) throw new Error("Ocurrió un error en la base de datos durante la fusión.");
+
+      // 3. Log Audit
+      await logAudit('FUSION', {
+        table: 'materials',
+        record_id: targetId,
+        description: `Fusión de ${sourceIds.length} materiales en "${newName}"`,
+        is_mass_action: true
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
@@ -148,11 +158,30 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
                 <SelectContent>
                   {itemsToMerge.map((material) => (
                     <SelectItem key={material.id} value={material.id}>
-                      {material.name} <span className="text-muted-foreground text-xs">({material.code})</span>
+                      {material.name} {material.category ? `- ${material.category}` : ''} <span className="text-muted-foreground text-xs">({material.code})</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* PREVIEW DE ITEMS */}
+            <div className="bg-white border rounded-md p-3 max-h-32 overflow-y-auto mt-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Materiales seleccionados para la fusión:</label>
+              <div className="space-y-2">
+                {itemsToMerge.map(m => (
+                  <div key={m.id} className="flex justify-between items-center text-sm p-1.5 hover:bg-gray-50 rounded">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Box className="h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="font-medium truncate text-gray-700">{m.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {m.category && <Badge variant="outline" className="text-[10px] py-0">{m.category}</Badge>}
+                      {m.unit && <Badge variant="secondary" className="text-[10px] py-0">{m.unit}</Badge>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="grid gap-3 pt-2">
