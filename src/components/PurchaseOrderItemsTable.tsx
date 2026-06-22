@@ -651,9 +651,6 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
             Ítems de la Orden
           </h3>
-          <Button variant="outline" size="sm" onClick={() => setIsAddMaterialDialogOpen(true)} disabled={!supplierId} className="text-xs">
-            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-          </Button>
         </div>
       )}
 

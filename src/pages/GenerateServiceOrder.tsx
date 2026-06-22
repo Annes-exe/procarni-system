@@ -116,8 +116,6 @@ const GenerateServiceOrder = () => {
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
   const [isSparePartsSupplierDialogOpen, setIsSparePartsSupplierDialogOpen] = useState(false);
-  const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
-  const [activeSupplierForMaterial, setActiveSupplierForMaterial] = useState<{ id: string, name: string, groupIndex: number } | null>(null);
 
   // Trigger alert when supplier changes
   React.useEffect(() => {
@@ -270,33 +268,6 @@ const GenerateServiceOrder = () => {
     });
   };
 
-  const handleOpenMaterialDialog = (groupIndex: number, supplierId: string, supplierName: string) => {
-    setActiveSupplierForMaterial({ id: supplierId, name: supplierName, groupIndex });
-    setIsAddMaterialDialogOpen(true);
-  };
-
-  const handleMaterialCreated = (material: any) => {
-    if (activeSupplierForMaterial) {
-      const { groupIndex } = activeSupplierForMaterial;
-      setSparePartsGroups(prev => {
-        const newGroups = [...prev];
-        newGroups[groupIndex].items.push({
-          material_id: material.id,
-          material_name: material.name,
-          supplier_code: material.specification || '',
-          unit: material.unit || 'UND',
-          unit_id: material.unit_id || null,
-          quantity: 1,
-          unit_price: 0,
-          tax_rate: 0.16,
-          is_exempt: material.is_exempt || false,
-          sales_percentage: 0,
-          discount_percentage: 0
-        });
-        return newGroups;
-      });
-    }
-  };
 
   // --- TOTALS CALCULATION ---
   const calculateGrandTotals = () => {
@@ -633,21 +604,6 @@ const GenerateServiceOrder = () => {
                         <span className="font-bold text-gray-700">{group.supplierName}</span>
                         <div className="flex gap-2 items-center">
                           <Button
-                            variant="secondary"
-                            size="sm"
-                            asChild
-                            className="h-8 px-3 cursor-pointer"
-                          >
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenMaterialDialog(groupIndex, group.supplierId, group.supplierName);
-                              }}
-                            >
-                              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-                            </span>
-                          </Button>
-                          <Button
                             variant="ghost"
                             size="icon"
                             asChild
@@ -742,16 +698,6 @@ const GenerateServiceOrder = () => {
         onClose={() => setIsAddSupplierDialogOpen(false)}
         onSupplierCreated={handleSupplierCreated}
       />
-
-      {activeSupplierForMaterial && (
-        <MaterialCreationDialog
-          isOpen={isAddMaterialDialogOpen}
-          onClose={() => setIsAddMaterialDialogOpen(false)}
-          onMaterialCreated={handleMaterialCreated}
-          supplierId={activeSupplierForMaterial.id}
-          supplierName={activeSupplierForMaterial.name}
-        />
-      )}
 
       <AlertDialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
         <AlertDialogContent>

@@ -538,14 +538,6 @@ const GeneratePurchaseOrder = () => {
             <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8">
               <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
             </Button>
-            <Button
-              onClick={() => setIsAddMaterialDialogOpen(true)}
-              variant="secondary"
-              size="sm"
-              disabled={!supplierId}
-            >
-              <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">

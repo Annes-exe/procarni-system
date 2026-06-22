@@ -762,15 +762,6 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                 >
                   <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3 flex justify-between items-center">
                     Buscador de Materiales
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-[10px] bg-white border-dashed"
-                      onClick={() => setIsMaterialCreationDialogOpen(true)}
-                    >
-                      <PlusCircle className="mr-1.5 h-3 w-3" /> Nuevo
-                    </Button>
                   </h3>
 
                   <div className="space-y-4">
