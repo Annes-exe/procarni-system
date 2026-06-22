@@ -17,6 +17,9 @@ export default defineConfig(() => ({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 5000000, // Increase limit to 5 MiB to fix Vercel build error
+      },
       devOptions: {
         enabled: true,
         type: 'module'

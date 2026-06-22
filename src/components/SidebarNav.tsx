@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3 } from 'lucide-react';
+import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3, Wrench } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 
 const navItems = [
@@ -39,6 +39,7 @@ const navItems = [
     category: 'Admin',
     items: [
       { to: '/bulk-upload', icon: <Upload className="h-5 w-5" />, label: 'Carga Masiva' },
+      { to: '/material-cleanup', icon: <Wrench className="h-5 w-5" />, label: 'Limpiar Catálogo' },
       { to: '/settings', icon: <Cog className="h-5 w-5" />, label: 'Configuración' },
       { to: '/audit-log', icon: <ScrollText className="h-5 w-5" />, label: 'Auditoría' },
     ]

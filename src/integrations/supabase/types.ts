@@ -352,3 +352,19 @@ export type Location = {
   city: string;
   created_at: string;
 };
+
+export type FusionSuggestion = {
+  target_id: string;
+  target_name: string;
+  source_id: string;
+  source_name: string;
+  similarity_score: number;
+};
+
+export type IgnoredMaterialMatch = {
+  id: string;
+  target_id: string;
+  source_id: string;
+  user_id: string | null;
+  created_at: string;
+};

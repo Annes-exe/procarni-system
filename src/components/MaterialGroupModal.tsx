@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import SmartSearch from '@/components/SmartSearch';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateMaterial } from '@/integrations/supabase/services/materialService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError, showSuccess } from '@/utils/toast';
-import { Network } from 'lucide-react';
+import { Network, Box } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Material } from '@/integrations/supabase/types';
 
 interface MaterialGroupModalProps {
@@ -27,12 +28,11 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
   const [selectedParentId, setSelectedParentId] = useState<string>('');
   const queryClient = useQueryClient();
 
-  // Filtrar los posibles padres: no pueden ser los mismos que se van a agrupar
+  // Todos los materiales pueden ser padres
   const availableParents = materials
-    .filter(m => !selectedIds.includes(m.id))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const itemsToGroup = materials.filter(m => selectedIds.includes(m.id));
+  const itemsToGroup = materials.filter(m => selectedIds.includes(m.id) && m.id !== selectedParentId);
 
   const groupMutation = useMutation({
     mutationFn: async () => {
@@ -41,7 +41,9 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
       
       const parentMaterial = materials.find(m => m.id === parentId);
       
-      const promises = selectedIds.map(async (id) => {
+      // Agrupar solo los hijos (los que no son el padre)
+      const childrenIds = selectedIds.filter(id => id !== parentId);
+      const promises = childrenIds.map(async (id) => {
         const res = await updateMaterial(id, { base_material_id: parentId });
         if (res) {
           const childMaterial = materials.find(m => m.id === id);
@@ -95,32 +97,54 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
         <div className="py-4">
           <div className="mb-4">
             <label className="text-sm font-medium mb-1.5 block text-gray-700">Material principal (Padre)</label>
-            <Select value={selectedParentId} onValueChange={setSelectedParentId} disabled={groupMutation.isPending}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Seleccione un material existente" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[200px]">
-                <SelectItem value="none" className="text-destructive font-medium">
-                  -- Sin Grupo (Desagrupar) --
-                </SelectItem>
-                {availableParents.map((material) => (
-                  <SelectItem key={material.id} value={material.id}>
-                    {material.name} <span className="text-muted-foreground text-xs">({material.code})</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <SmartSearch 
+                  placeholder="Buscar material padre..."
+                  displayValue={selectedParentId && selectedParentId !== 'none' ? materials.find(m => m.id === selectedParentId)?.name : ''}
+                  selectedId={selectedParentId === 'none' ? '' : selectedParentId}
+                  onSelect={(item) => setSelectedParentId(item.id)}
+                  fetchFunction={async (query) => {
+                    const lowerQuery = query.toLowerCase();
+                    return availableParents.filter(m => 
+                      m.name.toLowerCase().includes(lowerQuery) || 
+                      (m.code && m.code.toLowerCase().includes(lowerQuery)) ||
+                      (m.category && m.category.toLowerCase().includes(lowerQuery))
+                    ).map(m => ({
+                      id: m.id,
+                      name: `${m.name} ${m.category ? `- ${m.category}` : ''} ${m.code ? `(${m.code})` : ''}`,
+                    }));
+                  }}
+                  disabled={groupMutation.isPending}
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => setSelectedParentId('none')}
+                title="Quitar grupo actual (Desagrupar)"
+                className={selectedParentId === 'none' ? 'border-destructive text-destructive' : ''}
+              >
+                Sin Grupo
+              </Button>
+            </div>
           </div>
 
-          <div className="bg-gray-50 border border-gray-100 rounded-md p-3 max-h-32 overflow-y-auto">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Materiales a anidar:</label>
-            <ul className="text-sm text-gray-700 space-y-1">
+          <div className="bg-white border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Materiales a agrupar:</label>
+            <div className="space-y-2">
               {itemsToGroup.map(m => (
-                <li key={m.id} className="flex items-center before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-procarni-primary/60 before:mr-2">
-                  {m.name}
-                </li>
+                <div key={m.id} className="flex justify-between items-center text-sm p-1.5 hover:bg-gray-50 rounded border border-transparent hover:border-gray-100">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <Box className="h-4 w-4 text-procarni-primary shrink-0" />
+                    <span className="font-medium truncate text-gray-700">{m.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {m.category && <Badge variant="outline" className="text-[10px] py-0">{m.category}</Badge>}
+                    {m.unit && <Badge variant="secondary" className="text-[10px] py-0 bg-gray-100 text-gray-600">{m.unit}</Badge>}
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
 
