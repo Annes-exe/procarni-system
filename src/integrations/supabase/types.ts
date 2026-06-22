@@ -351,4 +351,12 @@ export type Location = {
   state: string;
   city: string;
   created_at: string;
+};
+
+export type FusionSuggestion = {
+  target_id: string;
+  target_name: string;
+  source_id: string;
+  source_name: string;
+  similarity_score: number;
 };
