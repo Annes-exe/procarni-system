@@ -147,7 +147,7 @@ const MaterialCleanupDashboard = () => {
   });
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4">
+    <div className="space-y-6 max-w-6xl mx-auto p-4 overflow-x-hidden w-full">
       <div className="flex flex-col gap-2">
         <h2 className="text-2xl font-bold tracking-tight text-procarni-dark">Limpieza de Catálogo</h2>
         <p className="text-muted-foreground">
@@ -156,20 +156,22 @@ const MaterialCleanupDashboard = () => {
       </div>
 
       <Tabs defaultValue="suggestions" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="suggestions" className="flex items-center gap-2">
-            <Search className="w-4 h-4" />
-            Sugerencias de la IA
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
-            <History className="w-4 h-4" />
-            Historial de Limpieza
-          </TabsTrigger>
-          <TabsTrigger value="ignored" className="flex items-center gap-2">
-            <EyeOff className="w-4 h-4" />
-            Ignorados
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-2 w-full">
+          <TabsList className="mb-2 w-max sm:w-auto">
+            <TabsTrigger value="suggestions" className="flex items-center gap-2">
+              <Search className="w-4 h-4 shrink-0" />
+              Sugerencias de la IA
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="w-4 h-4 shrink-0" />
+              Historial de Limpieza
+            </TabsTrigger>
+            <TabsTrigger value="ignored" className="flex items-center gap-2">
+              <EyeOff className="w-4 h-4 shrink-0" />
+              Ignorados
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="suggestions">
           <Card className="bg-white/70 backdrop-blur-xl border-none shadow-xl shadow-gray-200/50">
@@ -197,55 +199,58 @@ const MaterialCleanupDashboard = () => {
                     const sourceData = findMaterialData(suggestion.source_id);
 
                     return (
-                      <div key={index} className="flex flex-col md:flex-row md:items-center justify-between p-4 hover:bg-slate-50/80 transition-colors gap-4">
-                        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center flex-1">
+                      <div key={index} className="flex flex-col md:flex-row md:items-center justify-between p-4 hover:bg-slate-50/80 transition-colors gap-6 md:gap-4 w-full min-w-0">
+                        <div className="flex flex-col md:grid md:grid-cols-[1fr_auto_1fr] gap-4 items-center flex-1 w-full min-w-0">
                           
                           {/* Material A */}
-                          <div className="text-right">
-                            <p className="font-medium text-slate-900">{suggestion.target_name}</p>
-                            <div className="flex justify-end gap-1 mt-1">
+                          <div className="text-center md:text-right w-full min-w-0 bg-white md:bg-transparent p-3 md:p-0 rounded-lg border md:border-none shadow-sm md:shadow-none">
+                            <p className="font-medium text-slate-900 break-words">{suggestion.target_name}</p>
+                            <div className="flex justify-center md:justify-end gap-1 mt-2 md:mt-1">
                               {targetData?.category && <Badge variant="outline" className="text-[10px]">{targetData.category}</Badge>}
                               {targetData?.unit && <Badge variant="secondary" className="text-[10px]">{targetData.unit}</Badge>}
                             </div>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-[150px] ml-auto">{suggestion.target_id}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-full md:max-w-[150px] mx-auto md:ml-auto md:mr-0">{suggestion.target_id}</p>
                           </div>
 
                           {/* Porcentaje de Similitud */}
-                          <div className="flex flex-col items-center px-4 shrink-0">
-                            <Badge variant="outline" className={`font-mono ${getScoreColor(suggestion.similarity_score)}`}>
-                              {suggestion.similarity_score}%
+                          <div className="flex flex-row md:flex-col items-center justify-center gap-3 px-2 md:px-4 shrink-0 w-full md:w-auto">
+                            <div className="md:hidden h-px w-full bg-slate-200"></div>
+                            <Badge variant="outline" className={`font-mono text-xs shadow-sm shrink-0 ${getScoreColor(suggestion.similarity_score)}`}>
+                              {suggestion.similarity_score}% SIMILAR
                             </Badge>
-                            <div className="h-px w-full bg-slate-200 mt-2 relative">
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[10px] text-slate-400">VS</div>
+                            <div className="hidden md:block h-px w-full bg-slate-200 mt-2 relative">
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[10px] font-bold text-slate-400">VS</div>
                             </div>
+                            <div className="md:hidden h-px w-full bg-slate-200"></div>
                           </div>
 
                           {/* Material B */}
-                          <div className="text-left">
-                            <p className="font-medium text-slate-900">{suggestion.source_name}</p>
-                            <div className="flex justify-start gap-1 mt-1">
+                          <div className="text-center md:text-left w-full min-w-0 bg-white md:bg-transparent p-3 md:p-0 rounded-lg border md:border-none shadow-sm md:shadow-none">
+                            <p className="font-medium text-slate-900 break-words">{suggestion.source_name}</p>
+                            <div className="flex justify-center md:justify-start gap-1 mt-2 md:mt-1">
                               {sourceData?.category && <Badge variant="outline" className="text-[10px]">{sourceData.category}</Badge>}
                               {sourceData?.unit && <Badge variant="secondary" className="text-[10px]">{sourceData.unit}</Badge>}
                             </div>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-[150px]">{suggestion.source_id}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-full md:max-w-[150px] mx-auto md:ml-0">{suggestion.source_id}</p>
                           </div>
 
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-2 shrink-0 md:ml-4">
+                        <div className="flex flex-col sm:flex-row gap-2 shrink-0 md:ml-4 w-full md:w-auto mt-2 md:mt-0">
                           <Button 
                             onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
                             variant="ghost"
-                            className="shrink-0 flex items-center gap-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 px-2"
+                            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-3"
                             disabled={ignoreMutation.isPending}
                             title="Ignorar esta coincidencia"
                           >
                             <EyeOff className="w-4 h-4" />
+                            <span className="md:hidden">Ignorar</span>
                           </Button>
                           <Button 
                             onClick={() => handleOpenGroup(suggestion.target_id, suggestion.source_id)}
                             variant="outline"
-                            className="shrink-0 flex items-center gap-2 border-procarni-blue text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all"
+                            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 border-procarni-blue text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm"
                           >
                             <Network className="w-4 h-4" />
                             Agrupar
@@ -253,10 +258,10 @@ const MaterialCleanupDashboard = () => {
                           <Button 
                             onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
                             variant="secondary"
-                            className="shrink-0 flex items-center gap-2 bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200"
+                            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm"
                           >
                             <Combine className="w-4 h-4" />
-                            Evaluar Fusión
+                            Fusionar
                           </Button>
                         </div>
                       </div>
