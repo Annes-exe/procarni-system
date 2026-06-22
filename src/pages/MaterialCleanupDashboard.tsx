@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Combine, Search, Network, History, Undo, Info } from 'lucide-react';
+import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw } from 'lucide-react';
 import { getAllMaterials } from '@/integrations/supabase/data';
 import { updateMaterial } from '@/integrations/supabase/services/materialService';
 import { showSuccess, showError } from '@/utils/toast';
@@ -35,6 +35,16 @@ const getCleanupHistory = async () => {
   return data;
 };
 
+const getIgnoredMatches = async () => {
+  const { data, error } = await supabase
+    .from('ignored_material_matches')
+    .select('*')
+    .order('created_at', { ascending: false });
+    
+  if (error) throw error;
+  return data;
+};
+
 const MaterialCleanupDashboard = () => {
   const queryClient = useQueryClient();
   const [isFusionModalOpen, setIsFusionModalOpen] = useState(false);
@@ -54,6 +64,11 @@ const MaterialCleanupDashboard = () => {
   const { data: history = [], isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
     queryKey: ['cleanup_history'],
     queryFn: getCleanupHistory,
+  });
+
+  const { data: ignored = [], isLoading: isLoadingIgnored, refetch: refetchIgnored } = useQuery({
+    queryKey: ['ignored_matches'],
+    queryFn: getIgnoredMatches,
   });
 
   const handleOpenFusion = (targetId: string, sourceId: string) => {
@@ -102,6 +117,35 @@ const MaterialCleanupDashboard = () => {
     }
   };
 
+  const ignoreMutation = useMutation({
+    mutationFn: async ({ targetId, sourceId }: { targetId: string, sourceId: string }) => {
+      const { error } = await supabase.from('ignored_material_matches').insert({
+        target_id: targetId,
+        source_id: sourceId
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Coincidencia ignorada. No volverá a aparecer en las sugerencias.");
+      refetchSuggestions();
+      refetchIgnored();
+    },
+    onError: (err: Error) => showError(`Error al ignorar: ${err.message}`)
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('ignored_material_matches').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Coincidencia restaurada con éxito.");
+      refetchSuggestions();
+      refetchIgnored();
+    },
+    onError: (err: Error) => showError(`Error al restaurar: ${err.message}`)
+  });
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4">
       <div className="flex flex-col gap-2">
@@ -120,6 +164,10 @@ const MaterialCleanupDashboard = () => {
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="w-4 h-4" />
             Historial de Limpieza
+          </TabsTrigger>
+          <TabsTrigger value="ignored" className="flex items-center gap-2">
+            <EyeOff className="w-4 h-4" />
+            Ignorados
           </TabsTrigger>
         </TabsList>
 
@@ -185,6 +233,15 @@ const MaterialCleanupDashboard = () => {
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-2 shrink-0 md:ml-4">
+                          <Button 
+                            onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                            variant="ghost"
+                            className="shrink-0 flex items-center gap-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 px-2"
+                            disabled={ignoreMutation.isPending}
+                            title="Ignorar esta coincidencia"
+                          >
+                            <EyeOff className="w-4 h-4" />
+                          </Button>
                           <Button 
                             onClick={() => handleOpenGroup(suggestion.target_id, suggestion.source_id)}
                             variant="outline"
@@ -276,6 +333,65 @@ const MaterialCleanupDashboard = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ignored">
+          <Card className="bg-white/70 backdrop-blur-xl border-none shadow-xl shadow-gray-200/50">
+            <CardHeader className="bg-slate-50/50 border-b rounded-t-xl">
+              <CardTitle className="text-lg text-procarni-blue">Coincidencias Ignoradas</CardTitle>
+              <CardDescription>
+                Pares de materiales que has decidido no agrupar ni fusionar. Puedes restaurarlos si cambias de opinión.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoadingIgnored ? (
+                <div className="p-8 text-center text-muted-foreground">Cargando ignorados...</div>
+              ) : ignored?.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <p className="font-medium">No hay coincidencias ignoradas.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {ignored?.map((item) => {
+                    const targetData = findMaterialData(item.target_id);
+                    const sourceData = findMaterialData(item.source_id);
+
+                    return (
+                      <div key={item.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 hover:bg-slate-50/80 transition-colors gap-4">
+                        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center flex-1">
+                          <div className="text-right">
+                            <p className="font-medium text-slate-500 line-through decoration-slate-300">{targetData?.name || item.target_id}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono mt-1">{targetData?.code}</p>
+                          </div>
+                          <div className="flex flex-col items-center px-4 shrink-0 opacity-50">
+                            <div className="h-px w-full bg-slate-200 relative">
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[10px] text-slate-400">VS</div>
+                            </div>
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium text-slate-500 line-through decoration-slate-300">{sourceData?.name || item.source_id}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono mt-1">{sourceData?.code}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 md:ml-4">
+                          <Button 
+                            onClick={() => restoreMutation.mutate(item.id)}
+                            variant="outline"
+                            className="shrink-0 flex items-center gap-2"
+                            disabled={restoreMutation.isPending}
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            Restaurar
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
