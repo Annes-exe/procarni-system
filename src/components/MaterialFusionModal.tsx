@@ -68,28 +68,33 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
   
   const itemsToMerge = Array.from(uniqueMaterialsMap.values()).filter(m => selectedIds.includes(m.id));
 
-  // Initialize form ONLY when targetId fundamentally changes
+  const [loadedTargetId, setLoadedTargetId] = useState<string>('');
+
+  // Initialize form when targetId changes OR when itemsToMerge updates (e.g. after fetching missing materials)
   useEffect(() => {
     if (targetId) {
       const targetMat = itemsToMerge.find(m => m.id === targetId);
-      if (targetMat) {
+      if (targetMat && loadedTargetId !== targetId) {
         setNewName(targetMat.name);
         setNewUnit(targetMat.unit || '');
         setNewCategory(targetMat.category || '');
         setIsExempt(targetMat.is_exempt || false);
+        setLoadedTargetId(targetId);
       }
     } else {
       setNewName('');
       setNewUnit('');
       setNewCategory('');
       setIsExempt(false);
+      setLoadedTargetId('');
     }
-  }, [targetId]); // ONLY run when targetId changes
+  }, [targetId, itemsToMerge, loadedTargetId]);
 
   // Reset state when modal closes/opens
   useEffect(() => {
     if (open) {
       setTargetId(selectedIds.length > 0 ? selectedIds[0] : '');
+      setLoadedTargetId('');
       setCheckMergeHistory(false);
       setCheckDeleteSources(false);
     }
