@@ -99,10 +99,15 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
       if (!success) throw new Error("Ocurrió un error en la base de datos durante la fusión.");
 
       // 3. Log Audit
+      const sourceNames = sourceIds
+        .map(id => itemsToMerge.find(m => m.id === id)?.name)
+        .filter(Boolean)
+        .join(', ');
+
       await logAudit('FUSION', {
         table: 'materials',
         record_id: targetId,
-        description: `Fusión de ${sourceIds.length} materiales en "${newName}"`,
+        description: `Fusión de "${sourceNames}" hacia "${newName}"`,
         is_mass_action: true
       });
     },

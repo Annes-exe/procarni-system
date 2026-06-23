@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw } from 'lucide-react';
-import { getAllMaterials } from '@/integrations/supabase/data';
+import { getAllMaterials, logAudit } from '@/integrations/supabase/data';
 import { updateMaterial } from '@/integrations/supabase/services/materialService';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -93,12 +93,12 @@ const MaterialCleanupDashboard = () => {
     mutationFn: async (recordId: string) => {
       const res = await updateMaterial(recordId, { base_material_id: null });
       if (!res) throw new Error("Error al desagrupar el material");
-      // Opcional: Registrar en el log que se deshizo la acción
-      await supabase.from('audit_logs').insert({
-        action: 'GROUP_REMOVE',
+      const material = findMaterialData(recordId);
+      // Registrar en el log que se deshizo la acción
+      await logAudit('GROUP_REMOVE', {
         table: 'materials',
         record_id: recordId,
-        description: `Agrupación deshecha vía Historial (Recovery)`
+        description: `Agrupación deshecha vía Historial para "${material?.name || recordId}"`
       });
     },
     onSuccess: () => {
@@ -313,14 +313,14 @@ const MaterialCleanupDashboard = () => {
                             )}
                           </td>
                           <td className="px-6 py-4 text-gray-700 font-medium">
-                            {log.description}
+                            {log.details?.description || 'Sin descripción'}
                           </td>
                           <td className="px-6 py-4 text-right">
                             {log.action === 'GROUP_ADD' ? (
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                onClick={() => handleUndoGroup(log.record_id)}
+                                onClick={() => handleUndoGroup(log.details?.record_id)}
                                 disabled={undoGroupMutation.isPending}
                                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                               >
