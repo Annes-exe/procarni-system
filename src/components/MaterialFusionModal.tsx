@@ -12,6 +12,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { Combine, AlertTriangle, Box } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Material } from '@/integrations/supabase/types';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MaterialFusionModalProps {
   open: boolean;
@@ -50,7 +51,22 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
     queryFn: getAllMaterialCategories,
   });
 
-  const itemsToMerge = materials.filter(m => selectedIds.includes(m.id));
+  const { data: fetchedMaterials } = useQuery({
+    queryKey: ['materials_by_ids', selectedIds],
+    queryFn: async () => {
+      if (!selectedIds || selectedIds.length === 0) return [];
+      const { data, error } = await supabase.from('materials').select('*').in('id', selectedIds);
+      if (error) throw error;
+      return data as Material[];
+    },
+    enabled: open && selectedIds.length > 0
+  });
+
+  const combinedMaterials = [...materials, ...(fetchedMaterials || [])];
+  const uniqueMaterialsMap = new Map<string, Material>();
+  combinedMaterials.forEach(m => uniqueMaterialsMap.set(m.id, m));
+  
+  const itemsToMerge = Array.from(uniqueMaterialsMap.values()).filter(m => selectedIds.includes(m.id));
 
   // Initialize form ONLY when targetId fundamentally changes
   useEffect(() => {
