@@ -9,6 +9,8 @@ import { showError, showSuccess } from '@/utils/toast';
 import { Network, Box } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Material } from '@/integrations/supabase/types';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 interface MaterialGroupModalProps {
   open: boolean;
@@ -28,11 +30,27 @@ const MaterialGroupModal: React.FC<MaterialGroupModalProps> = ({
   const [selectedParentId, setSelectedParentId] = useState<string>('');
   const queryClient = useQueryClient();
 
-  // Todos los materiales pueden ser padres
-  const availableParents = materials
+  const { data: fetchedMaterials } = useQuery({
+    queryKey: ['materials_by_ids', selectedIds],
+    queryFn: async () => {
+      if (!selectedIds || selectedIds.length === 0) return [];
+      const { data, error } = await supabase.from('materials').select('*').in('id', selectedIds);
+      if (error) throw error;
+      return data as Material[];
+    },
+    enabled: open && selectedIds.length > 0
+  });
+
+  const combinedMaterials = [...materials, ...(fetchedMaterials || [])];
+  const uniqueMaterialsMap = new Map<string, Material>();
+  combinedMaterials.forEach(m => uniqueMaterialsMap.set(m.id, m));
+  const completeMaterials = Array.from(uniqueMaterialsMap.values());
+
+  // Todos los materiales completos pueden ser padres
+  const availableParents = completeMaterials
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const itemsToGroup = materials.filter(m => selectedIds.includes(m.id) && m.id !== selectedParentId);
+  const itemsToGroup = completeMaterials.filter(m => selectedIds.includes(m.id) && m.id !== selectedParentId);
 
   const groupMutation = useMutation({
     mutationFn: async () => {
