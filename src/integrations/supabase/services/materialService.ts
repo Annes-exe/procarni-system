@@ -185,7 +185,7 @@ const MaterialService = {
   },
 
   mergeMaterials: async (targetId: string, sourceIds: string[]): Promise<boolean> => {
-    const { error } = await supabase.rpc('merge_materials_with_alias', {
+    const { error } = await supabase.rpc('merge_materials_unified', {
       p_target_material_id: targetId,
       p_source_material_ids: sourceIds,
     });
@@ -238,7 +238,8 @@ const MaterialService = {
 
     if (searchTerm) {
       const searchPattern = `%${searchTerm}%`;
-      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern}`);
+      const cleanTerm = searchTerm.toUpperCase().trim();
+      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"}`);
     }
 
     if (category && category !== 'all') {

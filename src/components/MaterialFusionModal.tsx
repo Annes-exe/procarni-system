@@ -157,11 +157,11 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <Combine className="h-5 w-5 shrink-0" />
-            <span className="truncate">Fusionar Materiales (Acción Destructiva)</span>
+            <span className="truncate">Fusionar Materiales (Acción Irreversible)</span>
           </DialogTitle>
           <DialogDescription className="text-sm">
             Estás a punto de combinar <strong>{selectedIds.length}</strong> materiales en uno solo. 
-            El historial de precios y las órdenes se unificarán.
+            El historial de precios y las órdenes se unificarán y los materiales de origen serán archivados.
           </DialogDescription>
         </DialogHeader>
         
@@ -170,7 +170,7 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
             <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold mb-1">Advertencia Importante</p>
-              <p className="leading-relaxed">Los ítems descartados serán <strong>eliminados permanentemente</strong>. Sus nombres originales se guardarán como "alias de búsqueda" en el ítem resultante.</p>
+              <p className="leading-relaxed">Los ítems descartados serán <strong>archivados permanentemente</strong>. Sus nombres originales se guardarán como "alias de búsqueda" en el ítem resultante.</p>
             </div>
           </div>
 
@@ -300,7 +300,7 @@ const MaterialFusionModal: React.FC<MaterialFusionModalProps> = ({
                     className="mt-0.5 border-destructive data-[state=checked]:bg-destructive data-[state=checked]:text-white shrink-0"
                   />
                   <label htmlFor="check-delete" className="text-xs sm:text-sm text-gray-700 font-medium cursor-pointer leading-tight">
-                    Los otros {selectedIds.length - 1} materiales <strong>serán ELIMINADOS permanentemente</strong>.
+                    Los otros {selectedIds.length - 1} materiales <strong>serán ARCHIVADOS permanentemente</strong>.
                   </label>
                 </div>
               </div>

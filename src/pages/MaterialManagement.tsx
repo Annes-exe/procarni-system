@@ -18,6 +18,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import UnitOfMeasureModal from '@/components/UnitOfMeasureModal';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import MaterialCategoryModal from '@/components/MaterialCategoryModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ const MaterialManagement = () => {
   const selectedCategory = searchParams.get('category') || 'all';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -164,7 +166,7 @@ const MaterialManagement = () => {
 
   const handleAddMaterial = () => {
     setEditingMaterial(null);
-    setIsFormOpen(true);
+    setIsCreateDialogOpen(true);
   };
 
   const handleEditMaterial = (material: Material) => {
@@ -258,32 +260,39 @@ const MaterialManagement = () => {
             </>
           )}
 
-          <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={handleAddMaterial}
-                className={cn(
-                  "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
-                  isMobile && "w-10 h-10 p-0"
-                )}
-                size={isMobile ? "default" : "sm"}
-              >
-                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-                {!isMobile && 'Añadir Material'}
-              </Button>
-            </DialogTrigger>
+          <Button
+            onClick={handleAddMaterial}
+            className={cn(
+              "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
+              isMobile && "w-10 h-10 p-0"
+            )}
+            size={isMobile ? "default" : "sm"}
+          >
+            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
+            {!isMobile && 'Añadir Material'}
+          </Button>
+
+          <Dialog open={isFormOpen && !!editingMaterial} onOpenChange={(open) => {
+            if (!open) {
+              setIsFormOpen(false);
+              setEditingMaterial(null);
+            }
+          }}>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>{editingMaterial ? 'Editar Material' : 'Añadir Nuevo Material'}</DialogTitle>
+                <DialogTitle>Editar Material</DialogTitle>
                 <DialogDescription>
-                  {editingMaterial ? 'Edita los detalles del material existente.' : 'Completa los campos para añadir un nuevo material.'}
+                  Edita los detalles del material existente.
                 </DialogDescription>
               </DialogHeader>
               <MaterialForm
                 initialData={editingMaterial || undefined}
                 onSubmit={handleSubmitForm}
-                onCancel={() => setIsFormOpen(false)}
-                isSubmitting={createMutation.isPending || updateMutation.isPending}
+                onCancel={() => {
+                  setIsFormOpen(false);
+                  setEditingMaterial(null);
+                }}
+                isSubmitting={updateMutation.isPending}
               />
             </DialogContent>
           </Dialog>
@@ -682,6 +691,17 @@ const MaterialManagement = () => {
             onSuccess={() => setSelectedMaterialIds([])}
           />
         </>
+      )}
+
+      {isCreateDialogOpen && (
+        <MaterialCreationDialog
+          isOpen={isCreateDialogOpen}
+          onClose={() => setIsCreateDialogOpen(false)}
+          hideNameProvided={true}
+          onMaterialCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
+          }}
+        />
       )}
     </div>
   );

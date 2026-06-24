@@ -59,9 +59,9 @@ const MaterialMapperTinder: React.FC = () => {
 
   const linkMutation = useMutation({
     mutationFn: async ({ masterId, dirtyId }: { masterId: string; dirtyId: string }) => {
-      const { error } = await supabase.rpc('safe_link_to_master', {
-        p_master_id: masterId,
-        p_dirty_id: dirtyId,
+      const { error } = await supabase.rpc('merge_materials_unified', {
+        p_target_material_id: masterId,
+        p_source_material_ids: [dirtyId],
       });
       if (error) throw error;
       return true;
@@ -78,6 +78,41 @@ const MaterialMapperTinder: React.FC = () => {
 
   const handleNext = () => {
     setCurrentIndex((prev) => prev + 1);
+  };
+
+  const ignoreSuggestionsMutation = useMutation({
+    mutationFn: async ({ dirtyId, suggestions }: { dirtyId: string; suggestions: string[] }) => {
+      const promises = suggestions.map(async (masterId) => {
+        const { error } = await supabase.from('ignored_material_matches').insert({
+          target_id: masterId,
+          source_id: dirtyId
+        });
+        if (error && error.code !== '23505') { // Ignorar duplicados
+          throw error;
+        }
+      });
+      await Promise.all(promises);
+      return true;
+    },
+    onSuccess: () => {
+      showSuccess('Combinación descartada e ignorada permanentemente.');
+      handleNext();
+    },
+    onError: (err: any) => {
+      showError(`Error al descartar sugerencias: ${err.message}`);
+    }
+  });
+
+  const handleSkip = () => {
+    if (currentItem) {
+      const suggestionIds = currentItem.suggestions.slice(0, 3).map(s => s.master_id);
+      ignoreSuggestionsMutation.mutate({
+        dirtyId: currentItem.dirty_id,
+        suggestions: suggestionIds
+      });
+    } else {
+      handleNext();
+    }
   };
 
   const handleLink = (masterId: string, dirtyId: string) => {
@@ -158,9 +193,9 @@ const MaterialMapperTinder: React.FC = () => {
               <Button 
                 variant="outline" 
                 size="lg" 
-                onClick={handleNext}
+                onClick={handleSkip}
                 className="rounded-xl border-gray-200 hover:bg-gray-50 group transition-all"
-                disabled={linkMutation.isPending}
+                disabled={linkMutation.isPending || ignoreSuggestionsMutation.isPending}
               >
                 Saltar (No es ninguno)
                 <SkipForward className="ml-2 h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" />

@@ -12,6 +12,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Material, MaterialCategory } from '@/integrations/supabase/types';
 import { UnitOfMeasure } from '@/integrations/supabase/services/unitService';
 import { Loader2, Check } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import SmartSearch from '@/components/SmartSearch';
 
 interface MaterialCreationDialogProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ interface MaterialCreationDialogProps {
   supplierId?: string;
   supplierName?: string; // Optional if supplierId is not provided
   initialName?: string; // Optional: pre-fill material name
+  hideNameProvided?: boolean; // NEW: optional flag to hide name_provided field
 }
 
 
@@ -33,6 +36,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   supplierId,
   supplierName,
   initialName,
+  hideNameProvided = false,
 }) => {
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,6 +57,13 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const [isExempt, setIsExempt] = useState(false);
   const [specification, setSpecification] = useState('');
 
+  // Nuevos campos
+  const [selectedParentId, setSelectedParentId] = useState<string>('');
+  const [selectedParentName, setSelectedParentName] = useState<string>('');
+  const [nameProvided, setNameProvided] = useState<string>('');
+  const [color, setColor] = useState<string>('');
+  const [brand, setBrand] = useState<string>('');
+
   const [suggestedMaterial, setSuggestedMaterial] = useState<Material | null>(null); // Best match suggestion
   const [isCheckingExistence, setIsCheckingExistence] = useState(false);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -65,6 +76,11 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     setSpecification('');
     setSuggestedMaterial(null);
     setIsCheckingExistence(false);
+    setSelectedParentId('');
+    setSelectedParentName('');
+    setNameProvided('');
+    setColor('');
+    setBrand('');
   };
 
   const handleClose = () => {
@@ -209,8 +225,6 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       if (exactMatch) {
         // USE EXISTING
         materialToAssociate = exactMatch;
-        // Optional: We could update the existing material if the user changed category/unit, but usually we just link it.
-        // For now, we trust the existing material's definition.
       } else {
         // CREATE NEW
         // Find unit name for the "unit" text field
@@ -225,6 +239,10 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           is_exempt: finalIsExempt, // Use the determined final status
           user_id: session.user.id,
           code: '', // Allow trigger to generate it
+          base_material_id: selectedParentId || null,
+          color: color.trim() || null,
+          brand: brand.trim() || null,
+          search_aliases: nameProvided.trim() ? [nameProvided.trim().toUpperCase()] : []
         });
 
         if (!newMaterial) {
@@ -241,6 +259,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           material_id: materialToAssociate.id,
           unit_id: unit || materialToAssociate.unit_id || '',
           specification: specification.trim() || undefined,
+          name_provided: nameProvided.trim() || undefined,
           user_id: session.user.id,
         });
 
@@ -306,7 +325,44 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
+          {/* 1. Patrón de Oro (SmartSearch) */}
+          <div className="grid gap-2">
+            <Label htmlFor="parentMaterial">Patrón de Oro (Material Oficial) [Opcional]</Label>
+            <SmartSearch 
+              placeholder="Buscar patrón de oro..."
+              displayValue={selectedParentName}
+              selectedId={selectedParentId}
+              onSelect={(item) => {
+                setSelectedParentId(item.id);
+                setSelectedParentName(item.name.split(' - ')[0]); // Extrae el nombre limpio
+              }}
+              fetchFunction={async (query) => {
+                let dbQuery = supabase
+                  .from('materials')
+                  .select('id, name, code, category')
+                  .eq('is_master', true)
+                  .eq('status', 'active');
+
+                if (query.trim()) {
+                  dbQuery = dbQuery.ilike('name', `%${query}%`);
+                }
+
+                const { data, error } = await dbQuery
+                  .order('name', { ascending: true })
+                  .limit(10);
+
+                if (error) return [];
+                return (data || []).map(m => ({
+                  id: m.id,
+                  name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
+                }));
+              }}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* 2. Nombre del Material */}
           <div className="grid gap-2">
             <Label htmlFor="materialName">Nombre del Material *</Label>
             <Input
@@ -349,7 +405,21 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             )}
           </div>
 
-          {/* Fields for new material creation or viewing existing material details */}
+          {/* 3. Nombre según Proveedor */}
+          {!hideNameProvided && (
+            <div className="grid gap-2">
+              <Label htmlFor="nameProvided">Nombre según Proveedor (Opcional)</Label>
+              <Input
+                id="nameProvided"
+                placeholder="Ej: Pechuga Deshuesada Premium"
+                value={nameProvided}
+                onChange={(e) => setNameProvided(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+
+          {/* 4. Categoría y Unidad de Medida */}
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="category">Categoría</Label>
@@ -371,7 +441,6 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 value={unit} 
                 onValueChange={(val) => {
                   setUnit(val);
-                  // Optional: if you need the name for something else immediately
                 }} 
                 disabled={isSubmitting || isExactMatch || isLoadingUnits}
               >
@@ -387,6 +456,42 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             </div>
           </div>
 
+          {/* 5. Color y Marca */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="color">Color (Opcional)</Label>
+              <Input
+                id="color"
+                placeholder="Ej: Blanco, Rojo..."
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="brand">Marca (Opcional)</Label>
+              <Input
+                id="brand"
+                placeholder="Ej: Procarni, Polar..."
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          {/* 6. Especificación y Opción de Exento */}
+          <div className="grid gap-2">
+            <Label htmlFor="specification">Especificación (Opcional)</Label>
+            <Input
+              id="specification"
+              placeholder="Ej: Presentación de 10kg, Marca X..."
+              value={specification}
+              onChange={(e) => setSpecification(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
+
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div className="space-y-0.5">
               <Label>Exento de IVA</Label>
@@ -398,17 +503,6 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               checked={isExempt}
               onCheckedChange={setIsExempt}
               disabled={isSubmitting || isExactMatch || category === 'FRESCA'}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="specification">Especificación (Opcional)</Label>
-            <Input
-              id="specification"
-              placeholder="Ej: Presentación de 10kg, Marca X..."
-              value={specification}
-              onChange={(e) => setSpecification(e.target.value)}
-              disabled={isSubmitting}
             />
           </div>
         </div>

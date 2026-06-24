@@ -46,6 +46,8 @@ export type Material = {
   search_aliases?: string[] | null;
   is_master?: boolean;
   status?: string;
+  color?: string | null;
+  brand?: string | null;
 };
 
 export type MaterialCategory = {
@@ -194,6 +196,7 @@ export type SupplierMaterial = {
   material_id: string;
   unit_id: string | null; // ADDED
   specification: string | null;
+  name_provided: string | null;
   created_at: string | null;
   updated_at: string | null;
   user_id: string | null;
