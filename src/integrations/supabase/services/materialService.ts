@@ -5,11 +5,15 @@ import { showError } from '@/utils/toast';
 import { Material } from '../types';
 import { logAudit } from './auditLogService';
 
+const ACTIVE_MASTER_FILTER = 'is_master.eq.true,category.not.in.(SECA,FRESCA,EMPAQUE),category.is.null';
+
 const MaterialService = {
   getAll: async (): Promise<Material[]> => {
     const { data, error } = await supabase
       .from('materials')
       .select('*')
+      .eq('status', 'active')
+      .or(ACTIVE_MASTER_FILTER)
       .order('created_at', { ascending: true })
       .limit(10000); // Override PostgREST's default 1000-row cap
 
@@ -112,6 +116,8 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
+        .eq('status', 'active')
+        .or(ACTIVE_MASTER_FILTER)
         .order('name', { ascending: true })
         .limit(10000);
 
@@ -139,6 +145,8 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
+        .eq('status', 'active')
+        .or(ACTIVE_MASTER_FILTER)
         .order('name', { ascending: true })
         .limit(10000);
 
@@ -225,7 +233,8 @@ const MaterialService = {
 
     let query = supabase
       .from('materials')
-      .select('*', { count: 'exact' });
+      .select('*', { count: 'exact' })
+      .eq('status', 'active');
 
     if (searchTerm) {
       const searchPattern = `%${searchTerm}%`;
@@ -254,6 +263,8 @@ const MaterialService = {
       const { data: createdData, error: createdError } = await supabase
         .from('materials')
         .select('*')
+        .eq('status', 'active')
+        .or(ACTIVE_MASTER_FILTER)
         .order('created_at', { ascending: false })
         .limit(15);
 
@@ -290,6 +301,8 @@ const MaterialService = {
         const { data: fetchedUsed, error: fetchUsedError } = await supabase
           .from('materials')
           .select('*')
+          .eq('status', 'active')
+          .or(ACTIVE_MASTER_FILTER)
           .in('id', Array.from(usedIds).slice(0, 15));
 
         if (!fetchUsedError && fetchedUsed) {
@@ -317,6 +330,8 @@ const MaterialService = {
       const { data } = await supabase
         .from('materials')
         .select('*')
+        .eq('status', 'active')
+        .or(ACTIVE_MASTER_FILTER)
         .order('created_at', { ascending: false })
         .limit(10);
       return data || [];

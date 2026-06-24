@@ -441,6 +441,27 @@ const MaterialManagement = () => {
                         placeholder="Sin unidad"
                       />
                     </div>
+                    {role === 'admin' && (
+                      <div className="mb-3 ml-7">
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Patrón Oro</p>
+                        <Button
+                          variant={material.is_master ? "default" : "outline"}
+                          size="sm"
+                          className={cn(
+                            "h-8 rounded-full text-xs font-bold transition-all",
+                            material.is_master 
+                              ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm" 
+                              : "border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateMutation.mutate({ id: material.id, updates: { is_master: !material.is_master } });
+                          }}
+                        >
+                          {material.is_master ? '★ Patrón Oro' : '☆ Marcar como Oro'}
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex justify-start gap-2 mt-4 border-t pt-3 ml-7">
                       <Button
                         variant="outline"
@@ -478,6 +499,9 @@ const MaterialManagement = () => {
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Categoría</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Unidad</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Exento IVA</TableHead>
+                      {role === 'admin' && (
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Patrón Oro</TableHead>
+                      )}
                       <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -517,6 +541,9 @@ const MaterialManagement = () => {
                                   {material.base_material_id && (
                                     <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
                                   )}
+                                  {material.is_master && (
+                                    <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
+                                  )}
                                 </span>
                                 {material.search_aliases && material.search_aliases.length > 0 && (
                                   <div className="flex gap-2 mt-1">
@@ -550,6 +577,23 @@ const MaterialManagement = () => {
                           />
                         </TableCell>
                         <TableCell className="py-2 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
+                        {role === 'admin' && (
+                          <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant={material.is_master ? "default" : "outline"}
+                              size="sm"
+                              className={cn(
+                                "h-8 rounded-full text-xs font-bold transition-all",
+                                material.is_master 
+                                  ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm" 
+                                  : "border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+                              )}
+                              onClick={() => updateMutation.mutate({ id: material.id, updates: { is_master: !material.is_master } })}
+                            >
+                              {material.is_master ? '★ Oro' : '☆ Marcar'}
+                            </Button>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right pr-4 py-2">
                           <Button
                             variant="ghost"

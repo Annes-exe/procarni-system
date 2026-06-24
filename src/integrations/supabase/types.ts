@@ -44,6 +44,8 @@ export type Material = {
   is_exempt: boolean | null;
   base_material_id?: string | null;
   search_aliases?: string[] | null;
+  is_master?: boolean;
+  status?: string;
 };
 
 export type MaterialCategory = {
@@ -367,4 +369,14 @@ export type IgnoredMaterialMatch = {
   source_id: string;
   user_id: string | null;
   created_at: string;
+};
+
+export type SoftMigrationSuggestion = {
+  master_id: string;
+  master_name: string;
+  dirty_id: string;
+  dirty_name: string;
+  dirty_category: string | null;
+  dirty_unit: string | null;
+  similarity_score: number;
 };
