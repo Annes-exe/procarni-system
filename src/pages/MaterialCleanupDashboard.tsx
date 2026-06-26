@@ -2,32 +2,78 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Material } from '@/integrations/supabase/types';
-import MaterialFusionModal from '@/components/MaterialFusionModal';
-import MaterialGroupModal from '@/components/MaterialGroupModal';
+import MaterialResolutionModal from '@/components/MaterialResolutionModal';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw } from 'lucide-react';
-import { getAllMaterials, logAudit } from '@/integrations/supabase/data';
-import { updateMaterial } from '@/integrations/supabase/services/materialService';
+import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw, Sparkles, Wrench, ArrowRight, Loader2 } from 'lucide-react';
+import { getAllMaterials } from '@/integrations/supabase/data';
 import { showSuccess, showError } from '@/utils/toast';
+import { cn } from '@/lib/utils';
 
-const getFusionSuggestions = async () => {
-  const { data, error } = await supabase
+interface UnifiedSuggestion {
+  target_id: string;
+  target_name: string;
+  source_id: string;
+  source_name: string;
+  similarity_score: number;
+  is_dirty_migration?: boolean;
+}
+
+const getUnifiedSuggestions = async () => {
+  const { data: fusionData, error: fusionError } = await supabase
     .from('vw_material_fusion_suggestions')
     .select('*')
-    .limit(50);
+    .limit(100);
     
-  if (error) throw error;
-  return data;
+  if (fusionError) throw fusionError;
+
+  const { data: migrationData, error: migrationError } = await supabase
+    .from('vw_soft_migration_suggestions')
+    .select('*')
+    .limit(100);
+
+  if (migrationError) throw migrationError;
+
+  const map = new Map<string, UnifiedSuggestion>();
+
+  (migrationData || []).forEach((row: any) => {
+    const key = `${row.master_id}-${row.dirty_id}`;
+    map.set(key, {
+      target_id: row.master_id,
+      target_name: row.master_name,
+      source_id: row.dirty_id,
+      source_name: row.dirty_name,
+      similarity_score: row.similarity_score,
+      is_dirty_migration: true
+    });
+  });
+
+  (fusionData || []).forEach((row: any) => {
+    const key = `${row.target_id}-${row.source_id}`;
+    const reverseKey = `${row.source_id}-${row.target_id}`;
+    
+    if (!map.has(key) && !map.has(reverseKey)) {
+      map.set(key, {
+        target_id: row.target_id,
+        target_name: row.target_name,
+        source_id: row.source_id,
+        source_name: row.source_name,
+        similarity_score: row.similarity_score,
+        is_dirty_migration: false
+      });
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => b.similarity_score - a.similarity_score);
 };
 
 const getCleanupHistory = async () => {
   const { data, error } = await supabase
     .from('audit_logs')
     .select('*')
-    .in('action', ['FUSION', 'GROUP_ADD', 'GROUP_REMOVE'])
+    .in('action', ['FUSION', 'GROUP_ADD', 'GROUP_REMOVE', 'UNMERGE'])
     .order('timestamp', { ascending: false })
     .limit(100);
     
@@ -47,13 +93,36 @@ const getIgnoredMatches = async () => {
 
 const MaterialCleanupDashboard = () => {
   const queryClient = useQueryClient();
-  const [isFusionModalOpen, setIsFusionModalOpen] = useState(false);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isResolutionModalOpen, setIsResolutionModalOpen] = useState(false);
+  const [resolutionAction, setResolutionAction] = useState<'merge' | 'group'>('merge');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data: suggestions, isLoading: isLoadingSuggestions, refetch: refetchSuggestions } = useQuery({
     queryKey: ['fusion_suggestions'],
-    queryFn: getFusionSuggestions,
+    queryFn: getUnifiedSuggestions,
+  });
+
+  const quickResolveMutation = useMutation({
+    mutationFn: async ({ action, targetId, sourceId }: { action: 'merge' | 'group', targetId: string, sourceId: string }) => {
+      const { error } = await supabase.rpc('resolve_materials_unified', {
+        p_action: action,
+        p_target_material_id: targetId,
+        p_source_material_ids: [sourceId]
+      });
+      if (error) throw error;
+      return { action, sourceId };
+    },
+    onSuccess: (data) => {
+      const actionText = data.action === 'merge' ? 'Fusión rápida completada.' : 'Agrupación rápida completada.';
+      showSuccess(actionText);
+      queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
+      refetchSuggestions();
+      refetchHistory();
+    },
+    onError: (err: any) => {
+      showError(`Error al resolver: ${err.message}`);
+    }
   });
 
   const { data: materials = [] } = useQuery({
@@ -73,12 +142,14 @@ const MaterialCleanupDashboard = () => {
 
   const handleOpenFusion = (targetId: string, sourceId: string) => {
     setSelectedIds([targetId, sourceId]);
-    setIsFusionModalOpen(true);
+    setResolutionAction('merge');
+    setIsResolutionModalOpen(true);
   };
 
   const handleOpenGroup = (targetId: string, sourceId: string) => {
     setSelectedIds([targetId, sourceId]);
-    setIsGroupModalOpen(true);
+    setResolutionAction('group');
+    setIsResolutionModalOpen(true);
   };
 
   const getScoreColor = (score: number) => {
@@ -89,31 +160,39 @@ const MaterialCleanupDashboard = () => {
 
   const findMaterialData = (id: string) => materials.find(m => m.id === id);
 
-  const undoGroupMutation = useMutation({
-    mutationFn: async (recordId: string) => {
-      const res = await updateMaterial(recordId, { base_material_id: null });
-      if (!res) throw new Error("Error al desagrupar el material");
-      const material = findMaterialData(recordId);
-      // Registrar en el log que se deshizo la acción
-      await logAudit('GROUP_REMOVE', {
-        table: 'materials',
-        record_id: recordId,
-        description: `Agrupación deshecha vía Historial para "${material?.name || recordId}"`
+  const undoMutation = useMutation({
+    mutationFn: async ({ action, targetId, recordId }: { action: string, targetId: string, recordId: string }) => {
+      const { error } = await supabase.rpc('resolve_materials_unified', {
+        p_action: 'unmerge',
+        p_target_material_id: targetId,
+        p_source_material_ids: [recordId],
       });
+      if (error) throw error;
     },
     onSuccess: () => {
-      showSuccess("Agrupación deshecha correctamente. El material vuelve a estar libre.");
+      showSuccess("Acción deshecha correctamente. El material vuelve a estar activo.");
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
+      refetchSuggestions();
       refetchHistory();
     },
     onError: (err: Error) => {
-      showError(`Error: ${err.message}`);
+      showError(`Error al deshacer: ${err.message}`);
     }
   });
 
-  const handleUndoGroup = (recordId: string) => {
-    if (confirm("¿Estás seguro de deshacer esta agrupación? El material quedará libre en el catálogo.")) {
-      undoGroupMutation.mutate(recordId);
+  const handleUndo = (action: string, details: any) => {
+    const recordId = details?.record_id;
+    const targetId = details?.target_id || details?.parent_id;
+    
+    if (!recordId || !targetId) {
+      showError("No se pudieron determinar los IDs necesarios para deshacer.");
+      return;
+    }
+
+    const actionText = action === 'FUSION' ? 'fusión' : 'agrupación';
+    if (confirm(`¿Estás seguro de deshacer esta ${actionText}? El material volverá a estar activo en el catálogo.`)) {
+      undoMutation.mutate({ action, targetId, recordId });
     }
   };
 
@@ -155,12 +234,12 @@ const MaterialCleanupDashboard = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="suggestions" className="w-full">
+      <Tabs defaultValue="panel" className="w-full">
         <div className="overflow-x-auto pb-2 w-full">
           <TabsList className="mb-2 w-max sm:w-auto">
-            <TabsTrigger value="suggestions" className="flex items-center gap-2">
-              <Search className="w-4 h-4 shrink-0" />
-              Sugerencias de la IA
+            <TabsTrigger value="panel" className="flex items-center gap-2">
+              <Combine className="w-4 h-4 shrink-0" />
+              Panel de Limpieza
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2">
               <History className="w-4 h-4 shrink-0" />
@@ -173,104 +252,158 @@ const MaterialCleanupDashboard = () => {
           </TabsList>
         </div>
 
-        <TabsContent value="suggestions">
-          <Card className="bg-white/70 backdrop-blur-xl border-none shadow-xl shadow-gray-200/50">
-            <CardHeader className="bg-slate-50/50 border-b rounded-t-xl">
-              <CardTitle className="flex items-center gap-2 text-lg text-procarni-blue">
-                Sugerencias de Fusión y Agrupación
-              </CardTitle>
-              <CardDescription>
-                Revisa los pares encontrados. Puedes optar por Fusionar (destructivo) o Agrupar (jerárquico).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoadingSuggestions ? (
-                <div className="p-8 text-center text-muted-foreground animate-pulse">Calculando similitudes trigramáticas...</div>
-              ) : suggestions?.length === 0 ? (
-                <div className="p-8 text-center text-procarni-secondary flex flex-col items-center gap-2">
-                  <AlertCircle className="w-8 h-8" />
-                  <p className="font-medium">¡Catálogo Limpio!</p>
-                  <p className="text-sm">No se encontraron materiales con alta similitud.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100">
-                  {suggestions?.map((suggestion, index) => {
-                    const targetData = findMaterialData(suggestion.target_id);
-                    const sourceData = findMaterialData(suggestion.source_id);
+        <TabsContent value="panel" className="space-y-6">
+          <div className="flex flex-col gap-1.5 mb-2">
+            <h3 className="text-lg font-extrabold text-procarni-blue flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-procarni-primary" />
+              Sugerencias Inteligentes de Resolución
+            </h3>
+            <p className="text-xs text-slate-500 font-medium italic">
+              El sistema ha detectado variaciones de catálogo con alta similitud trigramática. Resuélvelas de forma rápida (1-clic) o personaliza la acción.
+            </p>
+          </div>
 
-                    return (
-                      <div key={index} className="flex flex-col md:flex-row md:items-center justify-between p-4 hover:bg-slate-50/80 transition-colors gap-6 md:gap-4 w-full min-w-0">
-                        <div className="flex flex-col md:grid md:grid-cols-[1fr_auto_1fr] gap-4 items-center flex-1 w-full min-w-0">
-                          
-                          {/* Material A */}
-                          <div className="text-center md:text-right w-full min-w-0 bg-white md:bg-transparent p-3 md:p-0 rounded-lg border md:border-none shadow-sm md:shadow-none">
-                            <p className="font-medium text-slate-900 break-words">{suggestion.target_name}</p>
-                            <div className="flex justify-center md:justify-end gap-1 mt-2 md:mt-1">
-                              {targetData?.category && <Badge variant="outline" className="text-[10px]">{targetData.category}</Badge>}
-                              {targetData?.unit && <Badge variant="secondary" className="text-[10px]">{targetData.unit}</Badge>}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-full md:max-w-[150px] mx-auto md:ml-auto md:mr-0">{suggestion.target_id}</p>
-                          </div>
+          {isLoadingSuggestions ? (
+            <div className="py-12 text-center text-muted-foreground animate-pulse flex flex-col items-center justify-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-procarni-primary border-t-transparent"></div>
+              <span>Analizando similitudes en el catálogo...</span>
+            </div>
+          ) : suggestions?.length === 0 ? (
+            <div className="bg-white border border-slate-100 shadow-md p-10 rounded-[2rem] text-center text-procarni-secondary flex flex-col items-center gap-3">
+              <AlertCircle className="w-10 h-10 text-procarni-secondary" />
+              <p className="font-extrabold text-lg text-procarni-dark">¡Catálogo Limpio!</p>
+              <p className="text-sm text-slate-500">No se encontraron materiales duplicados o variaciones pendientes de estructurar.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              {suggestions?.map((suggestion, index) => {
+                const targetData = findMaterialData(suggestion.target_id);
+                const sourceData = findMaterialData(suggestion.source_id);
+                
+                const isCardResolving = quickResolveMutation.isPending && quickResolveMutation.variables?.sourceId === suggestion.source_id;
+                const resolvingAction = quickResolveMutation.variables?.action;
 
-                          {/* Porcentaje de Similitud */}
-                          <div className="flex flex-row md:flex-col items-center justify-center gap-3 px-2 md:px-4 shrink-0 w-full md:w-auto">
-                            <div className="md:hidden h-px w-full bg-slate-200"></div>
-                            <Badge variant="outline" className={`font-mono text-xs shadow-sm shrink-0 ${getScoreColor(suggestion.similarity_score)}`}>
-                              {suggestion.similarity_score}% SIMILAR
+                return (
+                  <div 
+                    key={index} 
+                    className={cn(
+                      "bg-white border border-slate-100 shadow-md hover:shadow-xl rounded-[1.75rem] p-5 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300",
+                      isCardResolving && "opacity-65 pointer-events-none"
+                    )}
+                  >
+                    {/* Top light glow border */}
+                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-procarni-primary to-procarni-secondary opacity-80"></div>
+                    
+                    <div>
+                      {/* Badge header & ignore button */}
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`font-mono text-[10px] shadow-sm uppercase ${getScoreColor(suggestion.similarity_score)}`}>
+                            {suggestion.similarity_score}% Similar
+                          </Badge>
+                          {suggestion.is_dirty_migration && (
+                            <Badge className="bg-amber-50 text-procarni-alert border border-amber-200/50 text-[9px] font-bold">
+                              Importado
                             </Badge>
-                            <div className="hidden md:block h-px w-full bg-slate-200 mt-2 relative">
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[10px] font-bold text-slate-400">VS</div>
-                            </div>
-                            <div className="md:hidden h-px w-full bg-slate-200"></div>
-                          </div>
-
-                          {/* Material B */}
-                          <div className="text-center md:text-left w-full min-w-0 bg-white md:bg-transparent p-3 md:p-0 rounded-lg border md:border-none shadow-sm md:shadow-none">
-                            <p className="font-medium text-slate-900 break-words">{suggestion.source_name}</p>
-                            <div className="flex justify-center md:justify-start gap-1 mt-2 md:mt-1">
-                              {sourceData?.category && <Badge variant="outline" className="text-[10px]">{sourceData.category}</Badge>}
-                              {sourceData?.unit && <Badge variant="secondary" className="text-[10px]">{sourceData.unit}</Badge>}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1 truncate max-w-full md:max-w-[150px] mx-auto md:ml-0">{suggestion.source_id}</p>
-                          </div>
-
+                          )}
                         </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2 shrink-0 md:ml-4 w-full md:w-auto mt-2 md:mt-0">
-                          <Button 
-                            onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                            variant="ghost"
-                            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 px-3"
-                            disabled={ignoreMutation.isPending}
-                            title="Ignorar esta coincidencia"
-                          >
-                            <EyeOff className="w-4 h-4" />
-                            <span className="md:hidden">Ignorar</span>
-                          </Button>
-                          <Button 
-                            onClick={() => handleOpenGroup(suggestion.target_id, suggestion.source_id)}
-                            variant="outline"
-                            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 border-procarni-blue text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm"
-                          >
-                            <Network className="w-4 h-4" />
-                            Agrupar
-                          </Button>
-                          <Button 
-                            onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
-                            variant="secondary"
-                            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm"
-                          >
-                            <Combine className="w-4 h-4" />
-                            Fusionar
-                          </Button>
-                        </div>
+                        <Button 
+                          onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Ignorar esta coincidencia"
+                          disabled={ignoreMutation.isPending || quickResolveMutation.isPending}
+                        >
+                          <EyeOff className="w-4 h-4" />
+                        </Button>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                      {/* Comparison Flow */}
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-3 bg-slate-50/50 rounded-2xl px-4 border border-slate-100/50">
+                        
+                        {/* Left Side: Duplicate (Source) */}
+                        <div className="text-center min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Material Duplicado</p>
+                          <p className="font-bold text-slate-900 text-sm break-words leading-snug line-clamp-2" title={suggestion.source_name}>
+                            {suggestion.source_name}
+                          </p>
+                          <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                            {sourceData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{sourceData.category}</Badge>}
+                            {sourceData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{sourceData.unit}</Badge>}
+                          </div>
+                        </div>
+
+                        {/* Center: Connection icon */}
+                        <div className="flex flex-col items-center justify-center text-slate-300">
+                          <ArrowRight className="h-5 w-5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                        </div>
+
+                        {/* Right Side: Gold Standard (Target) */}
+                        <div className="text-center min-w-0">
+                          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Patrón de Oro</p>
+                          <p className="font-bold text-procarni-blue text-sm break-words leading-snug line-clamp-2" title={suggestion.target_name}>
+                            {suggestion.target_name}
+                          </p>
+                          <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                            {targetData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{targetData.category}</Badge>}
+                            {targetData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{targetData.unit}</Badge>}
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* Footer Action Bar */}
+                    <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-2">
+                      <Button 
+                        onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl px-2 h-9 flex items-center gap-1"
+                        disabled={quickResolveMutation.isPending}
+                      >
+                        <Wrench className="w-3.5 h-3.5" />
+                        Personalizar
+                      </Button>
+                      
+                      <div className="flex items-center gap-1.5">
+                        <Button 
+                          onClick={() => quickResolveMutation.mutate({ action: 'group', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                          variant="outline"
+                          size="sm"
+                          className="h-9 text-[11px] font-bold rounded-xl border-procarni-blue/30 text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm flex items-center gap-1 px-2.5"
+                          disabled={quickResolveMutation.isPending}
+                        >
+                          {isCardResolving && resolvingAction === 'group' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                          ) : (
+                            <Network className="w-3.5 h-3.5" />
+                          )}
+                          {isCardResolving && resolvingAction === 'group' ? 'Agrupando...' : 'Agrupar Rápido'}
+                        </Button>
+                        <Button 
+                          onClick={() => quickResolveMutation.mutate({ action: 'merge', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                          variant="secondary"
+                          size="sm"
+                          className="h-9 text-[11px] font-bold rounded-xl bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm flex items-center gap-1 px-2.5"
+                          disabled={quickResolveMutation.isPending}
+                        >
+                          {isCardResolving && resolvingAction === 'merge' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                          ) : (
+                            <Combine className="w-3.5 h-3.5" />
+                          )}
+                          {isCardResolving && resolvingAction === 'merge' ? 'Vinculando...' : 'Vincular Rápido'}
+                        </Button>
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="history">
@@ -308,6 +441,8 @@ const MaterialCleanupDashboard = () => {
                               <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">Fusión</Badge>
                             ) : log.action === 'GROUP_ADD' ? (
                               <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">Agrupado</Badge>
+                            ) : log.action === 'UNMERGE' ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">Restaurado</Badge>
                             ) : (
                               <Badge variant="secondary" className="bg-gray-100 text-gray-800">Desagrupado</Badge>
                             )}
@@ -316,21 +451,21 @@ const MaterialCleanupDashboard = () => {
                             {log.details?.description || 'Sin descripción'}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            {log.action === 'GROUP_ADD' ? (
+                            {log.action === 'GROUP_ADD' || log.action === 'FUSION' ? (
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                onClick={() => handleUndoGroup(log.details?.record_id)}
-                                disabled={undoGroupMutation.isPending}
+                                onClick={() => handleUndo(log.action, log.details)}
+                                disabled={undoMutation.isPending}
                                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                               >
                                 <Undo className="w-4 h-4 mr-2" />
                                 Deshacer
                               </Button>
-                            ) : log.action === 'FUSION' ? (
-                              <div className="flex items-center justify-end text-xs text-gray-400 gap-1" title="Las fusiones destruyen los datos originales y no se pueden deshacer.">
+                            ) : log.action === 'UNMERGE' ? (
+                              <div className="flex items-center justify-end text-xs text-gray-400 gap-1" title="Esta acción ya fue revertida.">
                                 <Info className="w-3 h-3" />
-                                Irreversible
+                                Revertido
                               </div>
                             ) : null}
                           </td>
@@ -404,29 +539,17 @@ const MaterialCleanupDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {isFusionModalOpen && (
-        <MaterialFusionModal
-          open={isFusionModalOpen}
-          onOpenChange={setIsFusionModalOpen}
+      {isResolutionModalOpen && (
+        <MaterialResolutionModal
+          open={isResolutionModalOpen}
+          onOpenChange={setIsResolutionModalOpen}
           selectedIds={selectedIds}
           materials={materials as Material[]}
           onSuccess={() => {
             refetchSuggestions();
             refetchHistory();
           }}
-        />
-      )}
-
-      {isGroupModalOpen && (
-        <MaterialGroupModal
-          open={isGroupModalOpen}
-          onOpenChange={setIsGroupModalOpen}
-          selectedIds={selectedIds}
-          materials={materials as Material[]}
-          onSuccess={() => {
-            refetchSuggestions();
-            refetchHistory();
-          }}
+          initialAction={resolutionAction}
         />
       )}
     </div>

@@ -38,7 +38,6 @@ import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
 import Notifications from "./pages/Notifications";
 import GroupManagement from "./pages/GroupManagement";
 import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
-import MaterialMapperTinder from "./pages/MaterialMapperTinder";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -91,7 +90,6 @@ const App = () => (
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/group-management" element={<GroupManagement />} />
                   <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
-                  <Route path="/material-mapper" element={<MaterialMapperTinder />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

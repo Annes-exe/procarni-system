@@ -40,7 +40,6 @@ const navItems = [
     items: [
       { to: '/bulk-upload', icon: <Upload className="h-5 w-5" />, label: 'Carga Masiva' },
       { to: '/material-cleanup', icon: <Wrench className="h-5 w-5" />, label: 'Limpiar Catálogo' },
-      { to: '/material-mapper', icon: <Upload className="h-5 w-5" />, label: 'Mapper (Tinder)' },
       { to: '/settings', icon: <Cog className="h-5 w-5" />, label: 'Configuración' },
       { to: '/audit-log', icon: <ScrollText className="h-5 w-5" />, label: 'Auditoría' },
     ]

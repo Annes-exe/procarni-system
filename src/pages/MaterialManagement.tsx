@@ -25,8 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { useDebounce } from 'use-debounce';
 import PaginationControls from '@/components/PaginationControls';
 
-import MaterialFusionModal from '@/components/MaterialFusionModal';
-import MaterialGroupModal from '@/components/MaterialGroupModal';
+import MaterialResolutionModal from '@/components/MaterialResolutionModal';
 
 import { Material } from '@/integrations/supabase/types';
 
@@ -53,8 +52,8 @@ const MaterialManagement = () => {
   const [materialToDeleteId, setMaterialToDeleteId] = useState<string | null>(null);
 
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
-  const [isFusionModalOpen, setIsFusionModalOpen] = useState(false);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isResolutionModalOpen, setIsResolutionModalOpen] = useState(false);
+  const [resolutionAction, setResolutionAction] = useState<'merge' | 'group'>('merge');
 
   const { data: categories = [] } = useQuery({
     queryKey: ['material_categories'],
@@ -316,7 +315,10 @@ const MaterialManagement = () => {
               variant="outline" 
               size="sm" 
               className="h-9 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 font-bold"
-              onClick={() => setIsGroupModalOpen(true)}
+              onClick={() => {
+                setResolutionAction('group');
+                setIsResolutionModalOpen(true);
+              }}
             >
               <Network className="h-4 w-4 mr-2" />
               Asignar Grupo
@@ -328,7 +330,10 @@ const MaterialManagement = () => {
                 "h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-bold",
                 selectedMaterialIds.length < 2 && "opacity-50 grayscale pointer-events-none"
               )}
-              onClick={() => setIsFusionModalOpen(true)}
+              onClick={() => {
+                setResolutionAction('merge');
+                setIsResolutionModalOpen(true);
+              }}
               disabled={selectedMaterialIds.length < 2}
             >
               <Combine className="h-4 w-4 mr-2" />
@@ -673,24 +678,18 @@ const MaterialManagement = () => {
         onOpenChange={setIsCategoriesModalOpen}
       />
 
-      {materialsList && (
-        <>
-          <MaterialGroupModal
-            open={isGroupModalOpen}
-            onOpenChange={setIsGroupModalOpen}
-            selectedIds={selectedMaterialIds}
-            materials={materialsList}
-            onSuccess={() => setSelectedMaterialIds([])}
-          />
-
-          <MaterialFusionModal
-            open={isFusionModalOpen}
-            onOpenChange={setIsFusionModalOpen}
-            selectedIds={selectedMaterialIds}
-            materials={materialsList}
-            onSuccess={() => setSelectedMaterialIds([])}
-          />
-        </>
+      {materialsList && isResolutionModalOpen && (
+        <MaterialResolutionModal
+          open={isResolutionModalOpen}
+          onOpenChange={setIsResolutionModalOpen}
+          selectedIds={selectedMaterialIds}
+          materials={materialsList}
+          onSuccess={() => {
+            setSelectedMaterialIds([]);
+            queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
+          }}
+          initialAction={resolutionAction}
+        />
       )}
 
       {isCreateDialogOpen && (
