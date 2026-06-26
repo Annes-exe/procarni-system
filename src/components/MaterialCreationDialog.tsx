@@ -25,6 +25,7 @@ interface MaterialCreationDialogProps {
   supplierName?: string; // Optional if supplierId is not provided
   initialName?: string; // Optional: pre-fill material name
   hideNameProvided?: boolean; // NEW: optional flag to hide name_provided field
+  editingMaterial?: Material | null; // NEW
 }
 
 
@@ -37,6 +38,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   supplierName,
   initialName,
   hideNameProvided = false,
+  editingMaterial = null,
 }) => {
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,10 +91,43 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen && initialName) {
-      setMaterialName(initialName);
+    if (isOpen) {
+      if (editingMaterial) {
+        setMaterialName(editingMaterial.name || '');
+        setCategory(editingMaterial.category || '');
+        
+        // Find matching unit id by unit name
+        const matchedUnit = units.find(u => u.name === editingMaterial.unit);
+        setUnit(matchedUnit?.id || editingMaterial.unit_id || '');
+        
+        setIsExempt(editingMaterial.is_exempt || false);
+        setSelectedParentId(editingMaterial.base_material_id || '');
+        
+        // Fetch parent name if exists
+        if (editingMaterial.base_material_id) {
+          supabase
+            .from('materials')
+            .select('name')
+            .eq('id', editingMaterial.base_material_id)
+            .single()
+            .then(({ data }) => {
+              if (data) setSelectedParentName(data.name);
+            });
+        } else {
+          setSelectedParentName('');
+        }
+        
+        setColor(editingMaterial.color || '');
+        setBrand(editingMaterial.brand || '');
+        setNameProvided(editingMaterial.search_aliases && editingMaterial.search_aliases.length > 0 ? editingMaterial.search_aliases[0] : '');
+      } else {
+        resetForm();
+        if (initialName) {
+          setMaterialName(initialName);
+        }
+      }
     }
-  }, [isOpen, initialName]);
+  }, [isOpen, editingMaterial, units]);
 
   // Effect to enforce is_exempt=true when category is FRESCA
   useEffect(() => {
@@ -213,6 +248,58 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     setIsSubmitting(true);
 
     try {
+      const finalIsExempt = category === 'FRESCA' ? true : isExempt;
+      const selectedUnitObj = units.find(u => u.id === unit);
+      const unitName = selectedUnitObj?.name || '';
+
+      if (editingMaterial && selectedParentId === editingMaterial.id) {
+        showError('Un material no puede ser su propio patrón de oro.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const isMasterMaterial = editingMaterial?.is_master || false;
+      const finalParentId = isMasterMaterial ? null : (selectedParentId || null);
+
+      if (editingMaterial) {
+        // Mode: EDIT
+        const { error: updateError } = await supabase
+          .from('materials')
+          .update({
+            name: trimmedMaterialName,
+            category,
+            unit: unitName,
+            unit_id: unit,
+            is_exempt: finalIsExempt,
+            base_material_id: finalParentId,
+            color: color.trim() || null,
+            brand: brand.trim() || null,
+            search_aliases: nameProvided.trim() ? [nameProvided.trim().toUpperCase()] : []
+          })
+          .eq('id', editingMaterial.id);
+
+        if (updateError) {
+          throw new Error('Error al actualizar el material: ' + updateError.message);
+        }
+
+        showSuccess(`Material "${trimmedMaterialName}" actualizado con éxito.`);
+        
+        onMaterialCreated({
+          ...editingMaterial,
+          name: trimmedMaterialName,
+          category,
+          unit: unitName,
+          unit_id: unit,
+          is_exempt: finalIsExempt,
+          base_material_id: finalParentId,
+          color: color.trim() || null,
+          brand: brand.trim() || null,
+          search_aliases: nameProvided.trim() ? [nameProvided.trim().toUpperCase()] : []
+        });
+
+        handleClose();
+        return;
+      }
       let materialToAssociate: Material | null = null;
       let isNewMaterial = false;
 
@@ -220,7 +307,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       const exactMatch = await getMaterialByName(trimmedMaterialName);
 
       // Determine final is_exempt status (forced true if FRESCA)
-      const finalIsExempt = category === 'FRESCA' ? true : isExempt;
+      // Already defined above in function scope
 
       if (exactMatch) {
         // USE EXISTING
@@ -239,7 +326,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           is_exempt: finalIsExempt, // Use the determined final status
           user_id: session.user.id,
           code: '', // Allow trigger to generate it
-          base_material_id: selectedParentId || null,
+          base_material_id: finalParentId,
           color: color.trim() || null,
           brand: brand.trim() || null,
           search_aliases: nameProvided.trim() ? [nameProvided.trim().toUpperCase()] : []
@@ -303,7 +390,9 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     }
   };
 
-  const dialogDescription = supplierId ? (
+  const dialogDescription = editingMaterial ? (
+    'Modifica los detalles del material existente.'
+  ) : supplierId ? (
     <>
       Crea un nuevo material o asocia uno existente a {supplierName ? <strong>{supplierName}</strong> : 'este proveedor'}.
     </>
@@ -313,13 +402,13 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
   const isMaterialNameValid = materialName.trim().length > 0;
   const isExactMatch = suggestedMaterial && suggestedMaterial.name.toUpperCase() === materialName.trim().toUpperCase();
-  const submitButtonText = isExactMatch ? 'Asociar Material' : 'Crear y Asociar';
+  const submitButtonText = editingMaterial ? 'Guardar Cambios' : isExactMatch ? 'Asociar Material' : 'Crear y Asociar';
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Añadir Nuevo Material</DialogTitle>
+          <DialogTitle>{editingMaterial ? 'Editar Material' : 'Añadir Nuevo Material'}</DialogTitle>
           <DialogDescription>
             {dialogDescription}
           </DialogDescription>
@@ -327,40 +416,46 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
         <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
           {/* 1. Patrón de Oro (SmartSearch) */}
-          <div className="grid gap-2">
-            <Label htmlFor="parentMaterial">Patrón de Oro (Material Oficial) [Opcional]</Label>
-            <SmartSearch 
-              placeholder="Buscar patrón de oro..."
-              displayValue={selectedParentName}
-              selectedId={selectedParentId}
-              onSelect={(item) => {
-                setSelectedParentId(item.id);
-                setSelectedParentName(item.name.split(' - ')[0]); // Extrae el nombre limpio
-              }}
-              fetchFunction={async (query) => {
-                let dbQuery = supabase
-                  .from('materials')
-                  .select('id, name, code, category')
-                  .eq('is_master', true)
-                  .eq('status', 'active');
+          {(!editingMaterial || !editingMaterial.is_master) && (
+            <div className="grid gap-2">
+              <Label htmlFor="parentMaterial">Patrón de Oro (Material Oficial) [Opcional]</Label>
+              <SmartSearch 
+                placeholder="Buscar patrón de oro..."
+                displayValue={selectedParentName}
+                selectedId={selectedParentId}
+                onSelect={(item) => {
+                  setSelectedParentId(item.id);
+                  setSelectedParentName(item.name.split(' - ')[0]); // Extrae el nombre limpio
+                }}
+                disabled={isSubmitting}
+                fetchFunction={async (query) => {
+                  let dbQuery = supabase
+                    .from('materials')
+                    .select('id, name, code, category')
+                    .eq('is_master', true)
+                    .eq('status', 'active');
 
-                if (query.trim()) {
-                  dbQuery = dbQuery.ilike('name', `%${query}%`);
-                }
+                  if (editingMaterial) {
+                    dbQuery = dbQuery.neq('id', editingMaterial.id); // Excluirse a sí mismo
+                  }
 
-                const { data, error } = await dbQuery
-                  .order('name', { ascending: true })
-                  .limit(10);
+                  if (query.trim()) {
+                    dbQuery = dbQuery.ilike('name', `%${query}%`);
+                  }
 
-                if (error) return [];
-                return (data || []).map(m => ({
-                  id: m.id,
-                  name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
-                }));
-              }}
-              disabled={isSubmitting}
-            />
-          </div>
+                  const { data, error } = await dbQuery
+                    .order('name', { ascending: true })
+                    .limit(10);
+
+                  if (error) return [];
+                  return (data || []).map(m => ({
+                    id: m.id,
+                    name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
+                  }));
+                }}
+              />
+            </div>
+          )}
 
           {/* 2. Nombre del Material */}
           <div className="grid gap-2">
@@ -398,7 +493,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               </div>
             )}
 
-            {!isExactMatch && isMaterialNameValid && !isCheckingExistence && !suggestedMaterial && (
+            {!editingMaterial && !isExactMatch && isMaterialNameValid && !isCheckingExistence && !suggestedMaterial && (
               <p className="text-sm text-yellow-600">
                 Material nuevo: <strong>{materialName.toUpperCase()}</strong>. Se creará al guardar.
               </p>
@@ -423,7 +518,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="category">Categoría</Label>
-              <Select value={category} onValueChange={setCategory} disabled={isSubmitting || isExactMatch || isLoadingCategories}>
+              <Select value={category} onValueChange={setCategory} disabled={isSubmitting || (!editingMaterial && isExactMatch) || isLoadingCategories}>
                 <SelectTrigger id="category">
                   <SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Selecciona categoría"} />
                 </SelectTrigger>
@@ -442,7 +537,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 onValueChange={(val) => {
                   setUnit(val);
                 }} 
-                disabled={isSubmitting || isExactMatch || isLoadingUnits}
+                disabled={isSubmitting || (!editingMaterial && isExactMatch) || isLoadingUnits}
               >
                 <SelectTrigger id="unit">
                   <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
@@ -502,7 +597,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             <Switch
               checked={isExempt}
               onCheckedChange={setIsExempt}
-              disabled={isSubmitting || isExactMatch || category === 'FRESCA'}
+              disabled={isSubmitting || (!editingMaterial && isExactMatch) || category === 'FRESCA'}
             />
           </div>
         </div>

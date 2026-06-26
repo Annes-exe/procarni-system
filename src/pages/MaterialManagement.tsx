@@ -10,7 +10,7 @@ import InlineEditableCell from '@/components/InlineEditableCell';
 
 import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories, getAllUnits, getMaterialChildren } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
-import MaterialForm from '@/components/MaterialForm';
+
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -311,7 +311,7 @@ const MaterialManagement = () => {
     }));
   };
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false);
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
@@ -379,25 +379,12 @@ const MaterialManagement = () => {
     });
   };
 
-  const createMutation = useMutation({
-    mutationFn: (newMaterial: Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>) =>
-      createMaterial({ ...newMaterial, user_id: userId! } as any),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
-      setIsFormOpen(false);
-      showSuccess('Material creado exitosamente.');
-    },
-    onError: (err) => {
-      showError(`Error al crear material: ${err.message}`);
-    },
-  });
-
   const updateMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>> }) =>
       updateMaterial(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
-      setIsFormOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['material_children'] });
       setEditingMaterial(null);
       showSuccess('Material actualizado exitosamente.');
     },
@@ -447,7 +434,7 @@ const MaterialManagement = () => {
 
   const handleEditMaterial = (material: Material) => {
     setEditingMaterial(material);
-    setIsFormOpen(true);
+    setIsCreateDialogOpen(true);
   };
 
   const confirmDeleteMaterial = (id: string) => {
@@ -475,17 +462,7 @@ const MaterialManagement = () => {
     }
   };
 
-  const handleSubmitForm = async (data: Omit<Material, 'id' | 'created_at' | 'updated_at' | 'user_id'>) => {
-    if (!userId) {
-      showError('Usuario no autenticado. No se puede realizar la operación.');
-      return;
-    }
-    if (editingMaterial) {
-      await updateMutation.mutateAsync({ id: editingMaterial.id, updates: data });
-    } else {
-      await createMutation.mutateAsync(data);
-    }
-  };
+
 
   if (isLoading) {
     return (
@@ -548,30 +525,7 @@ const MaterialManagement = () => {
             {!isMobile && 'Añadir Material'}
           </Button>
 
-          <Dialog open={isFormOpen && !!editingMaterial} onOpenChange={(open) => {
-            if (!open) {
-              setIsFormOpen(false);
-              setEditingMaterial(null);
-            }
-          }}>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Editar Material</DialogTitle>
-                <DialogDescription>
-                  Edita los detalles del material existente.
-                </DialogDescription>
-              </DialogHeader>
-              <MaterialForm
-                initialData={editingMaterial || undefined}
-                onSubmit={handleSubmitForm}
-                onCancel={() => {
-                  setIsFormOpen(false);
-                  setEditingMaterial(null);
-                }}
-                isSubmitting={updateMutation.isPending}
-              />
-            </DialogContent>
-          </Dialog>
+
         </div>
       </div>
 
@@ -772,7 +726,12 @@ const MaterialManagement = () => {
                             )}
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateMutation.mutate({ id: material.id, updates: { is_master: !material.is_master } });
+                              const newIsMaster = !material.is_master;
+                              const updates: Partial<Material> = { is_master: newIsMaster };
+                              if (newIsMaster) {
+                                updates.base_material_id = null;
+                              }
+                              updateMutation.mutate({ id: material.id, updates });
                             }}
                           >
                             {material.is_master ? '★ Patrón Oro' : '☆ Marcar como Oro'}
@@ -963,7 +922,14 @@ const MaterialManagement = () => {
                                     ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm" 
                                     : "border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
                                 )}
-                                onClick={() => updateMutation.mutate({ id: material.id, updates: { is_master: !material.is_master } })}
+                                onClick={() => {
+                                  const newIsMaster = !material.is_master;
+                                  const updates: Partial<Material> = { is_master: newIsMaster };
+                                  if (newIsMaster) {
+                                    updates.base_material_id = null;
+                                  }
+                                  updateMutation.mutate({ id: material.id, updates });
+                                }}
                               >
                                 {material.is_master ? '★ Oro' : '☆ Marcar'}
                               </Button>
@@ -1069,11 +1035,16 @@ const MaterialManagement = () => {
       {isCreateDialogOpen && (
         <MaterialCreationDialog
           isOpen={isCreateDialogOpen}
-          onClose={() => setIsCreateDialogOpen(false)}
+          onClose={() => {
+            setIsCreateDialogOpen(false);
+            setEditingMaterial(null);
+          }}
           hideNameProvided={true}
           onMaterialCreated={() => {
             queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
+            queryClient.invalidateQueries({ queryKey: ['material_children'] });
           }}
+          editingMaterial={editingMaterial}
         />
       )}
     </div>
