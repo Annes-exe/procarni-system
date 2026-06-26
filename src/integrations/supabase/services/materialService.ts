@@ -226,7 +226,8 @@ const MaterialService = {
     page: number,
     pageSize: number,
     searchTerm: string = '',
-    category: string = 'all'
+    category: string = 'all',
+    masterFilter: 'all' | 'master' | 'non-master' = 'all'
   ) => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -236,10 +237,24 @@ const MaterialService = {
       .select('*', { count: 'exact' })
       .eq('status', 'active');
 
+    // Aplicar filtro de Patrón de Oro
+    if (masterFilter === 'master') {
+      query = query.eq('is_master', true);
+    } else if (masterFilter === 'non-master') {
+      query = query.or('is_master.eq.false,is_master.is.null');
+    }
+
+    // Aplicar filtro de búsqueda
     if (searchTerm) {
       const searchPattern = `%${searchTerm}%`;
       const cleanTerm = searchTerm.toUpperCase().trim();
       query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"}`);
+    } else {
+      // Ocultar hijos (base_material_id no nulo) del nivel raíz si no hay búsqueda activa y no se filtra por "no maestros".
+      // Si se filtra por "non-master", debemos mostrarlos porque no hay padres mostrándose que los agrupen.
+      if (masterFilter !== 'non-master') {
+        query = query.is('base_material_id', null);
+      }
     }
 
     if (category && category !== 'all') {
@@ -256,6 +271,22 @@ const MaterialService = {
     }
     
     return { data: data as Material[], totalCount: count || 0 };
+  },
+
+  getChildren: async (parentId: string): Promise<Material[]> => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('base_material_id', parentId)
+      .eq('status', 'active')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('[MaterialService.getChildren] Error:', error);
+      showError('Error al cargar materiales hijos.');
+      return [];
+    }
+    return data || [];
   },
 
   getRecentMaterials: async (): Promise<Material[]> => {
@@ -351,4 +382,5 @@ export const {
   getByName: getMaterialByName,
   getPaginated: getPaginatedMaterials,
   getRecentMaterials,
+  getChildren: getMaterialChildren,
 } = MaterialService;
