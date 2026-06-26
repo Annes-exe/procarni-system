@@ -281,16 +281,26 @@ const MaterialCleanupDashboard = () => {
                 const sourceData = findMaterialData(suggestion.source_id);
                 
                 const isCardResolving = quickResolveMutation.isPending && quickResolveMutation.variables?.sourceId === suggestion.source_id;
+                const isCardIgnoring = ignoreMutation.isPending && ignoreMutation.variables?.sourceId === suggestion.source_id && ignoreMutation.variables?.targetId === suggestion.target_id;
                 const resolvingAction = quickResolveMutation.variables?.action;
+                const isProcessing = isCardResolving || isCardIgnoring;
 
                 return (
                   <div 
                     key={index} 
                     className={cn(
                       "bg-white border border-slate-100 shadow-md hover:shadow-xl rounded-[1.75rem] p-5 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300",
-                      isCardResolving && "opacity-65 pointer-events-none"
+                      isProcessing && "pointer-events-none"
                     )}
                   >
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-200">
+                        <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
+                        <span className="text-xs font-bold text-procarni-primary">
+                          {isCardIgnoring ? 'Ignorando...' : resolvingAction === 'merge' ? 'Fusionando...' : 'Agrupando...'}
+                        </span>
+                      </div>
+                    )}
                     {/* Top light glow border */}
                     <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-procarni-primary to-procarni-secondary opacity-80"></div>
                     
@@ -431,46 +441,53 @@ const MaterialCleanupDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {history?.map((log) => (
-                        <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                            {new Date(log.timestamp).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4">
-                            {log.action === 'FUSION' ? (
-                              <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">Fusión</Badge>
-                            ) : log.action === 'GROUP_ADD' ? (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">Agrupado</Badge>
-                            ) : log.action === 'UNMERGE' ? (
-                              <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">Restaurado</Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-gray-100 text-gray-800">Desagrupado</Badge>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-gray-700 font-medium">
-                            {log.details?.description || 'Sin descripción'}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            {log.action === 'GROUP_ADD' || log.action === 'FUSION' ? (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleUndo(log.action, log.details)}
-                                disabled={undoMutation.isPending}
-                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                              >
-                                <Undo className="w-4 h-4 mr-2" />
-                                Deshacer
-                              </Button>
-                            ) : log.action === 'UNMERGE' ? (
-                              <div className="flex items-center justify-end text-xs text-gray-400 gap-1" title="Esta acción ya fue revertida.">
-                                <Info className="w-3 h-3" />
-                                Revertido
-                              </div>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
+                      {history?.map((log) => {
+                        const isRowUndoing = undoMutation.isPending && undoMutation.variables?.recordId === log.details?.record_id;
+                        return (
+                          <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4">
+                              {log.action === 'FUSION' ? (
+                                <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">Fusión</Badge>
+                              ) : log.action === 'GROUP_ADD' ? (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">Agrupado</Badge>
+                              ) : log.action === 'UNMERGE' ? (
+                                <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">Restaurado</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-gray-100 text-gray-800">Desagrupado</Badge>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-gray-700 font-medium">
+                              {log.details?.description || 'Sin descripción'}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {log.action === 'GROUP_ADD' || log.action === 'FUSION' ? (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleUndo(log.action, log.details)}
+                                  disabled={undoMutation.isPending}
+                                  className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                >
+                                  {isRowUndoing ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Undo className="w-4 h-4 mr-2" />
+                                  )}
+                                  {isRowUndoing ? 'Deshaciendo...' : 'Deshacer'}
+                                </Button>
+                              ) : log.action === 'UNMERGE' ? (
+                                <div className="flex items-center justify-end text-xs text-gray-400 gap-1" title="Esta acción ya fue revertida.">
+                                  <Info className="w-3 h-3" />
+                                  Revertido
+                                </div>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

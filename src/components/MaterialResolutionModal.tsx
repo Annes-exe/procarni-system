@@ -208,6 +208,8 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
     .map(id => uniqueMaterialsMap.get(id) || similarSuggestions.find(s => s.id === id))
     .filter(Boolean) as Material[];
 
+  const targetMat = uniqueMaterialsMap.get(targetId) || allAvailableMaterials.find(m => m.id === targetId);
+
   const isFormValid = targetId && activeSources.length > 0 && (actionType === 'group' || (checkHistory && checkArchive));
 
   return (
@@ -239,6 +241,40 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
               <ArrowRight className="h-3 w-3 shrink-0" />
               <span className={step === 3 ? "text-procarni-primary" : ""}>3. Coincidencias y Aplicar</span>
             </div>
+
+            {/* Target Item / Destination Identification */}
+            {step > 1 && targetMat && (
+              <div className="p-4 rounded-2xl border border-amber-200/50 bg-amber-50/20 shadow-sm flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-amber-500/10 text-amber-600 rounded-xl shrink-0">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 block mb-0.5">
+                      Material Destino (Patrón de Oro)
+                    </span>
+                    <h4 className="font-bold text-slate-800 text-sm truncate">
+                      {targetMat.name}
+                    </h4>
+                    {targetMat.code && (
+                      <span className="text-[10px] font-mono text-slate-500">
+                        Código: {targetMat.code}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {targetMat.category && (
+                    <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700 bg-amber-50">
+                      {targetMat.category}
+                    </Badge>
+                  )}
+                  <Badge className="bg-amber-500 text-white text-[10px] font-bold">
+                    ★ Principal
+                  </Badge>
+                </div>
+              </div>
+            )}
 
             {/* STEP 1: SELECT GOLD STANDARD */}
             {step === 1 && (
