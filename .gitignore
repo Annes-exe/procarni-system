@@ -37,6 +37,7 @@ backup_*.json
 produccion_data_completa.json
 delta_today.json
 sync_*.json
+*.md
 
 # --- Testing y Calidad de Código ---
 coverage/
