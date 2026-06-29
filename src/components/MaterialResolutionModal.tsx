@@ -81,6 +81,19 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
   const uniqueMaterialsMap = new Map<string, Material>();
   allAvailableMaterials.forEach(m => uniqueMaterialsMap.set(m.id, m));
 
+  // Update source IDs when target changes to exclude target and include others
+  useEffect(() => {
+    if (targetId) {
+      setSelectedSourceIds(prev => {
+        const next = { ...prev };
+        selectedIds.forEach(id => {
+          next[id] = id !== targetId;
+        });
+        return next;
+      });
+    }
+  }, [targetId, selectedIds]);
+
   // Determine initial target
   useEffect(() => {
     if (open) {
@@ -92,13 +105,17 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
       setCheckArchive(false);
       setSimilarSuggestions([]);
       
-      // Auto-select initial target if one of the selectedIds is a master material
       const initialSources = selectedIds.map(id => uniqueMaterialsMap.get(id)).filter(Boolean) as Material[];
       const masterItem = initialSources.find(m => m.is_master);
+      
       if (masterItem) {
         setTargetId(masterItem.id);
         setTargetName(masterItem.name);
         setStep(3); // Skip directly to confirmation
+      } else if (initialSources.length > 0) {
+        // Default target to the first selected item, but stay on step 1 to let them choose
+        setTargetId(initialSources[0].id);
+        setTargetName(initialSources[0].name);
       }
       
       // Initialize checkboxes for source IDs (excluding target)
@@ -159,6 +176,17 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
         throw new Error("Debes tener al menos un material de origen seleccionado para resolver.");
       }
 
+      // 1. Promote target to is_master = true if it isn't already
+      const currentTarget = uniqueMaterialsMap.get(targetId) || materials.find(m => m.id === targetId);
+      if (currentTarget && !currentTarget.is_master) {
+        const { error: promoError } = await supabase
+          .from('materials')
+          .update({ is_master: true })
+          .eq('id', targetId);
+        if (promoError) throw promoError;
+      }
+
+      // 2. Call the unified resolution function
       const { error } = await supabase.rpc('resolve_materials_unified', {
         p_action: actionType,
         p_target_material_id: targetId,
@@ -319,20 +347,30 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
 
                 {selectedIds.length > 0 && (
                   <div className="bg-gray-50/50 border rounded-2xl p-4">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-2">Materiales iniciales seleccionados</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Materiales iniciales seleccionados</span>
+                      <span className="text-[9px] text-amber-600 font-medium italic">Haz clic en uno para definirlo como Patrón de Oro</span>
+                    </div>
                     <div className="space-y-2 max-h-40 overflow-y-auto">
                       {selectedIds.map(id => {
                         const mat = uniqueMaterialsMap.get(id);
                         if (!mat) return null;
                         const isTarget = mat.id === targetId;
                         return (
-                          <div key={id} className={`flex items-start gap-2 p-2 rounded-xl text-sm border bg-white ${isTarget ? 'border-procarni-secondary/30 bg-green-50/30' : 'border-gray-100'}`}>
-                            <Box className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
+                          <div 
+                            key={id} 
+                            onClick={() => {
+                              setTargetId(mat.id);
+                              setTargetName(mat.name);
+                            }}
+                            className={`flex items-start gap-2 p-2.5 rounded-xl text-sm border bg-white cursor-pointer transition-all duration-200 hover:border-amber-400 ${isTarget ? 'border-amber-500 bg-amber-50/30 ring-2 ring-amber-500/10' : 'border-gray-100'}`}
+                          >
+                            <Box className={`h-4 w-4 shrink-0 mt-0.5 ${isTarget ? 'text-amber-500' : 'text-gray-400'}`} />
                             <span className="font-medium text-gray-700 break-words whitespace-normal flex-1 mr-2">{mat.name}</span>
                             {isTarget ? (
-                              <Badge className="bg-procarni-secondary/15 text-procarni-secondary text-[10px] border-none shrink-0 mt-0.5">Patrón de Oro</Badge>
+                              <Badge className="bg-amber-500 text-white text-[10px] border-none shrink-0 mt-0.5">★ Patrón de Oro</Badge>
                             ) : (
-                              <Badge className="bg-procarni-primary/10 text-procarni-primary text-[10px] border-none shrink-0 mt-0.5">Duplicado</Badge>
+                              <Badge variant="outline" className="text-gray-400 border-gray-200 text-[10px] shrink-0 mt-0.5">Definir como Patrón</Badge>
                             )}
                           </div>
                         );
