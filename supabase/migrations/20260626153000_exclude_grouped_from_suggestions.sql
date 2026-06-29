@@ -1,7 +1,8 @@
 -- Migration: Exclude already grouped materials from suggestions views
 -- Target Database: hsspvhxneuetpatafdzy
 
-CREATE OR REPLACE VIEW public.vw_material_fusion_suggestions AS
+CREATE OR REPLACE VIEW public.vw_material_fusion_suggestions 
+WITH (security_invoker = true) AS
 SELECT 
     m1.id AS target_id,
     m1.name AS target_name,
@@ -27,7 +28,8 @@ WHERE
 ORDER BY 
     similarity_score DESC;
 
-CREATE OR REPLACE VIEW public.vw_soft_migration_suggestions AS
+CREATE OR REPLACE VIEW public.vw_soft_migration_suggestions 
+WITH (security_invoker = true) AS
 SELECT 
     m1.id AS master_id,
     m1.name AS master_name,
