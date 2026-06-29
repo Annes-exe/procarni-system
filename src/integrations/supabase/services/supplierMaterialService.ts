@@ -6,6 +6,7 @@ interface SupplierMaterialPayload {
   material_id: string;
   unit_id: string; // REQUIRED
   specification?: string;
+  name_provided?: string; // NEW optional field
   user_id: string;
 }
 

@@ -67,15 +67,20 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
     }
   }, [autoFocus, disabled]);
 
+  const fetchFunctionRef = useRef(fetchFunction);
+  useEffect(() => {
+    fetchFunctionRef.current = fetchFunction;
+  }, [fetchFunction]);
+
   const debouncedFetch = useCallback(async (searchQuery: string) => {
     try {
-      const data = await fetchFunction(searchQuery);
+      const data = await fetchFunctionRef.current(searchQuery);
       setResults(data || []);
     } catch (error) {
       console.error('Error fetching search results:', error);
       setResults([]);
     }
-  }, [fetchFunction]);
+  }, []);
 
   useEffect(() => {
     if (debounceTimeoutRef.current) {
