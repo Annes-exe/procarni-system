@@ -12,7 +12,10 @@ import {
     ResponsiveContainer,
     LineChart,
     Line,
-    Legend
+    Legend,
+    PieChart,
+    Pie,
+    Cell
 } from 'recharts';
 import {
     Calendar as CalendarIcon,
@@ -91,10 +94,63 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 };
 
 // Price Variation Component (Complex logic separated)
-const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>> }) => {
+const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds, filteredData }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>>, filteredData: any[] }) => {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const [localNames, setLocalNames] = useState<Record<string, string>>({});
+
+    const priceSpikes = useMemo(() => {
+        const matHistory: Record<string, any[]> = {};
+        filteredData.forEach((item: any) => {
+            const matId = item.material_id;
+            if (!matId) return;
+            if (!matHistory[matId]) matHistory[matId] = [];
+            matHistory[matId].push(item);
+        });
+
+        const spikes: any[] = [];
+        Object.entries(matHistory).forEach(([matId, items]) => {
+            const sorted = items.sort((a: any, b: any) => {
+                const dateA = a.purchase_orders?.issue_date ? new Date(a.purchase_orders.issue_date + 'T12:00:00') : new Date(a.purchase_orders?.created_at || a.created_at);
+                const dateB = b.purchase_orders?.issue_date ? new Date(b.purchase_orders.issue_date + 'T12:00:00') : new Date(b.purchase_orders?.created_at || b.created_at);
+                return dateB.getTime() - dateA.getTime();
+            });
+
+            if (sorted.length >= 2) {
+                const latest = sorted[0];
+                const previous = sorted[1];
+                const latestPrice = latest.unit_price;
+                const prevPrice = previous.unit_price;
+                if (prevPrice > 0) {
+                    const changePercent = ((latestPrice - prevPrice) / prevPrice) * 100;
+                    if (changePercent > 0.01) {
+                        spikes.push({
+                            materialId: matId,
+                            name: latest.materials?.name || 'Desconocido',
+                            changePercent,
+                            latestPrice,
+                            prevPrice,
+                            date: latest.purchase_orders?.issue_date || latest.purchase_orders?.created_at || latest.created_at,
+                            supplier: latest.purchase_orders?.suppliers?.name || 'Desconocido'
+                        });
+                    }
+                }
+            }
+        });
+
+        return spikes.sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
+    }, [filteredData]);
+
+    const addMaterialToTrend = (id: string, name: string) => {
+        if (!selectedMaterialIds.includes(id)) {
+            setLocalNames(prev => ({ ...prev, [id]: name }));
+            if (selectedMaterialIds.length >= 5) {
+                setSelectedMaterialIds([...selectedMaterialIds.slice(1), id]);
+            } else {
+                setSelectedMaterialIds([...selectedMaterialIds, id]);
+            }
+        }
+    };
 
     const { data: priceHistory = [] } = useQuery({
         queryKey: ['priceTrends', selectedMaterialIds, currency],
@@ -229,109 +285,169 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
 
     return (
         <div className="space-y-6">
-            <Card className="border-gray-200 shadow-sm bg-white">
-                <CardHeader>
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <CardTitle className="text-lg font-semibold text-gray-800">Tendencia de Precios</CardTitle>
-                            <CardDescription>Comparativa de costos unitarios en el tiempo.</CardDescription>
-                        </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
-                            {selectedMaterialIds.length === 1 && (
-                                <PriceHistoryDownloadButton
-                                    materialId={selectedMaterialIds[0]}
-                                    materialName={materials.find((m: any) => m.id === selectedMaterialIds[0])?.name || 'Material'}
-                                    variant="outline"
-                                    className="w-full sm:w-auto shadow-sm"
-                                />
-                            )}
-                            <div className="w-full sm:w-[250px]">
-                                <SmartSearch
-                                    placeholder="Agregar material..."
-                                    fetchFunction={searchMaterialsLocal}
-                                    onSelect={(item) => {
-                                        if (!selectedMaterialIds.includes(item.id)) {
-                                            setLocalNames(prev => ({ ...prev, [item.id]: item.name }));
-                                            if (selectedMaterialIds.length >= 5) {
-                                                setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
-                                            } else {
-                                                setSelectedMaterialIds([...selectedMaterialIds, item.id]);
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Card: Price Trend (Line Chart) */}
+                <Card className="border-gray-200 shadow-sm bg-white lg:col-span-2">
+                    <CardHeader>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <CardTitle className="text-lg font-semibold text-gray-800">Tendencia de Precios</CardTitle>
+                                <CardDescription>Comparativa de costos unitarios en el tiempo.</CardDescription>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
+                                {selectedMaterialIds.length === 1 && (
+                                    <PriceHistoryDownloadButton
+                                        materialId={selectedMaterialIds[0]}
+                                        materialName={materials.find((m: any) => m.id === selectedMaterialIds[0])?.name || 'Material'}
+                                        variant="outline"
+                                        className="w-full sm:w-auto shadow-sm"
+                                    />
+                                )}
+                                <div className="w-full sm:w-[250px]">
+                                    <SmartSearch
+                                        placeholder="Agregar material..."
+                                        fetchFunction={searchMaterialsLocal}
+                                        onSelect={(item) => {
+                                            if (!selectedMaterialIds.includes(item.id)) {
+                                                setLocalNames(prev => ({ ...prev, [item.id]: item.name }));
+                                                if (selectedMaterialIds.length >= 5) {
+                                                    setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
+                                                } else {
+                                                    setSelectedMaterialIds([...selectedMaterialIds, item.id]);
+                                                }
                                             }
-                                        }
-                                    }}
-                                />
+                                        }}
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                        {selectedMaterialIds.map((id, idx) => {
-                            const m = materials.find((mat: any) => mat.id === id);
-                            return (
-                                <Badge key={id} variant="secondary" className="gap-1 pl-2 pr-1 py-1" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20', color: COLORS[idx % COLORS.length] }}>
-                                    {m?.name || localNames[id] || 'Material'}
-                                    <button onClick={() => setSelectedMaterialIds(prev => prev.filter(x => x !== id))} className="ml-1 hover:bg-black/10 rounded-full p-0.5">
-                                        <ArrowDownRight className="h-3 w-3 rotate-45" />
-                                    </button>
-                                </Badge>
-                            )
-                        })}
-                    </div>
-                </CardHeader>
-                <CardContent className="p-2 sm:p-6">
-                    <div className={cn("w-full mt-4", isMobile ? "h-[300px]" : "h-[400px]")}>
-                        {selectedMaterialIds.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-lg">
-                                <TrendingUp className="h-8 w-8 mb-2 opacity-50" />
-                                <p>Selecciona materiales para comparar sus precios</p>
+                        <div className="flex flex-wrap gap-2 pt-2">
+                            {selectedMaterialIds.map((id, idx) => {
+                                const m = materials.find((mat: any) => mat.id === id);
+                                return (
+                                    <Badge key={id} variant="secondary" className="gap-1 pl-2 pr-1 py-1" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20', color: COLORS[idx % COLORS.length] }}>
+                                        {m?.name || localNames[id] || 'Material'}
+                                        <button onClick={() => setSelectedMaterialIds(prev => prev.filter(x => x !== id))} className="ml-1 hover:bg-black/10 rounded-full p-0.5">
+                                            <ArrowDownRight className="h-3 w-3 rotate-45" />
+                                        </button>
+                                    </Badge>
+                                )
+                            })}
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-2 sm:p-6">
+                        <div className={cn("w-full mt-4", isMobile ? "h-[300px]" : "h-[400px]")}>
+                            {selectedMaterialIds.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed rounded-lg">
+                                    <TrendingUp className="h-8 w-8 mb-2 opacity-50" />
+                                    <p>Selecciona materiales para comparar sus precios</p>
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                                        <XAxis
+                                            dataKey="date"
+                                            stroke="#9ca3af"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickFormatter={(str) => {
+                                                try {
+                                                    return format(parseISO(str), 'dd/MM/yy', { locale: es });
+                                                } catch (e) {
+                                                    return str;
+                                                }
+                                            }}
+                                        />
+                                        <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            labelFormatter={(label) => {
+                                                try {
+                                                    return format(parseISO(label), 'PPP p', { locale: es });
+                                                } catch (e) {
+                                                    return label;
+                                                }
+                                            }}
+                                        />
+                                        <Legend />
+                                        {chartSeries.map((seriesKey, idx) => (
+                                            <Line
+                                                key={seriesKey}
+                                                type="monotone"
+                                                dataKey={seriesKey}
+                                                stroke={COLORS[idx % COLORS.length]}
+                                                strokeWidth={2}
+                                                dot={{ r: 3 }}
+                                                activeDot={{ r: 6 }}
+                                                connectNulls
+                                            />
+                                        ))}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Right Card: Critical Price Spikes */}
+                <Card className="border-gray-200 shadow-sm bg-white lg:col-span-1 flex flex-col justify-between overflow-hidden">
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-procarni-primary" />
+                            Alzas Críticas
+                        </CardTitle>
+                        <CardDescription>
+                            Mayores aumentos de precio en la última compra del periodo.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto max-h-[400px] pr-1 pt-0">
+                        {priceSpikes.length === 0 ? (
+                            <div className="h-full min-h-[250px] flex flex-col items-center justify-center text-gray-400 text-sm italic border-2 border-dashed rounded-lg border-gray-100 p-4 text-center">
+                                No se detectaron alzas de precio para los materiales comprados en este periodo.
                             </div>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                    <XAxis
-                                        dataKey="date"
-                                        stroke="#9ca3af"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickFormatter={(str) => {
-                                            try {
-                                                return format(parseISO(str), 'dd/MM/yy', { locale: es });
-                                            } catch (e) {
-                                                return str;
-                                            }
-                                        }}
-                                    />
-                                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        labelFormatter={(label) => {
-                                            try {
-                                                return format(parseISO(label), 'PPP p', { locale: es });
-                                            } catch (e) {
-                                                return label;
-                                            }
-                                        }}
-                                    />
-                                    <Legend />
-                                    {chartSeries.map((seriesKey, idx) => (
-                                        <Line
-                                            key={seriesKey}
-                                            type="monotone"
-                                            dataKey={seriesKey}
-                                            stroke={COLORS[idx % COLORS.length]}
-                                            strokeWidth={2}
-                                            dot={{ r: 3 }}
-                                            activeDot={{ r: 6 }}
-                                            connectNulls
-                                        />
-                                    ))}
-                                </LineChart>
-                            </ResponsiveContainer>
+                            <div className="space-y-3">
+                                {priceSpikes.map((spike) => (
+                                    <div key={spike.materialId} className="p-3 bg-gray-50/50 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors flex flex-col gap-2">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <div className="max-w-[70%]">
+                                                <h4 className="font-semibold text-procarni-dark text-xs truncate" title={spike.name}>
+                                                    {spike.name}
+                                                </h4>
+                                                <p className="text-[10px] text-gray-400 truncate mt-0.5">{spike.supplier}</p>
+                                            </div>
+                                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px] py-0.5 px-1.5 font-bold flex-shrink-0">
+                                                +{spike.changePercent.toFixed(1)}%
+                                            </Badge>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <div className="text-gray-500">
+                                                <span className="font-mono text-gray-400 line-through mr-1 text-[11px]">
+                                                    {currency === 'USD' ? '$' : 'Bs'}{spike.prevPrice.toFixed(2)}
+                                                </span>
+                                                <span className="font-mono font-bold text-procarni-dark text-xs">
+                                                    {currency === 'USD' ? '$' : 'Bs'}{spike.latestPrice.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="h-6 px-2 text-[10px] text-procarni-primary hover:text-procarni-primary/80 hover:bg-procarni-primary/5 flex items-center gap-1 font-semibold"
+                                                onClick={() => addMaterialToTrend(spike.materialId, spike.name)}
+                                            >
+                                                Ver tendencia
+                                                <ArrowUpRight className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            </div>
 
             {/* Variation Table */}
             <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
@@ -617,6 +733,18 @@ const ReportsAnalytics = () => {
         return Object.entries(months).map(([name, value]) => ({ name, value }));
     }, [filteredData]);
 
+    // Spend by Material Category (Donut Chart)
+    const categorySpendData = useMemo(() => {
+        const categories: Record<string, number> = {};
+        filteredData.forEach((item: any) => {
+            const cat = item.materials?.category || 'Sin Categoría';
+            categories[cat] = (categories[cat] || 0) + (item.unit_price * item.quantity);
+        });
+        return Object.entries(categories)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [filteredData]);
+
     // Tab 3: Top Suppliers Data
     const topSuppliersData = useMemo(() => {
         const grouped: Record<string, { value: number, orderCount: number, lastDate: string | null, lastOrderId: string | null }> = {};
@@ -640,6 +768,46 @@ const ReportsAnalytics = () => {
             .slice(0, 10) // Top 10
             .map(([name, stats]) => ({ name, ...stats }));
     }, [filteredData]);
+
+    const concentrationMetrics = useMemo(() => {
+        const total = kpis.totalSpend || 1;
+        const top3Spend = topSuppliersData.slice(0, 3).reduce((acc, item) => acc + item.value, 0);
+        const top3Percent = (top3Spend / total) * 100;
+
+        const allSuppliersSpend: Record<string, number> = {};
+        filteredData.forEach((item: any) => {
+            const supName = item.purchase_orders.suppliers?.name || 'Desconocido';
+            allSuppliersSpend[supName] = (allSuppliersSpend[supName] || 0) + (item.unit_price * item.quantity);
+        });
+
+        let hhi = 0;
+        Object.values(allSuppliersSpend).forEach((spend) => {
+            const share = (spend / total) * 100;
+            hhi += share * share;
+        });
+
+        let riskLevel: 'Bajo' | 'Moderado' | 'Alto' = 'Bajo';
+        let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        let riskDesc = 'El gasto está diversificado de manera segura entre múltiples proveedores, reduciendo el riesgo de la cadena de suministro.';
+
+        if (hhi > 2500) {
+            riskLevel = 'Alto';
+            badgeColor = 'bg-red-50 text-red-700 border-red-200';
+            riskDesc = 'Existe una dependencia crítica de muy pocos proveedores clave (HHI elevado). Considere calificar nuevos proveedores para mitigar riesgos operativos.';
+        } else if (hhi >= 1500) {
+            riskLevel = 'Moderado';
+            badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+            riskDesc = 'La concentración es moderada. Es recomendable tener opciones de respaldo contratadas para mitigar posibles demoras o aumentos inesperados.';
+        }
+
+        return {
+            top3Percent,
+            hhi,
+            riskLevel,
+            badgeColor,
+            riskDesc
+        };
+    }, [topSuppliersData, kpis.totalSpend, filteredData]);
 
     // Tab Search: Filtering and Frequency
     const searchResults = useMemo(() => {
@@ -677,28 +845,6 @@ const ReportsAnalytics = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                    {/* Currency Toggle */}
-                    <div className="flex items-center bg-gray-100/80 backdrop-blur-sm rounded-lg p-1 border border-gray-200 self-start sm:self-auto">
-                        <button
-                            onClick={() => setCurrency('USD')}
-                            className={cn(
-                                "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                currency === 'USD' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                            )}
-                        >
-                            USD
-                        </button>
-                        <button
-                            onClick={() => setCurrency('VES')}
-                            className={cn(
-                                "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                currency === 'VES' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                            )}
-                        >
-                            VES
-                        </button>
-                    </div>
-
                     {/* Supplier Select */}
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial">
                         <div className="w-full sm:w-[220px]">
@@ -952,45 +1098,105 @@ const ReportsAnalytics = () => {
 
                     {/* Tab 1: Cash Flow */}
                     <TabsContent value="cashflow" className="space-y-6 animate-in fade-in-50">
-                        <Card className="border-gray-200 shadow-sm bg-white">
-                            <CardHeader>
-                                <CardTitle className="text-lg font-semibold text-gray-800">Evolución del Gasto</CardTitle>
-                                <CardDescription>Análisis temporal de compras en {currency}.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="p-2 sm:p-6">
-                                <div className={cn("w-full mt-4", isMobile ? "h-[280px]" : "h-[350px]")}>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                            <XAxis
-                                                dataKey="name"
-                                                stroke="#9ca3af"
-                                                fontSize={12}
-                                                tickLine={false}
-                                                axisLine={false}
-                                            />
-                                            <YAxis
-                                                stroke="#9ca3af"
-                                                fontSize={12}
-                                                tickLine={false}
-                                                axisLine={false}
-                                                tickFormatter={(value) => `${currency === 'USD' ? '$' : ''}${value.toLocaleString('en-US', { notation: 'compact' })}`}
-                                            />
-                                            <Tooltip
-                                                content={<CustomTooltip currency={currency} />}
-                                                cursor={{ fill: '#f3f4f6' }}
-                                            />
-                                            <Bar
-                                                dataKey="value"
-                                                fill="#D32F2F"
-                                                radius={[4, 4, 0, 0]}
-                                                barSize={40}
-                                            />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Bar Chart Card */}
+                            <Card className="border-gray-200 shadow-sm bg-white lg:col-span-2">
+                                <CardHeader>
+                                    <CardTitle className="text-lg font-semibold text-gray-800">Evolución del Gasto</CardTitle>
+                                    <CardDescription>Análisis temporal de compras en {currency}.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-2 sm:p-6">
+                                    <div className={cn("w-full mt-4", isMobile ? "h-[280px]" : "h-[350px]")}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                                                <XAxis
+                                                    dataKey="name"
+                                                    stroke="#9ca3af"
+                                                    fontSize={12}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                />
+                                                <YAxis
+                                                    stroke="#9ca3af"
+                                                    fontSize={12}
+                                                    tickLine={false}
+                                                    axisLine={false}
+                                                    tickFormatter={(value) => `${currency === 'USD' ? '$' : ''}${value.toLocaleString('en-US', { notation: 'compact' })}`}
+                                                />
+                                                <Tooltip
+                                                    content={<CustomTooltip currency={currency} />}
+                                                    cursor={{ fill: '#f3f4f6' }}
+                                                />
+                                                <Bar
+                                                    dataKey="value"
+                                                    fill="#880a0a"
+                                                    radius={[4, 4, 0, 0]}
+                                                    barSize={40}
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Donut Chart Card */}
+                            <Card className="border-gray-200 shadow-sm bg-white lg:col-span-1 flex flex-col justify-between">
+                                <CardHeader>
+                                    <CardTitle className="text-lg font-semibold text-gray-800">Distribución por Categoría</CardTitle>
+                                    <CardDescription>Distribución del gasto total en {currency}.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-2 sm:p-6 flex-1 flex flex-col justify-center">
+                                    {categorySpendData.length === 0 ? (
+                                        <div className="h-[280px] sm:h-[350px] flex items-center justify-center text-gray-400 text-sm italic">
+                                            No hay datos disponibles
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="h-[200px] w-full flex items-center justify-center">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={categorySpendData}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={60}
+                                                            outerRadius={80}
+                                                            paddingAngle={3}
+                                                            dataKey="value"
+                                                        >
+                                                            {categorySpendData.map((entry, index) => {
+                                                                const colors = ['#1B294A', '#880a0a', '#0e5708', '#d97706', '#7c3aed', '#0d9488'];
+                                                                return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                                                            })}
+                                                        </Pie>
+                                                        <Tooltip content={<CustomTooltip currency={currency} />} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <div className="mt-4 space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                                                {categorySpendData.map((item, index) => {
+                                                    const colors = ['#1B294A', '#880a0a', '#0e5708', '#d97706', '#7c3aed', '#0d9488'];
+                                                    const totalSpend = kpis.totalSpend || 1;
+                                                    const percent = ((item.value / totalSpend) * 100).toFixed(1);
+                                                    return (
+                                                        <div key={item.name} className="flex items-center justify-between text-xs">
+                                                            <div className="flex items-center gap-2 truncate max-w-[60%]">
+                                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colors[index % colors.length] }} />
+                                                                <span className="font-medium text-gray-700 truncate capitalize">{item.name.toLowerCase()}</span>
+                                                            </div>
+                                                            <div className="font-mono text-gray-500 flex-shrink-0 text-right">
+                                                                {percent}% <span className="text-[10px] text-gray-400 font-sans">({currency === 'USD' ? '$' : 'Bs'}{item.value.toLocaleString('en-US', { maximumFractionDigits: 0 })})</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
 
                         <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
                             <CardHeader className="border-b border-gray-100 bg-gray-50/50 py-4">
@@ -1092,11 +1298,83 @@ const ReportsAnalytics = () => {
                             selectedSupplierId={selectedSupplierId}
                             selectedMaterialIds={selectedMaterialsForTrend}
                             setSelectedMaterialIds={setSelectedMaterialsForTrend}
+                            filteredData={filteredData}
                         />
                     </TabsContent>
 
                     {/* Tab 3: Top Suppliers */}
                     <TabsContent value="top-suppliers" className="space-y-6 animate-in fade-in-50">
+                        {/* Supplier Risk Analysis Card */}
+                        <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
+                            <CardHeader className="pb-4">
+                                <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                                    <Filter className="h-5 w-5 text-procarni-primary" />
+                                    Análisis de Riesgo y Concentración
+                                </CardTitle>
+                                <CardDescription>
+                                    Evaluación de la dependencia de proveedores clave en el periodo seleccionado.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6 pt-0">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Top 3 Concentration */}
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Concentración Top 3</span>
+                                            <div className="text-2xl font-black text-procarni-dark mt-1">
+                                                {concentrationMetrics.top3Percent.toFixed(1)}%
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 mt-1">
+                                                Del presupuesto total facturado a los 3 proveedores principales.
+                                            </p>
+                                        </div>
+                                        <div className="mt-4">
+                                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={cn(
+                                                        "h-full rounded-full transition-all duration-500",
+                                                        concentrationMetrics.top3Percent > 70 ? "bg-red-600" :
+                                                        concentrationMetrics.top3Percent >= 40 ? "bg-amber-500" : "bg-emerald-600"
+                                                    )}
+                                                    style={{ width: `${Math.min(concentrationMetrics.top3Percent, 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* HHI Index */}
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Índice HHI (Concentración)</span>
+                                            <div className="text-2xl font-black text-procarni-dark mt-1 flex items-baseline gap-2">
+                                                {concentrationMetrics.hhi.toFixed(0)}
+                                                <Badge variant="outline" className={cn("text-[10px] font-bold py-0.5 px-2", concentrationMetrics.badgeColor)}>
+                                                    Riesgo {concentrationMetrics.riskLevel}
+                                                </Badge>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 mt-1">
+                                                Medida económica oficial del riesgo de dependencia (0 - 10,000).
+                                            </p>
+                                        </div>
+                                        <div className="mt-3 text-[11px] text-gray-400 italic">
+                                            {concentrationMetrics.hhi > 2500 ? 'Alta concentración (>2,500)' :
+                                             concentrationMetrics.hhi >= 1500 ? 'Concentración moderada (1,500 - 2,500)' : 'Mercado diversificado (<1,500)'}
+                                        </div>
+                                    </div>
+
+                                    {/* Recommendation / Feedback */}
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col justify-center col-span-1">
+                                        <div className="space-y-2">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Recomendación Estratégica</span>
+                                            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                                {concentrationMetrics.riskDesc}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         <Card className="border-gray-200 shadow-sm bg-white">
                             <CardHeader>
                                 <CardTitle className="text-lg font-semibold text-gray-800">Top Proveedores</CardTitle>
@@ -1273,6 +1551,28 @@ const ReportsAnalytics = () => {
                         </Card>
                     </TabsContent>
                 </Tabs>
+            </div>
+
+            {/* Fixed Floating Currency Toggle Bubble */}
+            <div className="fixed bottom-20 right-6 z-50 bg-white/80 backdrop-blur-md shadow-lg border border-gray-200/80 rounded-full p-1 flex items-center gap-0.5 hover:shadow-xl hover:scale-[1.02] transition-all">
+                <button
+                    onClick={() => setCurrency('USD')}
+                    className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full transition-all",
+                        currency === 'USD' ? "bg-procarni-primary text-white shadow-md" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+                    )}
+                >
+                    USD
+                </button>
+                <button
+                    onClick={() => setCurrency('VES')}
+                    className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full transition-all",
+                        currency === 'VES' ? "bg-procarni-primary text-white shadow-md" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+                    )}
+                >
+                    VES
+                </button>
             </div>
         </div>
     );
