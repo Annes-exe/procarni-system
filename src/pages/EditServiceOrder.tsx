@@ -10,7 +10,8 @@ import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast
 import {
     getServiceOrderDetails,
     updateServiceOrder,
-    searchSuppliers
+    searchSuppliers,
+    searchMaterialsBySupplier
 } from '@/integrations/supabase/data';
 import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
 import {
@@ -414,6 +415,25 @@ const EditServiceOrder = () => {
         if (invalidItem) {
             showError('Revise los ítems de servicio. Deben ser válidos.');
             return;
+        }
+
+        // Validate that all spare parts are associated with their group's supplier
+        for (const group of sparePartsGroups) {
+            let associatedMaterialIds: Set<string>;
+            try {
+                const associatedMaterials = await searchMaterialsBySupplier(group.supplierId, '');
+                associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
+            } catch (e) {
+                console.error("Error validating supplier materials in SO edit:", e);
+                showError("Error al validar los materiales del proveedor.");
+                return;
+            }
+
+            const unassociatedItem = group.items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
+            if (unassociatedItem) {
+                showError(`El proveedor ${group.supplierName} no distribuye el repuesto: ${unassociatedItem.material_name}`);
+                return;
+            }
         }
 
         setIsReminderDialogOpen(true);

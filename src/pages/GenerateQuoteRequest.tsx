@@ -509,14 +509,6 @@ const GenerateQuoteRequest = () => {
                 <Button onClick={handleAddItem} variant="secondary" size="sm" className="h-8 bg-white/10 hover:bg-white/20 border-none text-white text-[10px]">
                   <PlusCircle className="mr-2 h-3.5 w-3.5" /> Añadir Ítem
                 </Button>
-                <Button
-                  onClick={() => setIsAddMaterialDialogOpen(true)}
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 bg-white/10 hover:bg-white/20 border-none text-white text-[10px]"
-                >
-                  <PlusCircle className="mr-2 h-3.5 w-3.5" /> Crear Producto
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -526,6 +518,7 @@ const GenerateQuoteRequest = () => {
                 onRemoveItem={handleRemoveItem}
                 onItemChange={handleItemChange}
                 onMaterialSelect={handleMaterialSelect}
+                supplierIds={selectedSuppliers.map(s => s.id)}
               />
               {items.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400 bg-gray-50/30">
@@ -821,11 +814,6 @@ const GenerateQuoteRequest = () => {
         </div>
       )}
 
-      <MaterialCreationDialog
-        isOpen={isAddMaterialDialogOpen}
-        onClose={() => setIsAddMaterialDialogOpen(false)}
-        onMaterialCreated={handleMaterialAdded}
-      />
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}
