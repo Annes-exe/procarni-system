@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link, Loader2 } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterialsBySupplier, getAllUnits, createSupplierMaterialRelation } from '@/integrations/supabase/data';
+import { searchMaterialsBySupplier, getAllUnits, createSupplierMaterialRelation, searchMaterials } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -111,8 +111,34 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   });
 
   const searchSupplierMaterials = React.useCallback(async (query: string) => {
-    if (!supplierId) return [];
-    return searchMaterialsBySupplier(supplierId, query);
+    if (!supplierId) {
+      const all = await searchMaterials(query);
+      return all.map(m => ({ ...m, group: 'Otros Materiales' }));
+    }
+
+    const associated = await searchMaterialsBySupplier(supplierId, query);
+    const associatedIds = new Set(associated.map(m => m.id));
+
+    const all = await searchMaterials(query);
+
+    const results: any[] = [];
+    associated.forEach(m => {
+      results.push({
+        ...m,
+        group: 'Sugeridos'
+      });
+    });
+
+    all.forEach(m => {
+      if (!associatedIds.has(m.id)) {
+        results.push({
+          ...m,
+          group: 'Otros Materiales'
+        });
+      }
+    });
+
+    return results;
   }, [supplierId]);
 
   const handleMaterialAdded = (material: any) => {
@@ -181,6 +207,29 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   setIsAddMaterialDialogOpen(true);
                 }}
               />
+              {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+                <div className="mt-2 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded border border-amber-100">
+                    <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                    <span className="text-[10px] text-amber-700 font-medium">No asociado a este proveedor.</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-[11px] text-amber-600 border-amber-200 hover:bg-amber-50 gap-1 font-bold"
+                    onClick={() => handleAssociateMaterial(item.material_id!, item.unit_id!, item.material_name)}
+                    disabled={isAssociating === item.material_id}
+                  >
+                    {isAssociating === item.material_id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Link className="h-3 w-3" />
+                    )}
+                    Vincular Material a Proveedor
+                  </Button>
+                </div>
+              )}
 
             </div>
           </div>

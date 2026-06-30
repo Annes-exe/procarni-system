@@ -242,13 +242,13 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[850px] max-h-[90vh] overflow-y-auto p-6 rounded-[2rem] bg-white border border-slate-200/80 shadow-2xl shadow-slate-200/50">
-        <DialogHeader className="pb-4 border-b border-gray-100">
-          <DialogTitle className="text-2xl font-extrabold tracking-tight text-procarni-blue flex items-center gap-3">
+      <DialogContent className="w-[95vw] max-w-[850px] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-white border border-slate-200/80 shadow-2xl shadow-slate-200/50">
+        <DialogHeader className="pb-3 border-b border-gray-100">
+          <DialogTitle className="text-xl sm:text-2xl font-extrabold tracking-tight text-procarni-blue flex items-center gap-3">
             {actionType === 'merge' ? <Combine className="h-6 w-6 text-procarni-primary" /> : <Network className="h-6 w-6 text-procarni-blue" />}
             Resolución de Materiales
           </DialogTitle>
-          <DialogDescription className="text-slate-500 font-medium italic">
+          <DialogDescription className="text-slate-500 font-medium italic hidden sm:block">
             Une o estructura variaciones y duplicados bajo un único material "Patrón de Oro".
           </DialogDescription>
         </DialogHeader>
@@ -259,15 +259,23 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
             <p className="text-sm text-gray-500 font-medium">Cargando catálogo de referencia...</p>
           </div>
         ) : (
-          <div className="py-4 space-y-6">
+          <div className="py-2 sm:py-4 space-y-4 sm:space-y-6">
             
             {/* STEP WIZARD INDICATOR */}
-            <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-widest px-1">
+            {/* Desktop timeline */}
+            <div className="hidden sm:flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-widest px-1">
               <span className={step === 1 ? "text-procarni-primary" : ""}>1. Patrón de Oro</span>
               <ArrowRight className="h-3 w-3 shrink-0" />
               <span className={step === 2 ? "text-procarni-primary" : ""}>2. Tipo de Resolución</span>
               <ArrowRight className="h-3 w-3 shrink-0" />
               <span className={step === 3 ? "text-procarni-primary" : ""}>3. Coincidencias y Aplicar</span>
+            </div>
+            {/* Mobile timeline */}
+            <div className="sm:hidden flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
+              <span>Paso {step} de 3</span>
+              <div className="flex gap-1 h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full bg-procarni-primary transition-all duration-300 ${step === 1 ? 'w-1/3' : step === 2 ? 'w-2/3' : 'w-full'}`} />
+              </div>
             </div>
 
             {/* Target Item / Destination Identification */}
@@ -368,9 +376,14 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
                             <Box className={`h-4 w-4 shrink-0 mt-0.5 ${isTarget ? 'text-amber-500' : 'text-gray-400'}`} />
                             <span className="font-medium text-gray-700 break-words whitespace-normal flex-1 mr-2">{mat.name}</span>
                             {isTarget ? (
-                              <Badge className="bg-amber-500 text-white text-[10px] border-none shrink-0 mt-0.5">★ Patrón de Oro</Badge>
+                              <Badge className="bg-amber-500 text-white text-[10px] border-none shrink-0 mt-0.5">
+                                <span className="hidden sm:inline">★ Patrón de </span>
+                                <span className="sm:hidden">★ </span>Oro
+                              </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-gray-400 border-gray-200 text-[10px] shrink-0 mt-0.5">Definir como Patrón</Badge>
+                              <Badge variant="outline" className="text-gray-400 border-gray-200 text-[10px] shrink-0 mt-0.5">
+                                <span className="hidden sm:inline">Definir como </span>Patrón
+                              </Badge>
                             )}
                           </div>
                         );
@@ -393,18 +406,18 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setActionType('merge')}
-                    className={`text-left p-5 rounded-[2rem] border transition-all duration-300 hover:shadow-lg flex flex-col justify-between h-48 relative overflow-hidden group ${actionType === 'merge' ? 'border-procarni-primary ring-2 ring-procarni-primary/20 bg-white' : 'border-gray-100 bg-white/50 hover:bg-white'}`}
+                    className={`text-left p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border transition-all duration-300 hover:shadow-lg flex flex-col justify-between min-h-[120px] sm:h-44 relative overflow-hidden group ${actionType === 'merge' ? 'border-procarni-primary ring-2 ring-procarni-primary/20 bg-white' : 'border-gray-100 bg-white/50 hover:bg-white'}`}
                   >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-procarni-primary/5 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
-                    <Combine className={`h-8 w-8 ${actionType === 'merge' ? 'text-procarni-primary' : 'text-gray-400'}`} />
-                    <div className="mt-4">
-                      <span className="font-bold text-gray-900 block text-base">Fusión Definitiva</span>
-                      <span className="text-xs text-gray-500 block leading-relaxed mt-1">
+                    <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-procarni-primary/5 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                    <Combine className={`h-6 w-6 sm:h-8 sm:w-8 ${actionType === 'merge' ? 'text-procarni-primary' : 'text-gray-400'}`} />
+                    <div className="mt-2 sm:mt-4">
+                      <span className="font-bold text-gray-900 block text-sm sm:text-base">Fusión Definitiva</span>
+                      <span className="text-[10px] sm:text-xs text-gray-500 block leading-relaxed mt-0.5 sm:mt-1">
                         Archiva los duplicados (soft-delete) y mueve todo su historial y cotizaciones de forma definitiva al maestro.
                       </span>
                     </div>
                     {actionType === 'merge' && (
-                      <span className="absolute top-4 right-4 h-5 w-5 bg-procarni-primary rounded-full flex items-center justify-center text-white">
+                      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 h-5 w-5 bg-procarni-primary rounded-full flex items-center justify-center text-white">
                         <Check className="h-3 w-3" />
                       </span>
                     )}
@@ -414,18 +427,18 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setActionType('group')}
-                    className={`text-left p-5 rounded-[2rem] border transition-all duration-300 hover:shadow-lg flex flex-col justify-between h-48 relative overflow-hidden group ${actionType === 'group' ? 'border-procarni-blue ring-2 ring-procarni-blue/20 bg-white' : 'border-gray-100 bg-white/50 hover:bg-white'}`}
+                    className={`text-left p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border transition-all duration-300 hover:shadow-lg flex flex-col justify-between min-h-[120px] sm:h-44 relative overflow-hidden group ${actionType === 'group' ? 'border-procarni-blue ring-2 ring-procarni-blue/20 bg-white' : 'border-gray-100 bg-white/50 hover:bg-white'}`}
                   >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-procarni-blue/5 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
-                    <Network className={`h-8 w-8 ${actionType === 'group' ? 'text-procarni-blue' : 'text-gray-400'}`} />
-                    <div className="mt-4">
-                      <span className="font-bold text-gray-900 block text-base">Agrupación Jerárquica</span>
-                      <span className="text-xs text-gray-500 block leading-relaxed mt-1">
+                    <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-procarni-blue/5 rounded-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                    <Network className={`h-6 w-6 sm:h-8 sm:w-8 ${actionType === 'group' ? 'text-procarni-blue' : 'text-gray-400'}`} />
+                    <div className="mt-2 sm:mt-4">
+                      <span className="font-bold text-gray-900 block text-sm sm:text-base">Agrupación Jerárquica</span>
+                      <span className="text-[10px] sm:text-xs text-gray-500 block leading-relaxed mt-0.5 sm:mt-1">
                         Mantiene los materiales activos e independientes en el catálogo, pero los vincula bajo el maestro como variantes.
                       </span>
                     </div>
                     {actionType === 'group' && (
-                      <span className="absolute top-4 right-4 h-5 w-5 bg-procarni-blue rounded-full flex items-center justify-center text-white">
+                      <span className="absolute top-3 right-3 sm:top-4 sm:right-4 h-5 w-5 bg-procarni-blue rounded-full flex items-center justify-center text-white">
                         <Check className="h-3 w-3" />
                       </span>
                     )}
@@ -548,14 +561,14 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
           </div>
         )}
 
-        <DialogFooter className="border-t border-gray-100 pt-4 flex gap-2">
+        <DialogFooter className="flex flex-row justify-end items-center gap-2 pt-3 border-t border-gray-100 sm:space-x-0">
           {step > 1 && (
             <Button
               type="button"
               variant="outline"
               onClick={() => setStep(prev => prev - 1)}
               disabled={resolutionMutation.isPending}
-              className="rounded-xl border-gray-200 hover:bg-gray-50"
+              className="rounded-xl border-gray-200 hover:bg-gray-50 h-9 text-xs sm:text-sm px-3"
             >
               Atrás
             </Button>
@@ -566,7 +579,7 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
               variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={resolutionMutation.isPending}
-              className="rounded-xl"
+              className="rounded-xl h-9 text-xs sm:text-sm px-3"
             >
               Cancelar
             </Button>
@@ -575,7 +588,7 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
                 type="button"
                 onClick={() => setStep(prev => prev + 1)}
                 disabled={step === 1 && !targetId}
-                className={`rounded-xl shadow-md ${actionType === 'merge' ? 'bg-procarni-primary hover:bg-procarni-primary/90 text-white' : 'bg-procarni-blue hover:bg-procarni-blue/90 text-white'}`}
+                className={`rounded-xl shadow-md h-9 text-xs sm:text-sm px-3 ${actionType === 'merge' ? 'bg-procarni-primary hover:bg-procarni-primary/90 text-white' : 'bg-procarni-blue hover:bg-procarni-blue/90 text-white'}`}
               >
                 Siguiente
               </Button>
@@ -584,14 +597,14 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
                 type="button"
                 onClick={handleApplyResolution}
                 disabled={!isFormValid || resolutionMutation.isPending}
-                className={`rounded-xl shadow-md ${actionType === 'merge' ? 'bg-procarni-primary hover:bg-procarni-primary/90 text-white' : 'bg-procarni-blue hover:bg-procarni-blue/90 text-white'}`}
+                className={`rounded-xl shadow-md h-9 text-xs sm:text-sm px-3 ${actionType === 'merge' ? 'bg-procarni-primary hover:bg-procarni-primary/90 text-white' : 'bg-procarni-blue hover:bg-procarni-blue/90 text-white'}`}
               >
                 {resolutionMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Procesando...
                   </>
                 ) : (
-                  'Aplicar Resolución'
+                  'Aplicar'
                 )}
               </Button>
             )}

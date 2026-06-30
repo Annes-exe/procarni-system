@@ -161,28 +161,77 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
                 </div>
               )}
             </CommandEmpty>
-            <CommandGroup>
-              {results.map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.id} // Use ID as value for uniqueness
-                  onSelect={() => handleSelect(item)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selectedId === item.id || selectedItem?.id === item.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  <div className="flex flex-col">
-                    <span className="font-medium">{item.name}</span>
-                    {item.code && (
-                      <span className="text-[10px] text-muted-foreground uppercase">{item.code}</span>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {(() => {
+              const hasGroups = results.some(r => r.group);
+              if (hasGroups) {
+                const grouped: { [key: string]: typeof results } = {};
+                results.forEach(item => {
+                  const g = item.group || 'Otros';
+                  if (!grouped[g]) grouped[g] = [];
+                  grouped[g].push(item);
+                });
+
+                const groupOrder = ['Sugeridos', 'Sugeridos (Proveedores)', 'Otros Proveedores', 'Otros Materiales', 'Otros'];
+                const sortedGroupNames = Object.keys(grouped).sort((a, b) => {
+                  const idxA = groupOrder.indexOf(a);
+                  const idxB = groupOrder.indexOf(b);
+                  if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                  if (idxA !== -1) return -1;
+                  if (idxB !== -1) return 1;
+                  return a.localeCompare(b);
+                });
+
+                return sortedGroupNames.map(groupName => (
+                  <CommandGroup key={groupName} heading={groupName}>
+                    {grouped[groupName].map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={item.id}
+                        onSelect={() => handleSelect(item)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedId === item.id || selectedItem?.id === item.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.name}</span>
+                          {item.code && (
+                            <span className="text-[10px] text-muted-foreground uppercase">{item.code}</span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ));
+              }
+
+              return (
+                <CommandGroup>
+                  {results.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={item.id}
+                      onSelect={() => handleSelect(item)}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedId === item.id || selectedItem?.id === item.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{item.name}</span>
+                        {item.code && (
+                          <span className="text-[10px] text-muted-foreground uppercase">{item.code}</span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              );
+            })()}
             {onCreateItem && query.trim() && results.length > 0 && !exactMatch && (
               <div className="p-2 border-t">
                 <Button

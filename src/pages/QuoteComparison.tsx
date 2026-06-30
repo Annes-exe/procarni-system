@@ -71,6 +71,7 @@ const QuoteComparison = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
+  const [materialNameToCreate, setMaterialNameToCreate] = useState('');
   const [isDirty, setIsDirty] = useState(false);
 
   const { data: units = [] } = useQuery({
@@ -546,14 +547,6 @@ const QuoteComparison = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <Label htmlFor="material-search" className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Buscar Material</Label>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-6 px-2 text-xs text-procarni-secondary hover:text-procarni-secondary hover:bg-procarni-secondary/10"
-                      onClick={() => setIsMaterialDialogOpen(true)}
-                    >
-                      <PlusCircle className="mr-1 h-3 w-3" /> Nuevo
-                    </Button>
                   </div>
                   <div>
                     <SmartSearch
@@ -562,6 +555,10 @@ const QuoteComparison = () => {
                       fetchFunction={searchMaterials}
                       displayValue={newMaterialQuery}
                       selectedId={selectedMaterialToAdd?.id}
+                      onCreateItem={(query) => {
+                        setMaterialNameToCreate(query);
+                        setIsMaterialDialogOpen(true);
+                      }}
                     />
                   </div>
                 </div>
@@ -699,8 +696,12 @@ const QuoteComparison = () => {
 
       <MaterialCreationDialog
         isOpen={isMaterialDialogOpen}
-        onClose={() => setIsMaterialDialogOpen(false)}
+        onClose={() => {
+          setIsMaterialDialogOpen(false);
+          setMaterialNameToCreate('');
+        }}
         onMaterialCreated={handleMaterialCreated}
+        initialName={materialNameToCreate}
       />
     </div>
   );

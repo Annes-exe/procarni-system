@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
 import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories, getAllUnits, getMaterialChildren } from '@/integrations/supabase/data';
@@ -397,6 +398,25 @@ const MaterialManagement = () => {
     },
   });
 
+  const bulkMarkAsMasterMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('materials')
+        .update({ is_master: true, base_material_id: null })
+        .in('id', ids);
+      if (error) throw error;
+      return ids;
+    },
+    onSuccess: (ids) => {
+      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
+      setSelectedMaterialIds([]);
+      showSuccess(`Se han marcado ${ids.length} materiales como Patrón de Oro.`);
+    },
+    onError: () => {
+      showError('Ocurrió un error al marcar los materiales como Patrón de Oro.');
+    }
+  });
+
   // Inline save: updates a single field, applying tripa logic when saving the name
   const handleInlineSave = async (material: Material, field: keyof Material, newValue: string) => {
     const updates: Partial<Material> = { [field]: newValue } as any;
@@ -455,10 +475,19 @@ const MaterialManagement = () => {
   };
 
   const toggleAllSelections = () => {
-    if (selectedMaterialIds.length === filteredMaterials.length && filteredMaterials.length > 0) {
-      setSelectedMaterialIds([]);
+    const pageIds = filteredMaterials.map(m => m.id);
+    const allPageIdsSelected = pageIds.length > 0 && pageIds.every(id => selectedMaterialIds.includes(id));
+    
+    if (allPageIdsSelected) {
+      setSelectedMaterialIds(prev => prev.filter(id => !pageIds.includes(id)));
     } else {
-      setSelectedMaterialIds(filteredMaterials.map(m => m.id));
+      setSelectedMaterialIds(prev => {
+        const next = [...prev];
+        pageIds.forEach(id => {
+          if (!next.includes(id)) next.push(id);
+        });
+        return next;
+      });
     }
   };
 
@@ -529,36 +558,59 @@ const MaterialManagement = () => {
         </div>
       </div>
 
-      {/* ActionBar para Multi-selección */}
+      {/* ActionBar para Multi-selección (Burbuja Flotante) */}
       {selectedMaterialIds.length > 0 && (
-        <div className="mb-4 p-3 bg-procarni-primary/5 border border-procarni-primary/20 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-3">
-            <div className="bg-procarni-primary text-white w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shadow-sm">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95vw] max-w-[680px] p-3 md:p-4 bg-white/95 backdrop-blur-xl border border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2rem] flex items-center justify-between gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-5 duration-300 ring-1 ring-white">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <div className="bg-procarni-primary text-white w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-md shrink-0 animate-pulse">
               {selectedMaterialIds.length}
             </div>
-            <div>
-              <p className="text-sm font-bold text-procarni-dark">Materiales seleccionados</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Acciones masivas disponibles</p>
+            <div className="hidden sm:block min-w-0">
+              <p className="text-sm font-bold text-procarni-dark truncate">Materiales seleccionados</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold truncate">Navega libremente para agregar más</p>
             </div>
+            <span className="sm:hidden text-xs font-bold text-procarni-dark truncate">
+              sel.
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
+            {role === 'admin' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-8 md:h-9 border-amber-500/30 text-amber-600 hover:bg-amber-50 hover:text-amber-700 font-bold text-xs px-2.5 rounded-xl transition-all"
+                onClick={() => {
+                  bulkMarkAsMasterMutation.mutate(selectedMaterialIds);
+                }}
+                disabled={bulkMarkAsMasterMutation.isPending}
+                title="Hacer Patrón de Oro"
+              >
+                {bulkMarkAsMasterMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                )}
+                <span className="hidden sm:inline ml-1">Hacer Oro</span>
+              </Button>
+            )}
             <Button 
               variant="outline" 
               size="sm" 
-              className="h-9 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 font-bold"
+              className="h-8 md:h-9 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
               onClick={() => {
                 setResolutionAction('group');
                 setIsResolutionModalOpen(true);
               }}
+              title="Asignar Grupo"
             >
-              <Network className="h-4 w-4 mr-2" />
-              Asignar Grupo
+              <Network className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Grupo</span>
             </Button>
             <Button 
               variant="outline" 
               size="sm" 
               className={cn(
-                "h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-bold",
+                "h-8 md:h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-bold text-xs px-2.5 rounded-xl transition-all",
                 selectedMaterialIds.length < 2 && "opacity-50 grayscale pointer-events-none"
               )}
               onClick={() => {
@@ -566,19 +618,19 @@ const MaterialManagement = () => {
                 setIsResolutionModalOpen(true);
               }}
               disabled={selectedMaterialIds.length < 2}
+              title="Fusionar Materiales"
             >
-              <Combine className="h-4 w-4 mr-2" />
-              Fusionar
+              <Combine className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Fusionar</span>
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/5 font-medium px-2 lg:px-3"
+              className="h-8 md:h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/5 font-medium px-2 rounded-xl transition-all"
               onClick={() => setSelectedMaterialIds([])}
               title="Cancelar Selección"
             >
-              <X className="h-4 w-4 lg:mr-2" />
-              <span className="hidden lg:inline">Cancelar Selección</span>
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -804,7 +856,7 @@ const MaterialManagement = () => {
                     <TableRow>
                       <TableHead className="w-12 pl-4 py-3">
                         <Checkbox 
-                          checked={filteredMaterials.length > 0 && selectedMaterialIds.length === filteredMaterials.length}
+                          checked={filteredMaterials.length > 0 && filteredMaterials.every(m => selectedMaterialIds.includes(m.id))}
                           onCheckedChange={toggleAllSelections}
                         />
                       </TableHead>
