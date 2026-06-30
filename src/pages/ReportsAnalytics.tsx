@@ -573,6 +573,15 @@ const ReportsAnalytics = () => {
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
     }, [purchaseData, currency]);
 
+    // Unified data without currency filtering for Detailed History (Buscador)
+    const unifiedFilteredData = useMemo(() => {
+        return purchaseData
+            .filter((item: any) =>
+                ['Approved', 'Archived'].includes(item.purchase_orders.status)
+            )
+            .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
+    }, [purchaseData]);
+
     const kpis = useMemo(() => {
         const totalSpend = filteredData.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
 
@@ -634,7 +643,7 @@ const ReportsAnalytics = () => {
 
     // Tab Search: Filtering and Frequency
     const searchResults = useMemo(() => {
-        let results = filteredData;
+        let results = unifiedFilteredData;
         if (searchQuery.trim()) {
             const query = normalizeString(searchQuery);
             results = results.filter((item: any) => {
@@ -645,16 +654,16 @@ const ReportsAnalytics = () => {
             });
         }
         return results;
-    }, [filteredData, searchQuery]);
+    }, [unifiedFilteredData, searchQuery]);
 
     const materialFrequencies = useMemo(() => {
         const freqs: Record<string, number> = {};
-        filteredData.forEach((item: any) => {
+        unifiedFilteredData.forEach((item: any) => {
             const name = item.materials?.name || 'Desconocido';
             freqs[name] = (freqs[name] || 0) + 1;
         });
         return freqs;
-    }, [filteredData]);
+    }, [unifiedFilteredData]);
 
     return (
         <div className="container mx-auto p-4 pb-20">
@@ -858,7 +867,7 @@ const ReportsAnalytics = () => {
                                                     <div className="text-right space-y-1">
                                                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Total</p>
                                                         <p className="font-mono font-bold text-procarni-dark text-xs">
-                                                            {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                            {item.purchase_orders.currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -913,10 +922,10 @@ const ReportsAnalytics = () => {
                                                         {item.quantity} <span className="text-xs text-gray-400">{item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und'}</span>
                                                     </TableCell>
                                                     <TableCell className="py-3 text-right font-mono text-sm">
-                                                        {currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        {item.purchase_orders.currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
                                                     <TableCell className="py-3 text-right font-mono font-medium text-sm text-procarni-dark">
-                                                        {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        {item.purchase_orders.currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
                                                     <TableCell className="pr-4 py-3 text-center">
                                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-procarni-primary hover:bg-procarni-primary/10" onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)} title={`Ver ${item.purchase_orders.sequence_number || 'Orden'}`}>
