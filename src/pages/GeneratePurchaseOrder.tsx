@@ -75,6 +75,7 @@ const GeneratePurchaseOrder = () => {
   const quoteRequest = location.state?.quoteRequest;
   const supplierData = location.state?.supplier;
   const materialData = location.state?.material;
+  const suggestedItems = location.state?.suggestedItems;
 
   React.useEffect(() => {
     const loadQuoteRequestItems = async () => {
@@ -218,6 +219,37 @@ const GeneratePurchaseOrder = () => {
           showError("Error al duplicar la orden de compra.");
         }
       }
+      // 4. Handle Suggested Purchase Order Items from Supplier Profile
+      else if (location.state?.suggestedItems && location.state?.suggestedItems.length > 0) {
+        if (supplierData) {
+          setSupplierId(supplierData.id);
+          setSupplierName(supplierData.name);
+        }
+
+        setCompanyId("b090f2e9-b6b9-41c2-a542-4a696ecd7c73");
+        setCompanyName("PRODUCTOS ALIMENTICIOS MONTANO ANTILIA, C.A");
+        setObservations("Generada a partir de sugeridos de compra frecuente.");
+
+        clearCart();
+
+        location.state.suggestedItems.forEach((item: any) => {
+          addItem({
+            material_id: item.material_id,
+            material_name: item.material_name,
+            supplier_code: item.supplier_code || '',
+            quantity: 1, // default quantity
+            unit_price: item.unit_price || 0,
+            tax_rate: item.tax_rate ?? 0.16,
+            is_exempt: !!item.is_exempt,
+            unit: item.unit || (units[0]?.name || 'UND'),
+            unit_id: item.unit_id || undefined,
+            description: item.description || '',
+            sales_percentage: 0,
+            discount_percentage: 0,
+          });
+        });
+        showSuccess('Ítems sugeridos frecuentes precargados.');
+      }
     };
 
     loadQuoteRequestItems();
@@ -226,18 +258,18 @@ const GeneratePurchaseOrder = () => {
   // Default Company Effect
   React.useEffect(() => {
     // Si no hay empresa seleccionada y no venimos de una solicitud de cotización o servicio
-    if (!companyId && !quoteRequest && !location.state?.serviceOrder) {
+    if (!companyId && !quoteRequest && !location.state?.serviceOrder && !location.state?.suggestedItems) {
       setCompanyId("b090f2e9-b6b9-41c2-a542-4a696ecd7c73");
       setCompanyName("PRODUCTOS ALIMENTICIOS MONTANO ANTILIA, C.A");
     }
-  }, []);
+  }, [location.state?.suggestedItems]);
 
   // Ensure at least one item on mount if cart is empty
   React.useEffect(() => {
-    if (items.length === 0 && !quoteRequest && !location.state?.serviceOrder && !location.state?.material && !duplicateFrom) {
+    if (items.length === 0 && !quoteRequest && !location.state?.serviceOrder && !location.state?.material && !duplicateFrom && !location.state?.suggestedItems) {
       handleAddItem();
     }
-  }, [duplicateFrom]);
+  }, [duplicateFrom, location.state?.suggestedItems]);
 
   React.useEffect(() => {
     if (supplierData) {
