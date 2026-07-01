@@ -44,6 +44,10 @@ export type Material = {
   is_exempt: boolean | null;
   base_material_id?: string | null;
   search_aliases?: string[] | null;
+  is_master?: boolean;
+  status?: string;
+  color?: string | null;
+  brand?: string | null;
 };
 
 export type MaterialCategory = {
@@ -192,6 +196,7 @@ export type SupplierMaterial = {
   material_id: string;
   unit_id: string | null; // ADDED
   specification: string | null;
+  name_provided: string | null;
   created_at: string | null;
   updated_at: string | null;
   user_id: string | null;
@@ -367,4 +372,14 @@ export type IgnoredMaterialMatch = {
   source_id: string;
   user_id: string | null;
   created_at: string;
+};
+
+export type SoftMigrationSuggestion = {
+  master_id: string;
+  master_name: string;
+  dirty_id: string;
+  dirty_name: string;
+  dirty_category: string | null;
+  dirty_unit: string | null;
+  similarity_score: number;
 };

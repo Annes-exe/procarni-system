@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle } from 'lucide-react';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { detectLocation } from '@/utils/location-detector';
 import { isGenericRif, validateRif } from '@/utils/validators';
@@ -139,6 +139,123 @@ const SupplierDetails = () => {
       };
     });
   }, [supplier?.materials, fichaStatusMap]);
+
+  // Fetch supplier purchase history
+  const { data: purchaseHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['supplierPurchaseHistory', id],
+    queryFn: async () => {
+      if (!id) return [];
+      return getPurchaseHistoryReport({ supplierId: id, status: 'Approved' });
+    },
+    enabled: !!id,
+  });
+
+  // Calculate Top 10 most purchased materials from history
+  const suggestedMaterials = useMemo(() => {
+    if (!purchaseHistory || purchaseHistory.length === 0) return [];
+
+    const materialMap: Record<string, {
+      material_id: string | null;
+      material_name: string;
+      supplier_code: string | null;
+      unit: string | null;
+      unit_id: string | null;
+      is_exempt: boolean;
+      unit_price: number;
+      count: number;
+      dates: Date[];
+    }> = {};
+
+    purchaseHistory.forEach((item: any) => {
+      const key = item.material_id || item.material_name;
+      if (!key) return;
+
+      const orderDate = item.purchase_orders?.issue_date ? new Date(item.purchase_orders.issue_date) : new Date(0);
+
+      if (!materialMap[key]) {
+        materialMap[key] = {
+          material_id: item.material_id || null,
+          material_name: item.material_name,
+          supplier_code: item.supplier_code || null,
+          unit: item.unit || null,
+          unit_id: item.unit_id || null,
+          is_exempt: !!item.is_exempt,
+          unit_price: item.unit_price,
+          count: 0,
+          dates: [orderDate],
+        };
+      } else {
+        materialMap[key].dates.push(orderDate);
+        const currentDates = materialMap[key].dates;
+        const latestDateIndex = currentDates.findIndex(d => d.getTime() === Math.max(...currentDates.map(x => x.getTime())));
+        if (latestDateIndex === currentDates.length - 1) {
+          materialMap[key].unit_price = item.unit_price;
+        }
+      }
+      materialMap[key].count += 1;
+    });
+
+    return Object.values(materialMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [purchaseHistory]);
+
+  const [selectedSuggestIds, setSelectedSuggestIds] = useState<Set<string>>(new Set());
+
+  // Initialize selectedSuggestIds when suggestedMaterials is loaded/calculated
+  React.useEffect(() => {
+    if (suggestedMaterials.length > 0) {
+      const initialIds = new Set<string>();
+      suggestedMaterials.forEach(m => {
+        const key = m.material_id || m.material_name;
+        if (key) initialIds.add(key);
+      });
+      setSelectedSuggestIds(initialIds);
+    }
+  }, [suggestedMaterials]);
+
+  const toggleSuggestSelection = (key: string) => {
+    setSelectedSuggestIds(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const handleGenerateOCFromSuggestions = () => {
+    if (!supplier) return;
+
+    const selectedItems = suggestedMaterials
+      .filter(m => {
+        const key = m.material_id || m.material_name;
+        return key && selectedSuggestIds.has(key);
+      })
+      .map(m => ({
+        material_id: m.material_id,
+        material_name: m.material_name,
+        supplier_code: m.supplier_code,
+        unit_price: m.unit_price,
+        is_exempt: m.is_exempt,
+        unit: m.unit,
+        unit_id: m.unit_id,
+      }));
+
+    if (selectedItems.length === 0) {
+      showError('Por favor selecciona al menos un material sugerido.');
+      return;
+    }
+
+    navigate('/generate-po', {
+      state: {
+        supplier: supplier,
+        suggestedItems: selectedItems,
+      },
+    });
+  };
 
   const filteredMaterials = useMemo(() => {
     if (!materialsWithStatus) return [];
@@ -380,90 +497,24 @@ const SupplierDetails = () => {
   }
 
   const isEditable = true;
-
-  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1 block";
-  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-semibold text-gray-500";
+  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1 block";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-bold text-slate-600";
   const valueClass = "text-procarni-dark font-medium text-sm";
 
   return (
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
-      {/* PHASE 1: STICKY HEADER & ACTIONS */}
-      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-8 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
-
-        {/* Title & Status */}
-        <div className="flex flex-col gap-1 w-full md:w-auto">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-2xl font-bold text-procarni-dark tracking-tight">
-              <InlineEditableCell
-                value={supplier.name}
-                onSave={handleInlineSave('name')}
-                alwaysShowIcon={isMobile}
-                displayClassName="font-bold text-2xl text-procarni-dark tracking-tight whitespace-normal break-words"
-                placeholder="Nombre del proveedor"
-              />
-            </h1>
-            <Badge className={cn(
-              "ml-2 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-none border",
-              supplier.status === 'Activo' ? "bg-green-50 text-procarni-secondary border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"
-            )}>
-              {supplier.status}
-            </Badge>
-          </div>
-        </div>
-
-        {/* Action Toolbar */}
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          <div className="flex items-center gap-2 ml-auto">
-            {/* Primary Actions */}
-            <Button onClick={() => setIsEditOpen(true)} variant="outline" size="sm" className="gap-2">
-              <Edit className="h-4 w-4" />
-              <span className="hidden sm:inline">Editar</span>
-            </Button>
-
-            <Button onClick={handleGenerateSC} className="bg-procarni-secondary hover:bg-green-700 text-white gap-2 shadow-sm" size="sm">
-              <PlusCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Generar SC</span>
-            </Button>
-
-            {/* Secondary Actions: Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <MoreVertical className="h-4 w-4" />
-                  <span className="hidden sm:inline">Más</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Opciones</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem onSelect={handleGenerateOC} className="cursor-pointer text-blue-600 focus:text-blue-700">
-                  <ShoppingCart className="mr-2 h-4 w-4" /> Generar Orden (OC)
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem asChild>
-                  <SupplierPriceHistoryDownloadButton
-                    supplierId={supplier.id}
-                    supplierName={supplier.name}
-                    disabled={isLoading}
-                    asChild
-                  />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+      {/* Back navigation */}
+      <div className="mb-6 flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-procarni-dark hover:bg-gray-100/50 rounded-full gap-2 px-3 py-1">
+          <ArrowLeft className="h-4 w-4" />
+          <span>Volver</span>
+        </Button>
       </div>
 
       {/* PHASE 1.5: SUPPLIER ALERT */}
       {supplier.alert_comment && (
-        <Alert variant="destructive" className="mb-6 bg-red-50 border-red-200 text-red-900 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
+        <Alert variant="destructive" className="mb-6 bg-red-50 border-red-200 text-red-900 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm rounded-2xl">
           <TriangleAlert className="h-4 w-4 text-red-600" />
           <AlertTitle className="text-red-800 font-bold flex items-center gap-2">
             Aviso Importante para este Proveedor
@@ -474,210 +525,344 @@ const SupplierDetails = () => {
         </Alert>
       )}
 
-      {/* PHASE 2: GENERAL INFORMATION GRID */}
-      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1">
-          {/* Code */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Código</span>
-            <p className={valueClass}>{supplier.code || 'N/A'}</p>
-          </div>
-
-          {/* RIF */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>RIF</span>
-            <InlineEditableCell
-              value={isGenericRif(supplier.rif) ? '' : supplier.rif}
-              onSave={handleInlineSave('rif')}
-              alwaysShowIcon={isMobile}
-              displayClassName={cn(valueClass, isGenericRif(supplier.rif) && 'text-procarni-alert')}
-              placeholder="RIF"
-              renderDisplay={(v) => isGenericRif(supplier.rif) ? (
-                <span className="flex items-center gap-1 text-procarni-alert">
-                  <AlertTriangle className="h-3 w-3" /> Faltante
-                </span>
-              ) : <span>{String(v)}</span>}
-            />
-          </div>
-
-          {/* Email */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Email</span>
-            <InlineEditableCell
-              value={supplier.email || ''}
-              onSave={handleInlineSave('email')}
-              type="email"
-              alwaysShowIcon={isMobile}
-              displayClassName={cn(valueClass, 'max-w-full')}
-              placeholder="Sin email"
-            />
-          </div>
-
-          {/* Phone */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Teléfono</span>
-            <InlineEditableCell
-              value={supplier.phone || ''}
-              onSave={handleInlineSave('phone')}
-              alwaysShowIcon={isMobile}
-              displayClassName={valueClass}
-              placeholder="Sin teléfono"
-              renderDisplay={(v) => supplier.phone ? (
-                <a
-                  href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline flex items-center text-sm font-medium"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {supplier.phone} <Phone className="ml-1.5 h-3 w-3" />
-                </a>
-              ) : <span className={valueClass}>N/A</span>}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
-          {/* Contact Section */}
-          <div className="space-y-6">
-            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Contacto Adicional</h4>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className={microLabelClass}>Teléfono Secundario</span>
-                  <InlineEditableCell
-                    value={supplier.phone_2 || ''}
-                    onSave={handleInlineSave('phone_2')}
-                    alwaysShowIcon={isMobile}
-                    displayClassName="text-sm font-medium"
-                    placeholder="N/A"
-                    renderDisplay={(v) => v ? (
-                      <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(String(v))}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        {String(v)}
-                      </a>
-                    ) : <p className={valueClass}>N/A</p>}
-                  />
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Instagram className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className={microLabelClass}>Instagram</span>
-                  <InlineEditableCell
-                    value={supplier.instagram || ''}
-                    onSave={handleInlineSave('instagram')}
-                    alwaysShowIcon={isMobile}
-                    displayClassName="text-sm font-medium"
-                    placeholder="N/A"
-                    renderDisplay={(v) => v ? (
-                      <a href={`https://instagram.com/${String(v).replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        {String(v)}
-                      </a>
-                    ) : <p className={valueClass}>N/A</p>}
-                  />
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Globe className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className={microLabelClass}>Enlace (Sitio Web)</span>
-                  <InlineEditableCell
-                    value={supplier.website || ''}
-                    onSave={handleInlineSave('website')}
-                    alwaysShowIcon={isMobile}
-                    displayClassName="text-sm font-medium"
-                    placeholder="N/A"
-                    renderDisplay={(v) => v ? (
-                      <a href={String(v).startsWith('http') ? String(v) : `https://${String(v)}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-                        {String(v)}
-                      </a>
-                    ) : <p className={valueClass}>N/A</p>}
-                  />
-                </div>
-              </div>
+      {/* BENTO GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
+        
+        {/* Bento Box 1: Identidad y Acciones (col-span-2) */}
+        <div className="lg:col-span-2 bg-gradient-to-br from-white/70 to-blue-50/20 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 flex flex-col justify-between hover:scale-[1.002] transition-transform duration-300">
+          <div>
+            <div className="flex items-center gap-2.5 mb-4 flex-wrap">
+              <Badge className={cn(
+                "px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-none border",
+                supplier.status === 'Activo' ? "bg-green-50 text-procarni-secondary border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"
+              )}>
+                {supplier.status}
+              </Badge>
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider bg-gray-100/70 px-2 py-0.5 rounded">
+                Código: {supplier.code || 'N/A'}
+              </span>
             </div>
-          </div>
 
-          {/* Terms Section */}
-          <div className="space-y-6">
-            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Condiciones</h4>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <CreditCard className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className={microLabelClass}>Términos de Pago</span>
-                  <InlineEditableCell
-                    value={supplier.payment_terms}
-                    onSave={handleInlineSave('payment_terms')}
-                    type="select"
-                    options={[
-                      { value: 'Contado', label: 'Contado' },
-                      { value: 'Crédito', label: 'Crédito' },
-                      { value: 'Otro', label: 'Otro' }
-                    ]}
-                    alwaysShowIcon={isMobile}
-                    displayClassName="text-sm font-medium text-procarni-dark"
-                    renderDisplay={(v) => (
-                      <p className={valueClass}>
-                        {v === 'Otro' && supplier.custom_payment_terms
-                          ? supplier.custom_payment_terms
-                          : String(v)}
-                      </p>
-                    )}
-                  />
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Calendar className="h-4 w-4 text-gray-400 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <span className={microLabelClass}>Días de Crédito</span>
-                  <InlineEditableCell
-                    value={supplier.credit_days}
-                    onSave={handleInlineSave('credit_days')}
-                    type="number"
-                    alwaysShowIcon={isMobile}
-                    displayClassName="text-sm font-medium text-procarni-dark"
-                    renderDisplay={(v) => <p className={valueClass}>{v} días</p>}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+            <h1 className="text-3xl font-extrabold text-procarni-blue tracking-tight mb-6">
+              <InlineEditableCell
+                value={supplier.name}
+                onSave={handleInlineSave('name')}
+                alwaysShowIcon={isMobile}
+                displayClassName="font-extrabold text-3xl text-procarni-blue tracking-tight whitespace-normal break-words leading-none"
+                placeholder="Nombre del proveedor"
+              />
+            </h1>
 
-          {/* Address Section */}
-          <div className="space-y-6">
-            <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100 pb-2">Ubicación</h4>
-            <div className="flex items-start gap-3">
-              <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <span className={microLabelClass}>Dirección Fiscal</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div className="bg-white/40 border border-white/60 p-3 rounded-2xl">
+                <span className={microLabelClass}>RIF del Proveedor</span>
                 <InlineEditableCell
-                  value={supplier.address || ''}
-                  onSave={handleInlineSave('address')}
+                  value={isGenericRif(supplier.rif) ? '' : supplier.rif}
+                  onSave={handleInlineSave('rif')}
                   alwaysShowIcon={isMobile}
-                  displayClassName="text-gray-600 text-sm leading-relaxed mb-2 block"
-                  placeholder="Sin dirección"
+                  displayClassName={cn(valueClass, isGenericRif(supplier.rif) && 'text-procarni-alert')}
+                  placeholder="RIF"
+                  renderDisplay={(v) => isGenericRif(supplier.rif) ? (
+                    <span className="flex items-center gap-1 text-procarni-alert">
+                      <AlertTriangle className="h-3 w-3" /> Faltante
+                    </span>
+                  ) : <span className="font-bold font-mono">{String(v)}</span>}
                 />
-                
-                {(supplier.city || supplier.state) && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <div className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded text-[11px] text-gray-600">
-                      <span className="font-semibold text-gray-400 mr-1">Ubicación:</span> {supplier.city}{supplier.city && supplier.state ? ', ' : ''}{supplier.state}
-                    </div>
-                  </div>
-                )}
+              </div>
+              
+              <div className="bg-white/40 border border-white/60 p-3 rounded-2xl">
+                <span className={microLabelClass}>Término de Relación</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase">Institucional</span>
               </div>
             </div>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-gray-100/50">
+            <Button onClick={() => setIsEditOpen(true)} variant="outline" size="sm" className="gap-2 rounded-xl">
+              <Edit className="h-4 w-4" />
+              <span>Editar Perfil</span>
+            </Button>
+
+            <Button onClick={handleGenerateSC} className="bg-procarni-secondary hover:bg-green-700 text-white gap-2 shadow-md rounded-xl" size="sm">
+              <PlusCircle className="h-4 w-4" />
+              <span>Generar SC</span>
+            </Button>
+
+            <Button onClick={handleGenerateOC} variant="outline" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 gap-2 rounded-xl" size="sm">
+              <ShoppingCart className="h-4 w-4" />
+              <span>Generar OC</span>
+            </Button>
+
+            <SupplierPriceHistoryDownloadButton
+              supplierId={supplier.id}
+              supplierName={supplier.name}
+              disabled={isLoading}
+              className="ml-auto rounded-xl"
+            />
+          </div>
         </div>
+
+        {/* Bento Box 2: Canales de Contacto (col-span-1) */}
+        <div className="bg-white/70 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 hover:scale-[1.002] transition-transform duration-300 flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
+              Canales de Contacto
+            </h3>
+            <div className="space-y-4">
+              {/* WhatsApp / Teléfono Principal */}
+              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
+                <span className={microLabelClass}>Teléfono / WhatsApp Principal</span>
+                <InlineEditableCell
+                  value={supplier.phone || ''}
+                  onSave={handleInlineSave('phone')}
+                  alwaysShowIcon={isMobile}
+                  displayClassName="text-xs font-semibold text-procarni-dark"
+                  placeholder="Sin teléfono principal"
+                  renderDisplay={(v) => supplier.phone ? (
+                    <div className="flex items-center justify-between w-full mt-0.5">
+                      <span className="font-mono text-xs font-semibold text-procarni-dark">{supplier.phone}</span>
+                      <a
+                        href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50/60 hover:bg-green-50 text-green-700 hover:text-green-800 border border-green-100/50 rounded-xl transition-all font-sans text-[10px] font-bold uppercase tracking-wider"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Chatear
+                        <Phone className="h-3 w-3" />
+                      </a>
+                    </div>
+                  ) : <span className="text-xs text-gray-400 font-medium">Sin teléfono principal</span>}
+                />
+              </div>
+
+              {/* Teléfono Secundario */}
+              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
+                <span className={microLabelClass}>Teléfono Secundario</span>
+                <InlineEditableCell
+                  value={supplier.phone_2 || ''}
+                  onSave={handleInlineSave('phone_2')}
+                  alwaysShowIcon={isMobile}
+                  displayClassName="text-xs font-semibold text-procarni-dark"
+                  placeholder="No asignado"
+                  renderDisplay={(v) => v ? (
+                    <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(String(v))}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {String(v)}
+                    </a>
+                  ) : <p className="text-xs text-gray-400 font-medium">No asignado</p>}
+                />
+              </div>
+
+              {/* Email */}
+              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
+                <span className={microLabelClass}>Correo Electrónico</span>
+                <InlineEditableCell
+                  value={supplier.email || ''}
+                  onSave={handleInlineSave('email')}
+                  type="email"
+                  alwaysShowIcon={isMobile}
+                  displayClassName="text-xs font-semibold text-procarni-dark truncate block max-w-full"
+                  placeholder="Sin email registrado"
+                />
+              </div>
+
+              {/* Instagram */}
+              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
+                <span className={microLabelClass}>Instagram</span>
+                <InlineEditableCell
+                  value={supplier.instagram || ''}
+                  onSave={handleInlineSave('instagram')}
+                  alwaysShowIcon={isMobile}
+                  displayClassName="text-xs font-semibold text-procarni-dark"
+                  placeholder="No asignado"
+                  renderDisplay={(v) => v ? (
+                    <a href={`https://instagram.com/${String(v).replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {String(v)}
+                    </a>
+                  ) : <p className="text-xs text-gray-400 font-medium">No asignado</p>}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Website Link button at bottom */}
+          {supplier.website && (
+            <Button variant="outline" size="sm" asChild className="w-full rounded-xl mt-4 border-gray-200">
+              <a href={supplier.website.startsWith('http') ? supplier.website : `https://${supplier.website}`} target="_blank" rel="noopener noreferrer" className="gap-2">
+                <Globe className="h-3.5 w-3.5 text-gray-500" />
+                <span className="truncate">Visitar Sitio Web</span>
+              </a>
+            </Button>
+          )}
+        </div>
+
+        {/* Bento Box 3: Condiciones Comerciales (col-span-1) */}
+        <div className="bg-gradient-to-br from-white/70 to-green-50/10 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 hover:scale-[1.002] transition-transform duration-300">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
+            Condiciones de Compra
+          </h3>
+          <div className="space-y-4">
+            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
+              <span className={microLabelClass}>Términos de Pago</span>
+              <InlineEditableCell
+                value={supplier.payment_terms}
+                onSave={handleInlineSave('payment_terms')}
+                type="select"
+                options={[
+                  { value: 'Contado', label: 'Contado' },
+                  { value: 'Crédito', label: 'Crédito' },
+                  { value: 'Otro', label: 'Otro' }
+                ]}
+                alwaysShowIcon={isMobile}
+                displayClassName="text-sm font-bold text-procarni-dark"
+                renderDisplay={(v) => (
+                  <p className="text-sm font-bold text-procarni-dark">
+                    {v === 'Otro' && supplier.custom_payment_terms
+                      ? supplier.custom_payment_terms
+                      : String(v)}
+                  </p>
+                )}
+              />
+            </div>
+
+            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
+              <span className={microLabelClass}>Días de Crédito</span>
+              <InlineEditableCell
+                value={supplier.credit_days}
+                onSave={handleInlineSave('credit_days')}
+                type="number"
+                alwaysShowIcon={isMobile}
+                displayClassName="text-sm font-bold text-procarni-dark"
+                renderDisplay={(v) => <p className="text-sm font-bold text-procarni-dark">{v} días acordados</p>}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bento Box 4: Ubicación (col-span-2) */}
+        <div className="lg:col-span-2 bg-white/70 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 hover:scale-[1.002] transition-transform duration-300 flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
+              Dirección y Ubicación
+            </h3>
+            <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl min-h-[80px]">
+              <span className={microLabelClass}>Dirección Fiscal Principal</span>
+              <InlineEditableCell
+                value={supplier.address || ''}
+                onSave={handleInlineSave('address')}
+                alwaysShowIcon={isMobile}
+                displayClassName="text-xs font-medium text-gray-700 leading-relaxed block"
+                placeholder="Sin dirección física registrada"
+              />
+            </div>
+          </div>
+
+          {(supplier.city || supplier.state) && (
+            <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100/50">
+              <div className="bg-blue-50/50 border border-blue-100/40 px-3 py-1 rounded-full text-[11px] text-blue-700 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="h-3 w-3 text-blue-500" />
+                <span>Ubicación de Despacho: {supplier.city}{supplier.city && supplier.state ? ', ' : ''}{supplier.state}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
 
-      {/* PHASE 3: MATERIALS CARD */}
-      <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
-        <CardHeader className="bg-gray-50/50 pb-4 border-b border-gray-200">
+      {/* Sugerencias de Compra Card */}
+      <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-800 flex items-center">
+            <div>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
+                Sugerencia de Compra (Materiales Frecuentes)
+              </CardTitle>
+              <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                Basado en los 10 materiales más comprados a este proveedor en el historial aprobado.
+              </CardDescription>
+            </div>
+            {suggestedMaterials.length > 0 && (
+              <Button
+                onClick={handleGenerateOCFromSuggestions}
+                disabled={selectedSuggestIds.size === 0}
+                className="bg-procarni-primary hover:bg-procarni-primary/95 text-white gap-2 shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all rounded-full px-5"
+                size="sm"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Generar Orden ({selectedSuggestIds.size})
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {suggestedMaterials.length === 0 ? (
+            <div className="text-center py-6 text-gray-400 text-xs italic">
+              No hay historial de compras aprobadas para este proveedor para sugerir materiales frecuentes.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {suggestedMaterials.map((item) => {
+                const key = item.material_id || item.material_name;
+                const isSelected = selectedSuggestIds.has(key);
+                return (
+                  <div
+                    key={key}
+                    onClick={() => toggleSuggestSelection(key)}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none",
+                      isSelected
+                        ? "bg-blue-50/20 border-blue-200/60 shadow-sm"
+                        : "bg-gray-50/10 border-gray-100 hover:bg-gray-50/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-center">
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+                          isSelected
+                            ? "bg-procarni-primary border-procarni-primary text-white"
+                            : "border-gray-300 bg-white"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-xs text-procarni-dark truncate uppercase tracking-tight">
+                        {item.material_name}
+                      </p>
+                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center mt-1 text-[10px] text-gray-400 font-medium">
+                        {item.supplier_code && (
+                          <span className="bg-gray-100 text-gray-600 px-1 rounded font-mono">
+                            Cód: {item.supplier_code}
+                          </span>
+                        )}
+                        <span>{item.unit || 'UND'}</span>
+                        <span className="text-gray-300">•</span>
+                        <span>{item.count} {item.count === 1 ? 'compra' : 'compras'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block mb-0.5">Último Precio</span>
+                      <span className="font-mono text-xs font-bold text-procarni-dark">
+                        {item.unit_price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* PHASE 3: MATERIALS CARD */}
+      <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
               Materiales Ofrecidos
             </CardTitle>
             <div className="relative w-full sm:w-64">
@@ -694,12 +879,12 @@ const SupplierDetails = () => {
         </CardHeader>
         <CardContent className="p-0">
           {supplier.materials && supplier.materials.length > 0 ? (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100/30">
               {groupedMaterials.length > 0 ? (
                 groupedMaterials.map((group) => (
-                  <div key={group.material_id} className="bg-white overflow-hidden group/material">
+                  <div key={group.material_id} className="bg-transparent overflow-hidden group/material border-b border-slate-100/40 last:border-b-0">
                     {/* Material Group Header */}
-                    <div className="bg-gray-50/30 p-3 px-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div className="bg-slate-50/50 p-3 px-6 border-b border-slate-100/40 flex flex-col md:flex-row md:items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 rounded-full bg-procarni-secondary" />
@@ -736,13 +921,13 @@ const SupplierDetails = () => {
                         </TableHeader>
                         <TableBody>
                           {group.items.map((sm: any) => (
-                            <TableRow key={sm.id} className="border-b border-gray-50/50 hover:bg-gray-50/30 last:border-b-0">
+                            <TableRow key={sm.id} className="border-b border-slate-100/40 hover:bg-slate-100/40 transition-colors last:border-b-0">
                               <TableCell className="pl-10">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
                                   {sm.units_of_measure?.name || 'N/A'}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-gray-500 italic text-[12px]">
+                              <TableCell className="text-slate-700 italic text-[12px]">
                                 {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
                               </TableCell>
                               <TableCell className="text-center pr-6">

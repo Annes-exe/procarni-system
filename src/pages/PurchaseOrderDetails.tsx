@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Download } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Download, Copy } from 'lucide-react';
 
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
@@ -499,6 +499,11 @@ const PurchaseOrderDetails = () => {
               </Button>
             )}
 
+            <Button onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)} variant="outline" size="sm" className="gap-2 order-2 text-teal-700 border-teal-100 hover:bg-teal-50">
+              <Copy className="h-4 w-4" />
+              <span className="hidden sm:inline">Duplicar</span>
+            </Button>
+
             {/* Secondary Actions: Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -510,6 +515,10 @@ const PurchaseOrderDetails = () => {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+
+                <DropdownMenuItem onSelect={() => navigate(`/generate-po?duplicateFrom=${order.id}`)}>
+                  <Copy className="mr-2 h-4 w-4" /> Duplicar Orden
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
                   <FileText className="mr-2 h-4 w-4" /> Previsualizar

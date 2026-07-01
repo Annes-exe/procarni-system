@@ -4,13 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, Search, StickyNote, Hash } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterials, getAllUnits } from '@/integrations/supabase/data';
+import { searchMaterials, getAllUnits, searchMaterialsBySupplier } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 
 export interface QuoteRequestItemForm {
     id?: string;
@@ -38,6 +39,7 @@ interface QuoteRequestItemsTableProps {
     items: QuoteRequestItemForm[];
     supplierId?: string;
     supplierName?: string;
+    supplierIds?: string[];
     onAddItem: () => void;
     onRemoveItem: (index: number) => void;
     onItemChange: (index: number, field: keyof QuoteRequestItemForm, value: any) => void;
@@ -48,6 +50,7 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     items,
     supplierId,
     supplierName,
+    supplierIds,
     onAddItem,
     onRemoveItem,
     onItemChange,
@@ -55,17 +58,65 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
 }) => {
     const isMobile = useIsMobile();
 
+    const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = React.useState(false);
+    const [materialNameToCreate, setMaterialNameToCreate] = React.useState('');
+    const [activeItemIndex, setActiveItemIndex] = React.useState<number | null>(null);
+
     const { data: units = [], isLoading: isLoadingUnits } = useQuery({
         queryKey: ['units_of_measure'],
         queryFn: getAllUnits,
     });
 
     const fetchMaterials = React.useCallback(async (query: string) => {
-        return searchMaterials(query);
-    }, []);
+        const hasSuppliers = supplierId || (supplierIds && supplierIds.length > 0);
+        if (!hasSuppliers) {
+            const all = await searchMaterials(query);
+            return all.map(m => ({ ...m, group: 'Otros Materiales' }));
+        }
+
+        const ids = supplierId ? [supplierId] : (supplierIds || []);
+        
+        const associatedPromises = ids.map(id => searchMaterialsBySupplier(id, query));
+        const associatedResults = await Promise.all(associatedPromises);
+        
+        const associatedMap = new Map<string, any>();
+        associatedResults.forEach(list => {
+            list.forEach(m => {
+                associatedMap.set(m.id, m);
+            });
+        });
+
+        const all = await searchMaterials(query);
+
+        const results: any[] = [];
+        associatedMap.forEach(m => {
+            results.push({ ...m, group: 'Sugeridos' });
+        });
+
+        all.forEach(m => {
+            if (!associatedMap.has(m.id)) {
+                results.push({ ...m, group: 'Otros Materiales' });
+            }
+        });
+
+        return results;
+    }, [supplierId, supplierIds]);
 
     const handleMaterialAdded = (material: any) => {
-        // Lógica post-creación si es necesaria
+        if (activeItemIndex !== null) {
+            onMaterialSelect(activeItemIndex, {
+                id: material.id,
+                name: material.name,
+                code: material.code || 'N/A',
+                unit_id: material.unit_id || undefined,
+                unit: material.unit || undefined,
+                is_exempt: material.is_exempt || false,
+                specification: material.specification || undefined
+            });
+        }
+        setIsAddMaterialDialogOpen(false);
+        setMaterialNameToCreate('');
+        setActiveItemIndex(null);
     };
 
     // --- VISTA MÓVIL: TARJETAS ---
@@ -81,6 +132,11 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                             fetchFunction={fetchMaterials}
                             displayValue={item.material_name}
                             className="w-full"
+                            onCreateItem={(query) => {
+                                setMaterialNameToCreate(query);
+                                setActiveItemIndex(index);
+                                setIsAddMaterialDialogOpen(true);
+                            }}
                         />
                         {item.last_price_info && (
                             <p className="text-[10px] text-procarni-secondary font-medium mt-1">
@@ -194,6 +250,11 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                                             displayValue=""
                                             autoFocus={true}
                                             className="w-full"
+                                            onCreateItem={(query) => {
+                                                setMaterialNameToCreate(query);
+                                                setActiveItemIndex(index);
+                                                setIsAddMaterialDialogOpen(true);
+                                            }}
                                         />
                                     </div>
                                 </PopoverContent>
@@ -299,6 +360,19 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                     </Button>
                 </>
             )}
+
+            <MaterialCreationDialog
+                isOpen={isAddMaterialDialogOpen}
+                onClose={() => {
+                    setIsAddMaterialDialogOpen(false);
+                    setMaterialNameToCreate('');
+                    setActiveItemIndex(null);
+                }}
+                onMaterialCreated={handleMaterialAdded}
+                supplierId={supplierId}
+                supplierName={supplierName}
+                initialName={materialNameToCreate}
+            />
         </div>
     );
 };

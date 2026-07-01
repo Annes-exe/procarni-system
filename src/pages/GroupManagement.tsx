@@ -38,10 +38,11 @@ const GroupManagement = () => {
   const childrenOfSelected = materials.filter(m => m.base_material_id === selectedParentId);
   const selectedParent = materials.find(m => m.id === selectedParentId);
 
-  // Materiales disponibles para ser agregados
+  // Materiales disponibles para ser agregados (excluyendo a los propios maestros)
   const availableToJoin = materials.filter(m => 
     m.id !== selectedParentId && 
     m.base_material_id !== selectedParentId &&
+    !m.is_master &&
     (childSearchTerm === '' || m.name.toLowerCase().includes(childSearchTerm.toLowerCase()) || (m.code && m.code.toLowerCase().includes(childSearchTerm.toLowerCase())))
   ).slice(0, 10);
 
