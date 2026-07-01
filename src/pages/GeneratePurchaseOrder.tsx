@@ -11,7 +11,7 @@ import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplie
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 
 
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 import PurchaseOrderDetailsForm from '@/components/PurchaseOrderDetailsForm';
 import { format } from 'date-fns';
@@ -37,6 +37,8 @@ const GeneratePurchaseOrder = () => {
   const { items, addItem, updateItem, removeItem, clearCart } = useShoppingCart();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const duplicateFrom = searchParams.get('duplicateFrom');
 
   const [companyId, setCompanyId] = React.useState<string>('');
   const [companyName, setCompanyName] = React.useState<string>('');
@@ -172,10 +174,54 @@ const GeneratePurchaseOrder = () => {
           });
         }
       }
+      // 3. Handle PO Duplication
+      else if (duplicateFrom) {
+        try {
+          const order = await purchaseOrderService.getById(duplicateFrom);
+          if (order) {
+            setCompanyId(order.company_id);
+            setCompanyName(order.companies?.name || '');
+            setSupplierId(order.supplier_id);
+            setSupplierName(order.suppliers?.name || '');
+            setCurrency(order.currency as any);
+            setBaseCurrency((order.base_currency as any) || (order.currency === 'EUR' ? 'EUR' : 'USD'));
+            setExchangeRate(order.exchange_rate || undefined);
+            setPaymentTerms(order.payment_terms as any || 'Contado');
+            setCustomPaymentTerms(order.custom_payment_terms || '');
+            setCreditDays(order.credit_days || 0);
+            setObservations(`Duplicado de Orden de Compra: ${order.sequence_number || order.id.substring(0, 8)}`);
+
+            clearCart();
+
+            if (order.purchase_order_items && order.purchase_order_items.length > 0) {
+              order.purchase_order_items.forEach((item: any) => {
+                addItem({
+                  material_id: item.material_id || undefined,
+                  material_name: item.material_name || item.materials?.name || 'Material sin nombre',
+                  supplier_code: item.supplier_code || '',
+                  quantity: item.quantity,
+                  unit_price: item.unit_price,
+                  tax_rate: item.tax_rate ?? 0.16,
+                  is_exempt: !!item.is_exempt,
+                  unit: item.unit || (units[0]?.name || ''),
+                  unit_id: item.unit_id || undefined,
+                  description: item.description || '',
+                  sales_percentage: item.sales_percentage || 0,
+                  discount_percentage: item.discount_percentage || 0,
+                });
+              });
+            }
+            showSuccess('Plantilla de Orden de Compra cargada.');
+          }
+        } catch (e) {
+          console.error("Error loading PO duplication template:", e);
+          showError("Error al duplicar la orden de compra.");
+        }
+      }
     };
 
     loadQuoteRequestItems();
-  }, [quoteRequest, location.state]);
+  }, [quoteRequest, location.state, duplicateFrom, units]);
 
   // Default Company Effect
   React.useEffect(() => {
@@ -188,10 +234,10 @@ const GeneratePurchaseOrder = () => {
 
   // Ensure at least one item on mount if cart is empty
   React.useEffect(() => {
-    if (items.length === 0 && !quoteRequest && !location.state?.serviceOrder && !location.state?.material) {
+    if (items.length === 0 && !quoteRequest && !location.state?.serviceOrder && !location.state?.material && !duplicateFrom) {
       handleAddItem();
     }
-  }, []);
+  }, [duplicateFrom]);
 
   React.useEffect(() => {
     if (supplierData) {
