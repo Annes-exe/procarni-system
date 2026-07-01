@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle } from 'lucide-react';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories } from '@/integrations/supabase/data';
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { detectLocation } from '@/utils/location-detector';
 import { isGenericRif, validateRif } from '@/utils/validators';
@@ -139,6 +139,123 @@ const SupplierDetails = () => {
       };
     });
   }, [supplier?.materials, fichaStatusMap]);
+
+  // Fetch supplier purchase history
+  const { data: purchaseHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['supplierPurchaseHistory', id],
+    queryFn: async () => {
+      if (!id) return [];
+      return getPurchaseHistoryReport({ supplierId: id, status: 'Approved' });
+    },
+    enabled: !!id,
+  });
+
+  // Calculate Top 10 most purchased materials from history
+  const suggestedMaterials = useMemo(() => {
+    if (!purchaseHistory || purchaseHistory.length === 0) return [];
+
+    const materialMap: Record<string, {
+      material_id: string | null;
+      material_name: string;
+      supplier_code: string | null;
+      unit: string | null;
+      unit_id: string | null;
+      is_exempt: boolean;
+      unit_price: number;
+      count: number;
+      dates: Date[];
+    }> = {};
+
+    purchaseHistory.forEach((item: any) => {
+      const key = item.material_id || item.material_name;
+      if (!key) return;
+
+      const orderDate = item.purchase_orders?.issue_date ? new Date(item.purchase_orders.issue_date) : new Date(0);
+
+      if (!materialMap[key]) {
+        materialMap[key] = {
+          material_id: item.material_id || null,
+          material_name: item.material_name,
+          supplier_code: item.supplier_code || null,
+          unit: item.unit || null,
+          unit_id: item.unit_id || null,
+          is_exempt: !!item.is_exempt,
+          unit_price: item.unit_price,
+          count: 0,
+          dates: [orderDate],
+        };
+      } else {
+        materialMap[key].dates.push(orderDate);
+        const currentDates = materialMap[key].dates;
+        const latestDateIndex = currentDates.findIndex(d => d.getTime() === Math.max(...currentDates.map(x => x.getTime())));
+        if (latestDateIndex === currentDates.length - 1) {
+          materialMap[key].unit_price = item.unit_price;
+        }
+      }
+      materialMap[key].count += 1;
+    });
+
+    return Object.values(materialMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [purchaseHistory]);
+
+  const [selectedSuggestIds, setSelectedSuggestIds] = useState<Set<string>>(new Set());
+
+  // Initialize selectedSuggestIds when suggestedMaterials is loaded/calculated
+  React.useEffect(() => {
+    if (suggestedMaterials.length > 0) {
+      const initialIds = new Set<string>();
+      suggestedMaterials.forEach(m => {
+        const key = m.material_id || m.material_name;
+        if (key) initialIds.add(key);
+      });
+      setSelectedSuggestIds(initialIds);
+    }
+  }, [suggestedMaterials]);
+
+  const toggleSuggestSelection = (key: string) => {
+    setSelectedSuggestIds(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const handleGenerateOCFromSuggestions = () => {
+    if (!supplier) return;
+
+    const selectedItems = suggestedMaterials
+      .filter(m => {
+        const key = m.material_id || m.material_name;
+        return key && selectedSuggestIds.has(key);
+      })
+      .map(m => ({
+        material_id: m.material_id,
+        material_name: m.material_name,
+        supplier_code: m.supplier_code,
+        unit_price: m.unit_price,
+        is_exempt: m.is_exempt,
+        unit: m.unit,
+        unit_id: m.unit_id,
+      }));
+
+    if (selectedItems.length === 0) {
+      showError('Por favor selecciona al menos un material sugerido.');
+      return;
+    }
+
+    navigate('/generate-po', {
+      state: {
+        supplier: supplier,
+        suggestedItems: selectedItems,
+      },
+    });
+  };
 
   const filteredMaterials = useMemo(() => {
     if (!materialsWithStatus) return [];
@@ -672,6 +789,94 @@ const SupplierDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Sugerencias de Compra Card */}
+      <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
+                Sugerencia de Compra (Materiales Frecuentes)
+              </CardTitle>
+              <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                Basado en los 10 materiales más comprados a este proveedor en el historial aprobado.
+              </CardDescription>
+            </div>
+            {suggestedMaterials.length > 0 && (
+              <Button
+                onClick={handleGenerateOCFromSuggestions}
+                disabled={selectedSuggestIds.size === 0}
+                className="bg-procarni-primary hover:bg-procarni-primary/95 text-white gap-2 shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all rounded-full px-5"
+                size="sm"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Generar Orden ({selectedSuggestIds.size})
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {suggestedMaterials.length === 0 ? (
+            <div className="text-center py-6 text-gray-400 text-xs italic">
+              No hay historial de compras aprobadas para este proveedor para sugerir materiales frecuentes.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {suggestedMaterials.map((item) => {
+                const key = item.material_id || item.material_name;
+                const isSelected = selectedSuggestIds.has(key);
+                return (
+                  <div
+                    key={key}
+                    onClick={() => toggleSuggestSelection(key)}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none",
+                      isSelected
+                        ? "bg-blue-50/20 border-blue-200/60 shadow-sm"
+                        : "bg-gray-50/10 border-gray-100 hover:bg-gray-50/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-center">
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+                          isSelected
+                            ? "bg-procarni-primary border-procarni-primary text-white"
+                            : "border-gray-300 bg-white"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-xs text-procarni-dark truncate uppercase tracking-tight">
+                        {item.material_name}
+                      </p>
+                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center mt-1 text-[10px] text-gray-400 font-medium">
+                        {item.supplier_code && (
+                          <span className="bg-gray-100 text-gray-600 px-1 rounded font-mono">
+                            Cód: {item.supplier_code}
+                          </span>
+                        )}
+                        <span>{item.unit || 'UND'}</span>
+                        <span className="text-gray-300">•</span>
+                        <span>{item.count} {item.count === 1 ? 'compra' : 'compras'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block mb-0.5">Último Precio</span>
+                      <span className="font-mono text-xs font-bold text-procarni-dark">
+                        {item.unit_price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* PHASE 3: MATERIALS CARD */}
       <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
