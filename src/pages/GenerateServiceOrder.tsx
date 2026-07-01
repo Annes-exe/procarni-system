@@ -103,6 +103,9 @@ const GenerateServiceOrder = () => {
   const [detailedServiceDescription, setDetailedServiceDescription] = useState<string>('');
   const [destinationAddress, setDestinationAddress] = useState<string>(DESTINATION_ADDRESSES[0]);
   const [observations, setObservations] = useState<string>('');
+  const [paymentTerms, setPaymentTerms] = useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
+  const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
+  const [creditDays, setCreditDays] = useState<number>(0);
 
   const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
 
@@ -391,6 +394,9 @@ const GenerateServiceOrder = () => {
       base_currency: baseCurrency,
       exchange_rate: exchangeRate || null,
       status: 'Draft',
+      payment_terms: paymentTerms,
+      custom_payment_terms: customPaymentTerms || null,
+      credit_days: creditDays,
       user_id: userId,
     };
 
@@ -498,6 +504,9 @@ const GenerateServiceOrder = () => {
               detailedServiceDescription={detailedServiceDescription}
               destinationAddress={destinationAddress}
               observations={observations}
+              paymentTerms={paymentTerms}
+              customPaymentTerms={customPaymentTerms}
+              creditDays={creditDays}
               onCompanySelect={handleCompanySelect}
               onBaseCurrencyChange={setBaseCurrency}
               onCurrencyChange={setCurrency}
@@ -509,6 +518,9 @@ const GenerateServiceOrder = () => {
               onDetailedServiceDescriptionChange={setDetailedServiceDescription}
               onDestinationAddressChange={setDestinationAddress}
               onObservationsChange={setObservations}
+              onPaymentTermsChange={setPaymentTerms}
+              onCustomPaymentTermsChange={setCustomPaymentTerms}
+              onCreditDaysChange={setCreditDays}
               supplierId={supplierId}
               supplierName={supplierName}
               onSupplierSelect={handleSupplierSelect}

@@ -11,7 +11,8 @@ import { Calendar as CalendarIcon, CloudUpload, Info, Search, Building2, Tractor
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import SmartSearch from '@/components/SmartSearch';
-import { searchCompanies, searchSuppliers } from '@/integrations/supabase/data';
+import { searchCompanies, searchSuppliers, getSupplierDetails } from '@/integrations/supabase/data';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import ExchangeRateInput from './ExchangeRateInput';
 import DocumentDatePicker from './DocumentDatePicker';
@@ -35,6 +36,9 @@ interface ServiceOrderDetailsFormProps {
   detailedServiceDescription: string;
   destinationAddress: string;
   observations: string;
+  paymentTerms: 'Contado' | 'Crédito' | 'Otro';
+  customPaymentTerms: string;
+  creditDays: number;
 
   onCompanySelect: (company: Company) => void;
   onBaseCurrencyChange: (value: 'USD' | 'EUR') => void;
@@ -47,6 +51,9 @@ interface ServiceOrderDetailsFormProps {
   onDetailedServiceDescriptionChange: (value: string) => void;
   onDestinationAddressChange: (value: string) => void;
   onObservationsChange: (value: string) => void;
+  onPaymentTermsChange: (value: 'Contado' | 'Crédito' | 'Otro') => void;
+  onCustomPaymentTermsChange: (value: string) => void;
+  onCreditDaysChange: (value: number) => void;
   supplierId?: string;
   supplierName?: string;
   onSupplierSelect?: (supplier: any) => void;
@@ -75,6 +82,9 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   detailedServiceDescription,
   destinationAddress,
   observations,
+  paymentTerms,
+  customPaymentTerms,
+  creditDays,
   onCompanySelect,
   onBaseCurrencyChange,
   onCurrencyChange,
@@ -86,12 +96,36 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   onDetailedServiceDescriptionChange,
   onDestinationAddressChange,
   onObservationsChange,
+  onPaymentTermsChange,
+  onCustomPaymentTermsChange,
+  onCreditDaysChange,
   supplierId,
   supplierName,
   onSupplierSelect,
   onAddNewSupplier,
   disableAutoFetch = false,
 }) => {
+  // Fetch supplier details to get default payment terms
+  const { data: supplierDetails } = useQuery({
+    queryKey: ['supplierDetails', supplierId],
+    queryFn: () => getSupplierDetails(supplierId || ''),
+    enabled: !!supplierId,
+  });
+
+  // Effect to set default payment terms when supplier changes
+  React.useEffect(() => {
+    if (supplierDetails) {
+      const terms = supplierDetails.payment_terms as 'Contado' | 'Crédito' | 'Otro';
+      onPaymentTermsChange(terms);
+      onCustomPaymentTermsChange(supplierDetails.custom_payment_terms || '');
+      onCreditDaysChange(supplierDetails.credit_days || 0);
+    } else {
+      // Reset if supplier is cleared
+      onPaymentTermsChange('Contado');
+      onCustomPaymentTermsChange('');
+      onCreditDaysChange(0);
+    }
+  }, [supplierDetails]);
 
   return (
     <div className="space-y-8">
@@ -161,28 +195,56 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
             </div>
           </div>
 
-          {/* Tipo de Servicio */}
-          <div>
-            <Label htmlFor="serviceType" className="block text-sm font-semibold text-gray-700 mb-2">
-              Tipo de Servicio <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 z-10">
-                <Wrench className="h-5 w-5" />
-              </span>
-              <Select value={serviceType} onValueChange={onServiceTypeChange}>
-                <SelectTrigger id="serviceType" className="w-full pl-10 pr-4 py-2.5 h-auto rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm">
-                  <SelectValue placeholder="Seleccione tipo de servicio" />
+          {/* Condición de Pago */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="paymentTerms" className="block text-sm font-semibold text-gray-700 mb-2">
+                Condición de Pago
+              </Label>
+              <Select value={paymentTerms} onValueChange={onPaymentTermsChange}>
+                <SelectTrigger id="paymentTerms" className="w-full py-2.5 h-auto rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm">
+                  <SelectValue placeholder="Seleccione condición" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SERVICE_TYPES.map(type => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
+                  <SelectItem value="Contado">Contado</SelectItem>
+                  <SelectItem value="Crédito">Crédito</SelectItem>
+                  <SelectItem value="Otro">Otro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
+            {paymentTerms === 'Crédito' && (
+              <div>
+                <Label htmlFor="creditDays" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Días de Crédito
+                </Label>
+                <Input
+                  id="creditDays"
+                  type="number"
+                  value={creditDays}
+                  onChange={(e) => onCreditDaysChange(parseInt(e.target.value) || 0)}
+                  min="0"
+                  placeholder="Ej: 30"
+                  className="w-full py-2.5 h-auto rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm"
+                />
+              </div>
+            )}
+            {paymentTerms === 'Otro' && (
+              <div>
+                <Label htmlFor="customPaymentTerms" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Detalle
+                </Label>
+                <Input
+                  id="customPaymentTerms"
+                  type="text"
+                  value={customPaymentTerms}
+                  onChange={(e) => onCustomPaymentTermsChange(e.target.value)}
+                  placeholder="Especifique"
+                  className="w-full py-2.5 h-auto rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* COLUMNA 2 */}

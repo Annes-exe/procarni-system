@@ -16,7 +16,7 @@ export const serviceOrderService = {
     /**
      * Fetch all Service Orders filtered by status
      */
-    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' = 'Active'): Promise<ServiceOrderWithRelations[]> => {
+    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' = 'Active'): Promise<ServiceOrderWithRelations[]> => {
         let query = supabase
             .from('service_orders')
             .select('*, suppliers(name), companies(name)')
@@ -25,7 +25,13 @@ export const serviceOrderService = {
         if (statusFilter === 'Active') {
             query = query.in('status', ['Draft']);
         } else if (statusFilter === 'Approved') {
-            query = query.eq('status', 'Approved');
+            query = query.in('status', ['Approved', 'Credit', 'Paid']);
+        } else if (statusFilter === 'ToPay') {
+            query = query.eq('status', 'ToPay');
+        } else if (statusFilter === 'Credit') {
+            query = query.eq('status', 'Credit');
+        } else if (statusFilter === 'Paid') {
+            query = query.eq('status', 'Paid');
         } else if (statusFilter === 'Archived') {
             query = query.eq('status', 'Archived');
         } else if (statusFilter === 'Rejected') {
@@ -47,7 +53,7 @@ export const serviceOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'All' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active'
     ): Promise<{ data: ServiceOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -62,7 +68,13 @@ export const serviceOrderService = {
       if (statusFilter === 'Active') {
         query = query.in('status', ['Draft', 'Sent']);
       } else if (statusFilter === 'Approved') {
-        query = query.eq('status', 'Approved');
+        query = query.in('status', ['Approved', 'Credit', 'Paid']);
+      } else if (statusFilter === 'ToPay') {
+        query = query.eq('status', 'ToPay');
+      } else if (statusFilter === 'Credit') {
+        query = query.eq('status', 'Credit');
+      } else if (statusFilter === 'Paid') {
+        query = query.eq('status', 'Paid');
       } else if (statusFilter === 'Archived') {
         query = query.eq('status', 'Archived');
       } else if (statusFilter === 'Rejected') {
