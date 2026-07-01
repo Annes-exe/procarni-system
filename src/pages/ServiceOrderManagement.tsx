@@ -27,6 +27,9 @@ import { format } from 'date-fns';
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
   'Approved': 'Aprobada',
+  'Credit': 'Crédito',
+  'ToPay': 'Por pagar',
+  'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
 };
@@ -90,6 +93,7 @@ const ServiceOrderManagement = () => {
     switch (tab) {
       case 'active': return 'Active';
       case 'approved': return 'Approved';
+      case 'topay': return 'ToPay';
       case 'archived': return 'Archived';
       case 'rejected': return 'Rejected';
       case 'all': return 'All';
@@ -295,6 +299,12 @@ const ServiceOrderManagement = () => {
         return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'Approved':
         return 'bg-green-100 text-green-800 border-green-200';
+      case 'Credit':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'ToPay':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'Paid':
+        return 'bg-teal-100 text-teal-800 border-teal-200';
       case 'Rejected':
         return 'bg-red-100 text-red-800 border-red-200';
       case 'Archived':
@@ -454,11 +464,12 @@ const ServiceOrderManagement = () => {
         <CardContent className="p-0 md:p-6">
           <Tabs value={activeTab} onValueChange={(value) => updateSearchParams('tab', value)} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className="grid w-full md:w-auto grid-cols-2 md:flex h-9">
+              <TabsList className="grid w-full md:w-auto grid-cols-3 md:flex h-9">
                 {!showHistory ? (
                   <>
                     <TabsTrigger value="active" className="text-xs md:text-sm">Activas</TabsTrigger>
                     <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="topay" className="text-xs md:text-sm">Por pagar</TabsTrigger>
                   </>
                 ) : (
                   <>
@@ -625,7 +636,7 @@ const ServiceOrderManagement = () => {
                             <TableCell className="py-3 text-gray-600">{order.service_type}</TableCell>
                             <TableCell className="py-3 text-gray-600">{format(new Date(order.service_date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell className="py-3">
-                              <span className={cn("px-2 py-0.5 text-xs font-medium rounded-md border", getStatusBadgeClass(order.status))}>
+                              <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
                                 {STATUS_TRANSLATIONS[order.status] || order.status}
                               </span>
                             </TableCell>

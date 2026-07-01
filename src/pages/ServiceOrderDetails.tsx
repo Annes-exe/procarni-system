@@ -98,7 +98,10 @@ interface ServiceOrderDetailsData {
   currency: 'USD' | 'VES' | 'EUR';
   base_currency: 'USD' | 'EUR';
   exchange_rate: number | null;
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+  status: string;
+  payment_terms?: string | null;
+  custom_payment_terms?: string | null;
+  credit_days?: number | null;
   user_id: string;
   created_at: string | null;
   service_order_items: ServiceOrderItem[];
@@ -108,6 +111,9 @@ interface ServiceOrderDetailsData {
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
   'Approved': 'Aprobada',
+  'Credit': 'Crédito',
+  'ToPay': 'Por pagar',
+  'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
 };
@@ -133,6 +139,8 @@ const ServiceOrderDetails = () => {
   const [isApproving, setIsApproving] = useState(false);
   const [isRejectConfirmOpen, setIsRejectConfirmOpen] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [isPayConfirmOpen, setIsPayConfirmOpen] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
 
@@ -207,17 +215,29 @@ const ServiceOrderDetails = () => {
     return `${sequence}-${supplierName}.pdf`;
   };
 
+  const displayPaymentTerms = () => {
+    if (order?.payment_terms === 'Otro' && order.custom_payment_terms) {
+      return order.custom_payment_terms;
+    }
+    if (order?.payment_terms === 'Crédito' && order.credit_days) {
+      return `Crédito (${order.credit_days} días)`;
+    }
+    return order?.payment_terms || 'Contado';
+  };
+
   const handleApproveOrder = async () => {
-    if (!order || order.status === 'Approved' || order.status === 'Archived') return;
+    if (!order || order.status === 'Approved' || order.status === 'ToPay' || order.status === 'Archived') return;
 
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
     const toastId = showLoading('Aprobando orden de servicio...');
 
     try {
-      const success = await serviceOrderService.updateStatus(order.id, 'Approved');
+      const isCredit = order.payment_terms === 'Crédito';
+      const targetStatus = isCredit ? 'ToPay' : 'Approved';
+      const success = await serviceOrderService.updateStatus(order.id, targetStatus);
       if (success) {
-        showSuccess('Orden de Servicio aprobada exitosamente.');
+        showSuccess(isCredit ? 'Orden de Servicio aprobada (Por Pagar) exitosamente.' : 'Orden de Servicio aprobada exitosamente.');
         queryClient.invalidateQueries({ queryKey: ['serviceOrderDetails', id] });
         queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Active'] });
         queryClient.invalidateQueries({ queryKey: ['serviceOrders', 'Approved'] });
@@ -230,6 +250,31 @@ const ServiceOrderDetails = () => {
     } finally {
       dismissToast(toastId);
       setIsApproving(false);
+    }
+  };
+
+  const handlePayOrder = async () => {
+    if (!order) return;
+
+    setIsPayConfirmOpen(false);
+    setIsPaying(true);
+    const toastId = showLoading('Registrando pago...');
+
+    try {
+      const success = await serviceOrderService.updateStatus(order.id, 'Paid');
+      if (success) {
+        showSuccess('Orden de Servicio marcada como pagada exitosamente.');
+        queryClient.invalidateQueries({ queryKey: ['serviceOrderDetails', id] });
+        queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
+      } else {
+        throw new Error('Fallo al registrar el pago.');
+      }
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al registrar el pago.';
+      showError(errorMessage);
+    } finally {
+      dismissToast(toastId);
+      setIsPaying(false);
     }
   };
 
@@ -427,6 +472,9 @@ const ServiceOrderDetails = () => {
     switch (status) {
       case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
       case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Credit': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'ToPay': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'Paid': return 'bg-teal-50 text-teal-700 border-teal-200';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
       default: return 'bg-gray-50 text-gray-500';
@@ -471,7 +519,7 @@ const ServiceOrderDetails = () => {
                 <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
-                  const isRestrictedState = order.status === 'Approved' || order.status === 'Rejected';
+                  const isRestrictedState = order.status === 'Rejected' || order.status === 'Archived';
                   const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
 
                   return (
@@ -493,7 +541,12 @@ const ServiceOrderDetails = () => {
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <div className="flex items-center gap-2 ml-auto">
             {/* Primary Actions: Approve and Edit */}
-            {(order.status === 'Draft' || role === 'admin') && order.status !== 'Approved' && order.status !== 'Archived' && (
+            {(order.status === 'Draft' || role === 'admin') && 
+              order.status !== 'Approved' && 
+              order.status !== 'Credit' && 
+              order.status !== 'ToPay' && 
+              order.status !== 'Paid' && 
+              order.status !== 'Archived' && (
               <Button
                 onClick={() => setIsApproveConfirmOpen(true)}
                 disabled={isApproving}
@@ -502,6 +555,18 @@ const ServiceOrderDetails = () => {
               >
                 <CheckCircle className="h-4 w-4" />
                 <span className="hidden sm:inline">Aprobar Orden</span>
+              </Button>
+            )}
+
+            {(order.status === 'Credit' || order.status === 'ToPay') && (
+              <Button
+                onClick={() => setIsPayConfirmOpen(true)}
+                disabled={isPaying}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                size="sm"
+              >
+                <Clock className="h-4 w-4" />
+                <span>Marcar como Pagada</span>
               </Button>
             )}
 
@@ -659,11 +724,16 @@ const ServiceOrderDetails = () => {
           </div>
 
           {/* Destination */}
-          <div className="space-y-1 md:col-span-2">
+          <div className="space-y-1">
             <span className={microLabelClass}>Dirección Destino</span>
             <p className={valueClass}>{order.destination_address || 'N/A'}</p>
           </div>
 
+          {/* Condición de Pago */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Condición de Pago</span>
+            <p className={valueClass}>{displayPaymentTerms()}</p>
+          </div>
         </div>
 
         {/* Details & Observations */}
@@ -952,6 +1022,26 @@ const ServiceOrderDetails = () => {
             <AlertDialogCancel disabled={isApproving}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleApproveOrder} disabled={isApproving} className="bg-green-600 hover:bg-green-700">
               {isApproving ? 'Aprobando...' : 'Aprobar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isPayConfirmOpen} onOpenChange={setIsPayConfirmOpen}>
+        <AlertDialogContent className="max-w-md bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-xl font-extrabold tracking-tight text-procarni-dark flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+              Marcar como Pagada
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500 font-medium leading-relaxed">
+              ¿Estás seguro de que deseas registrar el pago de esta Orden de Servicio? Esta acción cambiará su estado a "Pagada" y completará el flujo comercial de la misma.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 mt-4">
+            <AlertDialogCancel disabled={isPaying} className="rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePayOrder} disabled={isPaying} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-lg shadow-emerald-600/20">
+              {isPaying ? 'Registrando...' : 'Confirmar Pago'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
