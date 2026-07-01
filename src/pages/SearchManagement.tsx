@@ -1,13 +1,15 @@
 import { m } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2 } from 'lucide-react';
+import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2, AlertCircle, Calendar, ArrowRight, ShieldAlert, CreditCard } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllSuppliers } from '@/integrations/supabase/data';
 import { PurchaseOrder, Supplier } from '@/integrations/supabase/types';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { useNavigate } from 'react-router-dom';
 import SearchSuppliersWidget from '@/components/SearchSuppliersWidget';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 
 const SearchManagement = () => {
   const navigate = useNavigate();
@@ -54,6 +56,52 @@ const SearchManagement = () => {
   });
 
   const totalSuppliersCount = suppliers?.length || 0;
+
+  // 3. Fetch Orders "Por Pagar"
+  const { data: toPayOrders, isLoading: isLoadingToPay } = useQuery({
+    queryKey: ['toPayOrders'],
+    queryFn: async () => {
+      const [posResponse, sosResponse] = await Promise.all([
+        supabase
+          .from('purchase_orders')
+          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, suppliers(name)')
+          .in('status', ['Credit', 'ToPay']),
+        supabase
+          .from('service_orders')
+          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, suppliers(name)')
+          .in('status', ['Credit', 'ToPay'])
+      ]);
+
+      if (posResponse.error) console.error(posResponse.error);
+      if (sosResponse.error) console.error(sosResponse.error);
+
+      const pos = (posResponse.data || []).map(po => {
+        const year = po.created_at ? new Date(po.created_at).getFullYear() : new Date().getFullYear();
+        const month = po.created_at ? String(new Date(po.created_at).getMonth() + 1).padStart(2, '0') : '01';
+        return {
+          ...po,
+          type: 'purchase_order' as const,
+          displayId: `OC-${year}-${month}-${String(po.sequence_number).padStart(3, '0')}`
+        };
+      });
+
+      const sos = (sosResponse.data || []).map(so => {
+        const year = so.created_at ? new Date(so.created_at).getFullYear() : new Date().getFullYear();
+        const month = so.created_at ? String(new Date(so.created_at).getMonth() + 1).padStart(2, '0') : '01';
+        return {
+          ...so,
+          type: 'service_order' as const,
+          displayId: `OS-${year}-${month}-${String(so.sequence_number).padStart(3, '0')}`
+        };
+      });
+
+      return [...pos, ...sos].sort((a, b) => {
+        const dueA = new Date(a.issue_date || '').getTime() + (a.credit_days || 0) * 24 * 60 * 60 * 1000;
+        const dueB = new Date(b.issue_date || '').getTime() + (b.credit_days || 0) * 24 * 60 * 60 * 1000;
+        return dueA - dueB;
+      });
+    }
+  });
 
   const kpis = [
     {
@@ -201,6 +249,110 @@ const SearchManagement = () => {
         <div className="lg:col-span-12 xl:col-span-7">
           <SearchSuppliersWidget />
         </div>
+      </m.div>
+
+      {/* Bento: Cuentas Por Pagar / Ordenes de Compra/Servicios por Pagar */}
+      <m.div variants={itemVariants}>
+        <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-7 rounded-[2rem]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-black text-procarni-blue tracking-tight">Órdenes Por Pagar (Crédito)</h2>
+              </div>
+              <p className="text-[13px] text-gray-500 font-medium italic">Seguimiento de vencimientos de órdenes de compra y servicio a crédito</p>
+            </div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
+              Vencimiento
+            </div>
+          </div>
+
+          {isLoadingToPay ? (
+            <div className="text-center py-8 text-gray-500">Cargando cuentas por pagar...</div>
+          ) : !toPayOrders || toPayOrders.length === 0 ? (
+            <div className="text-center py-10 bg-gray-50/50 border border-dashed border-gray-200 rounded-[1.5rem]">
+              <p className="text-gray-500 text-sm font-medium">No hay órdenes pendientes de pago actualmente.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {toPayOrders.map((order: any) => {
+                const issueDateObj = new Date(order.issue_date || '');
+                const creditDaysVal = order.credit_days || 0;
+                const dueDateVal = issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
+                
+                // Days calculations
+                const daysElapsed = Math.floor((new Date().getTime() - issueDateObj.getTime()) / (1000 * 60 * 60 * 24));
+                const daysLeft = Math.ceil((dueDateVal - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+                let urgencyColor = "border-gray-100 bg-gray-50/20";
+                let badgeText = "";
+                let badgeColor = "bg-gray-100 text-gray-700";
+
+                if (daysLeft < 0) {
+                  urgencyColor = "border-red-100 bg-red-50/20 shadow-sm";
+                  badgeText = `Vencido hace ${Math.abs(daysLeft)} días`;
+                  badgeColor = "bg-red-100 text-red-700";
+                } else if (daysLeft === 0) {
+                  urgencyColor = "border-amber-100 bg-amber-50/20 shadow-sm";
+                  badgeText = "Vence hoy";
+                  badgeColor = "bg-amber-100 text-amber-700";
+                } else if (daysLeft <= 2) {
+                  urgencyColor = "border-orange-100 bg-orange-50/20 shadow-sm";
+                  badgeText = `Quedan ${daysLeft} días`;
+                  badgeColor = "bg-orange-100 text-orange-700";
+                } else if (daysLeft <= 5) {
+                  urgencyColor = "border-yellow-100 bg-yellow-50/20 shadow-sm";
+                  badgeText = `Quedan ${daysLeft} días`;
+                  badgeColor = "bg-yellow-100 text-yellow-700";
+                } else {
+                  badgeText = `Quedan ${daysLeft} días`;
+                  badgeColor = "bg-green-100 text-green-700";
+                }
+
+                return (
+                  <div 
+                    key={order.id}
+                    onClick={() => navigate(order.type === 'purchase_order' ? `/purchase-orders/${order.id}` : `/service-orders/${order.id}`)}
+                    className={cn(
+                      "group relative p-5 border rounded-[1.5rem] cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col justify-between",
+                      urgencyColor
+                    )}
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="font-mono text-xs font-black text-procarni-dark">{order.displayId}</span>
+                        <span className={cn("px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider", badgeColor)}>
+                          {badgeText}
+                        </span>
+                      </div>
+
+                      <h4 className="font-bold text-procarni-blue text-sm mb-1 line-clamp-1">
+                        {order.suppliers?.name || 'Proveedor Desconocido'}
+                      </h4>
+
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Calendar className="h-3 w-3" />
+                        <span>Emitido: {new Date(order.issue_date || '').toLocaleDateString('es-VE')}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Antigüedad</span>
+                        <span className="text-gray-700 font-semibold">{daysElapsed} días transcurridos</span>
+                      </div>
+                      <div className="text-indigo-600 group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-bold">
+                        Ver <ArrowRight className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
       </m.div>
     </m.div>
   );

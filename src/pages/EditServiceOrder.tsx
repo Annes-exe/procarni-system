@@ -118,6 +118,9 @@ const EditServiceOrder = () => {
     const [detailedServiceDescription, setDetailedServiceDescription] = useState<string>('');
     const [destinationAddress, setDestinationAddress] = useState<string>(DESTINATION_ADDRESSES[0]);
     const [observations, setObservations] = useState<string>('');
+    const [paymentTerms, setPaymentTerms] = useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
+    const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
+    const [creditDays, setCreditDays] = useState<number>(0);
     const [sequenceNumber, setSequenceNumber] = useState<number>(0);
 
     const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
@@ -163,6 +166,9 @@ const EditServiceOrder = () => {
                 setDetailedServiceDescription(order.detailed_service_description || '');
                 setDestinationAddress(order.destination_address);
                 setObservations(order.observations || '');
+                setPaymentTerms((order.payment_terms as 'Contado' | 'Crédito' | 'Otro') || 'Contado');
+                setCustomPaymentTerms(order.custom_payment_terms || '');
+                setCreditDays(order.credit_days || 0);
                 setSequenceNumber(order.sequence_number || 0);
 
                 // Map items
@@ -458,6 +464,9 @@ const EditServiceOrder = () => {
                 currency,
                 base_currency: baseCurrency,
                 exchange_rate: exchangeRate,
+                payment_terms: paymentTerms,
+                custom_payment_terms: customPaymentTerms || null,
+                credit_days: creditDays,
             };
 
             const itemsForUpdate = items.map(({ id, ...rest }) => rest);
@@ -560,6 +569,9 @@ const EditServiceOrder = () => {
                             detailedServiceDescription={detailedServiceDescription}
                             destinationAddress={destinationAddress}
                             observations={observations}
+                            paymentTerms={paymentTerms}
+                            customPaymentTerms={customPaymentTerms}
+                            creditDays={creditDays}
                             onCompanySelect={handleCompanySelect}
                             onBaseCurrencyChange={setBaseCurrency}
                             onCurrencyChange={setCurrency}
@@ -571,6 +583,9 @@ const EditServiceOrder = () => {
                             onDetailedServiceDescriptionChange={setDetailedServiceDescription}
                             onDestinationAddressChange={setDestinationAddress}
                             onObservationsChange={setObservations}
+                            onPaymentTermsChange={setPaymentTerms}
+                            onCustomPaymentTermsChange={setCustomPaymentTerms}
+                            onCreditDaysChange={setCreditDays}
                             supplierId={supplierId}
                             supplierName={supplierName}
                             disableAutoFetch={true}

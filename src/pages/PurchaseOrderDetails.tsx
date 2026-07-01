@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Copy } from 'lucide-react';
 
 import { purchaseOrderService } from '@/services/purchaseOrderService';
+import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -29,6 +30,9 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 interface PurchaseOrderItem {
   id: string;
@@ -57,6 +61,7 @@ interface SupplierDetails {
   phone?: string;
   phone_2?: string;
   payment_terms: string;
+  credit_days?: number | null;
 }
 
 interface CompanyDetails {
@@ -91,6 +96,9 @@ interface PurchaseOrderDetailsData {
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
   'Approved': 'Aprobada',
+  'Credit': 'Crédito',
+  'ToPay': 'Por pagar',
+  'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
 };
@@ -123,6 +131,14 @@ const PurchaseOrderDetails = () => {
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
 
+  // Credit approval confirmation options
+  const [isCreditApprove, setIsCreditApprove] = useState(false);
+  const [creditDaysApprove, setCreditDaysApprove] = useState(0);
+
+  // Pay confirmation options
+  const [isPayConfirmOpen, setIsPayConfirmOpen] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+
   const pdfViewerRef = React.useRef<PurchaseOrderPDFViewerRef>(null);
 
   // Helper function to correctly parse date strings (YYYY-MM-DD) for display
@@ -144,6 +160,13 @@ const PurchaseOrderDetails = () => {
     },
     enabled: !!id,
   });
+
+  React.useEffect(() => {
+    if (order) {
+      setIsCreditApprove(order.payment_terms === 'Crédito');
+      setCreditDaysApprove(order.credit_days || order.suppliers?.credit_days || 0);
+    }
+  }, [order]);
 
   const itemsForCalculation = order?.purchase_order_items.map(item => ({
     quantity: item.quantity,
@@ -197,28 +220,76 @@ const PurchaseOrderDetails = () => {
   };
 
   const handleApproveOrder = async () => {
-    if (!order || order.status === 'Approved') return;
+    if (!order || order.status === 'Approved' || order.status === 'ToPay') return;
 
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
     const toastId = showLoading('Aprobando orden...');
 
     try {
-      const success = await purchaseOrderService.updateStatus(order.id, 'Approved');
-      if (success) {
-        showSuccess('Orden de Compra aprobada exitosamente.');
-        queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
-        queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Active'] });
-        queryClient.invalidateQueries({ queryKey: ['purchaseOrders', 'Approved'] });
-      } else {
-        throw new Error('Fallo al actualizar el estado.');
+      const targetStatus = isCreditApprove ? 'ToPay' : 'Approved';
+      const targetPaymentTerms = isCreditApprove ? 'Crédito' : 'Contado';
+      const targetCreditDays = isCreditApprove ? creditDaysApprove : 0;
+
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({ 
+          status: targetStatus,
+          payment_terms: targetPaymentTerms,
+          credit_days: targetCreditDays
+        })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      // Create Notification on status change
+      try {
+        await supabase.from('notifications').insert({
+          user_id: order.user_id,
+          title: 'Estado de OC Cambiado',
+          message: `La OC ha cambiado a: ${isCreditApprove ? 'Crédito' : 'Aprobada'}`,
+          type: 'crud',
+          resource_type: 'purchase_order',
+          resource_id: order.id
+        });
+      } catch (e) {
+        console.error('Error creating notification:', e);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido al aprobar la orden.';
+
+      showSuccess(isCreditApprove ? 'Orden de Compra aprobada (Con Crédito) exitosamente.' : 'Orden de Compra aprobada exitosamente.');
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al aprobar la orden.';
       showError(errorMessage);
     } finally {
       dismissToast(toastId);
       setIsApproving(false);
+    }
+  };
+
+  const handlePayOrder = async () => {
+    if (!order) return;
+
+    setIsPayConfirmOpen(false);
+    setIsPaying(true);
+    const toastId = showLoading('Registrando pago...');
+
+    try {
+      const success = await purchaseOrderService.updateStatus(order.id, 'Paid');
+      if (success) {
+        showSuccess('Orden de Compra marcada como pagada exitosamente.');
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      } else {
+        throw new Error('Fallo al registrar el pago.');
+      }
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al registrar el pago.';
+      showError(errorMessage);
+    } finally {
+      dismissToast(toastId);
+      setIsPaying(false);
     }
   };
 
@@ -400,6 +471,9 @@ const PurchaseOrderDetails = () => {
     switch (status) {
       case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
       case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Credit': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'ToPay': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'Paid': return 'bg-teal-50 text-teal-700 border-teal-200';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
       default: return 'bg-gray-50 text-gray-500';
@@ -444,7 +518,7 @@ const PurchaseOrderDetails = () => {
                 <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
-                  const isRestrictedState = order.status === 'Approved' || order.status === 'Rejected';
+                  const isRestrictedState = order.status === 'Rejected' || order.status === 'Archived';
                   const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
 
                   return (
@@ -467,7 +541,12 @@ const PurchaseOrderDetails = () => {
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <div className="flex items-center gap-2 ml-auto">
             {/* Primary Actions: Approve and Edit */}
-            {(order.status === 'Draft' || role === 'admin') && order.status !== 'Approved' && order.status !== 'Archived' && (
+            {(order.status === 'Draft' || role === 'admin') && 
+              order.status !== 'Approved' && 
+              order.status !== 'Credit' && 
+              order.status !== 'ToPay' && 
+              order.status !== 'Paid' && 
+              order.status !== 'Archived' && (
               <Button
                 onClick={() => setIsApproveConfirmOpen(true)}
                 disabled={isApproving}
@@ -476,6 +555,18 @@ const PurchaseOrderDetails = () => {
               >
                 <CheckCircle className="h-4 w-4" />
                 <span className="hidden sm:inline">Aprobar Orden</span>
+              </Button>
+            )}
+
+            {(order.status === 'Credit' || order.status === 'ToPay') && (
+              <Button
+                onClick={() => setIsPayConfirmOpen(true)}
+                disabled={isPaying}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                size="sm"
+              >
+                <Clock className="h-4 w-4" />
+                <span>Marcar como Pagada</span>
               </Button>
             )}
 
@@ -813,17 +904,79 @@ const PurchaseOrderDetails = () => {
       />
 
       <AlertDialog open={isApproveConfirmOpen} onOpenChange={setIsApproveConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Aprobación</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas aprobar esta Orden de Compra? Esto marcará la orden como finalizada.
+        <AlertDialogContent className="max-w-md bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-xl font-extrabold tracking-tight text-procarni-dark flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Aprobar Orden de Compra
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500 font-medium leading-relaxed">
+              Esta acción dará validez comercial a la orden de compra. Por favor, especifica la modalidad de facturación y plazos para activar el seguimiento de vencimientos.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isApproving}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApproveOrder} disabled={isApproving} className="bg-green-600 hover:bg-green-700">
-              {isApproving ? 'Aprobando...' : 'Aprobar'}
+          
+          <div className="space-y-5 my-5 p-5 bg-slate-50 border border-slate-100 rounded-3xl">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-sm font-bold text-procarni-blue block">Pago a Crédito</span>
+                <span className="text-xs text-gray-400 font-medium">Habilitar financiamiento por días</span>
+              </div>
+              <Switch
+                id="dialog-credit-switch"
+                checked={isCreditApprove}
+                onCheckedChange={setIsCreditApprove}
+                className="data-[state=checked]:bg-procarni-primary"
+              />
+            </div>
+            
+            {isCreditApprove && (
+              <div className="space-y-2 pt-3 border-t border-slate-200/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label htmlFor="dialog-credit-days" className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                  Días de Crédito Concedidos
+                </label>
+                <Input
+                  id="dialog-credit-days"
+                  type="number"
+                  min="1"
+                  value={creditDaysApprove}
+                  onChange={(e) => setCreditDaysApprove(parseInt(e.target.value) || 0)}
+                  className="bg-white border-slate-200 focus-visible:ring-procarni-primary/20 h-10 rounded-xl"
+                  placeholder="Ej. 15, 30, 45 días"
+                />
+              </div>
+            )}
+          </div>
+          
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel disabled={isApproving} className="rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleApproveOrder} 
+              disabled={isApproving || (isCreditApprove && creditDaysApprove <= 0)} 
+              className="bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-primary/20"
+            >
+              {isApproving ? 'Procesando...' : 'Confirmar y Aprobar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isPayConfirmOpen} onOpenChange={setIsPayConfirmOpen}>
+        <AlertDialogContent className="max-w-md bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-xl font-extrabold tracking-tight text-procarni-dark flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+              Marcar como Pagada
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500 font-medium leading-relaxed">
+              ¿Estás seguro de que deseas registrar el pago de esta Orden de Compra? Esta acción cambiará su estado a "Pagada" y completará el flujo comercial de la misma.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 mt-4">
+            <AlertDialogCancel disabled={isPaying} className="rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePayOrder} disabled={isPaying} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-lg shadow-emerald-600/20">
+              {isPaying ? 'Registrando...' : 'Confirmar Pago'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -286,7 +286,10 @@ export type ServiceOrder = {
   currency: 'USD' | 'VES' | 'EUR';
   base_currency: 'USD' | 'EUR';
   exchange_rate: number | null;
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+  status: string;
+  payment_terms: string | null;
+  custom_payment_terms: string | null;
+  credit_days: number | null;
   user_id: string;
   created_at: string | null;
   supplier?: Supplier;
