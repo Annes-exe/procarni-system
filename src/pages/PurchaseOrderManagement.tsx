@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy } from 'lucide-react';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -323,6 +323,15 @@ const PurchaseOrderManagement = () => {
               <TooltipContent>Descargar</TooltipContent>
             </Tooltip>
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)} className="h-8 w-8 text-teal-600">
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Duplicar Orden</TooltipContent>
+            </Tooltip>
+
             {!isArchived && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -418,6 +427,14 @@ const PurchaseOrderManagement = () => {
               <TooltipContent>Descargar</TooltipContent>
             </Tooltip>
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9 text-teal-600 border-teal-100 hover:bg-teal-50" onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Duplicar Orden</TooltipContent>
+            </Tooltip>
 
             {order.status !== 'Archived' ? (
               <Tooltip>
