@@ -534,7 +534,7 @@ const SupplierManagement = () => {
                   </TableHeader>
                   <TableBody>
                     {suppliersList.map((supplier) => (
-                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors group">
+                      <TableRow key={supplier.id} className="hover:bg-gray-50/50 transition-colors group cursor-pointer" onClick={() => navigate(`/suppliers/${supplier.id}`)}>
                         <TableCell className="pl-4 py-2 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
                         <TableCell className="py-2 max-w-[200px]">
                           <div className="flex flex-col">
