@@ -455,29 +455,30 @@ const PaymentRemindersDashboard = () => {
     const daysElapsed = Math.floor((new Date().getTime() - issueDateObj.getTime()) / (1000 * 60 * 60 * 24));
     const daysLeft = Math.ceil((dueDateVal - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
-    let urgencyColor = "border-gray-100 bg-white shadow-sm ring-1 ring-gray-100/50";
+    let urgencyColor = "border-gray-150 bg-white shadow-sm ring-1 ring-gray-100/50";
     let badgeText = "";
     let badgeColor = "bg-gray-100 text-gray-700";
 
     if (order.status === 'Paid') {
-      urgencyColor = "border-green-100 bg-green-50/10 shadow-sm ring-1 ring-green-100/30";
+      urgencyColor = "border-green-200 bg-green-50/45 shadow-sm ring-1 ring-green-200/55";
       badgeText = "Pagada";
-      badgeColor = "bg-green-100 text-green-700";
+      badgeColor = "bg-green-100 text-green-700 font-extrabold";
     } else if (daysLeft < 0) {
-      urgencyColor = "border-red-100 bg-red-50/10 shadow-sm ring-1 ring-red-100/30";
+      urgencyColor = "border-red-200 bg-red-50/45 shadow-sm ring-1 ring-red-200/55";
       badgeText = `Vencido hace ${Math.abs(daysLeft)} días`;
-      badgeColor = "bg-red-100 text-red-700";
+      badgeColor = "bg-red-100 text-red-700 font-extrabold";
     } else if (daysLeft === 0) {
-      urgencyColor = "border-amber-100 bg-amber-50/10 shadow-sm ring-1 ring-amber-100/30";
+      urgencyColor = "border-amber-200 bg-amber-50/45 shadow-sm ring-1 ring-amber-200/55";
       badgeText = "Vence hoy";
-      badgeColor = "bg-amber-100 text-amber-700";
+      badgeColor = "bg-amber-100 text-amber-700 font-extrabold";
     } else if (daysLeft <= 3) {
-      urgencyColor = "border-orange-100 bg-orange-50/10 shadow-sm ring-1 ring-orange-100/30";
+      urgencyColor = "border-orange-200 bg-orange-50/45 shadow-sm ring-1 ring-orange-200/55";
       badgeText = `Vence en ${daysLeft} días`;
-      badgeColor = "bg-orange-100 text-orange-700";
+      badgeColor = "bg-orange-100 text-orange-700 font-extrabold";
     } else {
+      urgencyColor = "border-gray-150 bg-white shadow-sm ring-1 ring-gray-100/50";
       badgeText = `Quedan ${daysLeft} días`;
-      badgeColor = "bg-indigo-100 text-indigo-700";
+      badgeColor = "bg-indigo-100 text-indigo-700 font-extrabold";
     }
 
     const typeLabel = order.type === 'purchase_order' ? 'Compra' : 'Servicio';
