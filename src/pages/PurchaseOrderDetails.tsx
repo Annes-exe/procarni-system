@@ -276,14 +276,43 @@ const PurchaseOrderDetails = () => {
     const toastId = showLoading('Registrando pago...');
 
     try {
-      const success = await purchaseOrderService.updateStatus(order.id, 'Paid');
-      if (success) {
-        showSuccess('Orden de Compra marcada como pagada exitosamente.');
-        queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
-        queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
-      } else {
-        throw new Error('Fallo al registrar el pago.');
+      // 1. Update purchase order status to Paid and paid_amount to the full total
+      const { error: updateError } = await supabase
+        .from('purchase_orders')
+        .update({ status: 'Paid', paid_amount: totals.total })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+
+      // 2. Insert into payment_transactions (Kardex log) for the remaining balance
+      const currentPaid = order.paid_amount || 0;
+      const remainingAmount = Number((totals.total - currentPaid).toFixed(2));
+
+      if (remainingAmount > 0) {
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData?.user?.id || null;
+
+        const { error: txError } = await supabase
+          .from('payment_transactions')
+          .insert({
+            order_id: order.id,
+            order_type: 'purchase_order',
+            amount: remainingAmount,
+            currency: order.currency,
+            exchange_rate: null,
+            converted_amount: remainingAmount,
+            registered_by: userId,
+            previous_paid: currentPaid,
+            new_paid: totals.total,
+            notes: 'Pago completo de saldo remanente registrado'
+          });
+
+        if (txError) throw txError;
       }
+
+      showSuccess('Orden de Compra marcada como pagada exitosamente.');
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Error al registrar el pago.';
       showError(errorMessage);
@@ -448,7 +477,7 @@ const PurchaseOrderDetails = () => {
     );
   }
 
-  const isEditable = (order.status === 'Draft' || role === 'admin') && order.status !== 'Archived';
+  const isEditable = (order.status === 'Draft' || role === 'admin') && order.status !== 'Archived' && role !== 'payment_viewer';
 
   const handleModalOpenChange = (open: boolean) => {
     setIsModalOpen(open);
@@ -500,156 +529,196 @@ const PurchaseOrderDetails = () => {
               {formatSequenceNumber(order.sequence_number, order.created_at)}
             </h1>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
-                    getStatusColorClass(order.status)
-                  )}
-                >
-                  {STATUS_TRANSLATIONS[order.status] || order.status}
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40">
-                <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
-                  const isRestrictedState = order.status === 'Rejected' || order.status === 'Archived';
-                  const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
+            {role === 'payment_viewer' ? (
+              <span
+                className={cn(
+                  "ml-2 inline-flex h-7 px-2.5 py-0.5 text-xs font-semibold border rounded-md items-center",
+                  getStatusColorClass(order.status)
+                )}
+              >
+                {STATUS_TRANSLATIONS[order.status] || order.status}
+              </span>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
+                      getStatusColorClass(order.status)
+                    )}
+                  >
+                    {STATUS_TRANSLATIONS[order.status] || order.status}
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-40">
+                  <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
+                    const isRestrictedState = order.status === 'Rejected' || order.status === 'Archived';
+                    const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
 
-                  return (
-                    <DropdownMenuItem
-                      key={status}
-                      onSelect={() => handleStatusChange(status)}
-                      className={cn(status === order.status && "bg-gray-100 font-medium")}
-                      disabled={isDisabled}
-                    >
-                      {label}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    return (
+                      <DropdownMenuItem
+                        key={status}
+                        onSelect={() => handleStatusChange(status)}
+                        className={cn(status === order.status && "bg-gray-100 font-medium")}
+                        disabled={isDisabled}
+                      >
+                        {label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
         {/* Action Toolbar */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <div className="flex items-center gap-2 ml-auto">
-            {/* Primary Actions: Approve and Edit */}
-            {(order.status === 'Draft' || role === 'admin') && 
-              order.status !== 'Approved' && 
-              order.status !== 'Credit' && 
-              order.status !== 'ToPay' && 
-              order.status !== 'Paid' && 
-              order.status !== 'Archived' && (
-              <Button
-                onClick={() => setIsApproveConfirmOpen(true)}
-                disabled={isApproving}
-                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm order-2 md:order-1"
-                size="sm"
-              >
-                <CheckCircle className="h-4 w-4" />
-                <span className="hidden sm:inline">Aprobar Orden</span>
-              </Button>
-            )}
-
-            {(order.status === 'Credit' || order.status === 'ToPay') && (
-              <Button
-                onClick={() => setIsPayConfirmOpen(true)}
-                disabled={isPaying}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm order-2 md:order-1"
-                size="sm"
-              >
-                <Clock className="h-4 w-4" />
-                <span>Marcar como Pagada</span>
-              </Button>
-            )}
-
-            {isEditable && (
-              <Button onClick={() => navigate(`/purchase-orders/edit/${order.id}`)} variant="outline" size="sm" className="gap-2 order-1 md:order-2">
-                <Edit className="h-4 w-4" />
-                <span className="hidden sm:inline">Editar</span>
-              </Button>
-            )}
-
-            <Button onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)} variant="outline" size="sm" className="gap-2 order-2 text-teal-700 border-teal-100 hover:bg-teal-50">
-              <Copy className="h-4 w-4" />
-              <span className="hidden sm:inline">Duplicar</span>
-            </Button>
-
-            {/* Secondary Actions: Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 order-3">
-                  <MoreVertical className="h-4 w-4" />
-                  <span className="hidden sm:inline">Acciones</span>
+            {role === 'payment_viewer' ? (
+              <>
+                {(order.status === 'Credit' || order.status === 'ToPay') && (
+                  <Button
+                    onClick={() => setIsPayConfirmOpen(true)}
+                    disabled={isPaying}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm"
+                    size="sm"
+                  >
+                    <Clock className="h-4 w-4" />
+                    <span>Marcar como Pagada</span>
+                  </Button>
+                )}
+                <Button onClick={() => setIsModalOpen(true)} variant="outline" size="sm" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span>Previsualizar</span>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                <PDFDownloadButton
+                  orderId={order.id}
+                  fileNameGenerator={generateFileName}
+                  endpoint="generate-po-pdf"
+                  label="Descargar PDF"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 px-3 text-xs font-semibold rounded-lg"
+                />
+              </>
+            ) : (
+              <>
+                {/* Primary Actions: Approve and Edit */}
+                {(order.status === 'Draft' || role === 'admin') && 
+                  order.status !== 'Approved' && 
+                  order.status !== 'Credit' && 
+                  order.status !== 'ToPay' && 
+                  order.status !== 'Paid' && 
+                  order.status !== 'Archived' && (
+                  <Button
+                    onClick={() => setIsApproveConfirmOpen(true)}
+                    disabled={isApproving}
+                    className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                    size="sm"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline">Aprobar Orden</span>
+                  </Button>
+                )}
 
-                <DropdownMenuItem onSelect={() => navigate(`/generate-po?duplicateFrom=${order.id}`)}>
-                  <Copy className="mr-2 h-4 w-4" /> Duplicar Orden
-                </DropdownMenuItem>
+                {(order.status === 'Credit' || order.status === 'ToPay') && (
+                  <Button
+                    onClick={() => setIsPayConfirmOpen(true)}
+                    disabled={isPaying}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                    size="sm"
+                  >
+                    <Clock className="h-4 w-4" />
+                    <span>Marcar como Pagada</span>
+                  </Button>
+                )}
 
-                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
-                </DropdownMenuItem>
+                {isEditable && (
+                  <Button onClick={() => navigate(`/purchase-orders/edit/${order.id}`)} variant="outline" size="sm" className="gap-2 order-1 md:order-2">
+                    <Edit className="h-4 w-4" />
+                    <span className="hidden sm:inline">Editar</span>
+                  </Button>
+                )}
 
-                <DropdownMenuItem asChild>
-                  <PDFDownloadButton
-                    orderId={order.id}
-                    fileNameGenerator={generateFileName}
-                    endpoint="generate-po-pdf"
-                    label="Descargar PDF"
-                    variant="ghost"
-                    className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
-                  />
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem onSelect={() => setIsDocumentManagerOpen(true)}>
-                  <Paperclip className="mr-2 h-4 w-4" /> Documentos Adjuntos
-                </DropdownMenuItem>
-
-                <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
-                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-                </DropdownMenuItem>
-
-                <DropdownMenuItem 
-                  onSelect={() => setIsWhatsAppModalOpen(true)} 
-                  disabled={!order.suppliers?.phone && !order.suppliers?.phone_2}
-                >
-                  <Smartphone className="mr-2 h-4 w-4" /> Enviar por WhatsApp
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
+                <Button onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)} variant="outline" size="sm" className="gap-2 order-2 text-teal-700 border-teal-100 hover:bg-teal-50">
+                  <Copy className="h-4 w-4" />
+                  <span className="hidden sm:inline">Duplicar</span>
+                </Button>
 
                 {/* Secondary Actions: Dropdown */}
-                {/* ... existing code above ... */}
-                {(order.status === 'Draft' || role === 'admin') && order.status !== 'Archived' && order.status !== 'Rejected' && (
-                  <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
-                    <Clock className="mr-2 h-4 w-4" /> Rechazar Orden
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 order-3">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="hidden sm:inline">Acciones</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
 
-                {order.status !== 'Archived' ? (
-                  <DropdownMenuItem onSelect={() => handleStatusChange('Archived')}>
-                    <Archive className="mr-2 h-4 w-4" /> Archivar
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onSelect={() => handleStatusChange('Draft')}>
-                    <RotateCcw className="mr-2 h-4 w-4" /> Desarchivar
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <DropdownMenuItem onSelect={() => navigate(`/generate-po?duplicateFrom=${order.id}`)}>
+                      <Copy className="mr-2 h-4 w-4" /> Duplicar Orden
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
+                      <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                      <PDFDownloadButton
+                        orderId={order.id}
+                        fileNameGenerator={generateFileName}
+                        endpoint="generate-po-pdf"
+                        label="Descargar PDF"
+                        variant="ghost"
+                        className="w-full justify-start cursor-pointer px-2 py-1.5 h-auto font-normal text-sm"
+                      />
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem onSelect={() => setIsDocumentManagerOpen(true)}>
+                      <Paperclip className="mr-2 h-4 w-4" /> Documentos Adjuntos
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem onSelect={() => setIsEmailModalOpen(true)} disabled={!order.suppliers?.email}>
+                      <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem 
+                      onSelect={() => setIsWhatsAppModalOpen(true)} 
+                      disabled={!order.suppliers?.phone && !order.suppliers?.phone_2}
+                    >
+                      <Smartphone className="mr-2 h-4 w-4" /> Enviar por WhatsApp
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
+
+                    {(order.status === 'Draft' || role === 'admin') && order.status !== 'Archived' && order.status !== 'Rejected' && (
+                      <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
+                        <Clock className="mr-2 h-4 w-4" /> Rechazar Orden
+                      </DropdownMenuItem>
+                    )}
+
+                    {order.status !== 'Archived' ? (
+                      <DropdownMenuItem onSelect={() => handleStatusChange('Archived')}>
+                        <Archive className="mr-2 h-4 w-4" /> Archivar
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => handleStatusChange('Draft')}>
+                        <RotateCcw className="mr-2 h-4 w-4" /> Desarchivar
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
 
             {/* Preview Dialog remains (triggered from dropdown) */}
             <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
@@ -887,6 +956,28 @@ const PurchaseOrderDetails = () => {
               <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
                 Ref. USD {totalInUSD} (@ {order.exchange_rate?.toFixed(2)})
               </span>
+            </div>
+          )}
+
+          {/* Abonos Progress Bar */}
+          {order.payment_terms === 'Crédito' && (
+            <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
+              <div className="flex justify-between text-xs font-bold text-gray-500">
+                <span>Abonado: {order.currency} {(order.paid_amount || 0).toFixed(2)}</span>
+                <span>{Math.min(100, Math.max(0, Math.round(((order.paid_amount || 0) / totals.total) * 100)))}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div 
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    order.status === 'Paid' ? "bg-green-500" : "bg-procarni-primary"
+                  )}
+                  style={{ width: `${Math.min(100, Math.max(0, Math.round(((order.paid_amount || 0) / totals.total) * 100)))}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-right text-gray-400 font-medium italic">
+                Pendiente: {order.currency} {(totals.total - (order.paid_amount || 0)).toFixed(2)}
+              </div>
             </div>
           )}
         </div>

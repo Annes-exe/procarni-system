@@ -10,9 +10,12 @@ import { useNavigate } from 'react-router-dom';
 import SearchSuppliersWidget from '@/components/SearchSuppliersWidget';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/components/SessionContextProvider';
+import PaymentRemindersDashboard from './PaymentRemindersDashboard';
 
 const SearchManagement = () => {
   const navigate = useNavigate();
+  const { role } = useSession();
 
   // Variantes para animaciones de Framer Motion
   const containerVariants = {
@@ -119,6 +122,10 @@ const SearchManagement = () => {
       path: "/supplier-management"
     },
   ];
+
+  if (role === 'payment_viewer') {
+    return <PaymentRemindersDashboard />;
+  }
 
   return (
     <m.div 

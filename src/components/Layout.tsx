@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 
@@ -27,6 +27,8 @@ const Layout = () => {
   const mainContentRef = useRef<HTMLElement>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -40,6 +42,20 @@ const Layout = () => {
   }, []);
 
   const { role, session, supabase } = useSession();
+
+  useEffect(() => {
+    if (role === 'payment_viewer') {
+      const allowedPaths = ['/', '/notifications', '/settings'];
+      const isAllowed = 
+        allowedPaths.includes(location.pathname) || 
+        (location.pathname.startsWith('/purchase-orders/') && !location.pathname.includes('/edit/')) || 
+        (location.pathname.startsWith('/service-orders/') && !location.pathname.includes('/edit/'));
+        
+      if (!isAllowed) {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [role, location.pathname, navigate]);
 
   // Ref to prevent duplicate backup checks
   const backupCheckedRef = useRef(false);
