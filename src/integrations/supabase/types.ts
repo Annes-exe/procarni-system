@@ -241,6 +241,7 @@ export type QuoteEntry = {
   isValid?: boolean;
   error?: string | null;
   isBest?: boolean;
+  comment?: string | null;
 };
 
 export interface ComparisonResult {

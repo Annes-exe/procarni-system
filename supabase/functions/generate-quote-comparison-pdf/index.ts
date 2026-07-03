@@ -197,16 +197,19 @@ serve(async (req) => {
         const isBestPrice = quote.isValid && quote.convertedPrice === bestPricesByUoM[uomKey];
         const isGlobalBest = quote.isValid && quote.convertedPrice === globalBestPrice;
 
-        // --- 1. Calculate required row height based on wrapped Supplier Name ---
+        // --- 1. Calculate required row height based on wrapped Supplier Name and Comment ---
         // Max characters per line for 30% width (approx 30 chars per line)
         const maxCharsPerLine = 30;
         const supplierLines = wrapText(quote.supplierName || 'N/A', maxCharsPerLine);
+        const commentLines = quote.comment ? wrapText(`Nota: ${quote.comment}`, 80) : [];
 
         // Calculate height based on tighter line spacing
         const requiredTextHeight = supplierLines.length * TIGHT_LINE_SPACING;
+        const requiredCommentHeight = commentLines.length * TIGHT_LINE_SPACING;
+        const quoteDataHeight = Math.max(MIN_ROW_HEIGHT, requiredTextHeight + 5);
 
         // Determine final row height
-        const rowHeight = Math.max(MIN_ROW_HEIGHT, requiredTextHeight + 5); // Add 5 points padding
+        const rowHeight = quoteDataHeight + (quote.comment ? requiredCommentHeight + 5 : 0);
 
         state = checkPageBreak(pdfDoc, state, rowHeight + 10); // Check page break with padding
 
@@ -235,8 +238,8 @@ serve(async (req) => {
         // Calculate the final Y position for the row based on the calculated row height
         const finalY = state.y - rowHeight;
 
-        // Calculate vertical center position for single-line cells
-        const verticalCenterY = finalY + rowHeight / 2 - FONT_SIZE / 2;
+        // Calculate vertical center position for single-line cells (within quote data only)
+        const verticalCenterY = state.y - quoteDataHeight / 2 - FONT_SIZE / 2;
 
         // 1. Proveedor (Multi-line)
         let currentY = state.y - 3; // Start drawing 3 points below the top line
@@ -291,6 +294,20 @@ serve(async (req) => {
           color: color
         });
         currentX += colWidths[4];
+
+        // Draw comment if exists
+        if (quote.comment && commentLines.length > 0) {
+          let commentY = state.y - quoteDataHeight - 2;
+          for (const line of commentLines) {
+            drawText(state, line, MARGIN + 5, commentY - FONT_SIZE, {
+              font: state.font,
+              color: rgb(0.4, 0.4, 0.4),
+              size: FONT_SIZE - 1,
+              style: 'italic'
+            });
+            commentY -= TIGHT_LINE_SPACING;
+          }
+        }
 
         state.y = finalY; // Update Y position for the next row
 
