@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2 } from 'lucide-react';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
+import TransitReportDialog from '@/components/TransitReportDialog';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { purchaseOrderService, PurchaseOrderWithRelations } from '@/services/purchaseOrderService';
@@ -72,6 +73,7 @@ const PurchaseOrderManagement = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isTransitReportOpen, setIsTransitReportOpen] = useState(false);
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
   const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
@@ -508,7 +510,7 @@ const PurchaseOrderManagement = () => {
 
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); setSelectedIds(new Set()); }} className="w-full">
+          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); }} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
               <TabsList className="grid w-full md:w-auto grid-cols-3 md:flex h-9">
                 {!showHistory ? (
@@ -542,106 +544,6 @@ const PurchaseOrderManagement = () => {
             </div>
 
             <TabsContent value={activeTab} className="mt-0">
-
-              {/* Bulk Actions Bar */}
-              {selectedIds.size > 0 && (
-                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2 rounded-md mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 text-xs hover:bg-white/50">
-                      Cancelar
-                    </Button>
-                    <TooltipProvider delayDuration={0}>
-                      <div className="flex gap-1.5">
-                        {!showHistory ? (
-                          <>
-                            {(activeTab === 'active' || role === 'admin') && (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                      onClick={() => setIsBulkApproveDialogOpen(true)}
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Aprobar Seleccionadas</TooltipContent>
-                                </Tooltip>
-
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
-                                      onClick={() => setIsBulkRejectDialogOpen(true)}
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Rechazar Seleccionadas</TooltipContent>
-                                </Tooltip>
-                              </>
-                            )}
-
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-gray-500 border-gray-200 hover:bg-gray-500 hover:text-white"
-                                  onClick={() => setIsBulkArchiveDialogOpen(true)}
-                                >
-                                  <Archive className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Archivar Seleccionadas</TooltipContent>
-                            </Tooltip>
-                          </>
-                        ) : (
-                          <>
-                            {(activeTab === 'archived' || role === 'admin') && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                    onClick={() => setIsBulkRestoreDialogOpen(true)}
-                                  >
-                                    <RotateCcw className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Restaurar Seleccionadas</TooltipContent>
-                              </Tooltip>
-                            )}
-
-                            {role === 'admin' && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
-                                    onClick={() => setIsBulkDeleteDialogOpen(true)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Eliminar Permanentemente</TooltipContent>
-                              </Tooltip>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </TooltipProvider>
-                  </div>
-                </div>
-              )}
-
               <div className={cn("transition-opacity duration-200 mt-4", isFetching && "opacity-50 pointer-events-none")}>
               {(!isLoading && currentOrders.length === 0) ? (
                 <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
@@ -856,6 +758,123 @@ const PurchaseOrderManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Floating Action Bar for Multi-selection */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95vw] max-w-[680px] p-3 md:p-4 bg-white/95 backdrop-blur-xl border border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2rem] flex items-center justify-between gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-5 duration-300 ring-1 ring-white">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <div className="bg-procarni-primary text-white w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-md shrink-0 animate-pulse">
+              {selectedIds.size}
+            </div>
+            <div className="hidden sm:block min-w-0">
+              <p className="text-sm font-bold text-procarni-dark truncate">Órdenes seleccionadas</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold truncate">Realiza acciones masivas o exporta</p>
+            </div>
+            <span className="sm:hidden text-xs font-bold text-procarni-dark truncate">sel.</span>
+          </div>
+
+          <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+              onClick={() => setIsTransitReportOpen(true)}
+              title="Reporte de Materiales en Tránsito"
+            >
+              <Truck className="h-4 w-4 text-procarni-secondary" />
+              <span className="hidden sm:inline ml-1 text-procarni-secondary">En Tránsito</span>
+            </Button>
+
+            {!showHistory ? (
+              <>
+                {(activeTab === 'active' || role === 'admin') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkApproveDialogOpen(true)}
+                    title="Aprobar Seleccionadas"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Aprobar</span>
+                  </Button>
+                )}
+
+                {(activeTab === 'active' || role === 'admin') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-red-500/30 text-red-600 hover:bg-red-500/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkRejectDialogOpen(true)}
+                    title="Rechazar Seleccionadas"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Rechazar</span>
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 md:h-9 border-gray-500/30 text-gray-600 hover:bg-gray-500/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                  onClick={() => setIsBulkArchiveDialogOpen(true)}
+                  title="Archivar Seleccionadas"
+                >
+                  <Archive className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Archivar</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                {(activeTab === 'archived' || role === 'admin') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkRestoreDialogOpen(true)}
+                    title="Restaurar Seleccionadas"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Restaurar</span>
+                  </Button>
+                )}
+
+                {role === 'admin' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkDeleteDialogOpen(true)}
+                    title="Eliminar Permanentemente"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Eliminar</span>
+                  </Button>
+                )}
+              </>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 md:h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/5 font-medium px-2 rounded-xl transition-all"
+              onClick={() => setSelectedIds(new Set())}
+              title="Cancelar Selección"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Transit Report Dialog Component */}
+      {isTransitReportOpen && (
+        <TransitReportDialog
+          isOpen={isTransitReportOpen}
+          onClose={() => setIsTransitReportOpen(false)}
+          orderIds={Array.from(selectedIds)}
+        />
+      )}
     </div>
   );
 };
