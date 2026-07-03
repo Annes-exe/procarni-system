@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PurchaseOrder, PurchaseOrderItem } from '@/integrations/supabase/types';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError } from '@/utils/toast';
+import { calculateTotals } from '@/utils/calculations';
 
 // Define strict input types for creation/updating to avoid 'any'
 export type CreatePurchaseOrderInput = Omit<PurchaseOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number' | 'print_date'>;
@@ -320,9 +321,37 @@ export const purchaseOrderService = {
     },
 
     updateStatus: async (id: string, newStatus: PurchaseOrder['status']): Promise<boolean> => {
+        let updateData: any = { status: newStatus };
+
+        if (newStatus === 'Paid') {
+            try {
+                // Fetch the purchase order details with items to calculate total
+                const { data: po } = await supabase
+                    .from('purchase_orders')
+                    .select('*, purchase_order_items(*)')
+                    .eq('id', id)
+                    .single();
+
+                if (po) {
+                    const itemsForCalculation = (po.purchase_order_items || []).map((item: any) => ({
+                        quantity: item.quantity,
+                        unit_price: item.unit_price,
+                        tax_rate: item.tax_rate,
+                        is_exempt: item.is_exempt,
+                        sales_percentage: item.sales_percentage || 0,
+                        discount_percentage: item.discount_percentage || 0,
+                    }));
+                    const totals = calculateTotals(itemsForCalculation);
+                    updateData.paid_amount = totals.total;
+                }
+            } catch (e) {
+                console.error('[purchaseOrderService.updateStatus] Error calculating paid_amount:', e);
+            }
+        }
+
         const { error } = await supabase
             .from('purchase_orders')
-            .update({ status: newStatus })
+            .update(updateData)
             .eq('id', id);
 
         if (error) {

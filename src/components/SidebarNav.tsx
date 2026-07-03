@@ -81,12 +81,25 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
 
   // Filter categories based on role
-  const filteredNavItems = navItems.filter(category => {
-    if (category.category === 'Admin' && role !== 'admin') {
-      return false;
-    }
-    return true;
-  });
+  const filteredNavItems = navItems
+    .map(category => {
+      if (role === 'payment_viewer') {
+        if (category.category === 'Inicio') {
+          return {
+            ...category,
+            items: [
+              { to: '/', icon: category.items[0].icon, label: 'Recordatorios' }
+            ]
+          };
+        }
+        return null;
+      }
+      if (category.category === 'Admin' && role !== 'admin') {
+        return null;
+      }
+      return category;
+    })
+    .filter((cat): cat is typeof navItems[0] => cat !== null);
 
   // Auto-open category matching current path
   useEffect(() => {

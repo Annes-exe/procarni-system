@@ -12,9 +12,12 @@ import { getMaterialsInventory, getPurchaseOrdersAprobadas } from '@/integration
 import SearchSuppliersWidget from '@/components/SearchSuppliersWidget';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/components/SessionContextProvider';
+import PaymentRemindersDashboard from './PaymentRemindersDashboard';
 
 const SearchManagement = () => {
   const navigate = useNavigate();
+  const { role } = useSession();
 
   const [lastMaterial, setLastMaterial] = useState<{ id: string; name: string } | null>(null);
 
@@ -157,6 +160,10 @@ const SearchManagement = () => {
       path: "/inventory?filter=LOW_STOCK"
     },
   ];
+
+  if (role === 'payment_viewer') {
+    return <PaymentRemindersDashboard />;
+  }
 
   return (
     <m.div
