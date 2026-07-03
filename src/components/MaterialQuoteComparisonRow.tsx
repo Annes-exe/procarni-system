@@ -403,6 +403,16 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+
+                        <div className="col-span-full mt-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">Comentario</label>
+                          <Input
+                            value={quote.comment || ''}
+                            onChange={(e) => onQuoteChange(quote.originalIndex, 'comment', e.target.value)}
+                            className="h-9 text-xs bg-white border-gray-200 focus:ring-procarni-primary/20"
+                            placeholder="Escribe un comentario sobre este proveedor..."
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -430,10 +440,11 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                     {group.items.map((quote, itemIdx) => {
                       const isFirstInGroup = itemIdx === 0;
                       return (
+                        <>
                         <TableRow 
                           key={`${group.id}-${quote.unit_id}-${itemIdx}`}
                           className={cn(
-                            "transition-colors hover:bg-gray-50/50",
+                            "transition-colors hover:bg-gray-50/50 border-b-0",
                             quote.isBest ? "bg-procarni-secondary/5" : ""
                           )}
                         >
@@ -542,6 +553,26 @@ const MaterialQuoteComparisonRow: React.FC<MaterialQuoteComparisonRowProps> = ({
                             </Button>
                           </TableCell>
                         </TableRow>
+                        <TableRow 
+                          key={`${group.id}-${quote.unit_id}-${itemIdx}-comment`}
+                          className={cn(
+                            "transition-colors hover:bg-gray-50/50 border-b border-gray-100/50",
+                            quote.isBest ? "bg-procarni-secondary/5" : ""
+                          )}
+                        >
+                          <TableCell colSpan={7} className="pt-0 pb-3 pl-4 sm:pl-6 pr-12">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest shrink-0 text-slate-400">Comentario:</span>
+                              <Input
+                                value={quote.comment || ''}
+                                onChange={(e) => onQuoteChange(quote.originalIndex, 'comment', e.target.value)}
+                                className="h-7 text-xs bg-white/60 border-gray-200 focus:ring-procarni-primary/20 flex-1 py-1"
+                                placeholder="Añadir comentario para este proveedor de este ítem (ej. tiempo de entrega, condiciones especiales)..."
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        </>
                       );
                     })}
                     {group.id !== 'new' && (
