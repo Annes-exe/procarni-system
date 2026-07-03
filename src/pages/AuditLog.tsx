@@ -4,7 +4,8 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive, ClipboardList } from 'lucide-react';
 
 import { getAllAuditLogs } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
@@ -13,21 +14,51 @@ import { useNavigate } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AuditLogEntry } from '@/integrations/supabase/services/auditLogService';
 import { useSession } from '@/components/SessionContextProvider';
-const getStatusBadge = (status: string) => {
-  if (!status) return null;
-  const s = status.toLowerCase();
-  let colorClass = 'bg-slate-100 text-slate-800';
-  if (s === 'approved' || s === 'aprobado') colorClass = 'bg-[#e2f5ec] text-[#1b7b44]';
-  if (s === 'rejected' || s === 'rechazado') colorClass = 'bg-red-100 text-red-800';
-  if (s === 'draft' || s === 'borrador') colorClass = 'bg-slate-100 text-slate-800';
-  if (s === 'sent' || s === 'enviado') colorClass = 'bg-blue-100 text-blue-800';
-  if (s === 'archived' || s === 'archivado') colorClass = 'bg-orange-100 text-orange-800';
 
-  return (
-    <div className={`font-medium ${colorClass} rounded px-2 py-0.5 text-[11px] border border-black/5`}>
-      {status}
-    </div>
-  );
+const fieldTranslations: Record<string, string> = {
+  // General
+  name: 'Nombre',
+  status: 'Estado',
+  description: 'Descripción',
+  code: 'Código',
+  currency: 'Moneda',
+  unit_price: 'Precio Unitario',
+  quantity: 'Cantidad',
+  unit: 'Unidad de Medida',
+  delivery_date: 'Fecha de Entrega',
+  created_at: 'Fecha de Creación',
+  user_email: 'Email de Usuario',
+  notes: 'Notas',
+  address: 'Dirección',
+  phone: 'Teléfono',
+  website: 'Sitio Web',
+  email: 'Correo Electrónico',
+  
+  // Materials
+  is_master: '¿Es Patrón de Oro?',
+  base_material_id: 'ID Material Base',
+  category_id: 'ID Categoría',
+  unit_id: 'ID Unidad',
+  min_stock: 'Stock Mínimo',
+  sku: 'Código de Barra / SKU',
+  supplier_code: 'Código del Proveedor',
+  
+  // Orders / Quotes
+  sequence_number: 'Nro de Secuencia',
+  supplier_id: 'ID Proveedor',
+  company_id: 'ID Empresa',
+  exchange_rate: 'Tasa de Cambio',
+  payment_date: 'Fecha de Pago',
+  credit_days: 'Días de Crédito',
+  quote_request_id: 'ID Solic. Cotización',
+  material_id: 'ID Material',
+  amount: 'Monto Total',
+  payment_status: 'Estado de Pago',
+  observations: 'Observaciones',
+  
+  // System profiles
+  role: 'Rol de Usuario',
+  username: 'Nombre de Usuario',
 };
 
 const LogDetails = ({ details }: { details: any }) => {
@@ -35,43 +66,136 @@ const LogDetails = ({ details }: { details: any }) => {
   
   if (!details) return null;
 
-  let infoBlocks = [];
-  if (details.supplier_id) infoBlocks.push(`Proveedor ID: ${details.supplier_id.substring(0,8)}`);
-  if (details.items_count !== undefined) infoBlocks.push(`Ítems: ${details.items_count}`);
-  
-  const detailString = JSON.stringify(details, null, 2);
-  const hasDetails = detailString !== '{}';
+  // Translate helper
+  const translateField = (field: string) => fieldTranslations[field] || field;
+
+  // Render status change cleanly
+  let statusChangeElement = null;
+  if (details.old_data?.status || details.new_status) {
+    const oldStatus = details.old_data?.status || 'N/A';
+    const newStatus = details.new_status || details.new_data?.status || 'N/A';
+    if (oldStatus !== newStatus) {
+      statusChangeElement = (
+        <div className="flex items-center text-xs bg-slate-50 border border-slate-100 p-1.5 rounded-xl max-w-fit shadow-sm my-1">
+          <span className="text-slate-400 font-semibold uppercase tracking-widest text-[9px] ml-2">Estado</span>
+          <span className="mx-2 text-slate-500 font-mono text-[11px]">{oldStatus}</span>
+          <ArrowRight className="w-3 h-3 text-slate-400" />
+          <span className="mx-2 text-procarni-primary font-bold font-mono text-[11px]">{newStatus}</span>
+        </div>
+      );
+    }
+  }
+
+  // Determine change type and build appropriate tables
+  let changesList: Array<{ field: string; label: string; oldVal: string; newVal: string }> = [];
+  let valuesList: Array<{ field: string; label: string; value: string }> = [];
+
+  const skipFields = ['id', 'created_at', 'updated_at', 'status', 'password', 'encrypted_password'];
+
+  if (details.old_data && details.new_data) {
+    // It's an UPDATE: show changes
+    const keys = Object.keys(details.new_data);
+    keys.forEach(key => {
+      if (!skipFields.includes(key)) {
+        const oldVal = details.old_data[key];
+        const newVal = details.new_data[key];
+        if (oldVal !== newVal && (oldVal !== null || newVal !== null)) {
+          changesList.push({
+            field: key,
+            label: translateField(key),
+            oldVal: oldVal === null ? 'Nulo' : String(oldVal),
+            newVal: newVal === null ? 'Nulo' : String(newVal),
+          });
+        }
+      }
+    });
+  } else if (details.new_data) {
+    // It's an INSERT: show created values
+    Object.keys(details.new_data).forEach(key => {
+      if (!skipFields.includes(key) && details.new_data[key] !== null && details.new_data[key] !== '') {
+        valuesList.push({
+          field: key,
+          label: translateField(key),
+          value: String(details.new_data[key]),
+        });
+      }
+    });
+  } else if (details.old_data) {
+    // It's a DELETE: show deleted values
+    Object.keys(details.old_data).forEach(key => {
+      if (!skipFields.includes(key) && details.old_data[key] !== null && details.old_data[key] !== '') {
+        valuesList.push({
+          field: key,
+          label: translateField(key),
+          value: String(details.old_data[key]),
+        });
+      }
+    });
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      {details.new_status && (
-        <div className="flex items-center text-sm bg-white border border-slate-100 p-1 rounded max-w-fit shadow-sm">
-          <span className="text-slate-500 flex items-center font-medium text-[11px] ml-2">
-            Nuevo Estado
-            <ArrowRight className="w-3.5 h-3.5 mx-2 text-slate-300" />
-          </span>
-          {getStatusBadge(details.new_status)}
-        </div>
-      )}
+    <div className="flex flex-col gap-2 mt-1">
+      {statusChangeElement}
       
-      {infoBlocks.length > 0 && !details.updates && (
-        <div className="text-[11px] text-slate-500 mt-1.5 font-medium">{infoBlocks.join(' | ')}</div>
+      {/* Table for UPDATE changes */}
+      {changesList.length > 0 && (
+        <div className="border border-slate-100 rounded-xl overflow-hidden bg-white max-w-lg shadow-sm">
+          <table className="w-full text-[11px] border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
+                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Campo / Propiedad</th>
+                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Valor Anterior</th>
+                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Valor Nuevo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changesList.map((ch, idx) => (
+                <tr key={idx} className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/20">
+                  <td className="px-3 py-1.5 font-bold text-slate-600 font-sans">{ch.label} <span className="text-[9px] font-mono text-slate-300 font-normal">({ch.field})</span></td>
+                  <td className="px-3 py-1.5 text-slate-400 truncate max-w-[120px]" title={ch.oldVal}>{ch.oldVal}</td>
+                  <td className="px-3 py-1.5 text-slate-800 font-semibold truncate max-w-[120px]" title={ch.newVal}>{ch.newVal}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {hasDetails && (
-        <div className="mt-1">
-           <Button variant="outline" size="sm" className="h-7 text-[11px] bg-white text-slate-500 shadow-sm hover:text-slate-700 hover:bg-slate-50 border-slate-200" onClick={() => setIsOpen(!isOpen)}>
-             {isOpen ? <><EyeOff className="w-3 h-3 mr-1.5"/> Ocultar Detalles</> : <><Eye className="w-3 h-3 mr-1.5"/> Ver Detalles Técnicos</>}
-           </Button>
-           {isOpen && (
-             <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-               <pre className="text-xs bg-slate-50 border border-slate-200 text-slate-600 p-2.5 rounded-md overflow-x-auto max-w-fit font-mono">
-                 {detailString}
-               </pre>
-             </div>
-           )}
+      {/* Table for INSERT / DELETE values */}
+      {valuesList.length > 0 && (
+        <div className="border border-slate-100 rounded-xl overflow-hidden bg-white max-w-lg shadow-sm">
+          <table className="w-full text-[11px] border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
+                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Propiedad</th>
+                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Valor Registrado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {valuesList.map((val, idx) => (
+                <tr key={idx} className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/20">
+                  <td className="px-3 py-1.5 font-bold text-slate-600 font-sans">{val.label} <span className="text-[9px] font-mono text-slate-300 font-normal">({val.field})</span></td>
+                  <td className="px-3 py-1.5 text-slate-800 font-medium truncate max-w-[200px]" title={val.value}>{val.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
+
+      {/* RAW details expander */}
+      <div className="mt-1">
+         <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-lg bg-white text-slate-400 shadow-none border-slate-100 hover:text-slate-700 hover:bg-slate-50" onClick={() => setIsOpen(!isOpen)}>
+           {isOpen ? <><EyeOff className="w-2.5 h-2.5 mr-1"/> Ocultar JSON</> : <><Eye className="w-2.5 h-2.5 mr-1"/> Ver Datos Técnicos (JSON)</>}
+         </Button>
+         {isOpen && (
+           <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
+             <pre className="text-[10px] bg-slate-50 border border-slate-200 text-slate-500 p-2 rounded-lg overflow-x-auto max-w-fit font-mono">
+               {JSON.stringify(details, null, 2)}
+             </pre>
+           </div>
+         )}
+      </div>
     </div>
   );
 };
@@ -80,6 +204,7 @@ const AuditLog = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'orders' | 'materials' | 'suppliers' | 'quotes'>('all');
   const { role, isLoadingSession } = useSession();
 
   useEffect(() => {
@@ -96,16 +221,45 @@ const AuditLog = () => {
 
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
-    if (!searchTerm) return logs;
+    
+    // First, filter by tab category
+    let tabFiltered = logs;
+    if (activeTab === 'orders') {
+      tabFiltered = logs.filter(log => {
+        const t = (log.table || '').toLowerCase();
+        const a = log.action.toLowerCase();
+        return t.includes('purchase_order') || t.includes('service_order') || a.includes('purchase_order') || a.includes('service_order');
+      });
+    } else if (activeTab === 'materials') {
+      tabFiltered = logs.filter(log => {
+        const t = (log.table || '').toLowerCase();
+        const a = log.action.toLowerCase();
+        return t === 'materials' || t.includes('category') || t.includes('measure') || t.includes('price') || a.includes('material') || a.includes('category') || a.includes('measure') || a.includes('price');
+      });
+    } else if (activeTab === 'suppliers') {
+      tabFiltered = logs.filter(log => {
+        const t = (log.table || '').toLowerCase();
+        const a = log.action.toLowerCase();
+        return t.includes('supplier') || a.includes('supplier');
+      });
+    } else if (activeTab === 'quotes') {
+      tabFiltered = logs.filter(log => {
+        const t = (log.table || '').toLowerCase();
+        const a = log.action.toLowerCase();
+        return t.includes('quote_request') || t.includes('quote_comparison') || t.includes('ficha') || a.includes('quote_request') || a.includes('quote_comparison') || a.includes('ficha');
+      });
+    }
+
+    if (!searchTerm) return tabFiltered;
 
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return logs.filter(log =>
+    return tabFiltered.filter(log =>
       log.action.toLowerCase().includes(lowerCaseSearchTerm) ||
       (log.user_email && log.user_email.toLowerCase().includes(lowerCaseSearchTerm)) ||
       (log.table && log.table.toLowerCase().includes(lowerCaseSearchTerm)) ||
       (log.description && log.description.toLowerCase().includes(lowerCaseSearchTerm))
     );
-  }, [logs, searchTerm]);
+  }, [logs, activeTab, searchTerm]);
 
   if (isLoading) {
     return (
@@ -126,74 +280,94 @@ const AuditLog = () => {
 
   const actionMap: Record<string, { label: string, color: string, icon?: React.ElementType }> = {
     // Quote Requests
-    CREATE_QUOTE_REQUEST: { label: 'Crear Solic. Cotización', color: 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100', icon: Plus },
-    UPDATE_QUOTE_REQUEST: { label: 'Editar Solic. Cotización', color: 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100', icon: Edit },
-    UPDATE_QUOTE_REQUEST_STATUS: { label: 'Cambiar Estado Solic.', color: 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-100', icon: CheckCircle },
-    BULK_ARCHIVE_QUOTE_REQUESTS: { label: 'Archivar SCs Masivo', color: 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100', icon: Archive },
-    DELETE_QUOTE_REQUEST: { label: 'Eliminar Solic. Cot.', color: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100', icon: Trash },
+    CREATE_QUOTE_REQUEST: { label: 'Crear Solic. Cotización', color: 'bg-green-50 text-emerald-700 border-green-200 hover:bg-green-50', icon: Plus },
+    UPDATE_QUOTE_REQUEST: { label: 'Editar Solic. Cotización', color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50', icon: Edit },
+    UPDATE_QUOTE_REQUEST_STATUS: { label: 'Cambiar Estado Solic.', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-50', icon: CheckCircle },
+    BULK_ARCHIVE_QUOTE_REQUESTS: { label: 'Archivar SCs Masivo', color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50', icon: Archive },
+    DELETE_QUOTE_REQUEST: { label: 'Eliminar Solic. Cot.', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50', icon: Trash },
     
     // Service Orders
-    CREATE_SERVICE_ORDER: { label: 'Crear Orden Ser.', color: 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100', icon: Plus },
-    UPDATE_SERVICE_ORDER: { label: 'Editar Orden Ser.', color: 'bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-100', icon: Edit },
-    UPDATE_SERVICE_ORDER_STATUS: { label: 'Cambiar Estado OS', color: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-100', icon: CheckCircle },
-    DELETE_SERVICE_ORDER: { label: 'Eliminar Orden Ser.', color: 'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-100', icon: Trash },
+    CREATE_SERVICE_ORDER: { label: 'Crear Orden Ser.', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50', icon: Plus },
+    UPDATE_SERVICE_ORDER: { label: 'Editar Orden Ser.', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-50', icon: Edit },
+    UPDATE_SERVICE_ORDER_STATUS: { label: 'Cambiar Estado OS', color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 hover:bg-fuchsia-50', icon: CheckCircle },
+    DELETE_SERVICE_ORDER: { label: 'Eliminar Orden Ser.', color: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-50', icon: Trash },
 
     // Purchase Orders (Bulks)
-    BULK_ARCHIVE_PURCHASE_ORDERS: { label: 'Archivar OCs Masivo', color: 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-100', icon: Archive },
+    BULK_ARCHIVE_PURCHASE_ORDERS: { label: 'Archivar OCs Masivo', color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50', icon: Archive },
 
     // Quote Comparisons
-    CREATE_QUOTE_COMPARISON: { label: 'Crear Comparativo', color: 'bg-teal-100 text-teal-800 border-teal-200 hover:bg-teal-100', icon: FileText },
-    UPDATE_QUOTE_COMPARISON: { label: 'Editar Comparativo', color: 'bg-cyan-100 text-cyan-800 border-cyan-200 hover:bg-cyan-100', icon: Edit },
-    DELETE_QUOTE_COMPARISON: { label: 'Eliminar Comparativo', color: 'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-100', icon: Trash },
+    CREATE_QUOTE_COMPARISON: { label: 'Crear Comparativo', color: 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-50', icon: FileText },
+    UPDATE_QUOTE_COMPARISON: { label: 'Editar Comparativo', color: 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-50', icon: Edit },
+    DELETE_QUOTE_COMPARISON: { label: 'Eliminar Comparativo', color: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-50', icon: Trash },
 
     // Material Quotes
-    DELETE_QUOTE: { label: 'Eliminar Cotización', color: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100', icon: Trash },
+    DELETE_QUOTE: { label: 'Eliminar Cotización', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50', icon: Trash },
 
     // Materials
-    CREATE_MATERIAL: { label: 'Crear Material', color: 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100', icon: Package },
-    UPDATE_MATERIAL: { label: 'Editar Material', color: 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-100', icon: Edit },
-    DELETE_MATERIAL: { label: 'Eliminar Material', color: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100', icon: Trash },
+    CREATE_MATERIAL: { label: 'Crear Material', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50', icon: Package },
+    UPDATE_MATERIAL: { label: 'Editar Material', color: 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50', icon: Edit },
+    DELETE_MATERIAL: { label: 'Eliminar Material', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50', icon: Trash },
 
     // Suppliers
-    CREATE_SUPPLIER: { label: 'Crear Proveedor', color: 'bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-100', icon: Truck },
-    UPDATE_SUPPLIER: { label: 'Editar Proveedor', color: 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100', icon: Edit },
-    DELETE_SUPPLIER: { label: 'Eliminar Proveedor', color: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100', icon: Trash },
+    CREATE_SUPPLIER: { label: 'Crear Proveedor', color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-50', icon: Truck },
+    UPDATE_SUPPLIER: { label: 'Editar Proveedor', color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50', icon: Edit },
+    DELETE_SUPPLIER: { label: 'Eliminar Proveedor', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50', icon: Trash },
 
     // Companies
-    CREATE_COMPANY: { label: 'Crear Empresa', color: 'bg-violet-100 text-violet-800 border-violet-200 hover:bg-violet-100', icon: Building2 },
-    UPDATE_COMPANY: { label: 'Editar Empresa', color: 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-100', icon: Edit },
-    DELETE_COMPANY: { label: 'Eliminar Empresa', color: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100', icon: Trash },
+    CREATE_COMPANY: { label: 'Crear Empresa', color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50', icon: Building2 },
+    UPDATE_COMPANY: { label: 'Editar Empresa', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-50', icon: Edit },
+    DELETE_COMPANY: { label: 'Eliminar Empresa', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50', icon: Trash },
 
     // Fichas Técnicas
-    UPLOAD_FICHA_TECNICA: { label: 'Subir Ficha Técnica', color: 'bg-lime-100 text-lime-800 border-lime-200 hover:bg-lime-100', icon: UploadCloud },
-    DELETE_FICHA_TECNICA: { label: 'Eliminar Ficha Técnica', color: 'bg-rose-100 text-rose-800 border-rose-200 hover:bg-rose-100', icon: Trash },
+    UPLOAD_FICHA_TECNICA: { label: 'Subir Ficha Técnica', color: 'bg-lime-50 text-lime-700 border-lime-200/50 hover:bg-lime-50', icon: UploadCloud },
+    DELETE_FICHA_TECNICA: { label: 'Eliminar Ficha Técnica', color: 'bg-rose-50 text-rose-700 border-rose-200/50 hover:bg-rose-50', icon: Trash },
   };
 
   const getActionDisplay = (action: string, details?: any) => {
     if (actionMap[action]) return actionMap[action];
 
-    // Handle database trigger actions ("Creación en ...", "Actualización en ...", "Eliminación en ...")
-    if (action.startsWith('Creación en')) {
-      return { label: action, color: 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100', icon: Plus };
-    }
-    if (action.startsWith('Actualización en')) {
-      if (details?.new_status) {
-         return { label: 'Cambio de Estado', color: 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-100', icon: CheckCircle };
-      }
-      return { label: action, color: 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100', icon: Edit };
-    }
-    if (action.startsWith('Eliminación en')) {
-      return { label: action, color: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100', icon: Trash };
+    const isInsert = action.startsWith('Creación en');
+    const isUpdate = action.startsWith('Actualización en');
+    const isDelete = action.startsWith('Eliminación en');
+    
+    // Choose icon based on database table name
+    const table = (details?.table || '').toLowerCase();
+    let Icon: React.ElementType = FileText;
+    if (table.includes('material') || table.includes('category') || table.includes('measure')) {
+      Icon = Package;
+    } else if (table.includes('supplier')) {
+      Icon = Truck;
+    } else if (table.includes('company')) {
+      Icon = Building2;
+    } else if (table.includes('quote_request')) {
+      Icon = FileText;
+    } else if (table.includes('quote_comparison')) {
+      Icon = ClipboardList;
+    } else if (table.includes('ficha')) {
+      Icon = UploadCloud;
     }
 
-    return { label: action, color: 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-100' };
+    if (isInsert) {
+      return { label: action, color: 'bg-green-50 text-emerald-700 border-green-200/30 hover:bg-green-50', icon: Icon };
+    }
+    if (isUpdate) {
+      if (details?.new_status) {
+         return { label: 'Cambio de Estado', color: 'bg-purple-50 text-purple-700 border-purple-200/30 hover:bg-purple-50', icon: CheckCircle };
+      }
+      return { label: action, color: 'bg-blue-50 text-blue-700 border-blue-200/30 hover:bg-blue-50', icon: Icon };
+    }
+    if (isDelete) {
+      return { label: action, color: 'bg-red-50 text-red-700 border-red-200/30 hover:bg-red-50', icon: Trash };
+    }
+
+    return { label: action, color: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-50', icon: Icon };
   };
 
   const renderActionBadge = (action: string, details?: any) => {
     const { label, color, icon: Icon } = getActionDisplay(action, details);
     return (
-      <Badge variant="outline" className={`font-medium ${color} border-none flex items-center w-fit gap-1.5 rounded-full px-2.5 py-0.5`}>
-        {Icon && <Icon className="w-3.5 h-3.5" />}
+      <Badge variant="outline" className={`font-semibold text-[10px] tracking-wide uppercase ${color} border-none flex items-center w-fit gap-1 rounded-full px-2 py-0.5`}>
+        {Icon && <Icon className="w-3 h-3" />}
         {label}
       </Badge>
     );
@@ -213,79 +387,93 @@ const AuditLog = () => {
     <div className="container mx-auto p-4 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Historial de Auditoría</h1>
-          <p className="text-muted-foreground text-sm">Registro de todas las acciones importantes realizadas en el sistema.</p>
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Kardex de Auditoría</h1>
+          <p className="text-muted-foreground text-sm">Registro continuo de transacciones, movimientos y auditoría del sistema.</p>
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Buscar por acción, email, tabla o descripción..."
-              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      <Card className="mb-6 border-none shadow-2xl shadow-gray-200/50 bg-transparent md:bg-white/70 backdrop-blur-xl rounded-[2rem] ring-1 ring-white">
+        <CardContent className="p-0 md:p-8">
+          
+          {/* Tabs Filter matching Premium style */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+            <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full md:w-auto">
+              <TabsList className="grid grid-cols-5 h-9 bg-slate-100 p-0.5 rounded-xl">
+                <TabsTrigger value="all" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Todo</TabsTrigger>
+                <TabsTrigger value="orders" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Órdenes</TabsTrigger>
+                <TabsTrigger value="materials" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Materiales</TabsTrigger>
+                <TabsTrigger value="suppliers" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Proveedores</TabsTrigger>
+                <TabsTrigger value="quotes" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Cotizaciones</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Buscar en Kardex..."
+                className="w-full bg-slate-50 pl-9 h-9 text-xs rounded-xl border-slate-150 focus:ring-procarni-primary/20"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
 
           {filteredLogs.length > 0 ? (
             isMobile ? (
               <div className="grid gap-4">
                 {filteredLogs.map((log) => (
-                  <Card key={log.id} className="p-4 border-slate-200 shadow-sm">
+                  <Card key={log.id} className="p-4 border-slate-150 rounded-2xl shadow-sm bg-white/70 backdrop-blur-md">
                     <div className="flex justify-between items-start mb-3">
                       {renderActionBadge(log.action, log.raw_details)}
-                      <span className="text-xs text-slate-400 flex items-center font-medium bg-slate-50 px-2 py-1 rounded-full border border-slate-100">
-                        <Clock className="w-3 h-3 mr-1" />
+                      <span className="text-[10px] text-slate-400 flex items-center font-bold bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-mono">
+                        <Clock className="w-2.5 h-2.5 mr-1" />
                         {new Date(log.timestamp).toLocaleDateString('es-VE')}
                       </span>
                     </div>
-                    <div className="text-sm space-y-3">
-                      <div className="flex items-center text-slate-700">
-                        <User className="mr-2 h-4 w-4 text-slate-400 bg-slate-100 p-0.5 rounded-full" /> 
-                        <span className="font-medium">{log.user_email || 'Sistema'}</span>
+                    <div className="text-sm space-y-2">
+                      <div className="flex items-center text-xs text-slate-500 font-medium">
+                        <User className="mr-1.5 h-3.5 w-3.5 text-slate-400 bg-slate-100 p-0.5 rounded-full" /> 
+                        <span>{log.user_email || 'Sistema'}</span>
                       </div>
                       
-                      <div className="text-slate-700 bg-slate-50 p-3 rounded-lg text-sm border border-slate-100 shadow-sm">
-                        <p className="font-medium mb-1">{log.description || 'Sin descripción'}</p>
+                      <div className="text-slate-800 bg-slate-50/50 p-3 rounded-xl text-xs border border-slate-100">
+                        <p className="font-bold text-procarni-dark mb-1">{log.description || 'Sin descripción'}</p>
                         <LogDetails details={log.raw_details} />
                       </div>
                       
-                      <div className="flex justify-between bg-white border border-slate-100 p-2 rounded text-xs text-slate-500 mt-2">
-                         <span className="font-mono">T: {log.table || 'N/A'}</span>
-                         <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">ID: {log.record_id ? log.record_id.substring(0, 8) : 'N/A'}</span>
+                      <div className="flex justify-between bg-white border border-slate-100 p-1.5 rounded-lg text-[10px] text-slate-400 font-mono mt-1">
+                         <span>Tabla: {log.table || 'N/A'}</span>
+                         <span>ID: {log.record_id ? log.record_id.substring(0, 8) : 'N/A'}</span>
                       </div>
                     </div>
                   </Card>
                 ))}
               </div>
             ) : (
-              <div className="rounded-md border border-gray-200 overflow-hidden bg-white shadow-sm">
+              <div className="rounded-2xl border border-slate-150 overflow-hidden bg-white/60 backdrop-blur-sm shadow-xl shadow-gray-150/10">
                 <Table>
-                  <TableHeader className="bg-slate-50/80 border-b border-slate-200">
+                  <TableHeader className="bg-slate-50/80 border-b border-slate-150">
                     <TableRow>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-slate-500 pl-4 py-3 min-w-[140px]">Fecha</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-slate-500 py-3 min-w-[200px]">Usuario</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-slate-500 py-3 min-w-[220px]">Acción</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-slate-500 py-3 w-[100px]">Tabla / Ref</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-slate-500 pr-4 py-3 w-full">Descripción y Detalles</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-widest uppercase text-slate-400 pl-4 py-3 min-w-[130px]">Fecha / Hora</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-widest uppercase text-slate-400 py-3 min-w-[180px]">Usuario</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-widest uppercase text-slate-400 py-3 min-w-[200px]">Acción / Transacción</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-widest uppercase text-slate-400 py-3 w-[120px]">Entidad</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-widest uppercase text-slate-400 pr-4 py-3 w-full">Detalle del Movimiento</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredLogs.map((log) => (
-                      <TableRow key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                        <TableCell className="pl-4 py-3 text-xs text-slate-600 align-top">
-                          <div className="flex items-center text-nowrap font-medium bg-slate-50 w-fit px-2 py-1 rounded border border-slate-100">
-                            <Clock className="w-3 h-3 mr-1.5 text-slate-400"/>
+                      <TableRow key={log.id} className="hover:bg-blue-50/10 transition-colors group">
+                        <TableCell className="pl-4 py-3 text-[11px] text-slate-500 font-mono align-top">
+                          <div className="flex items-center text-nowrap bg-slate-50 w-fit px-2 py-0.5 rounded border border-slate-100">
+                            <Clock className="w-2.5 h-2.5 mr-1 text-slate-400"/>
                             {formatTimestamp(log.timestamp)}
                           </div>
                         </TableCell>
-                        <TableCell className="py-3 text-sm font-medium text-slate-700 align-top">
-                          <div className="flex items-center bg-white border border-slate-100 w-fit px-2 py-1 rounded shadow-sm">
-                            <User className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                        <TableCell className="py-3 text-xs font-semibold text-slate-700 align-top">
+                          <div className="flex items-center bg-white border border-slate-100 w-fit px-2 py-0.5 rounded-lg shadow-sm">
+                            <User className="w-3 h-3 mr-1 text-slate-400" />
                             {log.user_email || 'Sistema'}
                           </div>
                         </TableCell>
@@ -293,13 +481,13 @@ const AuditLog = () => {
                            {renderActionBadge(log.action, log.raw_details)}
                         </TableCell>
                         <TableCell className="py-3 align-top">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 w-fit">{log.table || 'N/A'}</span>
-                            <span className="text-[11px] font-mono text-slate-400">ID:{log.record_id ? log.record_id.substring(0, 8) : 'N/A'}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 w-fit">{log.table || 'N/A'}</span>
+                            <span className="text-[9px] font-mono text-slate-400">ID: {log.record_id ? log.record_id.substring(0, 8) : 'N/A'}</span>
                           </div>
                         </TableCell>
                         <TableCell className="pr-4 py-3 align-top">
-                          <span className="text-sm text-slate-800 font-medium block mb-1">{log.description || 'Sin descripción general'}</span>
+                          <span className="text-xs text-procarni-dark font-bold block mb-1">{log.description || 'Sin descripción general'}</span>
                           <LogDetails details={log.raw_details} />
                         </TableCell>
                       </TableRow>
@@ -309,13 +497,12 @@ const AuditLog = () => {
               </div>
             )
           ) : (
-            <div className="text-center text-muted-foreground p-8">
-              No hay registros de auditoría disponibles o no se encontraron resultados para tu búsqueda.
+            <div className="text-center text-slate-500 py-12 border border-dashed border-slate-200 rounded-2xl bg-white/50">
+              No hay registros de movimientos en el Kardex de auditoría para este filtro o búsqueda.
             </div>
           )}
         </CardContent>
       </Card>
-
     </div>
   );
 };
