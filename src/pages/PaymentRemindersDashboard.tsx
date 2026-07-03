@@ -6,17 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Calendar, 
-  Search, 
-  CreditCard, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  ArrowRight, 
-  ArrowUpDown, 
-  DollarSign, 
-  User, 
+import {
+  Calendar,
+  Search,
+  CreditCard,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  ArrowRight,
+  ArrowUpDown,
+  DollarSign,
+  User,
   PlusCircle,
   TrendingUp,
   History,
@@ -93,7 +93,7 @@ const getLocalDateString = (dateObjOrStr: Date | string) => {
   if (!dateObjOrStr) return '';
   const d = new Date(dateObjOrStr);
   if (isNaN(d.getTime())) return '';
-  
+
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -104,13 +104,13 @@ const PaymentRemindersDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Sorting and filtering states
   const [sortBy, setSortBy] = useState<SortOption>('date_desc');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
-  
+
   // Abono dialog states
   const [isAbonoDialogOpen, setIsAbonoDialogOpen] = useState(false);
   const [selectedOrderForAbono, setSelectedOrderForAbono] = useState<OrderItem | null>(null);
@@ -200,7 +200,7 @@ const PaymentRemindersDashboard = () => {
   // Join Kardex with suppliers and displayId in memory
   const kardexRecords = useMemo(() => {
     if (!rawTransactions || !orders) return [];
-    
+
     return rawTransactions.map(tx => {
       const matchedOrder = orders.find(o => o.id === tx.order_id);
       return {
@@ -216,14 +216,14 @@ const PaymentRemindersDashboard = () => {
   // Filter Kardex based on search, supplier, and dates
   const filteredKardex = useMemo(() => {
     let result = [...kardexRecords];
-    
+
     if (searchTerm.trim()) {
       const lower = searchTerm.toLowerCase();
       result = result.filter(
         r => r.displayId.toLowerCase().includes(lower) || r.supplierName.toLowerCase().includes(lower)
       );
     }
-    
+
     if (selectedSupplierFilter !== 'all') {
       result = result.filter(r => r.supplierName === selectedSupplierFilter);
     }
@@ -241,7 +241,7 @@ const PaymentRemindersDashboard = () => {
         return localDate <= endDateFilter;
       });
     }
-    
+
     return result;
   }, [kardexRecords, searchTerm, selectedSupplierFilter, startDateFilter, endDateFilter]);
 
@@ -545,24 +545,6 @@ const PaymentRemindersDashboard = () => {
                 <td class="totals-label">Total EUR:</td>
                 <td class="totals-value" style="color: #0e5708; font-family: monospace;">€ ${totalEUR.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
               </tr>` : ''}
-              <tr style="border-top: 1px dashed #cbd5e1;">
-                <td colspan="2" style="font-size: 10px; font-weight: bold; color: #1B294A; text-transform: uppercase; padding: 12px 16px 2px 16px;">Total Acreditado a Órdenes:</td>
-              </tr>
-              ${totalAcreditadoVES > 0 ? `
-              <tr>
-                <td class="totals-label" style="font-weight: bold; color: #1B294A;">Acreditado VES:</td>
-                <td class="totals-value" style="font-size: 13px; color: #1B294A; font-family: monospace;">Bs. ${totalAcreditadoVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-              ${totalAcreditadoUSD > 0 ? `
-              <tr>
-                <td class="totals-label" style="font-weight: bold; color: #1B294A;">Acreditado USD:</td>
-                <td class="totals-value" style="font-size: 13px; color: #1B294A; font-family: monospace;">$ ${totalAcreditadoUSD.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-              ${totalAcreditadoEUR > 0 ? `
-              <tr>
-                <td class="totals-label" style="font-weight: bold; color: #1B294A;">Acreditado EUR:</td>
-                <td class="totals-value" style="font-size: 13px; color: #1B294A; font-family: monospace;">€ ${totalAcreditadoEUR.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
             </table>
           </div>
 
@@ -585,7 +567,7 @@ const PaymentRemindersDashboard = () => {
   // Calculate frequent suppliers (Dynamic Top 5)
   const frequentSuppliers = useMemo(() => {
     if (!orders || orders.length === 0) return [];
-    
+
     const counts: Record<string, { count: number; name: string }> = {};
     orders.forEach(order => {
       const name = order.suppliers?.name || 'Desconocido';
@@ -602,14 +584,14 @@ const PaymentRemindersDashboard = () => {
 
   // Handle Abono (Partial Payment) Mutation
   const addAbonoMutation = useMutation({
-    mutationFn: async ({ 
-      order, 
-      amount, 
-      convertedAmount, 
-      paymentCurrency, 
-      exchangeRate 
-    }: { 
-      order: OrderItem; 
+    mutationFn: async ({
+      order,
+      amount,
+      convertedAmount,
+      paymentCurrency,
+      exchangeRate
+    }: {
+      order: OrderItem;
       amount: number;
       convertedAmount: number;
       paymentCurrency: 'USD' | 'VES' | 'EUR';
@@ -617,7 +599,7 @@ const PaymentRemindersDashboard = () => {
     }) => {
       const currentPaid = order.paid_amount || 0;
       const newPaid = Number((currentPaid + convertedAmount).toFixed(2));
-      
+
       // If payment meets or exceeds total, mark as Paid
       const shouldMarkAsPaid = newPaid >= (order.totalAmount - 0.01);
       const updatedStatus = shouldMarkAsPaid ? 'Paid' : order.status;
@@ -661,7 +643,7 @@ const PaymentRemindersDashboard = () => {
     },
     onSuccess: (result) => {
       showSuccess(
-        result.shouldMarkAsPaid 
+        result.shouldMarkAsPaid
           ? '¡Abono registrado! El saldo total ha sido cubierto y la orden se marcó como Pagada.'
           : 'Abono registrado exitosamente.'
       );
@@ -776,9 +758,9 @@ const PaymentRemindersDashboard = () => {
         .select('paid_amount, status')
         .eq('id', selectedOrderForAbono.id)
         .single();
-      
+
       if (error) throw error;
-      
+
       if (latestOrder) {
         const latestPaid = latestOrder.paid_amount || 0;
         const currentPaidLocal = selectedOrderForAbono.paid_amount || 0;
@@ -826,7 +808,7 @@ const PaymentRemindersDashboard = () => {
 
     setIsSubmittingAbono(true);
     const toastId = showLoading('Procesando abono...');
-    
+
     try {
       await addAbonoMutation.mutateAsync({
         order: selectedOrderForAbono,
@@ -845,12 +827,12 @@ const PaymentRemindersDashboard = () => {
   const convertedAbonoPreview = useMemo(() => {
     if (!selectedOrderForAbono || !abonoAmount || isNaN(Number(abonoAmount))) return null;
     const inputAmt = Number(abonoAmount);
-    
+
     if (selectedOrderForAbono.currency === abonoCurrency) return null;
-    
+
     const rate = Number(abonoExchangeRate);
     if (!rate || rate <= 0) return 'Tasa inválida';
-    
+
     if (selectedOrderForAbono.currency === 'VES') {
       return `${(inputAmt * rate).toFixed(2)} VES`;
     } else if (abonoCurrency === 'VES') {
@@ -938,7 +920,7 @@ const PaymentRemindersDashboard = () => {
     const issueDateObj = new Date(order.issue_date || '');
     const creditDaysVal = order.credit_days || 0;
     const dueDateVal = issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
-    
+
     // Days calculations
     const daysElapsed = Math.floor((new Date().getTime() - issueDateObj.getTime()) / (1000 * 60 * 60 * 24));
     const daysLeft = Math.ceil((dueDateVal - new Date().getTime()) / (1000 * 60 * 60 * 24));
@@ -970,8 +952,8 @@ const PaymentRemindersDashboard = () => {
     }
 
     const typeLabel = order.type === 'purchase_order' ? 'Compra' : 'Servicio';
-    const typeColor = order.type === 'purchase_order' 
-      ? 'bg-procarni-primary/10 text-procarni-primary border border-procarni-primary/20' 
+    const typeColor = order.type === 'purchase_order'
+      ? 'bg-procarni-primary/10 text-procarni-primary border border-procarni-primary/20'
       : 'bg-procarni-blue/10 text-procarni-blue border border-procarni-blue/20';
 
     // Abono progress calculation
@@ -979,7 +961,7 @@ const PaymentRemindersDashboard = () => {
     const progressPercent = Math.min(100, Math.max(0, Math.round((paidAmt / order.totalAmount) * 100)));
 
     return (
-      <Card 
+      <Card
         key={order.id}
         className={cn(
           "group relative p-6 border rounded-[1.75rem] transition-all duration-300 hover:shadow-lg flex flex-col justify-between min-h-[300px]",
@@ -1025,7 +1007,7 @@ const PaymentRemindersDashboard = () => {
               <span>{progressPercent}%</span>
             </div>
             <div className="w-full bg-gray-200/70 rounded-full h-2 overflow-hidden">
-              <div 
+              <div
                 className={cn(
                   "h-full rounded-full transition-all duration-500",
                   order.status === 'Paid' ? "bg-green-500" : "bg-procarni-primary"
@@ -1086,7 +1068,7 @@ const PaymentRemindersDashboard = () => {
   };
 
   return (
-    <m.div 
+    <m.div
       initial="hidden"
       animate="visible"
       variants={containerVariants}
@@ -1116,8 +1098,8 @@ const PaymentRemindersDashboard = () => {
               onClick={() => setSelectedSupplierFilter('all')}
               className={cn(
                 "rounded-full text-xs font-bold transition-all px-3 md:px-4 shadow-sm h-9",
-                selectedSupplierFilter === 'all' 
-                  ? "bg-procarni-blue hover:bg-procarni-dark text-white" 
+                selectedSupplierFilter === 'all'
+                  ? "bg-procarni-blue hover:bg-procarni-dark text-white"
                   : "bg-white border-gray-200 text-gray-600 hover:bg-slate-50"
               )}
             >
@@ -1131,8 +1113,8 @@ const PaymentRemindersDashboard = () => {
                 onClick={() => setSelectedSupplierFilter(supplier.name)}
                 className={cn(
                   "rounded-full text-xs font-bold transition-all px-3 md:px-4 shadow-sm h-9",
-                  selectedSupplierFilter === supplier.name 
-                    ? "bg-procarni-blue hover:bg-procarni-dark text-white" 
+                  selectedSupplierFilter === supplier.name
+                    ? "bg-procarni-blue hover:bg-procarni-dark text-white"
                     : "bg-white border-gray-200 text-gray-600 hover:bg-slate-50"
                 )}
               >
@@ -1185,8 +1167,8 @@ const PaymentRemindersDashboard = () => {
             <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 shrink-0">
               <ArrowUpDown className="h-3.5 w-3.5" /> Ordenar:
             </Label>
-            <Select 
-              value={sortBy} 
+            <Select
+              value={sortBy}
               onValueChange={(val: SortOption) => setSortBy(val)}
             >
               <SelectTrigger className="w-full sm:w-[160px] h-11 bg-white border-gray-200 rounded-xl text-xs font-extrabold text-gray-600 shadow-sm focus:ring-procarni-primary/20">
@@ -1296,8 +1278,8 @@ const PaymentRemindersDashboard = () => {
               {/* Stacked Cards for Mobile View */}
               <div className="space-y-4 md:hidden">
                 {filteredKardex.map((tx) => (
-                  <Card 
-                    key={tx.id} 
+                  <Card
+                    key={tx.id}
                     className="p-5 rounded-2xl border border-gray-200/60 shadow-sm bg-white/80 backdrop-blur-sm cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
                     onClick={() => navigate(tx.order_type === 'purchase_order' ? `/purchase-orders/${tx.order_id}` : `/service-orders/${tx.order_id}`)}
                   >
@@ -1354,8 +1336,8 @@ const PaymentRemindersDashboard = () => {
                       </TableHeader>
                       <TableBody>
                         {filteredKardex.map((tx) => (
-                          <TableRow 
-                            key={tx.id} 
+                          <TableRow
+                            key={tx.id}
                             className="hover:bg-blue-50/20 py-4 transition-colors cursor-pointer group/row"
                             onClick={() => navigate(tx.order_type === 'purchase_order' ? `/purchase-orders/${tx.order_id}` : `/service-orders/${tx.order_id}`)}
                           >
@@ -1411,7 +1393,7 @@ const PaymentRemindersDashboard = () => {
               Registrar Abono / Pago Parcial
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedOrderForAbono && (
             <div className="space-y-5 pt-3">
               {/* Summary Cards */}
@@ -1451,8 +1433,8 @@ const PaymentRemindersDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">Moneda de Pago</Label>
-                    <Select 
-                      value={abonoCurrency} 
+                    <Select
+                      value={abonoCurrency}
                       onValueChange={(val: 'USD' | 'VES' | 'EUR') => setAbonoCurrency(val)}
                     >
                       <SelectTrigger className="h-11 rounded-xl border-gray-200">
