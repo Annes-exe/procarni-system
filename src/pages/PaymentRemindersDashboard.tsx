@@ -23,10 +23,12 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
 import { cn } from '@/lib/utils';
+import { currencyService } from '@/services/currencyService';
 import { calculateTotals } from '@/utils/calculations';
-import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
+import { showError, showSuccess, showLoading, dismissToast, showWarning } from '@/utils/toast';
 import {
   Dialog,
   DialogContent,
@@ -86,6 +88,18 @@ interface PaymentTransaction {
 
 type SortOption = 'number_asc' | 'number_desc' | 'value_desc' | 'date_desc';
 
+// Helper to get local date string YYYY-MM-DD to avoid timezone shifts
+const getLocalDateString = (dateObjOrStr: Date | string) => {
+  if (!dateObjOrStr) return '';
+  const d = new Date(dateObjOrStr);
+  if (isNaN(d.getTime())) return '';
+  
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const PaymentRemindersDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -94,13 +108,16 @@ const PaymentRemindersDashboard = () => {
   // Sorting and filtering states
   const [sortBy, setSortBy] = useState<SortOption>('date_desc');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
+  const [startDateFilter, setStartDateFilter] = useState<string>('');
+  const [endDateFilter, setEndDateFilter] = useState<string>('');
   
   // Abono dialog states
   const [isAbonoDialogOpen, setIsAbonoDialogOpen] = useState(false);
   const [selectedOrderForAbono, setSelectedOrderForAbono] = useState<OrderItem | null>(null);
   const [abonoAmount, setAbonoAmount] = useState('');
-  const [abonoCurrency, setAbonoCurrency] = useState<'USD' | 'VES'>('USD');
+  const [abonoCurrency, setAbonoCurrency] = useState<'USD' | 'VES' | 'EUR'>('VES');
   const [abonoExchangeRate, setAbonoExchangeRate] = useState('');
+  const [orderCurrencyDailyRate, setOrderCurrencyDailyRate] = useState<number | null>(null);
   const [isSubmittingAbono, setIsSubmittingAbono] = useState(false);
 
   // Animation variants
@@ -196,7 +213,7 @@ const PaymentRemindersDashboard = () => {
     });
   }, [rawTransactions, orders]);
 
-  // Filter Kardex based on search and selected supplier
+  // Filter Kardex based on search, supplier, and dates
   const filteredKardex = useMemo(() => {
     let result = [...kardexRecords];
     
@@ -210,9 +227,360 @@ const PaymentRemindersDashboard = () => {
     if (selectedSupplierFilter !== 'all') {
       result = result.filter(r => r.supplierName === selectedSupplierFilter);
     }
+
+    if (startDateFilter) {
+      result = result.filter(r => {
+        const localDate = getLocalDateString(r.payment_date);
+        return localDate >= startDateFilter;
+      });
+    }
+
+    if (endDateFilter) {
+      result = result.filter(r => {
+        const localDate = getLocalDateString(r.payment_date);
+        return localDate <= endDateFilter;
+      });
+    }
     
     return result;
-  }, [kardexRecords, searchTerm, selectedSupplierFilter]);
+  }, [kardexRecords, searchTerm, selectedSupplierFilter, startDateFilter, endDateFilter]);
+
+  // Trigger urgent alerts upon loading
+  React.useEffect(() => {
+    if (!orders || orders.length === 0) return;
+
+    const pending = orders.filter(o => o.status !== 'Paid');
+    let vencidosCount = 0;
+    let vencenHoyCount = 0;
+    let vencenProntoCount = 0;
+
+    pending.forEach(order => {
+      const issueDateObj = new Date(order.issue_date || '');
+      const creditDaysVal = order.credit_days || 0;
+      const dueDateVal = issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
+      const daysLeft = Math.ceil((dueDateVal - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft < 0) {
+        vencidosCount++;
+      } else if (daysLeft === 0) {
+        vencenHoyCount++;
+      } else if (daysLeft > 0 && daysLeft <= 3) {
+        vencenProntoCount++;
+      }
+    });
+
+    if (vencidosCount > 0) {
+      showWarning(`Hay ${vencidosCount} factura(s) de crédito VENCIDA(S). Por favor revise las cuentas por pagar.`);
+    }
+    if (vencenHoyCount > 0) {
+      showWarning(`Hay ${vencenHoyCount} factura(s) de crédito que VENCE(N) HOY.`);
+    }
+    if (vencenProntoCount > 0) {
+      showWarning(`Hay ${vencenProntoCount} factura(s) de crédito por vencer en los próximos 3 días.`);
+    }
+  }, [orders]);
+
+  // Export History to XLSX (Excel format)
+  const handleExportKardexXLSX = () => {
+    if (filteredKardex.length === 0) {
+      showError('No hay datos para exportar.');
+      return;
+    }
+
+    const data = filteredKardex.map(tx => ({
+      'Fecha/Hora': new Date(tx.payment_date).toLocaleString('es-VE'),
+      'Nro Documento': tx.displayId,
+      'Proveedor': tx.supplierName,
+      'Monto Aportado': tx.amount,
+      'Moneda Pago': tx.currency,
+      'Tasa de Cambio': tx.exchange_rate || 'N/A',
+      'Monto Acreditado': tx.converted_amount,
+      'Moneda Documento': tx.orderCurrency,
+      'Notas': tx.notes || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial de Pagos');
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `reporte_cxp_pagos_${dateStr}.xlsx`);
+    showSuccess('Reporte de Pagos en Excel (.xlsx) descargado exitosamente.');
+  };
+
+  // Export History to PDF (Print-friendly layout styled like Quote Comparisons)
+  const handleExportKardexPDF = () => {
+    if (filteredKardex.length === 0) {
+      showError('No hay datos para exportar.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showError('No se pudo abrir la ventana de impresión. Verifique el bloqueo de popups.');
+      return;
+    }
+
+    const dateStr = new Date().toLocaleDateString('es-VE');
+    const rangeStr = startDateFilter || endDateFilter
+      ? `Período: ${startDateFilter || 'Inicio'} al ${endDateFilter || 'Fin'}`
+      : 'Período: Histórico Completo';
+
+    const supplierStr = selectedSupplierFilter !== 'all'
+      ? `Proveedor: ${selectedSupplierFilter}`
+      : 'Proveedores: Todos';
+
+    const searchStr = searchTerm.trim()
+      ? `Búsqueda: "${searchTerm}"`
+      : '';
+
+    const rowsHtml = filteredKardex.map(tx => `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 10px 12px; text-align: left; color: #475569;">${new Date(tx.payment_date).toLocaleString('es-VE')}</td>
+        <td style="padding: 10px 12px; text-align: left; font-family: monospace; font-weight: bold; color: #0f172a;">${tx.displayId}</td>
+        <td style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">${tx.supplierName}</td>
+        <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #0e5708;">${formatCurrency(tx.amount, tx.currency)}</td>
+        <td style="padding: 10px 12px; text-align: right; color: #64748b;">${tx.exchange_rate ? `@ ${tx.exchange_rate.toFixed(4)}` : 'N/A'}</td>
+        <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #1B294A;">${formatCurrency(tx.converted_amount, tx.orderCurrency)}</td>
+        <td style="padding: 10px 12px; text-align: left; color: #64748b; font-style: italic;">${tx.notes || ''}</td>
+      </tr>
+    `).join('');
+
+    const totalVES = filteredKardex
+      .filter(tx => tx.currency === 'VES')
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const totalUSD = filteredKardex
+      .filter(tx => tx.currency === 'USD')
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const totalEUR = filteredKardex
+      .filter(tx => tx.currency === 'EUR')
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const totalAcreditadoUSD = filteredKardex
+      .filter(tx => tx.orderCurrency === 'USD')
+      .reduce((sum, tx) => sum + tx.converted_amount, 0);
+
+    const totalAcreditadoEUR = filteredKardex
+      .filter(tx => tx.orderCurrency === 'EUR')
+      .reduce((sum, tx) => sum + tx.converted_amount, 0);
+
+    const totalAcreditadoVES = filteredKardex
+      .filter(tx => tx.orderCurrency === 'VES')
+      .reduce((sum, tx) => sum + tx.converted_amount, 0);
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Reporte de Pagos - Procarni</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              padding: 40px;
+              background-color: #ffffff;
+            }
+            .header-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 25px;
+            }
+            .logo-section {
+              text-align: left;
+            }
+            .company-name {
+              font-size: 26px;
+              font-weight: 900;
+              color: #1B294A;
+              letter-spacing: -0.8px;
+            }
+            .company-tagline {
+              font-size: 10px;
+              color: #880a0a;
+              font-weight: bold;
+              text-transform: uppercase;
+              letter-spacing: 2px;
+              margin-top: 2px;
+            }
+            .report-title {
+              font-size: 18px;
+              font-weight: 800;
+              color: #0f172a;
+              text-align: right;
+              text-transform: uppercase;
+              letter-spacing: -0.5px;
+            }
+            .report-metadata {
+              font-size: 11px;
+              color: #64748b;
+              text-align: right;
+              margin-top: 5px;
+            }
+            .filters-box {
+              background-color: #f8fafc;
+              border: 1px solid #f1f5f9;
+              border-radius: 16px;
+              padding: 12px 20px;
+              margin-bottom: 30px;
+              font-size: 11px;
+              color: #475569;
+              display: flex;
+              justify-content: space-between;
+              flex-wrap: wrap;
+              gap: 12px;
+            }
+            .data-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 35px;
+            }
+            .data-table th {
+              background-color: #f8fafc;
+              color: #475569;
+              font-size: 9px;
+              font-weight: bold;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              padding: 12px;
+              border-bottom: 2px solid #cbd5e1;
+            }
+            .totals-section {
+              display: flex;
+              justify-content: flex-end;
+              margin-top: 20px;
+              margin-bottom: 50px;
+            }
+            .totals-table {
+              border-collapse: collapse;
+              min-width: 320px;
+              background-color: #f8fafc;
+              border-radius: 16px;
+              border: 1px solid #f1f5f9;
+            }
+            .totals-table td {
+              padding: 10px 16px;
+              font-size: 12px;
+            }
+            .totals-label {
+              color: #64748b;
+              text-align: left;
+              font-weight: 500;
+            }
+            .totals-value {
+              font-weight: bold;
+              text-align: right;
+              color: #0f172a;
+            }
+            .footer-notes {
+              margin-top: 80px;
+              font-size: 9px;
+              color: #94a3b8;
+              text-align: center;
+              border-top: 1px solid #f1f5f9;
+              padding-top: 20px;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td class="logo-section">
+                <div class="company-name">PROCARNI</div>
+                <div class="company-tagline">System</div>
+              </td>
+              <td>
+                <div class="report-title">Historial de Transacciones de Pago</div>
+                <div class="report-metadata">Fecha Emisión: ${dateStr}</div>
+              </td>
+            </tr>
+          </table>
+
+          <div class="filters-box">
+            <div><strong>${rangeStr}</strong></div>
+            <div><strong>${supplierStr}</strong></div>
+            ${searchStr ? `<div><strong>${searchStr}</strong></div>` : ''}
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="text-align: left;">Fecha/Hora</th>
+                <th style="text-align: left;">Documento</th>
+                <th style="text-align: left;">Proveedor</th>
+                <th style="text-align: right;">Monto Aportado</th>
+                <th style="text-align: right;">Tasa de Cambio</th>
+                <th style="text-align: right;">Equivalente Acreditado</th>
+                <th style="text-align: left;">Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals-section">
+            <table class="totals-table">
+              <tr>
+                <td colspan="2" style="font-size: 10px; font-weight: bold; color: #475569; text-transform: uppercase; padding: 12px 16px 2px 16px;">Total Pagado por Moneda:</td>
+              </tr>
+              ${totalVES > 0 ? `
+              <tr>
+                <td class="totals-label">Total VES:</td>
+                <td class="totals-value" style="color: #0e5708; font-family: monospace;">Bs. ${totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              ${totalUSD > 0 ? `
+              <tr>
+                <td class="totals-label">Total USD:</td>
+                <td class="totals-value" style="color: #0e5708; font-family: monospace;">$ ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              ${totalEUR > 0 ? `
+              <tr>
+                <td class="totals-label">Total EUR:</td>
+                <td class="totals-value" style="color: #0e5708; font-family: monospace;">€ ${totalEUR.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              <tr style="border-top: 1px dashed #cbd5e1;">
+                <td colspan="2" style="font-size: 10px; font-weight: bold; color: #1B294A; text-transform: uppercase; padding: 12px 16px 2px 16px;">Total Acreditado a Órdenes:</td>
+              </tr>
+              ${totalAcreditadoVES > 0 ? `
+              <tr>
+                <td class="totals-label" style="font-weight: bold; color: #1B294A;">Acreditado VES:</td>
+                <td class="totals-value" style="font-size: 13px; color: #1B294A; font-family: monospace;">Bs. ${totalAcreditadoVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              ${totalAcreditadoUSD > 0 ? `
+              <tr>
+                <td class="totals-label" style="font-weight: bold; color: #1B294A;">Acreditado USD:</td>
+                <td class="totals-value" style="font-size: 13px; color: #1B294A; font-family: monospace;">$ ${totalAcreditadoUSD.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+              ${totalAcreditadoEUR > 0 ? `
+              <tr>
+                <td class="totals-label" style="font-weight: bold; color: #1B294A;">Acreditado EUR:</td>
+                <td class="totals-value" style="font-size: 13px; color: #1B294A; font-family: monospace;">€ ${totalAcreditadoEUR.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+              </tr>` : ''}
+            </table>
+          </div>
+
+          <div class="footer-notes">
+            Reporte generado electrónicamente desde el panel administrativo de Procarni System.
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   // Calculate frequent suppliers (Dynamic Top 5)
   const frequentSuppliers = useMemo(() => {
@@ -313,16 +681,116 @@ const PaymentRemindersDashboard = () => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedOrderForAbono(order);
-    setAbonoCurrency(order.currency === 'VES' ? 'VES' : 'USD');
+    setAbonoCurrency('VES');
     setAbonoExchangeRate(String(order.exchange_rate || ''));
     setAbonoAmount('');
     setIsAbonoDialogOpen(true);
   };
 
+  // Load daily rates when dialog opens or payment currency changes
+  React.useEffect(() => {
+    if (!selectedOrderForAbono || !isAbonoDialogOpen) return;
+
+    // Fetch order currency rate (for summary conversion to VES)
+    const fetchOrderRate = async () => {
+      if (selectedOrderForAbono.currency === 'VES') {
+        setOrderCurrencyDailyRate(1);
+        return;
+      }
+      try {
+        let r = 1;
+        if (selectedOrderForAbono.currency === 'EUR') {
+          const eurObj = await currencyService.getEurRate();
+          r = eurObj.promedio || eurObj.valor;
+        } else {
+          const usdObj = await currencyService.getUsdRate();
+          r = usdObj.promedio || usdObj.valor;
+        }
+        setOrderCurrencyDailyRate(r);
+      } catch (e) {
+        console.error('Error loading order daily rate:', e);
+        setOrderCurrencyDailyRate(selectedOrderForAbono.exchange_rate || 1);
+      }
+    };
+    fetchOrderRate();
+
+    // Fetch conversion rate for the payment input
+    if (selectedOrderForAbono.currency === abonoCurrency) {
+      setAbonoExchangeRate('');
+      return;
+    }
+
+    const fetchRate = async () => {
+      try {
+        let rate = 1;
+        if (abonoCurrency === 'VES') {
+          if (selectedOrderForAbono.currency === 'EUR') {
+            const eurRateObj = await currencyService.getEurRate();
+            rate = eurRateObj.promedio || eurRateObj.valor;
+          } else {
+            const usdRateObj = await currencyService.getUsdRate();
+            rate = usdRateObj.promedio || usdRateObj.valor;
+          }
+        } else if (selectedOrderForAbono.currency === 'VES') {
+          if (abonoCurrency === 'EUR') {
+            const eurRateObj = await currencyService.getEurRate();
+            rate = eurRateObj.promedio || eurRateObj.valor;
+          } else {
+            const usdRateObj = await currencyService.getUsdRate();
+            rate = usdRateObj.promedio || usdRateObj.valor;
+          }
+        } else {
+          // USD vs EUR
+          const [eurObj, usdObj] = await Promise.all([
+            currencyService.getEurRate(),
+            currencyService.getUsdRate()
+          ]);
+          const eur = eurObj.promedio || eurObj.valor;
+          const usd = usdObj.promedio || usdObj.valor;
+          rate = eur / usd;
+        }
+
+        if (rate && rate > 0) {
+          setAbonoExchangeRate(rate.toFixed(4));
+        }
+      } catch (e) {
+        console.error('Error fetching conversion exchange rate:', e);
+        setAbonoExchangeRate(String(selectedOrderForAbono.exchange_rate || ''));
+      }
+    };
+
+    fetchRate();
+  }, [abonoCurrency, selectedOrderForAbono, isAbonoDialogOpen]);
+
   const handleRegisterAbono = async () => {
     if (!selectedOrderForAbono || !abonoAmount || Number(abonoAmount) <= 0) {
       showError('Por favor ingrese un monto válido.');
       return;
+    }
+
+    // Concurrency verification
+    try {
+      const tableName = selectedOrderForAbono.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
+      const { data: latestOrder, error } = await supabase
+        .from(tableName)
+        .select('paid_amount, status')
+        .eq('id', selectedOrderForAbono.id)
+        .single();
+      
+      if (error) throw error;
+      
+      if (latestOrder) {
+        const latestPaid = latestOrder.paid_amount || 0;
+        const currentPaidLocal = selectedOrderForAbono.paid_amount || 0;
+        if (Math.abs(latestPaid - currentPaidLocal) > 0.01 || latestOrder.status !== selectedOrderForAbono.status) {
+          showError('Los datos de este documento han cambiado. La vista se recargará.');
+          queryClient.invalidateQueries({ queryKey: ['creditOrdersDashboardFull'] });
+          setIsAbonoDialogOpen(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Error verifying concurrency:', e);
     }
 
     const inputAmt = Number(abonoAmount);
@@ -336,12 +804,14 @@ const PaymentRemindersDashboard = () => {
         return;
       }
 
-      if (selectedOrderForAbono.currency === 'USD' && abonoCurrency === 'VES') {
-        // VES payment on USD order -> Convert to USD
-        convertedAmount = inputAmt / rate;
-      } else if (selectedOrderForAbono.currency === 'VES' && abonoCurrency === 'USD') {
-        // USD payment on VES order -> Convert to VES
+      if (selectedOrderForAbono.currency === 'VES') {
         convertedAmount = inputAmt * rate;
+      } else if (abonoCurrency === 'VES') {
+        convertedAmount = inputAmt / rate;
+      } else if (selectedOrderForAbono.currency === 'USD' && abonoCurrency === 'EUR') {
+        convertedAmount = inputAmt * rate;
+      } else if (selectedOrderForAbono.currency === 'EUR' && abonoCurrency === 'USD') {
+        convertedAmount = inputAmt / rate;
       }
     }
 
@@ -381,10 +851,14 @@ const PaymentRemindersDashboard = () => {
     const rate = Number(abonoExchangeRate);
     if (!rate || rate <= 0) return 'Tasa inválida';
     
-    if (selectedOrderForAbono.currency === 'USD' && abonoCurrency === 'VES') {
-      return `${(inputAmt / rate).toFixed(2)} USD`;
-    } else if (selectedOrderForAbono.currency === 'VES' && abonoCurrency === 'USD') {
+    if (selectedOrderForAbono.currency === 'VES') {
       return `${(inputAmt * rate).toFixed(2)} VES`;
+    } else if (abonoCurrency === 'VES') {
+      return `${(inputAmt / rate).toFixed(2)} ${selectedOrderForAbono.currency}`;
+    } else if (selectedOrderForAbono.currency === 'USD' && abonoCurrency === 'EUR') {
+      return `${(inputAmt * rate).toFixed(2)} USD`;
+    } else if (selectedOrderForAbono.currency === 'EUR' && abonoCurrency === 'USD') {
+      return `${(inputAmt / rate).toFixed(2)} EUR`;
     }
     return null;
   }, [selectedOrderForAbono, abonoAmount, abonoCurrency, abonoExchangeRate]);
@@ -408,6 +882,20 @@ const PaymentRemindersDashboard = () => {
       result = result.filter(
         (order) => order.suppliers?.name === selectedSupplierFilter
       );
+    }
+
+    // Date range filter
+    if (startDateFilter) {
+      result = result.filter((order) => {
+        const localDate = getLocalDateString(order.issue_date || order.created_at);
+        return localDate >= startDateFilter;
+      });
+    }
+    if (endDateFilter) {
+      result = result.filter((order) => {
+        const localDate = getLocalDateString(order.issue_date || order.created_at);
+        return localDate <= endDateFilter;
+      });
     }
 
     // 3. Sort logic
@@ -669,25 +1157,49 @@ const PaymentRemindersDashboard = () => {
           />
         </div>
 
-        {/* Sorting Dropdown */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-          <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
-            <ArrowUpDown className="h-3.5 w-3.5" /> Ordenar por:
-          </Label>
-          <Select 
-            value={sortBy} 
-            onValueChange={(val: SortOption) => setSortBy(val)}
-          >
-            <SelectTrigger className="w-full sm:w-[200px] h-11 bg-white border-gray-200 rounded-xl text-xs font-extrabold text-gray-600 shadow-sm focus:ring-procarni-primary/20">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-gray-200">
-              <SelectItem value="date_desc" className="text-xs font-medium">Recientes primero</SelectItem>
-              <SelectItem value="number_asc" className="text-xs font-medium">Número (Ascendente)</SelectItem>
-              <SelectItem value="number_desc" className="text-xs font-medium">Número (Descendente)</SelectItem>
-              <SelectItem value="value_desc" className="text-xs font-medium">Mayor valor</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Date Filters & Sorting */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
+          {/* Start Date filter */}
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">Desde:</Label>
+            <Input
+              type="date"
+              value={startDateFilter}
+              onChange={(e) => setStartDateFilter(e.target.value)}
+              className="h-11 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600 shadow-sm focus:ring-procarni-primary/20 w-full sm:w-auto"
+            />
+          </div>
+
+          {/* End Date filter */}
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">Hasta:</Label>
+            <Input
+              type="date"
+              value={endDateFilter}
+              onChange={(e) => setEndDateFilter(e.target.value)}
+              className="h-11 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600 shadow-sm focus:ring-procarni-primary/20 w-full sm:w-auto"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 shrink-0">
+              <ArrowUpDown className="h-3.5 w-3.5" /> Ordenar:
+            </Label>
+            <Select 
+              value={sortBy} 
+              onValueChange={(val: SortOption) => setSortBy(val)}
+            >
+              <SelectTrigger className="w-full sm:w-[160px] h-11 bg-white border-gray-200 rounded-xl text-xs font-extrabold text-gray-600 shadow-sm focus:ring-procarni-primary/20">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-200">
+                <SelectItem value="date_desc" className="text-xs font-medium">Recientes primero</SelectItem>
+                <SelectItem value="number_asc" className="text-xs font-medium">Número (Asc)</SelectItem>
+                <SelectItem value="number_desc" className="text-xs font-medium">Número (Desc)</SelectItem>
+                <SelectItem value="value_desc" className="text-xs font-medium">Mayor valor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -704,7 +1216,7 @@ const PaymentRemindersDashboard = () => {
           </TabsTrigger>
           <TabsTrigger value="kardex" className="rounded-xl px-4 py-2.5 text-xs md:text-sm font-extrabold tracking-tight data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm w-full md:w-auto justify-start md:justify-center">
             <History className="h-4 w-4 mr-2 text-indigo-500 shrink-0" />
-            Historial (Kardex) ({filteredKardex.length})
+            Historial de Pagos ({filteredKardex.length})
           </TabsTrigger>
         </TabsList>
 
@@ -745,15 +1257,39 @@ const PaymentRemindersDashboard = () => {
         </TabsContent>
 
         {/* Tab 3: Kardex Ledger */}
-        <TabsContent value="kardex" className="mt-0 outline-none">
+        <TabsContent value="kardex" className="mt-0 outline-none space-y-4">
+          <div className="flex justify-between items-center bg-white/50 p-4 rounded-2xl border border-gray-100">
+            <div>
+              <h3 className="text-sm font-extrabold text-procarni-blue">Historial de Transacciones de Pago</h3>
+              <p className="text-xs text-gray-500 font-medium font-mono">Libro auxiliar de abonos registrados en el sistema.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleExportKardexXLSX}
+                variant="outline"
+                size="sm"
+                className="h-10 text-xs font-extrabold rounded-xl border-gray-200 bg-white hover:bg-slate-50 shadow-sm text-procarni-blue hover:text-procarni-primary"
+              >
+                Exportar Excel
+              </Button>
+              <Button
+                onClick={handleExportKardexPDF}
+                variant="outline"
+                size="sm"
+                className="h-10 text-xs font-extrabold rounded-xl border-gray-200 bg-white hover:bg-slate-50 shadow-sm text-procarni-blue hover:text-procarni-primary"
+              >
+                Exportar PDF
+              </Button>
+            </div>
+          </div>
           {isLoadingKardex || isLoading ? (
             <div className="flex justify-center items-center h-48 text-sm text-gray-500">
-              <span className="animate-pulse font-medium">Cargando historial Kardex...</span>
+              <span className="animate-pulse font-medium">Cargando historial de pagos...</span>
             </div>
           ) : filteredKardex.length === 0 ? (
             <Card className="p-12 text-center border-dashed border-gray-200 bg-white/50 rounded-[2rem] shadow-none flex flex-col items-center justify-center">
               <History className="h-10 w-10 text-gray-300 mb-3" />
-              <p className="text-gray-500 text-sm font-bold">No hay transacciones registradas en el Kardex.</p>
+              <p className="text-gray-500 text-sm font-bold">No hay transacciones registradas con los filtros aplicados.</p>
             </Card>
           ) : (
             <div className="space-y-4">
@@ -896,9 +1432,17 @@ const PaymentRemindersDashboard = () => {
                   <span>Abonado actualmente:</span>
                   <span>{formatCurrency(selectedOrderForAbono.paid_amount || 0, selectedOrderForAbono.currency)}</span>
                 </div>
-                <div className="flex justify-between text-procarni-primary font-bold bg-red-50/50 p-1.5 rounded-lg">
-                  <span>Saldo Pendiente:</span>
-                  <span>{formatCurrency(selectedOrderForAbono.totalAmount - (selectedOrderForAbono.paid_amount || 0), selectedOrderForAbono.currency)}</span>
+                <div className="flex flex-col text-procarni-primary font-bold bg-red-50/50 p-1.5 rounded-lg">
+                  <div className="flex justify-between">
+                    <span>Saldo Pendiente:</span>
+                    <span>{formatCurrency(selectedOrderForAbono.totalAmount - (selectedOrderForAbono.paid_amount || 0), selectedOrderForAbono.currency)}</span>
+                  </div>
+                  {selectedOrderForAbono.currency !== 'VES' && orderCurrencyDailyRate && (
+                    <div className="flex justify-between text-[10px] text-red-900/80 font-bold border-t border-red-200/50 mt-1 pt-1 italic">
+                      <span>Ref. en VES (Tasa hoy):</span>
+                      <span>{formatCurrency((selectedOrderForAbono.totalAmount - (selectedOrderForAbono.paid_amount || 0)) * orderCurrencyDailyRate, 'VES')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -909,7 +1453,7 @@ const PaymentRemindersDashboard = () => {
                     <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">Moneda de Pago</Label>
                     <Select 
                       value={abonoCurrency} 
-                      onValueChange={(val: 'USD' | 'VES') => setAbonoCurrency(val)}
+                      onValueChange={(val: 'USD' | 'VES' | 'EUR') => setAbonoCurrency(val)}
                     >
                       <SelectTrigger className="h-11 rounded-xl border-gray-200">
                         <SelectValue placeholder="Moneda" />
@@ -917,12 +1461,13 @@ const PaymentRemindersDashboard = () => {
                       <SelectContent className="rounded-xl">
                         <SelectItem value="USD">Dólares (USD)</SelectItem>
                         <SelectItem value="VES">Bolívares (VES)</SelectItem>
+                        <SelectItem value="EUR">Euros (EUR)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">Monto del Abono</Label>
+                    <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">Monto del Abono ({abonoCurrency})</Label>
                     <Input
                       type="number"
                       value={abonoAmount}

@@ -79,7 +79,8 @@ interface PurchaseOrderDetailsData {
   companies: CompanyDetails;
   currency: 'USD' | 'VES';
   exchange_rate?: number | null;
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived';
+  paid_amount?: number | null;
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid';
   created_at: string;
   created_by?: string;
   user_id: string;
