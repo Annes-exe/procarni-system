@@ -97,6 +97,8 @@ export type PurchaseOrder = {
   payment_terms: string | null;
   custom_payment_terms: string | null;
   credit_days: number | null;
+  payment_date: string | null;
+  paid_amount: number | null;
   observations: string | null;
   quote_request_id: string | null;
   service_order_id?: string | null; // Added
@@ -290,6 +292,8 @@ export type ServiceOrder = {
   payment_terms: string | null;
   custom_payment_terms: string | null;
   credit_days: number | null;
+  payment_date: string | null;
+  paid_amount: number | null;
   user_id: string;
   created_at: string | null;
   supplier?: Supplier;
@@ -385,4 +389,20 @@ export type SoftMigrationSuggestion = {
   dirty_category: string | null;
   dirty_unit: string | null;
   similarity_score: number;
+};
+
+export type PaymentTransaction = {
+  id: string;
+  order_id: string;
+  order_type: 'purchase_order' | 'service_order';
+  payment_date: string;
+  amount: number;
+  currency: 'USD' | 'VES' | 'EUR';
+  exchange_rate: number | null;
+  converted_amount: number;
+  registered_by: string | null;
+  previous_paid: number;
+  new_paid: number;
+  notes: string | null;
+  created_at: string;
 };

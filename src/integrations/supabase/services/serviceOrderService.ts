@@ -2,6 +2,7 @@
 
 import { supabase } from '../client';
 import { showError } from '@/utils/toast';
+import { calculateTotals } from '@/utils/calculations';
 import { ServiceOrder, ServiceOrderItem, ServiceOrderMaterial } from '../types';
 import { logAudit } from './auditLogService';
 
@@ -344,10 +345,49 @@ const ServiceOrderService = {
     return updatedOrder as ServiceOrder;
   },
 
-  updateStatus: async (id: string, newStatus: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived'): Promise<boolean> => {
+  updateStatus: async (id: string, newStatus: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid'): Promise<boolean> => {
+    let updateData: any = { status: newStatus };
+
+    if (newStatus === 'Paid') {
+      try {
+        // Fetch order with items and materials to calculate total
+        const { data: order } = await supabase
+          .from('service_orders')
+          .select('*, service_order_items(*), service_order_materials(*)')
+          .eq('id', id)
+          .single();
+
+        if (order) {
+          const items = [
+            ...(order.service_order_items?.map((item: any) => ({
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              tax_rate: item.tax_rate,
+              is_exempt: item.is_exempt,
+              sales_percentage: item.sales_percentage || 0,
+              discount_percentage: item.discount_percentage || 0,
+            })) || []),
+            ...(order.service_order_materials?.map((item: any) => ({
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              tax_rate: item.tax_rate,
+              is_exempt: item.is_exempt,
+              sales_percentage: item.sales_percentage || 0,
+              discount_percentage: item.discount_percentage || 0,
+            })) || [])
+          ];
+
+          const totals = calculateTotals(items);
+          updateData.paid_amount = totals.total;
+        }
+      } catch (e) {
+        console.error('[ServiceOrderService.updateStatus] Error calculating paid_amount:', e);
+      }
+    }
+
     const { error } = await supabase
       .from('service_orders')
-      .update({ status: newStatus })
+      .update(updateData)
       .eq('id', id);
 
     if (error) {
