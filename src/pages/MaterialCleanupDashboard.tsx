@@ -147,7 +147,14 @@ const MaterialCleanupDashboard = () => {
 
   const { data: materials = [] } = useQuery({
     queryKey: ['materials'],
-    queryFn: getAllMaterials,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('status', 'active');
+      if (error) throw error;
+      return data as Material[];
+    },
   });
 
   const { data: history = [], isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
