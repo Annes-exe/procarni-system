@@ -92,7 +92,7 @@ const getCleanupHistory = async () => {
   const { data, error } = await supabase
     .from('audit_logs')
     .select('*')
-    .in('action', ['FUSION', 'GROUP_ADD', 'GROUP_REMOVE', 'UNMERGE'])
+    .in('action', ['FUSION', 'GROUP_ADD', 'GROUP_REMOVE', 'UNMERGE', 'IGNORE_MATCH', 'RESTORE_MATCH'])
     .order('timestamp', { ascending: false })
     .limit(100);
     
@@ -143,6 +143,7 @@ const MaterialCleanupDashboard = () => {
       const actionText = data.action === 'merge' ? 'Fusión rápida completada.' : 'Agrupación rápida completada.';
       showSuccess(actionText);
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
       refetchSuggestions();
       refetchHistory();
@@ -153,7 +154,7 @@ const MaterialCleanupDashboard = () => {
   });
 
   const { data: materials = [] } = useQuery({
-    queryKey: ['materials'],
+    queryKey: ['dashboard_all_active_materials'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
@@ -206,6 +207,7 @@ const MaterialCleanupDashboard = () => {
     onSuccess: () => {
       showSuccess("Acción deshecha correctamente. El material vuelve a estar activo.");
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
       refetchSuggestions();
       refetchHistory();
@@ -213,6 +215,53 @@ const MaterialCleanupDashboard = () => {
     onError: (err: Error) => {
       showError(`Error al deshacer: ${err.message}`);
     }
+  });
+
+  const undoIgnoreMutation = useMutation({
+    mutationFn: async ({ targetId, sourceId }: { targetId: string, sourceId: string }) => {
+      // 1. Fetch match to get description names
+      const { data: matches, error: fetchErr } = await supabase
+        .from('ignored_material_matches')
+        .select(`
+          id,
+          target:materials!ignored_material_matches_target_id_fkey(name),
+          source:materials!ignored_material_matches_source_id_fkey(name)
+        `)
+        .eq('target_id', targetId)
+        .eq('source_id', sourceId)
+        .limit(1);
+
+      if (fetchErr) throw fetchErr;
+      const match = matches?.[0];
+
+      // 2. Delete the record
+      const { error } = await supabase
+        .from('ignored_material_matches')
+        .delete()
+        .eq('target_id', targetId)
+        .eq('source_id', sourceId);
+      if (error) throw error;
+
+      // 3. Write to audit_logs
+      const targetName = match?.target?.name || targetId;
+      const sourceName = match?.source?.name || sourceId;
+      await supabase.from('audit_logs').insert({
+        action: 'RESTORE_MATCH',
+        details: {
+          table: 'materials',
+          record_id: sourceId,
+          target_id: targetId,
+          description: `Coincidencia restaurada (deshacer ignorar): "${sourceName}" vuelve a estar disponible para comparar con "${targetName}"`
+        }
+      });
+    },
+    onSuccess: () => {
+      showSuccess("Coincidencia restaurada correctamente.");
+      refetchSuggestions();
+      refetchIgnored();
+      refetchHistory();
+    },
+    onError: (err: Error) => showError(`Error al restaurar: ${err.message}`)
   });
 
   const handleUndo = (action: string, details: any) => {
@@ -224,6 +273,13 @@ const MaterialCleanupDashboard = () => {
       return;
     }
 
+    if (action === 'IGNORE_MATCH') {
+      if (confirm("¿Estás seguro de restaurar esta coincidencia? Volverá a aparecer en las sugerencias.")) {
+        undoIgnoreMutation.mutate({ targetId, sourceId: recordId });
+      }
+      return;
+    }
+
     const actionText = action === 'FUSION' ? 'fusión' : 'agrupación';
     if (confirm(`¿Estás seguro de deshacer esta ${actionText}? El material volverá a estar activo en el catálogo.`)) {
       undoMutation.mutate({ action, targetId, recordId });
@@ -232,29 +288,68 @@ const MaterialCleanupDashboard = () => {
 
   const ignoreMutation = useMutation({
     mutationFn: async ({ targetId, sourceId }: { targetId: string, sourceId: string }) => {
+      // 1. Insert ignored match record
       const { error } = await supabase.from('ignored_material_matches').insert({
         target_id: targetId,
         source_id: sourceId
       });
       if (error) throw error;
+
+      // 2. Fetch names for audit description
+      const targetMat = materials.find(m => m.id === targetId);
+      const sourceMat = materials.find(m => m.id === sourceId);
+      const targetName = targetMat?.name || targetId;
+      const sourceName = sourceMat?.name || sourceId;
+
+      // 3. Write to audit logs
+      await supabase.from('audit_logs').insert({
+        action: 'IGNORE_MATCH',
+        details: {
+          table: 'materials',
+          record_id: sourceId,
+          target_id: targetId,
+          description: `Coincidencia ignorada: "${sourceName}" no se fusionará/agrupará con "${targetName}"`
+        }
+      });
     },
     onSuccess: () => {
       showSuccess("Coincidencia ignorada. No volverá a aparecer en las sugerencias.");
       refetchSuggestions();
       refetchIgnored();
+      refetchHistory();
     },
     onError: (err: Error) => showError(`Error al ignorar: ${err.message}`)
   });
 
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
+      // 1. Fetch match to get names
+      const match = ignored.find(item => item.id === id);
+      if (!match) throw new Error("Coincidencia ignorada no encontrada en la lista");
+
+      const targetName = match.target?.name || match.target_id;
+      const sourceName = match.source?.name || match.source_id;
+
+      // 2. Delete ignored record
       const { error } = await supabase.from('ignored_material_matches').delete().eq('id', id);
       if (error) throw error;
+
+      // 3. Write to audit logs
+      await supabase.from('audit_logs').insert({
+        action: 'RESTORE_MATCH',
+        details: {
+          table: 'materials',
+          record_id: match.source_id,
+          target_id: match.target_id,
+          description: `Coincidencia restaurada: "${sourceName}" vuelve a estar disponible para comparar con "${targetName}"`
+        }
+      });
     },
     onSuccess: () => {
       showSuccess("Coincidencia restaurada con éxito.");
       refetchSuggestions();
       refetchIgnored();
+      refetchHistory();
     },
     onError: (err: Error) => showError(`Error al restaurar: ${err.message}`)
   });
@@ -490,7 +585,7 @@ const MaterialCleanupDashboard = () => {
             <CardHeader className="bg-slate-50/50 border-b rounded-t-xl">
               <CardTitle className="text-lg text-procarni-blue">Historial de Limpieza</CardTitle>
               <CardDescription>
-                Registro de acciones de fusión y agrupación. Solo las agrupaciones se pueden deshacer.
+                Registro de acciones de fusión, agrupación e ignorados. Puedes deshacer o revertir acciones directamente desde el historial.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -511,7 +606,8 @@ const MaterialCleanupDashboard = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {history?.map((log) => {
-                        const isRowUndoing = undoMutation.isPending && undoMutation.variables?.recordId === log.details?.record_id;
+                        const isRowUndoing = (undoMutation.isPending && undoMutation.variables?.recordId === log.details?.record_id) ||
+                                             (undoIgnoreMutation.isPending && undoIgnoreMutation.variables?.sourceId === log.details?.record_id);
                         return (
                           <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap text-gray-500">
@@ -524,6 +620,10 @@ const MaterialCleanupDashboard = () => {
                                 <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">Agrupado</Badge>
                               ) : log.action === 'UNMERGE' ? (
                                 <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">Restaurado</Badge>
+                              ) : log.action === 'IGNORE_MATCH' ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Ignorado</Badge>
+                              ) : log.action === 'RESTORE_MATCH' ? (
+                                <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200">Restaurado (Ignorar)</Badge>
                               ) : (
                                 <Badge variant="secondary" className="bg-gray-100 text-gray-800">Desagrupado</Badge>
                               )}
@@ -532,12 +632,12 @@ const MaterialCleanupDashboard = () => {
                               {log.details?.description || 'Sin descripción'}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              {log.action === 'GROUP_ADD' || log.action === 'FUSION' ? (
+                              {log.action === 'GROUP_ADD' || log.action === 'FUSION' || log.action === 'IGNORE_MATCH' ? (
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
                                   onClick={() => handleUndo(log.action, log.details)}
-                                  disabled={undoMutation.isPending}
+                                  disabled={undoMutation.isPending || undoIgnoreMutation.isPending}
                                   className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                                 >
                                   {isRowUndoing ? (
@@ -547,7 +647,7 @@ const MaterialCleanupDashboard = () => {
                                   )}
                                   {isRowUndoing ? 'Deshaciendo...' : 'Deshacer'}
                                 </Button>
-                              ) : log.action === 'UNMERGE' ? (
+                              ) : log.action === 'UNMERGE' || log.action === 'RESTORE_MATCH' ? (
                                 <div className="flex items-center justify-end text-xs text-gray-400 gap-1" title="Esta acción ya fue revertida.">
                                   <Info className="w-3 h-3" />
                                   Revertido
