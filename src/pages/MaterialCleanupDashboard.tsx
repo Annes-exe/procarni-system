@@ -232,7 +232,7 @@ const MaterialCleanupDashboard = () => {
         .limit(1);
 
       if (fetchErr) throw fetchErr;
-      const match = matches?.[0];
+      const match = matches?.[0] as any;
 
       // 2. Delete the record
       const { error } = await supabase
@@ -243,8 +243,8 @@ const MaterialCleanupDashboard = () => {
       if (error) throw error;
 
       // 3. Write to audit_logs
-      const targetName = match?.target?.name || targetId;
-      const sourceName = match?.source?.name || sourceId;
+      const targetName = (Array.isArray(match?.target) ? match.target[0]?.name : match?.target?.name) || targetId;
+      const sourceName = (Array.isArray(match?.source) ? match.source[0]?.name : match?.source?.name) || sourceId;
       await supabase.from('audit_logs').insert({
         action: 'RESTORE_MATCH',
         details: {
