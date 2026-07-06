@@ -11,6 +11,8 @@ import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, Rot
 import { getAllMaterials } from '@/integrations/supabase/data';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface UnifiedSuggestion {
   target_id: string;
@@ -113,6 +115,7 @@ const MaterialCleanupDashboard = () => {
   const [isResolutionModalOpen, setIsResolutionModalOpen] = useState(false);
   const [resolutionAction, setResolutionAction] = useState<'merge' | 'group'>('merge');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [filterSameCategoryOnly, setFilterSameCategoryOnly] = useState(false);
 
   const { data: suggestions, isLoading: isLoadingSuggestions, refetch: refetchSuggestions } = useQuery({
     queryKey: ['fusion_suggestions'],
@@ -242,6 +245,13 @@ const MaterialCleanupDashboard = () => {
     onError: (err: Error) => showError(`Error al restaurar: ${err.message}`)
   });
 
+  const filteredSuggestions = suggestions?.filter(suggestion => {
+    if (!filterSameCategoryOnly) return true;
+    const targetData = findMaterialData(suggestion.target_id);
+    const sourceData = findMaterialData(suggestion.source_id);
+    return targetData && sourceData && targetData.category === sourceData.category;
+  }) || [];
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 overflow-x-hidden w-full">
       <div className="flex flex-col gap-2">
@@ -292,143 +302,171 @@ const MaterialCleanupDashboard = () => {
               <p className="text-sm text-slate-500">No se encontraron materiales duplicados o variaciones pendientes de estructurar.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-              {suggestions?.map((suggestion, index) => {
-                const targetData = findMaterialData(suggestion.target_id);
-                const sourceData = findMaterialData(suggestion.source_id);
-                
-                const isCardResolving = quickResolveMutation.isPending && quickResolveMutation.variables?.sourceId === suggestion.source_id;
-                const isCardIgnoring = ignoreMutation.isPending && ignoreMutation.variables?.sourceId === suggestion.source_id && ignoreMutation.variables?.targetId === suggestion.target_id;
-                const resolvingAction = quickResolveMutation.variables?.action;
-                const isProcessing = isCardResolving || isCardIgnoring;
+            <div className="space-y-4">
+              {/* Category Filter Switch */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-100/80 p-4 rounded-2xl shadow-sm">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-bold text-procarni-dark">Filtro de Categorías</p>
+                  <p className="text-xs text-slate-500">Compara coincidencias que pertenezcan a la misma categoría o muestra todas.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="same-category-filter" className="text-xs font-bold uppercase tracking-wider text-slate-500 cursor-pointer">
+                    Solo misma categoría
+                  </Label>
+                  <Switch
+                    id="same-category-filter"
+                    checked={filterSameCategoryOnly}
+                    onCheckedChange={setFilterSameCategoryOnly}
+                  />
+                </div>
+              </div>
 
-                return (
-                  <div 
-                    key={index} 
-                    className={cn(
-                      "bg-white border border-slate-100 shadow-md hover:shadow-xl rounded-[1.75rem] p-5 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300",
-                      isProcessing && "pointer-events-none"
-                    )}
-                  >
-                    {isProcessing && (
-                      <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-200">
-                        <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
-                        <span className="text-xs font-bold text-procarni-primary">
-                          {isCardIgnoring ? 'Ignorando...' : resolvingAction === 'merge' ? 'Fusionando...' : 'Agrupando...'}
-                        </span>
-                      </div>
-                    )}
-                    {/* Top light glow border */}
-                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-procarni-primary to-procarni-secondary opacity-80"></div>
+              {filteredSuggestions.length === 0 ? (
+                <div className="bg-white border border-slate-100 shadow-md p-10 rounded-[2rem] text-center text-slate-500 flex flex-col items-center gap-3">
+                  <AlertCircle className="w-10 h-10 text-slate-400" />
+                  <p className="font-extrabold text-lg text-procarni-dark">Sin coincidencias</p>
+                  <p className="text-sm text-slate-500">No se encontraron sugerencias que pertenezcan a la misma categoría.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                  {filteredSuggestions.map((suggestion, index) => {
+                    const targetData = findMaterialData(suggestion.target_id);
+                    const sourceData = findMaterialData(suggestion.source_id);
                     
-                    <div>
-                      {/* Badge header & ignore button */}
-                      <div className="flex items-center justify-between gap-2 mb-4">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`font-mono text-[10px] shadow-sm uppercase ${getScoreColor(suggestion.similarity_score)}`}>
-                            {suggestion.similarity_score}% Similar
-                          </Badge>
-                          {suggestion.is_dirty_migration && (
-                            <Badge className="bg-amber-50 text-procarni-alert border border-amber-200/50 text-[9px] font-bold">
-                              Importado
-                            </Badge>
-                          )}
-                        </div>
-                        <Button 
-                          onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Ignorar esta coincidencia"
-                          disabled={ignoreMutation.isPending || quickResolveMutation.isPending}
-                        >
-                          <EyeOff className="w-4 h-4" />
-                        </Button>
-                      </div>
+                    const isCardResolving = quickResolveMutation.isPending && quickResolveMutation.variables?.sourceId === suggestion.source_id;
+                    const isCardIgnoring = ignoreMutation.isPending && ignoreMutation.variables?.sourceId === suggestion.source_id && ignoreMutation.variables?.targetId === suggestion.target_id;
+                    const resolvingAction = quickResolveMutation.variables?.action;
+                    const isProcessing = isCardResolving || isCardIgnoring;
 
-                      {/* Comparison Flow */}
-                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-3 bg-slate-50/50 rounded-2xl px-4 border border-slate-100/50">
-                        
-                        {/* Left Side: Duplicate (Source) */}
-                        <div className="text-center min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Material Duplicado</p>
-                          <p className="font-bold text-slate-900 text-sm break-words leading-snug line-clamp-2" title={suggestion.source_name}>
-                            {suggestion.source_name}
-                          </p>
-                          <div className="flex justify-center gap-1 mt-2 flex-wrap">
-                            {sourceData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{sourceData.category}</Badge>}
-                            {sourceData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{sourceData.unit}</Badge>}
-                          </div>
-                        </div>
-
-                        {/* Center: Connection icon */}
-                        <div className="flex flex-col items-center justify-center text-slate-300">
-                          <ArrowRight className="h-5 w-5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-
-                        {/* Right Side: Gold Standard (Target) */}
-                        <div className="text-center min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Patrón de Oro</p>
-                          <p className="font-bold text-procarni-blue text-sm break-words leading-snug line-clamp-2" title={suggestion.target_name}>
-                            {suggestion.target_name}
-                          </p>
-                          <div className="flex justify-center gap-1 mt-2 flex-wrap">
-                            {targetData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{targetData.category}</Badge>}
-                            {targetData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{targetData.unit}</Badge>}
-                          </div>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    {/* Footer Action Bar */}
-                    <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-2">
-                      <Button 
-                        onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl px-2 h-9 flex items-center gap-1"
-                        disabled={quickResolveMutation.isPending}
+                    return (
+                      <div 
+                        key={index} 
+                        className={cn(
+                          "bg-white border border-slate-100 shadow-md hover:shadow-xl rounded-[1.75rem] p-5 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300",
+                          isProcessing && "pointer-events-none"
+                        )}
                       >
-                        <Wrench className="w-3.5 h-3.5" />
-                        Personalizar
-                      </Button>
-                      
-                      <div className="flex items-center gap-1.5">
-                        <Button 
-                          onClick={() => quickResolveMutation.mutate({ action: 'group', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                          variant="outline"
-                          size="sm"
-                          className="h-9 text-[11px] font-bold rounded-xl border-procarni-blue/30 text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm flex items-center gap-1 px-2.5"
-                          disabled={quickResolveMutation.isPending}
-                        >
-                          {isCardResolving && resolvingAction === 'group' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                          ) : (
-                            <Network className="w-3.5 h-3.5" />
-                          )}
-                          {isCardResolving && resolvingAction === 'group' ? 'Agrupando...' : 'Agrupar Rápido'}
-                        </Button>
-                        <Button 
-                          onClick={() => quickResolveMutation.mutate({ action: 'merge', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 text-[11px] font-bold rounded-xl bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm flex items-center gap-1 px-2.5"
-                          disabled={quickResolveMutation.isPending}
-                        >
-                          {isCardResolving && resolvingAction === 'merge' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                          ) : (
-                            <Combine className="w-3.5 h-3.5" />
-                          )}
-                          {isCardResolving && resolvingAction === 'merge' ? 'Vinculando...' : 'Vincular Rápido'}
-                        </Button>
-                      </div>
-                    </div>
+                        {isProcessing && (
+                          <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-200">
+                            <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
+                            <span className="text-xs font-bold text-procarni-primary">
+                              {isCardIgnoring ? 'Ignorando...' : resolvingAction === 'merge' ? 'Fusionando...' : 'Agrupando...'}
+                            </span>
+                          </div>
+                        )}
+                        {/* Top light glow border */}
+                        <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-procarni-primary to-procarni-secondary opacity-80"></div>
+                        
+                        <div>
+                          {/* Badge header & ignore button */}
+                          <div className="flex items-center justify-between gap-2 mb-4">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`font-mono text-[10px] shadow-sm uppercase ${getScoreColor(suggestion.similarity_score)}`}>
+                                {suggestion.similarity_score}% Similar
+                              </Badge>
+                              {suggestion.is_dirty_migration && (
+                                <Badge className="bg-amber-50 text-procarni-alert border border-amber-200/50 text-[9px] font-bold">
+                                  Importado
+                                </Badge>
+                              )}
+                            </div>
+                            <Button 
+                              onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Ignorar esta coincidencia"
+                              disabled={ignoreMutation.isPending || quickResolveMutation.isPending}
+                            >
+                              <EyeOff className="w-4 h-4" />
+                            </Button>
+                          </div>
 
-                  </div>
-                );
-              })}
+                          {/* Comparison Flow */}
+                          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-3 bg-slate-50/50 rounded-2xl px-4 border border-slate-100/50">
+                            
+                            {/* Left Side: Duplicate (Source) */}
+                            <div className="text-center min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Material Duplicado</p>
+                              <p className="font-bold text-slate-900 text-sm break-words leading-snug line-clamp-2" title={suggestion.source_name}>
+                                {suggestion.source_name}
+                              </p>
+                              <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                                {sourceData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{sourceData.category}</Badge>}
+                                {sourceData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{sourceData.unit}</Badge>}
+                              </div>
+                            </div>
+
+                            {/* Center: Connection icon */}
+                            <div className="flex flex-col items-center justify-center text-slate-300">
+                              <ArrowRight className="h-5 w-5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                            </div>
+
+                            {/* Right Side: Gold Standard (Target) */}
+                            <div className="text-center min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Patrón de Oro</p>
+                              <p className="font-bold text-procarni-blue text-sm break-words leading-snug line-clamp-2" title={suggestion.target_name}>
+                                {suggestion.target_name}
+                              </p>
+                              <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                                {targetData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{targetData.category}</Badge>}
+                                {targetData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{targetData.unit}</Badge>}
+                              </div>
+                            </div>
+
+                          </div>
+                        </div>
+
+                        {/* Footer Action Bar */}
+                        <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-2">
+                          <Button 
+                            onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl px-2 h-9 flex items-center gap-1"
+                            disabled={quickResolveMutation.isPending}
+                          >
+                            <Wrench className="w-3.5 h-3.5" />
+                            Personalizar
+                          </Button>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <Button 
+                              onClick={() => quickResolveMutation.mutate({ action: 'group', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                              variant="outline"
+                              size="sm"
+                              className="h-9 text-[11px] font-bold rounded-xl border-procarni-blue/30 text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm flex items-center gap-1 px-2.5"
+                              disabled={quickResolveMutation.isPending}
+                            >
+                              {isCardResolving && resolvingAction === 'group' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <Network className="w-3.5 h-3.5" />
+                              )}
+                              {isCardResolving && resolvingAction === 'group' ? 'Agrupando...' : 'Agrupar Rápido'}
+                            </Button>
+                            <Button 
+                              onClick={() => quickResolveMutation.mutate({ action: 'merge', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                              variant="secondary"
+                              size="sm"
+                              className="h-9 text-[11px] font-bold rounded-xl bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm flex items-center gap-1 px-2.5"
+                              disabled={quickResolveMutation.isPending}
+                            >
+                              {isCardResolving && resolvingAction === 'merge' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <Combine className="w-3.5 h-3.5" />
+                              )}
+                              {isCardResolving && resolvingAction === 'merge' ? 'Vinculando...' : 'Vincular Rápido'}
+                            </Button>
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </TabsContent>
