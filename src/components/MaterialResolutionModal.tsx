@@ -200,6 +200,7 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['fusion_suggestions'] });
       queryClient.invalidateQueries({ queryKey: ['cleanup_history'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
