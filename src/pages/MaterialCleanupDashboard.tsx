@@ -36,10 +36,25 @@ const getUnifiedSuggestions = async () => {
 
   if (migrationError) throw migrationError;
 
+  const { data: ignoredData, error: ignoredError } = await supabase
+    .from('ignored_material_matches')
+    .select('target_id, source_id');
+
+  if (ignoredError) throw ignoredError;
+
+  const ignoredPairs = new Set<string>();
+  (ignoredData || []).forEach((row: any) => {
+    ignoredPairs.add(`${row.target_id}-${row.source_id}`);
+    ignoredPairs.add(`${row.source_id}-${row.target_id}`);
+  });
+
   const map = new Map<string, UnifiedSuggestion>();
 
   (migrationData || []).forEach((row: any) => {
     const key = `${row.master_id}-${row.dirty_id}`;
+    const reverseKey = `${row.dirty_id}-${row.master_id}`;
+    if (ignoredPairs.has(key) || ignoredPairs.has(reverseKey)) return;
+
     map.set(key, {
       target_id: row.master_id,
       target_name: row.master_name,
@@ -54,6 +69,8 @@ const getUnifiedSuggestions = async () => {
     const key = `${row.target_id}-${row.source_id}`;
     const reverseKey = `${row.source_id}-${row.target_id}`;
     
+    if (ignoredPairs.has(key) || ignoredPairs.has(reverseKey)) return;
+
     if (!map.has(key) && !map.has(reverseKey)) {
       map.set(key, {
         target_id: row.target_id,
