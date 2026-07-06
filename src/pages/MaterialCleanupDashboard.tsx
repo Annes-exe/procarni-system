@@ -103,11 +103,18 @@ const getCleanupHistory = async () => {
 const getIgnoredMatches = async () => {
   const { data, error } = await supabase
     .from('ignored_material_matches')
-    .select('*')
+    .select(`
+      id,
+      target_id,
+      source_id,
+      created_at,
+      target:materials!ignored_material_matches_target_id_fkey(name, code),
+      source:materials!ignored_material_matches_source_id_fkey(name, code)
+    `)
     .order('created_at', { ascending: false });
     
   if (error) throw error;
-  return data;
+  return data as any[];
 };
 
 const MaterialCleanupDashboard = () => {
@@ -576,35 +583,50 @@ const MaterialCleanupDashboard = () => {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {ignored?.map((item) => {
-                    const targetData = findMaterialData(item.target_id);
-                    const sourceData = findMaterialData(item.source_id);
+                    const targetData = item.target;
+                    const sourceData = item.source;
 
                     return (
                       <div key={item.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 hover:bg-slate-50/80 transition-colors gap-4">
                         <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center flex-1">
-                          <div className="text-right">
-                            <p className="font-medium text-slate-500 line-through decoration-slate-300">{targetData?.name || item.target_id}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1">{targetData?.code}</p>
+                          {/* Left Side: Gold Standard */}
+                          <div className="text-right min-w-0">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 block mb-0.5">Patrón de Oro</span>
+                            <p className="font-bold text-slate-800 text-sm break-words leading-snug" title={targetData?.name || item.target_id}>
+                              {targetData?.name || item.target_id}
+                            </p>
+                            {targetData?.code && (
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">Código: {targetData.code}</p>
+                            )}
                           </div>
-                          <div className="flex flex-col items-center px-4 shrink-0 opacity-50">
-                            <div className="h-px w-full bg-slate-200 relative">
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[10px] text-slate-400">VS</div>
+                          
+                          {/* Center divider */}
+                          <div className="flex flex-col items-center px-2 shrink-0 opacity-60">
+                            <div className="h-px w-12 bg-slate-300 relative">
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-100 px-1 text-[9px] font-bold text-slate-500 rounded border">VS</div>
                             </div>
                           </div>
-                          <div className="text-left">
-                            <p className="font-medium text-slate-500 line-through decoration-slate-300">{sourceData?.name || item.source_id}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1">{sourceData?.code}</p>
+                          
+                          {/* Right Side: Duplicate */}
+                          <div className="text-left min-w-0">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Material Duplicado</span>
+                            <p className="font-bold text-slate-800 text-sm break-words leading-snug" title={sourceData?.name || item.source_id}>
+                              {sourceData?.name || item.source_id}
+                            </p>
+                            {sourceData?.code && (
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">Código: {sourceData.code}</p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 md:ml-4">
+                        <div className="flex shrink-0 justify-end md:ml-4">
                           <Button 
                             onClick={() => restoreMutation.mutate(item.id)}
                             variant="outline"
-                            className="shrink-0 flex items-center gap-2"
+                            className="shrink-0 flex items-center gap-1.5 h-9 text-xs rounded-xl border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                             disabled={restoreMutation.isPending}
                           >
-                            <RotateCcw className="w-4 h-4" />
+                            <RotateCcw className="w-3.5 h-3.5" />
                             Restaurar
                           </Button>
                         </div>
