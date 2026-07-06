@@ -118,10 +118,12 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
         setTargetName(initialSources[0].name);
       }
       
-      // Initialize checkboxes for source IDs (excluding target)
+      // Initialize checkboxes for source IDs (excluding target and non-master only)
       const initialCheckboxes: Record<string, boolean> = {};
       selectedIds.forEach(id => {
-        if (!masterItem || id !== masterItem.id) {
+        const mat = uniqueMaterialsMap.get(id);
+        const isMaster = mat?.is_master;
+        if ((!masterItem || id !== masterItem.id) && !isMaster) {
           initialCheckboxes[id] = true;
         }
       });
@@ -466,7 +468,10 @@ const MaterialResolutionModal: React.FC<MaterialResolutionModalProps> = ({
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-2">Materiales a resolver</label>
                     <div className="border rounded-2xl divide-y divide-gray-100 max-h-40 overflow-y-auto bg-white shadow-inner">
-                      {selectedIds.filter(id => id !== targetId).map(id => {
+                      {selectedIds.filter(id => id !== targetId).filter(id => {
+                        const mat = uniqueMaterialsMap.get(id);
+                        return mat ? !mat.is_master : true;
+                      }).map(id => {
                         const mat = uniqueMaterialsMap.get(id);
                         if (!mat) return null;
                         const isChecked = !!selectedSourceIds[id];
