@@ -16,11 +16,12 @@ import { Input } from '@/components/ui/input';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDebounce } from 'use-debounce';
 import PaginationControls from '@/components/PaginationControls';
+import { Switch } from '@/components/ui/switch';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
@@ -47,7 +48,7 @@ const formatSequenceNumber = (sequence?: number | null, dateString?: string | nu
 
 const PurchaseOrderManagement = () => {
   const queryClient = useQueryClient();
-  const { session, role } = useSession();
+  const { session, role, supabase } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -92,6 +93,8 @@ const PurchaseOrderManagement = () => {
     }
   }, [searchParams, setSearchParams]);
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
+  const [isCreditApprove, setIsCreditApprove] = useState(false);
+  const [creditDaysApprove, setCreditDaysApprove] = useState(30);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
   const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
   const [isBulkRestoreDialogOpen, setIsBulkRestoreDialogOpen] = useState(false);
@@ -212,10 +215,47 @@ const PurchaseOrderManagement = () => {
     }
   };
 
-  const executeBulkApprove = async () => {
+  const executeBulkApprove = async (sendToTransit: boolean = false) => {
     try {
-      await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Approved')));
+      const targetStatus = isCreditApprove ? 'ToPay' : 'Approved';
+      const targetPaymentTerms = isCreditApprove ? 'Crédito' : 'Contado';
+      const targetCreditDays = isCreditApprove ? creditDaysApprove : 0;
+
+      const updates: any = {
+        status: targetStatus,
+        payment_terms: targetPaymentTerms,
+        credit_days: targetCreditDays
+      };
+
+      if (sendToTransit) {
+        updates.reception_status = 'En tránsito';
+      }
+
+      const promises = Array.from(selectedIds).map(async id => {
+        const { error } = await supabase
+          .from('purchase_orders')
+          .update(updates)
+          .eq('id', id);
+        if (error) throw error;
+
+        if (sendToTransit) {
+          try {
+            await logAudit('update_reception_status', {
+              table: 'purchase_orders',
+              record_id: id,
+              description: `Estableció el estado de recepción a 'En tránsito' al aprobar la orden en lote.`,
+              new_data: { reception_status: 'En tránsito' },
+              old_data: { reception_status: 'Ninguno' }
+            });
+          } catch (e) {
+            console.error('Audit log error:', e);
+          }
+        }
+      });
+
+      await Promise.all(promises);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       showSuccess(`${selectedIds.size} órdenes aprobadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkApproveDialogOpen(false);
@@ -741,17 +781,69 @@ const PurchaseOrderManagement = () => {
 
       {/* Bulk Approve Confirmation Dialog */}
       <AlertDialog open={isBulkApproveDialogOpen} onOpenChange={setIsBulkApproveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Aprobación Masiva</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas aprobar las {selectedIds.size} órdenes de compra seleccionadas?
+        <AlertDialogContent className="max-w-xl bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-xl font-extrabold tracking-tight text-procarni-dark flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Aprobación Masiva de Órdenes ({selectedIds.size})
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500 font-medium leading-relaxed">
+              Esta acción dará validez comercial a las {selectedIds.size} órdenes seleccionadas. Por favor, especifica la modalidad de facturación y plazos para activar el seguimiento de vencimientos.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={executeBulkApprove} className="bg-procarni-secondary hover:bg-green-700 text-white">
-              Aprobar
+          
+          <div className="space-y-5 my-5 p-5 bg-slate-50 border border-slate-100 rounded-3xl">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-sm font-bold text-procarni-blue block">Pago a Crédito</span>
+                <span className="text-xs text-gray-400 font-medium">Habilitar financiamiento por días</span>
+              </div>
+              <Switch
+                id="bulk-dialog-credit-switch"
+                checked={isCreditApprove}
+                onCheckedChange={setIsCreditApprove}
+                className="data-[state=checked]:bg-procarni-primary"
+              />
+            </div>
+            
+            {isCreditApprove && (
+              <div className="space-y-2 pt-3 border-t border-slate-200/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label htmlFor="bulk-dialog-credit-days" className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                  Días de Crédito Concedidos
+                </label>
+                <Input
+                  id="bulk-dialog-credit-days"
+                  type="number"
+                  min="1"
+                  value={creditDaysApprove}
+                  onChange={(e) => setCreditDaysApprove(parseInt(e.target.value) || 0)}
+                  className="bg-white border-slate-200 focus-visible:ring-procarni-primary/20 h-10 rounded-xl"
+                  placeholder="Ej. 15, 30, 45 días"
+                />
+              </div>
+            )}
+          </div>
+          
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 w-full">
+            <AlertDialogCancel className="w-full sm:w-auto rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50 order-3 sm:order-1">
+              Cancelar
+            </AlertDialogCancel>
+            
+            <AlertDialogAction 
+              onClick={() => executeBulkApprove(true)} 
+              disabled={isCreditApprove && creditDaysApprove <= 0} 
+              className="w-full sm:w-auto bg-procarni-secondary hover:bg-procarni-secondary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-secondary/20 flex gap-1.5 items-center justify-center order-1 sm:order-2 px-4"
+            >
+              <Truck className="h-4 w-4 shrink-0" />
+              <span className="truncate">Aprobar y Enviar a Tránsito</span>
+            </AlertDialogAction>
+
+            <AlertDialogAction 
+              onClick={() => executeBulkApprove(false)} 
+              disabled={isCreditApprove && creditDaysApprove <= 0} 
+              className="w-full sm:w-auto bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-primary/20 order-2 sm:order-3 flex items-center justify-center px-4"
+            >
+              <span>Sólo Aprobar</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
