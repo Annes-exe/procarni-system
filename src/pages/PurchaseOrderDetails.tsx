@@ -3,9 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Copy, Package } from 'lucide-react';
 
 import { purchaseOrderService } from '@/services/purchaseOrderService';
+import TransitReportDialog from '@/components/TransitReportDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -131,6 +132,7 @@ const PurchaseOrderDetails = () => {
   const [isRejecting, setIsRejecting] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
+  const [isTransitDialogOpen, setIsTransitDialogOpen] = useState(false);
 
   // Credit approval confirmation options
   const [isCreditApprove, setIsCreditApprove] = useState(false);
@@ -147,7 +149,7 @@ const PurchaseOrderDetails = () => {
     return new Date(dateString + 'T12:00:00');
   };
 
-  const { data: order, isLoading, error } = useQuery<PurchaseOrderDetailsData | null>({
+  const { data: order, isLoading, error, refetch } = useQuery<PurchaseOrderDetailsData | null>({
     queryKey: ['purchaseOrderDetails', id],
     queryFn: async () => {
       if (!id) throw new Error('Purchase Order ID is missing.');
@@ -652,6 +654,18 @@ const PurchaseOrderDetails = () => {
                   <span className="hidden sm:inline">Duplicar</span>
                 </Button>
 
+                {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && (
+                  <Button 
+                    onClick={() => setIsTransitDialogOpen(true)} 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 order-2 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold shrink-0"
+                  >
+                    <Package className="h-4 w-4 text-procarni-secondary" />
+                    <span>Recepción</span>
+                  </Button>
+                )}
+
                 {/* Secondary Actions: Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1111,6 +1125,17 @@ const PurchaseOrderDetails = () => {
           sequenceNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
           isOpen={isDocumentManagerOpen}
           onOpenChange={setIsDocumentManagerOpen}
+        />
+      )}
+
+      {isTransitDialogOpen && order && (
+        <TransitReportDialog
+          isOpen={isTransitDialogOpen}
+          onClose={() => {
+            setIsTransitDialogOpen(false);
+            refetch();
+          }}
+          orderIds={[order.id]}
         />
       )}
     </div>

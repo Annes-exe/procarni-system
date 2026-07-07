@@ -30,6 +30,7 @@ interface TransitItem {
     created_at: string | null;
     status: string;
     currency: 'USD' | 'VES' | 'EUR';
+    reception_status?: string | null;
     suppliers: {
       name: string;
     } | null;
@@ -90,6 +91,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
             created_at,
             status,
             currency,
+            reception_status,
             suppliers (
               name
             )
@@ -103,7 +105,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       
       const initialQuantities: Record<string, number> = {};
       fetchedItems.forEach(item => {
-        initialQuantities[item.id] = Number(item.received_quantity || 0);
+        initialQuantities[item.id] = 0;
       });
       setReceptionQuantities(initialQuantities);
     } catch (error: any) {
@@ -171,23 +173,41 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       return;
     }
 
+    // Check if user is attempting to receive quantities for orders not in transit/partial
+    const attemptingToReceiveNonTransit = items.some(item => {
+      const newQty = receptionQuantities[item.id] ?? 0;
+      const recStatus = item.purchase_orders?.reception_status;
+      return newQty > 0 && recStatus !== 'En tránsito' && recStatus !== 'Parcial';
+    });
+
+    if (attemptingToReceiveNonTransit) {
+      showError('No se pueden registrar cantidades para órdenes que no estén en tránsito. Por favor, establézcalas en tránsito primero.');
+      return;
+    }
+
     // 2. Check if any quantity exceeds the requested quantity
     const exceeds = Object.entries(receptionQuantities).some(([id, val]) => {
       const item = items.find(i => i.id === id);
-      return item && val > item.quantity;
+      if (!item) return false;
+      const totalProjected = Number(item.received_quantity || 0) + val;
+      return totalProjected > item.quantity;
     });
 
     if (exceeds) {
-      showError('No se puede recibir más de la cantidad solicitada.');
+      showError('No se puede recibir más de la cantidad solicitada (la suma con el acumulado excede el límite).');
       return;
     }
 
     setIsSaving(true);
     try {
-      const payload = Object.entries(receptionQuantities).map(([id, val]) => ({
-        id,
-        received_quantity: val
-      }));
+      const payload = Object.entries(receptionQuantities).map(([id, val]) => {
+        const item = items.find(i => i.id === id);
+        const currentAccumulated = Number(item?.received_quantity || 0);
+        return {
+          id,
+          received_quantity: currentAccumulated + val
+        };
+      });
 
       const successItems = await purchaseOrderService.updateReceivedQuantities(payload);
       if (!successItems) throw new Error("Error updating quantities");
@@ -471,8 +491,9 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido (Progreso)</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Recibir Cant.</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
                     </TableRow>
@@ -488,8 +509,12 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                         ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE')
                         : 'No asignada';
 
-                      const receivedQty = receptionQuantities[item.id] ?? Number(item.received_quantity || 0);
-                      const progressPercent = Math.min(100, Math.max(0, Math.round((receivedQty / item.quantity) * 100)));
+                      const accumulatedQty = Number(item.received_quantity || 0);
+                      const newQty = receptionQuantities[item.id] ?? 0;
+                      const totalProjected = accumulatedQty + newQty;
+                      const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
+                      const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
+                      const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
 
                       return (
                         <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
@@ -502,11 +527,37 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                             {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
                           </TableCell>
                           
-                          {/* Progress bar and numeric tracking */}
+                          {/* Parked Register (Previously received quantity) */}
+                          <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
+                            {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                          </TableCell>
+
+                          {/* Editable new quantity received */}
+                          <TableCell className="text-center">
+                            <Input
+                              type="number"
+                              min="0"
+                              max={maxAllowed}
+                              disabled={!isEditable}
+                              placeholder={isEditable ? "0" : "Bloqueado"}
+                              title={isEditable ? "Nueva cantidad recibida" : "Establezca la orden en tránsito primero"}
+                              value={receptionQuantities[item.id] ?? 0}
+                              onChange={(e) => {
+                                const val = Math.min(maxAllowed, Math.max(0, Number(e.target.value)));
+                                setReceptionQuantities(prev => ({
+                                  ...prev,
+                                  [item.id]: val
+                                }));
+                              }}
+                              className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                            />
+                          </TableCell>
+
+                          {/* Progress bar and numeric tracking (accumulated + new) */}
                           <TableCell className="text-xs text-center">
                             <div className="flex flex-col items-center gap-1 min-w-[110px]">
                               <span className="font-bold font-mono text-xs">
-                                {receivedQty} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
+                                {totalProjected} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
                               </span>
                               <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
                                 <div
@@ -518,24 +569,6 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                                 />
                               </div>
                             </div>
-                          </TableCell>
-
-                           {/* Editable quantity received */}
-                          <TableCell className="text-center">
-                            <Input
-                              type="number"
-                              min="0"
-                              max={item.quantity}
-                              value={receptionQuantities[item.id] ?? 0}
-                              onChange={(e) => {
-                                const val = Math.min(item.quantity, Math.max(0, Number(e.target.value)));
-                                setReceptionQuantities(prev => ({
-                                  ...prev,
-                                  [item.id]: val
-                                }));
-                              }}
-                              className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
-                            />
                           </TableCell>
 
                           <TableCell className="text-xs text-right font-mono font-semibold">
@@ -552,28 +585,38 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
               </ScrollArea>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-gray-100 flex flex-col md:flex-row gap-2 mt-4 items-center justify-between w-full">
-              <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-                <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500">
-                  Cerrar
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSetInTransit}
-                  disabled={isSaving || items.length === 0 || !canSetInTransit}
-                  className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
-                >
-                  <Truck className="h-4 w-4 text-procarni-primary" />
-                  Establecer En Tránsito
-                </Button>
-                <Button
-                  onClick={handleSaveReception}
-                  disabled={isSaving || items.length === 0}
-                  className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
-                >
-                  <PackageCheck className="h-4 w-4" />
-                  Guardar Recepción
-                </Button>
+            <DialogFooter className="pt-4 border-t border-gray-100 flex flex-col md:flex-row gap-2 mt-4 items-end justify-between w-full">
+              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-end">
+                <div className="flex flex-col sm:w-auto w-full">
+                  <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500 w-full sm:w-auto">
+                    Cerrar
+                  </Button>
+                </div>
+                
+                <div className="flex flex-col gap-1.5 sm:w-auto w-full">
+                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 1: En Tránsito</span>
+                  <Button
+                    variant="outline"
+                    onClick={handleSetInTransit}
+                    disabled={isSaving || items.length === 0 || !canSetInTransit}
+                    className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all w-full sm:w-auto"
+                  >
+                    <Truck className="h-4 w-4 text-procarni-primary" />
+                    Establecer En Tránsito
+                  </Button>
+                </div>
+
+                <div className="flex flex-col gap-1.5 sm:w-auto w-full">
+                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 2: Registrar Recepción</span>
+                  <Button
+                    onClick={handleSaveReception}
+                    disabled={isSaving || items.length === 0}
+                    className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
+                  >
+                    <PackageCheck className="h-4 w-4" />
+                    Guardar Recepción
+                  </Button>
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto ml-auto">

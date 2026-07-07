@@ -31,6 +31,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
+  'Received': 'Recibido',
 };
 
 const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
@@ -300,6 +301,8 @@ const PurchaseOrderManagement = () => {
         return 'bg-red-100 text-red-800 border-red-200';
       case 'Archived':
         return 'bg-gray-100 text-gray-600 border-gray-200';
+      case 'Received':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       default:
         return 'bg-gray-100 text-gray-600';
     }
