@@ -5,12 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive, ClipboardList } from 'lucide-react';
+import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { getAllAuditLogs } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
 import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AuditLogEntry } from '@/integrations/supabase/services/auditLogService';
 import { useSession } from '@/components/SessionContextProvider';
@@ -61,17 +61,75 @@ const fieldTranslations: Record<string, string> = {
   username: 'Nombre de Usuario',
 };
 
-const LogDetails = ({ details }: { details: any }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  if (!details) return null;
+const tableTranslations: Record<string, string> = {
+  purchase_orders: 'Órdenes de Compra (OC)',
+  purchase_order_items: 'Detalle / Ítems de Orden de Compra',
+  service_orders: 'Órdenes de Servicio (OS)',
+  service_order_materials: 'Detalle / Ítems de Orden de Servicio',
+  materials: 'Catálogo de Materiales',
+  suppliers: 'Catálogo de Proveedores',
+  supplier_materials: 'Relación Proveedor - Material',
+  supplier_quotes: 'Cotizaciones de Proveedor',
+  quote_requests: 'Solicitudes de Cotización (SC)',
+  quote_request_items: 'Detalle / Ítems de Solicitud de Cotización',
+  companies: 'Empresas / RIFs de Facturación',
+  ignored_material_matches: 'Coincidencias de Limpieza Ignoradas',
+  audit_logs: 'Kardex de Auditoría',
+  price_history: 'Historial de Precios',
+  ficha_tecnica: 'Fichas Técnicas',
+};
 
-  // Translate helper
+const getRelativeTime = (timestamp: string) => {
+  try {
+    const diffMs = new Date().getTime() - new Date(timestamp).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Hace un momento';
+    if (diffMins < 60) return `Hace ${diffMins} ${diffMins === 1 ? 'minuto' : 'minutos'}`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `Hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}`;
+  } catch (e) {
+    return '';
+  }
+};
+
+const LogDetails = ({ log }: { log: AuditLogEntry }) => {
+  if (!log) return null;
+  const details = log.raw_details;
+
   const translateField = (field: string) => fieldTranslations[field] || field;
+  const translateTable = (table: string) => tableTranslations[table] || table;
+
+  // Determine locations / En dónde cambió?
+  const tableName = log.table ? translateTable(log.table) : 'Sin tabla registrada';
+  const tableRaw = log.table || '';
+  const recordId = log.record_id || 'N/A';
+
+  // Determine links
+  let poId = null;
+  if (tableRaw === 'purchase_orders') {
+    poId = recordId;
+  } else if (tableRaw === 'purchase_order_items') {
+    poId = details?.purchase_order_id || details?.new_data?.purchase_order_id || details?.old_data?.purchase_order_id;
+  } else if (details?.purchase_order_id) {
+    poId = details.purchase_order_id;
+  }
+
+  let soId = null;
+  if (tableRaw === 'service_orders') {
+    soId = recordId;
+  } else if (tableRaw === 'service_order_materials') {
+    soId = details?.service_order_id || details?.new_data?.service_order_id || details?.old_data?.service_order_id;
+  } else if (details?.service_order_id) {
+    soId = details.service_order_id;
+  }
 
   // Render status change cleanly
   let statusChangeElement = null;
-  if (details.old_data?.status || details.new_status) {
+  if (details?.old_data?.status || details?.new_status) {
     const oldStatus = details.old_data?.status || 'N/A';
     const newStatus = details.new_status || details.new_data?.status || 'N/A';
     if (oldStatus !== newStatus) {
@@ -86,14 +144,14 @@ const LogDetails = ({ details }: { details: any }) => {
     }
   }
 
-  // Determine change type and build appropriate tables
+  // Determine changes list (What changed? -> To what?)
   let changesList: Array<{ field: string; label: string; oldVal: string; newVal: string }> = [];
   let valuesList: Array<{ field: string; label: string; value: string }> = [];
 
   const skipFields = ['id', 'created_at', 'updated_at', 'status', 'password', 'encrypted_password'];
 
-  if (details.old_data && details.new_data) {
-    // It's an UPDATE: show changes
+  if (details?.old_data && details?.new_data) {
+    // UPDATE
     const keys = Object.keys(details.new_data);
     keys.forEach(key => {
       if (!skipFields.includes(key)) {
@@ -109,8 +167,8 @@ const LogDetails = ({ details }: { details: any }) => {
         }
       }
     });
-  } else if (details.new_data) {
-    // It's an INSERT: show created values
+  } else if (details?.new_data) {
+    // INSERT
     Object.keys(details.new_data).forEach(key => {
       if (!skipFields.includes(key) && details.new_data[key] !== null && details.new_data[key] !== '') {
         valuesList.push({
@@ -120,8 +178,8 @@ const LogDetails = ({ details }: { details: any }) => {
         });
       }
     });
-  } else if (details.old_data) {
-    // It's a DELETE: show deleted values
+  } else if (details?.old_data) {
+    // DELETE
     Object.keys(details.old_data).forEach(key => {
       if (!skipFields.includes(key) && details.old_data[key] !== null && details.old_data[key] !== '') {
         valuesList.push({
@@ -133,69 +191,133 @@ const LogDetails = ({ details }: { details: any }) => {
     });
   }
 
+  // Categorize action impact
+  let impactText = 'Operacional';
+  let impactColor = 'text-blue-600 bg-blue-50/50 border-blue-100';
+  const actionLower = log.action.toLowerCase();
+  if (actionLower.includes('delete') || actionLower.includes('eliminar') || actionLower.includes('trash')) {
+    impactText = 'Crítico (Eliminación)';
+    impactColor = 'text-red-600 bg-red-50/50 border-red-100';
+  } else if (actionLower.includes('price') || actionLower.includes('amount') || actionLower.includes('unit_price') || changesList.some(c => c.field.includes('price') || c.field.includes('amount') || c.field.includes('total'))) {
+    impactText = 'Financiero (Precios/Montos)';
+    impactColor = 'text-emerald-600 bg-emerald-50/50 border-emerald-100';
+  }
+
   return (
-    <div className="flex flex-col gap-2 mt-1">
-      {statusChangeElement}
+    <div className="flex flex-col gap-3.5 mt-2 bg-slate-50/40 p-4 rounded-2xl border border-slate-100 max-w-2xl shadow-inner text-xs">
       
-      {/* Table for UPDATE changes */}
-      {changesList.length > 0 && (
-        <div className="border border-slate-100 rounded-xl overflow-hidden bg-white max-w-lg shadow-sm">
-          <table className="w-full text-[11px] border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
-                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Campo / Propiedad</th>
-                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Valor Anterior</th>
-                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Valor Nuevo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {changesList.map((ch, idx) => (
-                <tr key={idx} className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/20">
-                  <td className="px-3 py-1.5 font-bold text-slate-600 font-sans">{ch.label} <span className="text-[9px] font-mono text-slate-300 font-normal">({ch.field})</span></td>
-                  <td className="px-3 py-1.5 text-slate-400 truncate max-w-[120px]" title={ch.oldVal}>{ch.oldVal}</td>
-                  <td className="px-3 py-1.5 text-slate-800 font-semibold truncate max-w-[120px]" title={ch.newVal}>{ch.newVal}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Información de Contexto / Relevancia */}
+      <div className="grid grid-cols-2 gap-4 bg-white p-3 rounded-xl border border-slate-150 shadow-sm">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Usuario Responsable</p>
+          <p className="font-semibold text-slate-700 mt-0.5">{log.user_email || 'Sistema (Automático)'}</p>
         </div>
-      )}
-
-      {/* Table for INSERT / DELETE values */}
-      {valuesList.length > 0 && (
-        <div className="border border-slate-100 rounded-xl overflow-hidden bg-white max-w-lg shadow-sm">
-          <table className="w-full text-[11px] border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
-                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Propiedad</th>
-                <th className="px-3 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Valor Registrado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {valuesList.map((val, idx) => (
-                <tr key={idx} className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/20">
-                  <td className="px-3 py-1.5 font-bold text-slate-600 font-sans">{val.label} <span className="text-[9px] font-mono text-slate-300 font-normal">({val.field})</span></td>
-                  <td className="px-3 py-1.5 text-slate-800 font-medium truncate max-w-[200px]" title={val.value}>{val.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Fecha y Tiempo Transcurrido</p>
+          <p className="font-semibold text-slate-700 mt-0.5" title={new Date(log.timestamp).toLocaleString()}>
+            {getRelativeTime(log.timestamp)}
+          </p>
         </div>
-      )}
-
-      {/* RAW details expander */}
-      <div className="mt-1">
-         <Button variant="outline" size="sm" className="h-6 text-[10px] rounded-lg bg-white text-slate-400 shadow-none border-slate-100 hover:text-slate-700 hover:bg-slate-50" onClick={() => setIsOpen(!isOpen)}>
-           {isOpen ? <><EyeOff className="w-2.5 h-2.5 mr-1"/> Ocultar JSON</> : <><Eye className="w-2.5 h-2.5 mr-1"/> Ver Datos Técnicos (JSON)</>}
-         </Button>
-         {isOpen && (
-           <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
-             <pre className="text-[10px] bg-slate-50 border border-slate-200 text-slate-500 p-2 rounded-lg overflow-x-auto max-w-fit font-mono">
-               {JSON.stringify(details, null, 2)}
-             </pre>
-           </div>
-         )}
+        <div className="col-span-2 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Impacto / Tipo</p>
+            <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full border text-[10px] font-bold ${impactColor}`}>
+              {impactText}
+            </span>
+          </div>
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">ID de Registro (Auditoría)</p>
+            <span className="font-mono text-[9px] text-slate-400 block mt-0.5 truncate select-all" title={log.id}>
+              {log.id}
+            </span>
+          </div>
+        </div>
       </div>
+
+      {/* 1. ¿En dónde cambió? */}
+      <div className="space-y-0.5">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">¿En dónde cambió?</p>
+        <p className="text-xs text-slate-700 font-medium">
+          Módulo / Tabla: <span className="font-bold text-procarni-blue">{tableName}</span>
+          <span className="text-[9px] font-mono text-slate-400 block mt-0.5">ID Registro de Origen: {recordId}</span>
+        </p>
+      </div>
+
+      {/* 2. ¿Qué cambió? y ¿A qué cambió? */}
+      <div className="space-y-2">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Detalles del Cambio</p>
+        {statusChangeElement}
+
+        {changesList.length > 0 ? (
+          <div className="border border-slate-100 rounded-xl overflow-hidden bg-white shadow-sm">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 text-slate-400 border-b border-slate-100">
+                  <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[9px] w-1/3">¿Qué cambió? (Campo)</th>
+                  <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[9px] w-1/3">Valor Anterior</th>
+                  <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[9px] w-1/3">¿A qué cambió? (Valor Nuevo)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {changesList.map((ch, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/10">
+                    <td className="px-3 py-2 font-bold text-slate-600">
+                      {ch.label} <span className="text-[8px] font-mono text-slate-300 font-normal block">({ch.field})</span>
+                    </td>
+                    <td className="px-3 py-2 text-slate-400 truncate max-w-[150px]" title={ch.oldVal}>{ch.oldVal}</td>
+                    <td className="px-3 py-2 text-slate-900 font-bold truncate max-w-[150px]" title={ch.newVal}>{ch.newVal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : valuesList.length > 0 ? (
+          <div className="border border-slate-100 rounded-xl overflow-hidden bg-white shadow-sm">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 text-slate-400 border-b border-slate-100">
+                  <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[9px] w-1/2">Propiedad</th>
+                  <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[9px] w-1/2">Valor Registrado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {valuesList.map((val, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/10">
+                    <td className="px-3 py-2 font-bold text-slate-600">
+                      {val.label} <span className="text-[8px] font-mono text-slate-300 font-normal block">({val.field})</span>
+                    </td>
+                    <td className="px-3 py-2 text-slate-800 font-medium truncate max-w-[200px]" title={val.value}>{val.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 italic">No se registraron cambios en campos del sistema.</p>
+        )}
+      </div>
+
+      {/* 3. Enlace a OC u OS */}
+      {(poId || soId) && (
+        <div className="pt-2 border-t border-slate-150 flex flex-wrap gap-2">
+          {poId && (
+            <Link to={`/purchase-orders/${poId}`}>
+              <Button size="sm" className="bg-red-50 text-procarni-primary hover:bg-red-100 hover:text-procarni-primary border border-red-200/50 shadow-sm flex items-center gap-1.5 h-8 rounded-xl font-bold text-[11px] transition-all">
+                <FileText className="w-3.5 h-3.5" />
+                Ver Orden de Compra (OC)
+              </Button>
+            </Link>
+          )}
+          {soId && (
+            <Link to={`/service-orders/${soId}`}>
+              <Button size="sm" className="bg-blue-50 text-procarni-blue hover:bg-blue-100 hover:text-procarni-blue border border-blue-200/50 shadow-sm flex items-center gap-1.5 h-8 rounded-xl font-bold text-[11px] transition-all">
+                <FileText className="w-3.5 h-3.5" />
+                Ver Orden de Servicio (OS)
+              </Button>
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -219,6 +341,14 @@ const AuditLog = () => {
 
   const [startDate, setStartDate] = useState<string>(defaultStartDate());
   const [endDate, setEndDate] = useState<string>(defaultEndDate());
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (logId: string) => {
+    setExpandedLogs(prev => ({
+      ...prev,
+      [logId]: !prev[logId]
+    }));
+  };
 
   useEffect(() => {
     if (!isLoadingSession && role !== 'admin') {
@@ -506,8 +636,26 @@ const AuditLog = () => {
                       </div>
                       
                       <div className="text-slate-800 bg-slate-50/50 p-3 rounded-xl text-xs border border-slate-100">
-                        <p className="font-bold text-procarni-dark mb-1">{log.description || 'Sin descripción'}</p>
-                        <LogDetails details={log.raw_details} />
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-bold text-procarni-dark mb-1">{log.description || 'Sin descripción'}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleExpand(log.id)}
+                            className="h-6 w-6 p-0 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg flex items-center justify-center shrink-0"
+                          >
+                            {expandedLogs[log.id] ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                        {expandedLogs[log.id] && (
+                          <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                            <LogDetails log={log} />
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex justify-between bg-white border border-slate-100 p-1.5 rounded-lg text-[10px] text-slate-400 font-mono mt-1">
@@ -555,8 +703,32 @@ const AuditLog = () => {
                           </div>
                         </TableCell>
                         <TableCell className="pr-4 py-3 align-top">
-                          <span className="text-xs text-procarni-dark font-bold block mb-1">{log.description || 'Sin descripción general'}</span>
-                          <LogDetails details={log.raw_details} />
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-xs text-procarni-dark font-bold block mb-1">{log.description || 'Sin descripción general'}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleExpand(log.id)}
+                              className="h-8 text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl px-2.5 flex items-center gap-1.5 shrink-0 transition-all shadow-sm border border-slate-100 bg-white"
+                            >
+                              {expandedLogs[log.id] ? (
+                                <>
+                                  Ocultar Detalle
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  Ver Detalle
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                          {expandedLogs[log.id] && (
+                            <div className="mt-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                              <LogDetails log={log} />
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
