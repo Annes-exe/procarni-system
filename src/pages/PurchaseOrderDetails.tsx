@@ -703,10 +703,10 @@ const PurchaseOrderDetails = () => {
                     onClick={() => setIsTransitDialogOpen(true)} 
                     variant="outline" 
                     size="sm" 
-                    className="gap-2 order-2 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold shrink-0"
+                    className="order-2 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold shrink-0 gap-1.5 px-2.5 sm:px-3 sm:gap-2"
                   >
                     <Package className="h-4 w-4 text-procarni-secondary" />
-                    <span>Recepción</span>
+                    <span className="hidden sm:inline">Recepción</span>
                   </Button>
                 )}
 

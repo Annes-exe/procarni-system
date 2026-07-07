@@ -64,7 +64,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 }) => {
   const [items, setItems] = useState<TransitItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number>>({});
+  const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number | string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchTransitItems = async () => {
@@ -103,9 +103,9 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       const fetchedItems = (data as unknown as TransitItem[]) || [];
       setItems(fetchedItems);
       
-      const initialQuantities: Record<string, number> = {};
+      const initialQuantities: Record<string, number | string> = {};
       fetchedItems.forEach(item => {
-        initialQuantities[item.id] = 0;
+        initialQuantities[item.id] = '';
       });
       setReceptionQuantities(initialQuantities);
     } catch (error: any) {
@@ -175,7 +175,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 
     // Check if user is attempting to receive quantities for orders not in transit/partial
     const attemptingToReceiveNonTransit = items.some(item => {
-      const newQty = receptionQuantities[item.id] ?? 0;
+      const newQty = Number(receptionQuantities[item.id] || 0);
       const recStatus = item.purchase_orders?.reception_status;
       return newQty > 0 && recStatus !== 'En tránsito' && recStatus !== 'Parcial';
     });
@@ -189,7 +189,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     const exceeds = Object.entries(receptionQuantities).some(([id, val]) => {
       const item = items.find(i => i.id === id);
       if (!item) return false;
-      const totalProjected = Number(item.received_quantity || 0) + val;
+      const totalProjected = Number(item.received_quantity || 0) + Number(val || 0);
       return totalProjected > item.quantity;
     });
 
@@ -205,7 +205,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
         const currentAccumulated = Number(item?.received_quantity || 0);
         return {
           id,
-          received_quantity: currentAccumulated + val
+          received_quantity: currentAccumulated + Number(val || 0)
         };
       });
 
@@ -484,104 +484,227 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           <>
             <div className="flex-1 min-h-[300px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
               <ScrollArea className="h-[45vh] w-full">
-                <Table>
-                  <TableHeader className="bg-slate-100/80 sticky top-0 z-10">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item) => {
-                      const orderNum = formatSequenceNumber(
-                        item.purchase_orders?.sequence_number,
-                        item.purchase_orders?.created_at
-                      );
-                      const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                      const deliveryDateStr = item.purchase_orders?.delivery_date
-                        ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE')
-                        : 'No asignada';
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader className="bg-slate-100/80 sticky top-0 z-10">
+                      <TableRow>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
+                        <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item) => {
+                        const orderNum = formatSequenceNumber(
+                          item.purchase_orders?.sequence_number,
+                          item.purchase_orders?.created_at
+                        );
+                        const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                        const deliveryDateStr = item.purchase_orders?.delivery_date
+                          ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE')
+                          : 'No asignada';
 
-                      const accumulatedQty = Number(item.received_quantity || 0);
-                      const newQty = receptionQuantities[item.id] ?? 0;
-                      const totalProjected = accumulatedQty + newQty;
-                      const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
-                      const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
-                      const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
+                        const accumulatedQty = Number(item.received_quantity || 0);
+                        const newQty = Number(receptionQuantities[item.id] || 0);
+                        const totalProjected = accumulatedQty + newQty;
+                        const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
+                        const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
+                        const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
 
-                      return (
-                        <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
-                          <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
-                          <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>
-                            {supplierName}
-                          </TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
-                          <TableCell className="text-xs text-center font-bold font-mono">
-                            {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
-                          </TableCell>
-                          
-                          {/* Parked Register (Previously received quantity) */}
-                          <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
-                            {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
-                          </TableCell>
+                        return (
+                          <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
+                            <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
+                            <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>
+                              {supplierName}
+                            </TableCell>
+                            <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
+                            <TableCell className="text-xs text-center font-bold font-mono">
+                              {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                            </TableCell>
+                            
+                            {/* Parked Register (Previously received quantity) */}
+                            <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
+                              {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                            </TableCell>
 
-                          {/* Editable new quantity received */}
-                          <TableCell className="text-center">
+                            {/* Editable new quantity received */}
+                            <TableCell className="text-center">
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                disabled={!isEditable}
+                                placeholder={isEditable ? "0" : "Bloqueado"}
+                                title={isEditable ? "Nueva cantidad recibida" : "Establezca la orden en tránsito primero"}
+                                value={receptionQuantities[item.id] ?? ''}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                onChange={(e) => {
+                                  const rawVal = e.target.value;
+                                  if (rawVal === '') {
+                                    setReceptionQuantities(prev => ({
+                                      ...prev,
+                                      [item.id]: ''
+                                    }));
+                                    return;
+                                  }
+                                  if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
+                                    const parsed = Number(rawVal);
+                                    if (parsed > maxAllowed) {
+                                      setReceptionQuantities(prev => ({
+                                        ...prev,
+                                        [item.id]: maxAllowed
+                                      }));
+                                    } else {
+                                      setReceptionQuantities(prev => ({
+                                        ...prev,
+                                        [item.id]: rawVal
+                                      }));
+                                    }
+                                  }
+                                }}
+                                className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                              />
+                            </TableCell>
+
+                            {/* Progress bar and numeric tracking (accumulated + new) */}
+                            <TableCell className="text-xs text-center">
+                              <div className="flex flex-col items-center gap-1 min-w-[110px]">
+                                <span className="font-bold font-mono text-xs">
+                                  {totalProjected} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
+                                </span>
+                                <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={cn(
+                                      "h-full rounded-full transition-all duration-300",
+                                      progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary"
+                                    )}
+                                    style={{ width: `${progressPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="text-xs text-right font-mono font-semibold">
+                              {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
+                            </TableCell>
+                            <TableCell className="text-xs text-right text-muted-foreground pr-4">
+                              {deliveryDateStr}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Cards View */}
+                <div className="block md:hidden p-3 space-y-3 pb-48">
+                  {items.map((item) => {
+                    const orderNum = formatSequenceNumber(
+                      item.purchase_orders?.sequence_number,
+                      item.purchase_orders?.created_at
+                    );
+                    const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                    const deliveryDateStr = item.purchase_orders?.delivery_date
+                      ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE')
+                      : 'No asignada';
+
+                    const accumulatedQty = Number(item.received_quantity || 0);
+                    const newQty = Number(receptionQuantities[item.id] || 0);
+                    const totalProjected = accumulatedQty + newQty;
+                    const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
+                    const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
+                    const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
+
+                    return (
+                      <div key={item.id} className="bg-white p-4 border border-gray-150 rounded-2xl shadow-sm space-y-3">
+                        {/* Order & Supplier info */}
+                        <div className="flex justify-between items-start border-b border-gray-100 pb-2">
+                          <div>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
+                            <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
+                            <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
+                          </div>
+                        </div>
+
+                        {/* Material Info */}
+                        <div>
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
+                          <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
+                        </div>
+
+                        {/* Quantities & Price Summary Card */}
+                        <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
+                          <div className="text-center">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Pedida</span>
+                            <span className="text-xs font-bold font-mono text-slate-700">{item.quantity}</span>
+                          </div>
+                          <div className="text-center border-x border-gray-200">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Recibido</span>
+                            <span className="text-xs font-bold font-mono text-slate-700">{accumulatedQty}</span>
+                          </div>
+                          <div className="text-center">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">P. Unitario</span>
+                            <span className="text-xs font-bold font-mono text-slate-700">{item.purchase_orders?.currency} {item.unit_price.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        {/* Edit Field & Progress Bar */}
+                        <div className="flex flex-col gap-3 pt-1">
+                          <div className="flex flex-col gap-1 w-full">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Nueva Recepción</span>
                             <Input
-                              type="number"
-                              min="0"
-                              max={maxAllowed}
+                              type="text"
+                              inputMode="decimal"
                               disabled={!isEditable}
                               placeholder={isEditable ? "0" : "Bloqueado"}
                               title={isEditable ? "Nueva cantidad recibida" : "Establezca la orden en tránsito primero"}
-                              value={receptionQuantities[item.id] ?? 0}
+                              value={receptionQuantities[item.id] ?? ''}
+                              onWheel={(e) => e.currentTarget.blur()}
                               onChange={(e) => {
-                                const val = Math.min(maxAllowed, Math.max(0, Number(e.target.value)));
-                                setReceptionQuantities(prev => ({
-                                  ...prev,
-                                  [item.id]: val
-                                }));
+                                const rawVal = e.target.value;
+                                if (rawVal === '') {
+                                  setReceptionQuantities(prev => ({
+                                    ...prev,
+                                    [item.id]: ''
+                                  }));
+                                  return;
+                                }
+                                if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
+                                  const parsed = Number(rawVal);
+                                  if (parsed > maxAllowed) {
+                                    setReceptionQuantities(prev => ({
+                                      ...prev,
+                                      [item.id]: maxAllowed
+                                    }));
+                                  } else {
+                                    setReceptionQuantities(prev => ({
+                                      ...prev,
+                                      [item.id]: rawVal
+                                    }));
+                                  }
+                                }
                               }}
-                              className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                              className="h-9 w-full text-center text-xs font-bold bg-slate-50 border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
                             />
-                          </TableCell>
+                          </div>
 
-                          {/* Progress bar and numeric tracking (accumulated + new) */}
-                          <TableCell className="text-xs text-center">
-                            <div className="flex flex-col items-center gap-1 min-w-[110px]">
-                              <span className="font-bold font-mono text-xs">
-                                {totalProjected} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
-                              </span>
-                              <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full transition-all duration-300",
-                                    progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary"
-                                  )}
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="text-xs text-right font-mono font-semibold">
-                            {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
-                          </TableCell>
-                          <TableCell className="text-xs text-right text-muted-foreground pr-4">
-                            {deliveryDateStr}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Spacer to guarantee scroll clearance over fixed footer */}
+                  <div className="h-16 w-full" />
+                </div>
               </ScrollArea>
             </div>
 

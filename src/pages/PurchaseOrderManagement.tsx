@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2 } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2, Package } from 'lucide-react';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
 import TransitReportDialog from '@/components/TransitReportDialog';
 
@@ -462,6 +462,25 @@ const PurchaseOrderManagement = () => {
               </TooltipTrigger>
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
+
+            {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-9 w-9 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary/5 hover:text-procarni-secondary" 
+                    onClick={() => {
+                      setTransitOrderIds([order.id]);
+                      setIsTransitReportOpen(true);
+                    }}
+                  >
+                    <Package className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Registrar Recepción</TooltipContent>
+              </Tooltip>
+            )}
 
             <Tooltip>
               <TooltipTrigger asChild>
