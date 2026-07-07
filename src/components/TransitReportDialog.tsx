@@ -459,7 +459,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col bg-white rounded-[2rem] border-none shadow-2xl p-6 ring-1 ring-black/5">
+      <DialogContent className="max-w-5xl max-h-[92vh] md:max-h-[85vh] flex flex-col bg-white rounded-[2rem] border-none shadow-2xl p-4 md:p-6 ring-1 ring-black/5 overflow-y-auto md:overflow-visible">
         <DialogHeader className="pb-2">
           <DialogTitle className="text-xl font-extrabold text-procarni-dark flex items-center gap-2">
             <Package className="h-5 w-5 text-procarni-primary" />
@@ -482,8 +482,8 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-[300px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
-              <ScrollArea className="h-[45vh] w-full">
+            <div className="flex-1 min-h-[150px] md:min-h-[300px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
+              <ScrollArea className="h-[55vh] md:h-[45vh] w-full">
                 {/* Desktop Table View */}
                 <div className="hidden md:block">
                   <Table>
@@ -708,58 +708,91 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
               </ScrollArea>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-gray-100 flex flex-col md:flex-row gap-2 mt-4 items-end justify-between w-full">
-              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-end">
-                <div className="flex flex-col sm:w-auto w-full">
-                  <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500 w-full sm:w-auto">
-                    Cerrar
-                  </Button>
-                </div>
-                
-                <div className="flex flex-col gap-1.5 sm:w-auto w-full">
-                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 1: En Tránsito</span>
-                  <Button
-                    variant="outline"
-                    onClick={handleSetInTransit}
-                    disabled={isSaving || items.length === 0 || !canSetInTransit}
-                    className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all w-full sm:w-auto"
-                  >
-                    <Truck className="h-4 w-4 text-procarni-primary" />
-                    Establecer En Tránsito
-                  </Button>
-                </div>
-
-                <div className="flex flex-col gap-1.5 sm:w-auto w-full">
-                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 2: Registrar Recepción</span>
-                  <Button
-                    onClick={handleSaveReception}
-                    disabled={isSaving || items.length === 0}
-                    className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
-                  >
-                    <PackageCheck className="h-4 w-4" />
-                    Guardar Recepción
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto ml-auto">
+            <DialogFooter className="pt-2 border-t border-gray-100 mt-2 w-full">
+              {/* Mobile Compact Footer Row */}
+              <div className="grid grid-cols-3 gap-2 w-full md:hidden">
+                <Button 
+                  variant="ghost" 
+                  onClick={onClose} 
+                  className="h-9 px-2 rounded-xl text-slate-500 text-xs font-bold w-full"
+                >
+                  Cerrar
+                </Button>
                 <Button
                   variant="outline"
-                  onClick={handleExportXLSX}
-                  disabled={items.length === 0}
-                  className="h-10 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 hover:text-procarni-secondary px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
+                  onClick={handleSetInTransit}
+                  disabled={isSaving || items.length === 0 || !canSetInTransit}
+                  className="h-9 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-1 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold transition-all w-full truncate"
+                  title="Establecer en Tránsito"
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Exportar Excel
+                  <Truck className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Tránsito</span>
                 </Button>
                 <Button
-                  onClick={handleExportPDF}
-                  disabled={items.length === 0}
-                  className="h-10 bg-procarni-primary hover:bg-red-750 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
+                  onClick={handleSaveReception}
+                  disabled={isSaving || items.length === 0}
+                  className="h-9 bg-green-700 hover:bg-green-800 text-white px-1 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold transition-all w-full truncate"
+                  title="Guardar Recepción"
                 >
-                  <FileText className="h-4 w-4" />
-                  Exportar PDF
+                  <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Recibir</span>
                 </Button>
+              </div>
+
+              {/* Desktop Standard Footer Layout */}
+              <div className="hidden md:flex md:flex-row gap-2 items-end justify-between w-full">
+                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-end">
+                  <div className="flex flex-col sm:w-auto w-full">
+                    <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500 w-full sm:w-auto">
+                      Cerrar
+                    </Button>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1.5 sm:w-auto w-full">
+                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 1: En Tránsito</span>
+                    <Button
+                      variant="outline"
+                      onClick={handleSetInTransit}
+                      disabled={isSaving || items.length === 0 || !canSetInTransit}
+                      className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all w-full sm:w-auto"
+                    >
+                      <Truck className="h-4 w-4 text-procarni-primary" />
+                      Establecer En Tránsito
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 sm:w-auto w-full">
+                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 2: Registrar Recepción</span>
+                    <Button
+                      onClick={handleSaveReception}
+                      disabled={isSaving || items.length === 0}
+                      className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
+                    >
+                      <PackageCheck className="h-4 w-4" />
+                      Guardar Recepción
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto ml-auto">
+                  <Button
+                    variant="outline"
+                    onClick={handleExportXLSX}
+                    disabled={items.length === 0}
+                    className="h-10 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 hover:text-procarni-secondary px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Exportar Excel
+                  </Button>
+                  <Button
+                    onClick={handleExportPDF}
+                    disabled={items.length === 0}
+                    className="h-10 bg-procarni-primary hover:bg-red-750 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Exportar PDF
+                  </Button>
+                </div>
               </div>
             </DialogFooter>
           </>

@@ -141,7 +141,7 @@ const Layout = () => {
             </div>
           </div>
           <div className="mt-auto p-4 border-t border-border">
-            <UserDropdown />
+            <UserDropdown showText={true} />
           </div>
         </SheetContent>
       </Sheet>
@@ -160,7 +160,6 @@ const Layout = () => {
           <CurrencyCalculator />
           <PendingReceiptsIndicator />
           <NotificationBell />
-          <UserDropdown />
         </div>
       </div>
     </header>
