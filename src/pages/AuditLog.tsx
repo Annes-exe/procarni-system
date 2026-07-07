@@ -207,6 +207,19 @@ const AuditLog = () => {
   const [activeTab, setActiveTab] = useState<'all' | 'orders' | 'materials' | 'suppliers' | 'quotes'>('all');
   const { role, isLoadingSession } = useSession();
 
+  const defaultStartDate = () => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+  };
+
+  const defaultEndDate = () => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+  };
+
+  const [startDate, setStartDate] = useState<string>(defaultStartDate());
+  const [endDate, setEndDate] = useState<string>(defaultEndDate());
+
   useEffect(() => {
     if (!isLoadingSession && role !== 'admin') {
       navigate('/');
@@ -215,8 +228,8 @@ const AuditLog = () => {
   }, [role, isLoadingSession, navigate]);
 
   const { data: logs, isLoading, error } = useQuery<AuditLogEntry[]>({
-    queryKey: ['auditLogs'],
-    queryFn: getAllAuditLogs,
+    queryKey: ['auditLogs', startDate, endDate],
+    queryFn: () => getAllAuditLogs(startDate ? `${startDate}T00:00:00Z` : undefined, endDate ? `${endDate}T23:59:59Z` : undefined),
   });
 
   const filteredLogs = useMemo(() => {
@@ -395,6 +408,61 @@ const AuditLog = () => {
       <Card className="mb-6 border-none shadow-2xl shadow-gray-200/50 bg-transparent md:bg-white/70 backdrop-blur-xl rounded-[2rem] ring-1 ring-white">
         <CardContent className="p-0 md:p-8">
           
+          {/* Date range filter and search */}
+          <div className="flex flex-col gap-4 mb-6 bg-slate-50 border border-slate-100 p-4 rounded-[1.5rem] shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-procarni-dark uppercase tracking-widest text-slate-500">Filtrado por Rango de Fecha</p>
+                <p className="text-[11px] text-slate-400 font-medium italic">Filtra las acciones registradas en el rango seleccionado.</p>
+              </div>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStartDate(defaultStartDate());
+                    setEndDate(defaultEndDate());
+                  }}
+                  className="h-8 text-[11px] font-bold rounded-xl border-slate-200 text-slate-600 bg-white hover:bg-slate-100 shrink-0"
+                >
+                  Mes Actual
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="h-8 text-[11px] font-bold rounded-xl border-slate-200 text-slate-600 bg-white hover:bg-slate-100 shrink-0"
+                >
+                  Historial Completo
+                </Button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 max-w-md w-full">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Desde</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-white text-xs h-9 rounded-xl border-slate-200"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Hasta</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-white text-xs h-9 rounded-xl border-slate-200"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Tabs Filter matching Premium style */}
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
             <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full md:w-auto">
