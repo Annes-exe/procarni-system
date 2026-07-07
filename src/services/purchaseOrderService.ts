@@ -71,7 +71,7 @@ export const purchaseOrderService = {
       if (statusFilter === 'Active') {
         query = query.in('status', ['Draft']);
       } else if (statusFilter === 'Approved') {
-        query = query.in('status', ['Approved', 'Credit', 'Paid']);
+        query = query.in('status', ['Approved', 'Credit', 'Paid', 'ToPay', 'Received']);
       } else if (statusFilter === 'ToPay') {
         query = query.eq('status', 'ToPay');
       } else if (statusFilter === 'Credit') {
@@ -471,7 +471,13 @@ export const purchaseOrderService = {
 
         // Audit log
         try {
-            await logAudit('update_reception_status', { orderIds, status });
+            await logAudit('update_reception_status', { 
+                table: 'purchase_orders',
+                record_id: orderIds.join(','),
+                description: `Estableció el estado de recepción a '${status}' para las órdenes seleccionadas.`,
+                new_data: { reception_status: status },
+                old_data: { reception_status: 'Ninguno' }
+            });
         } catch (e) {
             console.error('[purchaseOrderService.updateReceptionStatus] Audit error:', e);
         }
@@ -549,10 +555,6 @@ export const purchaseOrderService = {
 
             const updates: any = { reception_status: newReceptionStatus };
 
-            if (newReceptionStatus === 'Recibido') {
-                updates.status = 'Received';
-            }
-
             const { error: updateError } = await supabase
                 .from('purchase_orders')
                 .update(updates)
@@ -561,7 +563,12 @@ export const purchaseOrderService = {
             if (updateError) throw updateError;
 
             try {
-                await logAudit('update_order_reception_state', { orderId, reception_status: newReceptionStatus });
+                await logAudit('update_order_reception_state', { 
+                    table: 'purchase_orders',
+                    record_id: orderId,
+                    description: `Actualizó el estado general de recepción de la orden a '${newReceptionStatus}'.`,
+                    new_data: updates
+                });
             } catch (e) {
                 console.error('[purchaseOrderService.updateOrderReceptionState] Audit error:', e);
             }

@@ -31,7 +31,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
-  'Received': 'Recibido',
+  'Received': 'Aprobada',
 };
 
 const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
@@ -302,7 +302,7 @@ const PurchaseOrderManagement = () => {
       case 'Archived':
         return 'bg-gray-100 text-gray-600 border-gray-200';
       case 'Received':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        return 'bg-green-100 text-green-800 border-green-200';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -313,15 +313,15 @@ const PurchaseOrderManagement = () => {
     
     let colorClass = "bg-gray-100 text-gray-800 border-gray-200";
     if (recStatus === 'En tránsito') {
-      colorClass = "bg-blue-50 text-blue-700 border-blue-200/50";
+      colorClass = "bg-blue-100 text-blue-800 border-blue-200";
     } else if (recStatus === 'Parcial') {
-      colorClass = "bg-amber-50 text-amber-700 border-amber-200/50";
+      colorClass = "bg-amber-100 text-amber-800 border-amber-200";
     } else if (recStatus === 'Recibido') {
-      colorClass = "bg-green-50 text-green-700 border-green-200/50";
+      colorClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
     }
 
     return (
-      <span className={cn("px-2 py-0.5 text-[10px] font-bold rounded-full border whitespace-nowrap uppercase tracking-wider", colorClass)}>
+      <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", colorClass)}>
         {recStatus}
       </span>
     );

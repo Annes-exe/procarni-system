@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive, ClipboardList, ChevronDown, ChevronUp, PackageCheck } from 'lucide-react';
 
 import { getAllAuditLogs } from '@/integrations/supabase/data';
 import { showError } from '@/utils/toast';
@@ -55,6 +55,8 @@ const fieldTranslations: Record<string, string> = {
   amount: 'Monto Total',
   payment_status: 'Estado de Pago',
   observations: 'Observaciones',
+  reception_status: 'Estado de Recepción',
+  received_quantity: 'Cantidad Recibida',
   
   // System profiles
   role: 'Rol de Usuario',
@@ -326,7 +328,7 @@ const AuditLog = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'orders' | 'materials' | 'suppliers' | 'quotes'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'orders' | 'receptions' | 'materials' | 'suppliers' | 'quotes'>('all');
   const { role, isLoadingSession } = useSession();
 
   const defaultStartDate = () => {
@@ -372,6 +374,13 @@ const AuditLog = () => {
         const t = (log.table || '').toLowerCase();
         const a = log.action.toLowerCase();
         return t.includes('purchase_order') || t.includes('service_order') || a.includes('purchase_order') || a.includes('service_order');
+      });
+    } else if (activeTab === 'receptions') {
+      tabFiltered = logs.filter(log => {
+        const t = (log.table || '').toLowerCase();
+        const a = log.action.toLowerCase();
+        const d = (log.description || '').toLowerCase();
+        return t.includes('reception') || a.includes('reception') || a.includes('transit') || d.includes('recep') || d.includes('tráns') || d.includes('recib');
       });
     } else if (activeTab === 'materials') {
       tabFiltered = logs.filter(log => {
@@ -464,6 +473,10 @@ const AuditLog = () => {
     // Fichas Técnicas
     UPLOAD_FICHA_TECNICA: { label: 'Subir Ficha Técnica', color: 'bg-lime-50 text-lime-700 border-lime-200/50 hover:bg-lime-50', icon: UploadCloud },
     DELETE_FICHA_TECNICA: { label: 'Eliminar Ficha Técnica', color: 'bg-rose-50 text-rose-700 border-rose-200/50 hover:bg-rose-50', icon: Trash },
+
+    // Receptions / Transit
+    update_reception_status: { label: 'Establecer Tránsito', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-50', icon: Truck },
+    update_order_reception_state: { label: 'Registrar Recepción', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50', icon: PackageCheck },
   };
 
   const getActionDisplay = (action: string, details?: any) => {
@@ -596,9 +609,10 @@ const AuditLog = () => {
           {/* Tabs Filter matching Premium style */}
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
             <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full md:w-auto">
-              <TabsList className="grid grid-cols-5 h-9 bg-slate-100 p-0.5 rounded-xl">
+              <TabsList className="grid grid-cols-6 h-9 bg-slate-100 p-0.5 rounded-xl">
                 <TabsTrigger value="all" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Todo</TabsTrigger>
                 <TabsTrigger value="orders" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Órdenes</TabsTrigger>
+                <TabsTrigger value="receptions" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Recepciones</TabsTrigger>
                 <TabsTrigger value="materials" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Materiales</TabsTrigger>
                 <TabsTrigger value="suppliers" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Proveedores</TabsTrigger>
                 <TabsTrigger value="quotes" className="text-[11px] font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-procarni-dark">Cotizaciones</TabsTrigger>
