@@ -11,6 +11,8 @@ import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, Rot
 import { getAllMaterials } from '@/integrations/supabase/data';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface UnifiedSuggestion {
   target_id: string;
@@ -36,10 +38,25 @@ const getUnifiedSuggestions = async () => {
 
   if (migrationError) throw migrationError;
 
+  const { data: ignoredData, error: ignoredError } = await supabase
+    .from('ignored_material_matches')
+    .select('target_id, source_id');
+
+  if (ignoredError) throw ignoredError;
+
+  const ignoredPairs = new Set<string>();
+  (ignoredData || []).forEach((row: any) => {
+    ignoredPairs.add(`${row.target_id}-${row.source_id}`);
+    ignoredPairs.add(`${row.source_id}-${row.target_id}`);
+  });
+
   const map = new Map<string, UnifiedSuggestion>();
 
   (migrationData || []).forEach((row: any) => {
     const key = `${row.master_id}-${row.dirty_id}`;
+    const reverseKey = `${row.dirty_id}-${row.master_id}`;
+    if (ignoredPairs.has(key) || ignoredPairs.has(reverseKey)) return;
+
     map.set(key, {
       target_id: row.master_id,
       target_name: row.master_name,
@@ -54,6 +71,8 @@ const getUnifiedSuggestions = async () => {
     const key = `${row.target_id}-${row.source_id}`;
     const reverseKey = `${row.source_id}-${row.target_id}`;
     
+    if (ignoredPairs.has(key) || ignoredPairs.has(reverseKey)) return;
+
     if (!map.has(key) && !map.has(reverseKey)) {
       map.set(key, {
         target_id: row.target_id,
@@ -73,7 +92,7 @@ const getCleanupHistory = async () => {
   const { data, error } = await supabase
     .from('audit_logs')
     .select('*')
-    .in('action', ['FUSION', 'GROUP_ADD', 'GROUP_REMOVE', 'UNMERGE'])
+    .in('action', ['FUSION', 'GROUP_ADD', 'GROUP_REMOVE', 'UNMERGE', 'IGNORE_MATCH', 'RESTORE_MATCH'])
     .order('timestamp', { ascending: false })
     .limit(100);
     
@@ -84,11 +103,18 @@ const getCleanupHistory = async () => {
 const getIgnoredMatches = async () => {
   const { data, error } = await supabase
     .from('ignored_material_matches')
-    .select('*')
+    .select(`
+      id,
+      target_id,
+      source_id,
+      created_at,
+      target:materials!ignored_material_matches_target_id_fkey(name, code),
+      source:materials!ignored_material_matches_source_id_fkey(name, code)
+    `)
     .order('created_at', { ascending: false });
     
   if (error) throw error;
-  return data;
+  return data as any[];
 };
 
 const MaterialCleanupDashboard = () => {
@@ -96,6 +122,7 @@ const MaterialCleanupDashboard = () => {
   const [isResolutionModalOpen, setIsResolutionModalOpen] = useState(false);
   const [resolutionAction, setResolutionAction] = useState<'merge' | 'group'>('merge');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [filterSameCategoryOnly, setFilterSameCategoryOnly] = useState(false);
 
   const { data: suggestions, isLoading: isLoadingSuggestions, refetch: refetchSuggestions } = useQuery({
     queryKey: ['fusion_suggestions'],
@@ -116,6 +143,7 @@ const MaterialCleanupDashboard = () => {
       const actionText = data.action === 'merge' ? 'Fusión rápida completada.' : 'Agrupación rápida completada.';
       showSuccess(actionText);
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
       refetchSuggestions();
       refetchHistory();
@@ -126,8 +154,15 @@ const MaterialCleanupDashboard = () => {
   });
 
   const { data: materials = [] } = useQuery({
-    queryKey: ['materials'],
-    queryFn: getAllMaterials,
+    queryKey: ['dashboard_all_active_materials'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('status', 'active');
+      if (error) throw error;
+      return data as Material[];
+    },
   });
 
   const { data: history = [], isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
@@ -172,6 +207,7 @@ const MaterialCleanupDashboard = () => {
     onSuccess: () => {
       showSuccess("Acción deshecha correctamente. El material vuelve a estar activo.");
       queryClient.invalidateQueries({ queryKey: ['materials'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
       refetchSuggestions();
       refetchHistory();
@@ -179,6 +215,53 @@ const MaterialCleanupDashboard = () => {
     onError: (err: Error) => {
       showError(`Error al deshacer: ${err.message}`);
     }
+  });
+
+  const undoIgnoreMutation = useMutation({
+    mutationFn: async ({ targetId, sourceId }: { targetId: string, sourceId: string }) => {
+      // 1. Fetch match to get description names
+      const { data: matches, error: fetchErr } = await supabase
+        .from('ignored_material_matches')
+        .select(`
+          id,
+          target:materials!ignored_material_matches_target_id_fkey(name),
+          source:materials!ignored_material_matches_source_id_fkey(name)
+        `)
+        .eq('target_id', targetId)
+        .eq('source_id', sourceId)
+        .limit(1);
+
+      if (fetchErr) throw fetchErr;
+      const match = matches?.[0] as any;
+
+      // 2. Delete the record
+      const { error } = await supabase
+        .from('ignored_material_matches')
+        .delete()
+        .eq('target_id', targetId)
+        .eq('source_id', sourceId);
+      if (error) throw error;
+
+      // 3. Write to audit_logs
+      const targetName = (Array.isArray(match?.target) ? match.target[0]?.name : match?.target?.name) || targetId;
+      const sourceName = (Array.isArray(match?.source) ? match.source[0]?.name : match?.source?.name) || sourceId;
+      await supabase.from('audit_logs').insert({
+        action: 'RESTORE_MATCH',
+        details: {
+          table: 'materials',
+          record_id: sourceId,
+          target_id: targetId,
+          description: `Coincidencia restaurada (deshacer ignorar): "${sourceName}" vuelve a estar disponible para comparar con "${targetName}"`
+        }
+      });
+    },
+    onSuccess: () => {
+      showSuccess("Coincidencia restaurada correctamente.");
+      refetchSuggestions();
+      refetchIgnored();
+      refetchHistory();
+    },
+    onError: (err: Error) => showError(`Error al restaurar: ${err.message}`)
   });
 
   const handleUndo = (action: string, details: any) => {
@@ -190,6 +273,13 @@ const MaterialCleanupDashboard = () => {
       return;
     }
 
+    if (action === 'IGNORE_MATCH') {
+      if (confirm("¿Estás seguro de restaurar esta coincidencia? Volverá a aparecer en las sugerencias.")) {
+        undoIgnoreMutation.mutate({ targetId, sourceId: recordId });
+      }
+      return;
+    }
+
     const actionText = action === 'FUSION' ? 'fusión' : 'agrupación';
     if (confirm(`¿Estás seguro de deshacer esta ${actionText}? El material volverá a estar activo en el catálogo.`)) {
       undoMutation.mutate({ action, targetId, recordId });
@@ -198,32 +288,78 @@ const MaterialCleanupDashboard = () => {
 
   const ignoreMutation = useMutation({
     mutationFn: async ({ targetId, sourceId }: { targetId: string, sourceId: string }) => {
+      // 1. Insert ignored match record
       const { error } = await supabase.from('ignored_material_matches').insert({
         target_id: targetId,
         source_id: sourceId
       });
       if (error) throw error;
+
+      // 2. Fetch names for audit description
+      const targetMat = materials.find(m => m.id === targetId);
+      const sourceMat = materials.find(m => m.id === sourceId);
+      const targetName = targetMat?.name || targetId;
+      const sourceName = sourceMat?.name || sourceId;
+
+      // 3. Write to audit logs
+      await supabase.from('audit_logs').insert({
+        action: 'IGNORE_MATCH',
+        details: {
+          table: 'materials',
+          record_id: sourceId,
+          target_id: targetId,
+          description: `Coincidencia ignorada: "${sourceName}" no se fusionará/agrupará con "${targetName}"`
+        }
+      });
     },
     onSuccess: () => {
       showSuccess("Coincidencia ignorada. No volverá a aparecer en las sugerencias.");
       refetchSuggestions();
       refetchIgnored();
+      refetchHistory();
     },
     onError: (err: Error) => showError(`Error al ignorar: ${err.message}`)
   });
 
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
+      // 1. Fetch match to get names
+      const match = ignored.find(item => item.id === id);
+      if (!match) throw new Error("Coincidencia ignorada no encontrada en la lista");
+
+      const targetName = match.target?.name || match.target_id;
+      const sourceName = match.source?.name || match.source_id;
+
+      // 2. Delete ignored record
       const { error } = await supabase.from('ignored_material_matches').delete().eq('id', id);
       if (error) throw error;
+
+      // 3. Write to audit logs
+      await supabase.from('audit_logs').insert({
+        action: 'RESTORE_MATCH',
+        details: {
+          table: 'materials',
+          record_id: match.source_id,
+          target_id: match.target_id,
+          description: `Coincidencia restaurada: "${sourceName}" vuelve a estar disponible para comparar con "${targetName}"`
+        }
+      });
     },
     onSuccess: () => {
       showSuccess("Coincidencia restaurada con éxito.");
       refetchSuggestions();
       refetchIgnored();
+      refetchHistory();
     },
     onError: (err: Error) => showError(`Error al restaurar: ${err.message}`)
   });
+
+  const filteredSuggestions = suggestions?.filter(suggestion => {
+    if (!filterSameCategoryOnly) return true;
+    const targetData = findMaterialData(suggestion.target_id);
+    const sourceData = findMaterialData(suggestion.source_id);
+    return targetData && sourceData && targetData.category === sourceData.category;
+  }) || [];
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 overflow-x-hidden w-full">
@@ -275,143 +411,171 @@ const MaterialCleanupDashboard = () => {
               <p className="text-sm text-slate-500">No se encontraron materiales duplicados o variaciones pendientes de estructurar.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-              {suggestions?.map((suggestion, index) => {
-                const targetData = findMaterialData(suggestion.target_id);
-                const sourceData = findMaterialData(suggestion.source_id);
-                
-                const isCardResolving = quickResolveMutation.isPending && quickResolveMutation.variables?.sourceId === suggestion.source_id;
-                const isCardIgnoring = ignoreMutation.isPending && ignoreMutation.variables?.sourceId === suggestion.source_id && ignoreMutation.variables?.targetId === suggestion.target_id;
-                const resolvingAction = quickResolveMutation.variables?.action;
-                const isProcessing = isCardResolving || isCardIgnoring;
+            <div className="space-y-4">
+              {/* Category Filter Switch */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-100/80 p-4 rounded-2xl shadow-sm">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-bold text-procarni-dark">Filtro de Categorías</p>
+                  <p className="text-xs text-slate-500">Compara coincidencias que pertenezcan a la misma categoría o muestra todas.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="same-category-filter" className="text-xs font-bold uppercase tracking-wider text-slate-500 cursor-pointer">
+                    Solo misma categoría
+                  </Label>
+                  <Switch
+                    id="same-category-filter"
+                    checked={filterSameCategoryOnly}
+                    onCheckedChange={setFilterSameCategoryOnly}
+                  />
+                </div>
+              </div>
 
-                return (
-                  <div 
-                    key={index} 
-                    className={cn(
-                      "bg-white border border-slate-100 shadow-md hover:shadow-xl rounded-[1.75rem] p-5 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300",
-                      isProcessing && "pointer-events-none"
-                    )}
-                  >
-                    {isProcessing && (
-                      <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-200">
-                        <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
-                        <span className="text-xs font-bold text-procarni-primary">
-                          {isCardIgnoring ? 'Ignorando...' : resolvingAction === 'merge' ? 'Fusionando...' : 'Agrupando...'}
-                        </span>
-                      </div>
-                    )}
-                    {/* Top light glow border */}
-                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-procarni-primary to-procarni-secondary opacity-80"></div>
+              {filteredSuggestions.length === 0 ? (
+                <div className="bg-white border border-slate-100 shadow-md p-10 rounded-[2rem] text-center text-slate-500 flex flex-col items-center gap-3">
+                  <AlertCircle className="w-10 h-10 text-slate-400" />
+                  <p className="font-extrabold text-lg text-procarni-dark">Sin coincidencias</p>
+                  <p className="text-sm text-slate-500">No se encontraron sugerencias que pertenezcan a la misma categoría.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                  {filteredSuggestions.map((suggestion, index) => {
+                    const targetData = findMaterialData(suggestion.target_id);
+                    const sourceData = findMaterialData(suggestion.source_id);
                     
-                    <div>
-                      {/* Badge header & ignore button */}
-                      <div className="flex items-center justify-between gap-2 mb-4">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`font-mono text-[10px] shadow-sm uppercase ${getScoreColor(suggestion.similarity_score)}`}>
-                            {suggestion.similarity_score}% Similar
-                          </Badge>
-                          {suggestion.is_dirty_migration && (
-                            <Badge className="bg-amber-50 text-procarni-alert border border-amber-200/50 text-[9px] font-bold">
-                              Importado
-                            </Badge>
-                          )}
-                        </div>
-                        <Button 
-                          onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Ignorar esta coincidencia"
-                          disabled={ignoreMutation.isPending || quickResolveMutation.isPending}
-                        >
-                          <EyeOff className="w-4 h-4" />
-                        </Button>
-                      </div>
+                    const isCardResolving = quickResolveMutation.isPending && quickResolveMutation.variables?.sourceId === suggestion.source_id;
+                    const isCardIgnoring = ignoreMutation.isPending && ignoreMutation.variables?.sourceId === suggestion.source_id && ignoreMutation.variables?.targetId === suggestion.target_id;
+                    const resolvingAction = quickResolveMutation.variables?.action;
+                    const isProcessing = isCardResolving || isCardIgnoring;
 
-                      {/* Comparison Flow */}
-                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-3 bg-slate-50/50 rounded-2xl px-4 border border-slate-100/50">
-                        
-                        {/* Left Side: Duplicate (Source) */}
-                        <div className="text-center min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Material Duplicado</p>
-                          <p className="font-bold text-slate-900 text-sm break-words leading-snug line-clamp-2" title={suggestion.source_name}>
-                            {suggestion.source_name}
-                          </p>
-                          <div className="flex justify-center gap-1 mt-2 flex-wrap">
-                            {sourceData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{sourceData.category}</Badge>}
-                            {sourceData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{sourceData.unit}</Badge>}
-                          </div>
-                        </div>
-
-                        {/* Center: Connection icon */}
-                        <div className="flex flex-col items-center justify-center text-slate-300">
-                          <ArrowRight className="h-5 w-5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                        </div>
-
-                        {/* Right Side: Gold Standard (Target) */}
-                        <div className="text-center min-w-0">
-                          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Patrón de Oro</p>
-                          <p className="font-bold text-procarni-blue text-sm break-words leading-snug line-clamp-2" title={suggestion.target_name}>
-                            {suggestion.target_name}
-                          </p>
-                          <div className="flex justify-center gap-1 mt-2 flex-wrap">
-                            {targetData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{targetData.category}</Badge>}
-                            {targetData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{targetData.unit}</Badge>}
-                          </div>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    {/* Footer Action Bar */}
-                    <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-2">
-                      <Button 
-                        onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl px-2 h-9 flex items-center gap-1"
-                        disabled={quickResolveMutation.isPending}
+                    return (
+                      <div 
+                        key={index} 
+                        className={cn(
+                          "bg-white border border-slate-100 shadow-md hover:shadow-xl rounded-[1.75rem] p-5 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300",
+                          isProcessing && "pointer-events-none"
+                        )}
                       >
-                        <Wrench className="w-3.5 h-3.5" />
-                        Personalizar
-                      </Button>
-                      
-                      <div className="flex items-center gap-1.5">
-                        <Button 
-                          onClick={() => quickResolveMutation.mutate({ action: 'group', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                          variant="outline"
-                          size="sm"
-                          className="h-9 text-[11px] font-bold rounded-xl border-procarni-blue/30 text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm flex items-center gap-1 px-2.5"
-                          disabled={quickResolveMutation.isPending}
-                        >
-                          {isCardResolving && resolvingAction === 'group' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                          ) : (
-                            <Network className="w-3.5 h-3.5" />
-                          )}
-                          {isCardResolving && resolvingAction === 'group' ? 'Agrupando...' : 'Agrupar Rápido'}
-                        </Button>
-                        <Button 
-                          onClick={() => quickResolveMutation.mutate({ action: 'merge', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 text-[11px] font-bold rounded-xl bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm flex items-center gap-1 px-2.5"
-                          disabled={quickResolveMutation.isPending}
-                        >
-                          {isCardResolving && resolvingAction === 'merge' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                          ) : (
-                            <Combine className="w-3.5 h-3.5" />
-                          )}
-                          {isCardResolving && resolvingAction === 'merge' ? 'Vinculando...' : 'Vincular Rápido'}
-                        </Button>
-                      </div>
-                    </div>
+                        {isProcessing && (
+                          <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 animate-in fade-in duration-200">
+                            <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
+                            <span className="text-xs font-bold text-procarni-primary">
+                              {isCardIgnoring ? 'Ignorando...' : resolvingAction === 'merge' ? 'Fusionando...' : 'Agrupando...'}
+                            </span>
+                          </div>
+                        )}
+                        {/* Top light glow border */}
+                        <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-procarni-primary to-procarni-secondary opacity-80"></div>
+                        
+                        <div>
+                          {/* Badge header & ignore button */}
+                          <div className="flex items-center justify-between gap-2 mb-4">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`font-mono text-[10px] shadow-sm uppercase ${getScoreColor(suggestion.similarity_score)}`}>
+                                {suggestion.similarity_score}% Similar
+                              </Badge>
+                              {suggestion.is_dirty_migration && (
+                                <Badge className="bg-amber-50 text-procarni-alert border border-amber-200/50 text-[9px] font-bold">
+                                  Importado
+                                </Badge>
+                              )}
+                            </div>
+                            <Button 
+                              onClick={() => ignoreMutation.mutate({ targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Ignorar esta coincidencia"
+                              disabled={ignoreMutation.isPending || quickResolveMutation.isPending}
+                            >
+                              <EyeOff className="w-4 h-4" />
+                            </Button>
+                          </div>
 
-                  </div>
-                );
-              })}
+                          {/* Comparison Flow */}
+                          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-3 bg-slate-50/50 rounded-2xl px-4 border border-slate-100/50">
+                            
+                            {/* Left Side: Duplicate (Source) */}
+                            <div className="text-center min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Material Duplicado</p>
+                              <p className="font-bold text-slate-900 text-sm break-words leading-snug line-clamp-2" title={suggestion.source_name}>
+                                {suggestion.source_name}
+                              </p>
+                              <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                                {sourceData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{sourceData.category}</Badge>}
+                                {sourceData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{sourceData.unit}</Badge>}
+                              </div>
+                            </div>
+
+                            {/* Center: Connection icon */}
+                            <div className="flex flex-col items-center justify-center text-slate-300">
+                              <ArrowRight className="h-5 w-5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                            </div>
+
+                            {/* Right Side: Gold Standard (Target) */}
+                            <div className="text-center min-w-0">
+                              <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Patrón de Oro</p>
+                              <p className="font-bold text-procarni-blue text-sm break-words leading-snug line-clamp-2" title={suggestion.target_name}>
+                                {suggestion.target_name}
+                              </p>
+                              <div className="flex justify-center gap-1 mt-2 flex-wrap">
+                                {targetData?.category && <Badge variant="outline" className="text-[9px] py-0 border-slate-200">{targetData.category}</Badge>}
+                                {targetData?.unit && <Badge variant="secondary" className="text-[9px] py-0">{targetData.unit}</Badge>}
+                              </div>
+                            </div>
+
+                          </div>
+                        </div>
+
+                        {/* Footer Action Bar */}
+                        <div className="border-t border-slate-100 pt-4 mt-5 flex items-center justify-between gap-2">
+                          <Button 
+                            onClick={() => handleOpenFusion(suggestion.target_id, suggestion.source_id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl px-2 h-9 flex items-center gap-1"
+                            disabled={quickResolveMutation.isPending}
+                          >
+                            <Wrench className="w-3.5 h-3.5" />
+                            Personalizar
+                          </Button>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <Button 
+                              onClick={() => quickResolveMutation.mutate({ action: 'group', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                              variant="outline"
+                              size="sm"
+                              className="h-9 text-[11px] font-bold rounded-xl border-procarni-blue/30 text-procarni-blue hover:bg-procarni-blue hover:text-white transition-all shadow-sm flex items-center gap-1 px-2.5"
+                              disabled={quickResolveMutation.isPending}
+                            >
+                              {isCardResolving && resolvingAction === 'group' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <Network className="w-3.5 h-3.5" />
+                              )}
+                              {isCardResolving && resolvingAction === 'group' ? 'Agrupando...' : 'Agrupar Rápido'}
+                            </Button>
+                            <Button 
+                              onClick={() => quickResolveMutation.mutate({ action: 'merge', targetId: suggestion.target_id, sourceId: suggestion.source_id })}
+                              variant="secondary"
+                              size="sm"
+                              className="h-9 text-[11px] font-bold rounded-xl bg-red-50 text-procarni-primary hover:bg-red-100 border border-red-200 shadow-sm flex items-center gap-1 px-2.5"
+                              disabled={quickResolveMutation.isPending}
+                            >
+                              {isCardResolving && resolvingAction === 'merge' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                              ) : (
+                                <Combine className="w-3.5 h-3.5" />
+                              )}
+                              {isCardResolving && resolvingAction === 'merge' ? 'Vinculando...' : 'Vincular Rápido'}
+                            </Button>
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </TabsContent>
@@ -421,7 +585,7 @@ const MaterialCleanupDashboard = () => {
             <CardHeader className="bg-slate-50/50 border-b rounded-t-xl">
               <CardTitle className="text-lg text-procarni-blue">Historial de Limpieza</CardTitle>
               <CardDescription>
-                Registro de acciones de fusión y agrupación. Solo las agrupaciones se pueden deshacer.
+                Registro de acciones de fusión, agrupación e ignorados. Puedes deshacer o revertir acciones directamente desde el historial.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -442,7 +606,8 @@ const MaterialCleanupDashboard = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {history?.map((log) => {
-                        const isRowUndoing = undoMutation.isPending && undoMutation.variables?.recordId === log.details?.record_id;
+                        const isRowUndoing = (undoMutation.isPending && undoMutation.variables?.recordId === log.details?.record_id) ||
+                                             (undoIgnoreMutation.isPending && undoIgnoreMutation.variables?.sourceId === log.details?.record_id);
                         return (
                           <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap text-gray-500">
@@ -455,6 +620,10 @@ const MaterialCleanupDashboard = () => {
                                 <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">Agrupado</Badge>
                               ) : log.action === 'UNMERGE' ? (
                                 <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">Restaurado</Badge>
+                              ) : log.action === 'IGNORE_MATCH' ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Ignorado</Badge>
+                              ) : log.action === 'RESTORE_MATCH' ? (
+                                <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200">Restaurado (Ignorar)</Badge>
                               ) : (
                                 <Badge variant="secondary" className="bg-gray-100 text-gray-800">Desagrupado</Badge>
                               )}
@@ -463,12 +632,12 @@ const MaterialCleanupDashboard = () => {
                               {log.details?.description || 'Sin descripción'}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              {log.action === 'GROUP_ADD' || log.action === 'FUSION' ? (
+                              {log.action === 'GROUP_ADD' || log.action === 'FUSION' || log.action === 'IGNORE_MATCH' ? (
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
                                   onClick={() => handleUndo(log.action, log.details)}
-                                  disabled={undoMutation.isPending}
+                                  disabled={undoMutation.isPending || undoIgnoreMutation.isPending}
                                   className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                                 >
                                   {isRowUndoing ? (
@@ -478,7 +647,7 @@ const MaterialCleanupDashboard = () => {
                                   )}
                                   {isRowUndoing ? 'Deshaciendo...' : 'Deshacer'}
                                 </Button>
-                              ) : log.action === 'UNMERGE' ? (
+                              ) : log.action === 'UNMERGE' || log.action === 'RESTORE_MATCH' ? (
                                 <div className="flex items-center justify-end text-xs text-gray-400 gap-1" title="Esta acción ya fue revertida.">
                                   <Info className="w-3 h-3" />
                                   Revertido
@@ -514,35 +683,50 @@ const MaterialCleanupDashboard = () => {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {ignored?.map((item) => {
-                    const targetData = findMaterialData(item.target_id);
-                    const sourceData = findMaterialData(item.source_id);
+                    const targetData = item.target;
+                    const sourceData = item.source;
 
                     return (
                       <div key={item.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 hover:bg-slate-50/80 transition-colors gap-4">
                         <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center flex-1">
-                          <div className="text-right">
-                            <p className="font-medium text-slate-500 line-through decoration-slate-300">{targetData?.name || item.target_id}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1">{targetData?.code}</p>
+                          {/* Left Side: Gold Standard */}
+                          <div className="text-right min-w-0">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 block mb-0.5">Patrón de Oro</span>
+                            <p className="font-bold text-slate-800 text-sm break-words leading-snug" title={targetData?.name || item.target_id}>
+                              {targetData?.name || item.target_id}
+                            </p>
+                            {targetData?.code && (
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">Código: {targetData.code}</p>
+                            )}
                           </div>
-                          <div className="flex flex-col items-center px-4 shrink-0 opacity-50">
-                            <div className="h-px w-full bg-slate-200 relative">
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-[10px] text-slate-400">VS</div>
+                          
+                          {/* Center divider */}
+                          <div className="flex flex-col items-center px-2 shrink-0 opacity-60">
+                            <div className="h-px w-12 bg-slate-300 relative">
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-100 px-1 text-[9px] font-bold text-slate-500 rounded border">VS</div>
                             </div>
                           </div>
-                          <div className="text-left">
-                            <p className="font-medium text-slate-500 line-through decoration-slate-300">{sourceData?.name || item.source_id}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-1">{sourceData?.code}</p>
+                          
+                          {/* Right Side: Duplicate */}
+                          <div className="text-left min-w-0">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Material Duplicado</span>
+                            <p className="font-bold text-slate-800 text-sm break-words leading-snug" title={sourceData?.name || item.source_id}>
+                              {sourceData?.name || item.source_id}
+                            </p>
+                            {sourceData?.code && (
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">Código: {sourceData.code}</p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 md:ml-4">
+                        <div className="flex shrink-0 justify-end md:ml-4">
                           <Button 
                             onClick={() => restoreMutation.mutate(item.id)}
                             variant="outline"
-                            className="shrink-0 flex items-center gap-2"
+                            className="shrink-0 flex items-center gap-1.5 h-9 text-xs rounded-xl border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                             disabled={restoreMutation.isPending}
                           >
-                            <RotateCcw className="w-4 h-4" />
+                            <RotateCcw className="w-3.5 h-3.5" />
                             Restaurar
                           </Button>
                         </div>

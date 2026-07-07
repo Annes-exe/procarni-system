@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2, Package } from 'lucide-react';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
+import TransitReportDialog from '@/components/TransitReportDialog';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { purchaseOrderService, PurchaseOrderWithRelations } from '@/services/purchaseOrderService';
@@ -73,6 +74,23 @@ const PurchaseOrderManagement = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isTransitReportOpen, setIsTransitReportOpen] = useState(false);
+  const [transitOrderIds, setTransitOrderIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const openTransit = searchParams.get('openTransitReport');
+    const orderIdParam = searchParams.get('orderId');
+    if (openTransit === 'true' && orderIdParam) {
+      const ids = orderIdParam.split(',');
+      setTransitOrderIds(ids);
+      setIsTransitReportOpen(true);
+      setSearchParams(prev => {
+        prev.delete('openTransitReport');
+        prev.delete('orderId');
+        return prev;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
   const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
@@ -291,6 +309,25 @@ const PurchaseOrderManagement = () => {
     }
   };
 
+  const renderReceptionStatusBadge = (recStatus?: string | null) => {
+    if (!recStatus || recStatus === 'Ninguno') return null;
+    
+    let colorClass = "bg-gray-100 text-gray-800 border-gray-200";
+    if (recStatus === 'En tránsito') {
+      colorClass = "bg-blue-100 text-blue-800 border-blue-200";
+    } else if (recStatus === 'Parcial') {
+      colorClass = "bg-amber-100 text-amber-800 border-amber-200";
+    } else if (recStatus === 'Recibido') {
+      colorClass = "bg-emerald-100 text-emerald-800 border-emerald-200";
+    }
+
+    return (
+      <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", colorClass)}>
+        {recStatus}
+      </span>
+    );
+  };
+
   if (error) {
     showError(error.message);
     return (
@@ -385,9 +422,14 @@ const PurchaseOrderManagement = () => {
           )}
           <CardTitle className="text-lg truncate font-mono text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
         </div>
-        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0 border", getStatusBadgeClass(order.status))}>
-          {STATUS_TRANSLATIONS[order.status] || order.status}
-        </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full border", getStatusBadgeClass(order.status))}>
+            {STATUS_TRANSLATIONS[order.status] || order.status}
+          </span>
+          {order.reception_status && order.reception_status !== 'Ninguno' && (
+            renderReceptionStatusBadge(order.reception_status)
+          )}
+        </div>
       </div>
       <div className="min-w-0 mb-2">
         <p className="text-sm font-medium text-gray-500">Proveedor</p>
@@ -421,6 +463,25 @@ const PurchaseOrderManagement = () => {
               </TooltipTrigger>
               <TooltipContent>Ver Detalles</TooltipContent>
             </Tooltip>
+
+            {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-9 w-9 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary/5 hover:text-procarni-secondary" 
+                    onClick={() => {
+                      setTransitOrderIds([order.id]);
+                      setIsTransitReportOpen(true);
+                    }}
+                  >
+                    <Package className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Registrar Recepción</TooltipContent>
+              </Tooltip>
+            )}
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -475,6 +536,13 @@ const PurchaseOrderManagement = () => {
     </Card>
   );
 
+  // Compute bulk action conditions
+  const selectedOrders = currentOrders.filter(order => selectedIds.has(order.id));
+  const canBulkApprove = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Draft');
+  const canBulkReject = selectedOrders.length > 0 && selectedOrders.some(order => order.status !== 'Rejected' && order.status !== 'Archived');
+  const canBulkArchive = selectedOrders.length > 0 && selectedOrders.some(order => order.status !== 'Archived');
+  const canBulkRestore = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Archived' || order.status === 'Rejected');
+
   return (
     <div className="container mx-auto p-4 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -512,7 +580,7 @@ const PurchaseOrderManagement = () => {
 
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); setSelectedIds(new Set()); }} className="w-full">
+          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); }} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
               <TabsList className="grid w-full md:w-auto grid-cols-3 md:flex h-9">
                 {!showHistory ? (
@@ -547,106 +615,6 @@ const PurchaseOrderManagement = () => {
             </div>
 
             <TabsContent value={activeTab} className="mt-0">
-
-              {/* Bulk Actions Bar */}
-              {selectedIds.size > 0 && (
-                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2 rounded-md mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 text-xs hover:bg-white/50">
-                      Cancelar
-                    </Button>
-                    <TooltipProvider delayDuration={0}>
-                      <div className="flex gap-1.5">
-                        {!showHistory ? (
-                          <>
-                            {(activeTab === 'active' || role === 'admin') && (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                      onClick={() => setIsBulkApproveDialogOpen(true)}
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Aprobar Seleccionadas</TooltipContent>
-                                </Tooltip>
-
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
-                                      onClick={() => setIsBulkRejectDialogOpen(true)}
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Rechazar Seleccionadas</TooltipContent>
-                                </Tooltip>
-                              </>
-                            )}
-
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 text-gray-500 border-gray-200 hover:bg-gray-500 hover:text-white"
-                                  onClick={() => setIsBulkArchiveDialogOpen(true)}
-                                >
-                                  <Archive className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Archivar Seleccionadas</TooltipContent>
-                            </Tooltip>
-                          </>
-                        ) : (
-                          <>
-                            {(activeTab === 'archived' || role === 'admin') && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                    onClick={() => setIsBulkRestoreDialogOpen(true)}
-                                  >
-                                    <RotateCcw className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Restaurar Seleccionadas</TooltipContent>
-                              </Tooltip>
-                            )}
-
-                            {role === 'admin' && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
-                                    onClick={() => setIsBulkDeleteDialogOpen(true)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Eliminar Permanentemente</TooltipContent>
-                              </Tooltip>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </TooltipProvider>
-                  </div>
-                </div>
-              )}
-
               <div className={cn("transition-opacity duration-200 mt-4", isFetching && "opacity-50 pointer-events-none")}>
               {(!isLoading && currentOrders.length === 0) ? (
                 <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
@@ -674,6 +642,7 @@ const PurchaseOrderManagement = () => {
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Moneda</TableHead>
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Calculada en</TableHead>
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Estado</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Recepción</TableHead>
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Fecha</TableHead>
                           <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4">Acciones</TableHead>
                         </TableRow>
@@ -696,6 +665,9 @@ const PurchaseOrderManagement = () => {
                               <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
                                 {STATUS_TRANSLATIONS[order.status] || order.status}
                               </span>
+                            </TableCell>
+                            <TableCell className="py-3">
+                              {renderReceptionStatusBadge(order.reception_status)}
                             </TableCell>
                             <TableCell className="py-3 text-gray-500 text-sm">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
                             {renderActions(order)}
@@ -861,6 +833,133 @@ const PurchaseOrderManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Floating Action Bar for Multi-selection */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95vw] max-w-[680px] p-3 md:p-4 bg-white/95 backdrop-blur-xl border border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2rem] flex items-center justify-between gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-5 duration-300 ring-1 ring-white">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <div className="bg-procarni-primary text-white w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-md shrink-0 animate-pulse">
+              {selectedIds.size}
+            </div>
+            <div className="hidden sm:block min-w-0">
+              <p className="text-sm font-bold text-procarni-dark truncate">Órdenes seleccionadas</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold truncate">Realiza acciones masivas o exporta</p>
+            </div>
+            <span className="sm:hidden text-xs font-bold text-procarni-dark truncate">sel.</span>
+          </div>
+
+          <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+              onClick={() => {
+                setTransitOrderIds(Array.from(selectedIds));
+                setIsTransitReportOpen(true);
+              }}
+              title="Reporte de Materiales en Tránsito"
+            >
+              <Truck className="h-4 w-4 text-procarni-secondary" />
+              <span className="hidden sm:inline ml-1 text-procarni-secondary">En Tránsito</span>
+            </Button>
+
+            {!showHistory ? (
+              <>
+                {(activeTab === 'active' || role === 'admin') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkApproveDialogOpen(true)}
+                    disabled={!canBulkApprove}
+                    title="Aprobar Seleccionadas"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Aprobar</span>
+                  </Button>
+                )}
+
+                {(activeTab === 'active' || role === 'admin') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-red-500/30 text-red-600 hover:bg-red-500/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkRejectDialogOpen(true)}
+                    disabled={!canBulkReject}
+                    title="Rechazar Seleccionadas"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Rechazar</span>
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 md:h-9 border-gray-500/30 text-gray-600 hover:bg-gray-500/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                  onClick={() => setIsBulkArchiveDialogOpen(true)}
+                  disabled={!canBulkArchive}
+                  title="Archivar Seleccionadas"
+                >
+                  <Archive className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Archivar</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                {(activeTab === 'archived' || role === 'admin') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkRestoreDialogOpen(true)}
+                    disabled={!canBulkRestore}
+                    title="Restaurar Seleccionadas"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Restaurar</span>
+                  </Button>
+                )}
+
+                {role === 'admin' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 md:h-9 border-destructive/30 text-destructive hover:bg-destructive/5 font-bold text-xs px-2.5 rounded-xl transition-all"
+                    onClick={() => setIsBulkDeleteDialogOpen(true)}
+                    title="Eliminar Permanentemente"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1">Eliminar</span>
+                  </Button>
+                )}
+              </>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 md:h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/5 font-medium px-2 rounded-xl transition-all"
+              onClick={() => setSelectedIds(new Set())}
+              title="Cancelar Selección"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Transit Report Dialog Component */}
+      {isTransitReportOpen && (
+        <TransitReportDialog
+          isOpen={isTransitReportOpen}
+          onClose={() => {
+            setIsTransitReportOpen(false);
+            setTransitOrderIds([]);
+          }}
+          orderIds={transitOrderIds}
+        />
+      )}
     </div>
   );
 };

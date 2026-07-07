@@ -24,11 +24,19 @@ interface LogPayload {
 }
 
 const AuditLogService = {
-  getAll: async (): Promise<AuditLogEntry[]> => {
-    const { data, error } = await supabase
+  getAll: async (startDate?: string, endDate?: string): Promise<AuditLogEntry[]> => {
+    let query = supabase
       .from('audit_logs')
-      .select('*')
-      .order('timestamp', { ascending: false });
+      .select('*');
+
+    if (startDate) {
+      query = query.gte('timestamp', startDate);
+    }
+    if (endDate) {
+      query = query.lte('timestamp', endDate);
+    }
+
+    const { data, error } = await query.order('timestamp', { ascending: false });
 
     if (error) {
       console.error('[AuditLogService.getAll] Error:', error);
@@ -37,7 +45,7 @@ const AuditLogService = {
     }
     
     // Map raw data to structured AuditLogEntry
-    return data.map(log => ({
+    return (data || []).map(log => ({
       id: log.id,
       action: log.action,
       user_email: log.user_email,

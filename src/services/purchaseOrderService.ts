@@ -73,7 +73,7 @@ export const purchaseOrderService = {
       if (statusFilter === 'Active') {
         query = query.in('status', ['Draft']);
       } else if (statusFilter === 'Approved') {
-        query = query.in('status', ['Approved', 'Credit', 'Paid']);
+        query = query.in('status', ['Approved', 'Credit', 'Paid', 'ToPay', 'Received']);
       } else if (statusFilter === 'Received') {
         query = query.eq('status', 'Received');
       } else if (statusFilter === 'ToPay') {
@@ -459,5 +459,128 @@ export const purchaseOrderService = {
             return [];
         }
         return data;
+    },
+
+    updateReceptionStatus: async (orderIds: string[], status: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido'): Promise<boolean> => {
+        const { error } = await supabase
+            .from('purchase_orders')
+            .update({ reception_status: status })
+            .in('id', orderIds);
+
+        if (error) {
+            console.error('[purchaseOrderService.updateReceptionStatus] Error:', error);
+            showError('Error al actualizar el estado de recepción.');
+            return false;
+        }
+
+        // Audit log
+        try {
+            await logAudit('update_reception_status', { 
+                table: 'purchase_orders',
+                record_id: orderIds.join(','),
+                description: `Estableció el estado de recepción a '${status}' para las órdenes seleccionadas.`,
+                new_data: { reception_status: status },
+                old_data: { reception_status: 'Ninguno' }
+            });
+        } catch (e) {
+            console.error('[purchaseOrderService.updateReceptionStatus] Audit error:', e);
+        }
+
+        return true;
+    },
+
+    updateReceivedQuantities: async (items: { id: string; received_quantity: number }[]): Promise<boolean> => {
+        try {
+            const promises = items.map(item => 
+                supabase
+                    .from('purchase_order_items')
+                    .update({ received_quantity: item.received_quantity })
+                    .eq('id', item.id)
+            );
+            
+            const results = await Promise.all(promises);
+            const hasError = results.some(r => r.error);
+            if (hasError) {
+                const firstError = results.find(r => r.error)?.error;
+                throw firstError;
+            }
+            return true;
+        } catch (error) {
+            console.error('[purchaseOrderService.updateReceivedQuantities] Error:', error);
+            showError('Error al registrar cantidades recibidas.');
+            return false;
+        }
+    },
+
+    updateOrderReceptionState: async (orderId: string): Promise<boolean> => {
+        try {
+            const { data: items, error: itemsError } = await supabase
+                .from('purchase_order_items')
+                .select('quantity, received_quantity')
+                .eq('order_id', orderId);
+
+            if (itemsError) throw itemsError;
+            if (!items || items.length === 0) return false;
+
+            let totalItems = items.length;
+            let fullyReceivedCount = 0;
+            let partialReceivedCount = 0;
+
+            items.forEach(item => {
+                const qty = Number(item.quantity);
+                const recQty = Number(item.received_quantity || 0);
+
+                if (recQty >= qty) {
+                    fullyReceivedCount++;
+                } else if (recQty > 0) {
+                    partialReceivedCount++;
+                }
+            });
+
+            let newReceptionStatus: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido' = 'Ninguno';
+            
+            if (fullyReceivedCount === totalItems) {
+                newReceptionStatus = 'Recibido';
+            } else if (partialReceivedCount > 0 || fullyReceivedCount > 0) {
+                newReceptionStatus = 'Parcial';
+            } else {
+                const { data: orderData } = await supabase
+                    .from('purchase_orders')
+                    .select('reception_status')
+                    .eq('id', orderId)
+                    .single();
+                
+                if (orderData && orderData.reception_status === 'En tránsito') {
+                    newReceptionStatus = 'En tránsito';
+                } else {
+                    newReceptionStatus = 'Ninguno';
+                }
+            }
+
+            const updates: any = { reception_status: newReceptionStatus };
+
+            const { error: updateError } = await supabase
+                .from('purchase_orders')
+                .update(updates)
+                .eq('id', orderId);
+
+            if (updateError) throw updateError;
+
+            try {
+                await logAudit('update_order_reception_state', { 
+                    table: 'purchase_orders',
+                    record_id: orderId,
+                    description: `Actualizó el estado general de recepción de la orden a '${newReceptionStatus}'.`,
+                    new_data: updates
+                });
+            } catch (e) {
+                console.error('[purchaseOrderService.updateOrderReceptionState] Audit error:', e);
+            }
+
+            return true;
+        } catch (error) {
+            console.error('[purchaseOrderService.updateOrderReceptionState] Error:', error);
+            return false;
+        }
     }
 };

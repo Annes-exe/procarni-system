@@ -3,10 +3,12 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Download, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Download, Copy, Package, Truck } from 'lucide-react';
 
 import { purchaseOrderService } from '@/services/purchaseOrderService';
+import TransitReportDialog from '@/components/TransitReportDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -79,12 +81,8 @@ interface PurchaseOrderDetailsData {
   companies: CompanyDetails;
   currency: 'USD' | 'VES';
   exchange_rate?: number | null;
-<<<<<<< HEAD
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Received';
-=======
   paid_amount?: number | null;
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid';
->>>>>>> main
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Received' | 'Credit' | 'ToPay' | 'Paid';
   created_at: string;
   created_by?: string;
   user_id: string;
@@ -136,6 +134,7 @@ const PurchaseOrderDetails = () => {
   const [isRejecting, setIsRejecting] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
+  const [isTransitDialogOpen, setIsTransitDialogOpen] = useState(false);
 
   // Credit approval confirmation options
   const [isCreditApprove, setIsCreditApprove] = useState(false);
@@ -152,7 +151,7 @@ const PurchaseOrderDetails = () => {
     return new Date(dateString + 'T12:00:00');
   };
 
-  const { data: order, isLoading, error } = useQuery<PurchaseOrderDetailsData | null>({
+  const { data: order, isLoading, error, refetch } = useQuery<PurchaseOrderDetailsData | null>({
     queryKey: ['purchaseOrderDetails', id],
     queryFn: async () => {
       if (!id) throw new Error('Purchase Order ID is missing.');
@@ -185,6 +184,20 @@ const PurchaseOrderDetails = () => {
 
   const totals = calculateTotals(itemsForCalculation);
   const amountInWords = order ? numberToWords(totals.total, order.currency) : '';
+
+  const receptionStats = useMemo(() => {
+    if (!order?.purchase_order_items || order.purchase_order_items.length === 0) {
+      return { requested: 0, received: 0, percent: 0 };
+    }
+    let requested = 0;
+    let received = 0;
+    order.purchase_order_items.forEach(item => {
+      requested += Number(item.quantity || 0);
+      received += Number(item.received_quantity || 0);
+    });
+    const percent = requested > 0 ? Math.min(100, Math.max(0, Math.round((received / requested) * 100))) : 0;
+    return { requested, received, percent };
+  }, [order?.purchase_order_items]);
 
   const totalInUSD = useMemo(() => {
     if (order?.currency === 'VES' && order.exchange_rate && order.exchange_rate > 0) {
@@ -225,35 +238,56 @@ const PurchaseOrderDetails = () => {
     });
   };
 
-  const handleApproveOrder = async () => {
+  const handleApproveOrder = async (sendToTransit: boolean = false) => {
     if (!order || order.status === 'Approved' || order.status === 'ToPay') return;
 
     setIsApproveConfirmOpen(false);
     setIsApproving(true);
-    const toastId = showLoading('Aprobando orden...');
+    const toastId = showLoading(sendToTransit ? 'Aprobando y enviando a tránsito...' : 'Aprobando orden...');
 
     try {
       const targetStatus = isCreditApprove ? 'ToPay' : 'Approved';
       const targetPaymentTerms = isCreditApprove ? 'Crédito' : 'Contado';
       const targetCreditDays = isCreditApprove ? creditDaysApprove : 0;
 
+      const updates: any = { 
+        status: targetStatus,
+        payment_terms: targetPaymentTerms,
+        credit_days: targetCreditDays
+      };
+
+      if (sendToTransit) {
+        updates.reception_status = 'En tránsito';
+      }
+
       const { error } = await supabase
         .from('purchase_orders')
-        .update({ 
-          status: targetStatus,
-          payment_terms: targetPaymentTerms,
-          credit_days: targetCreditDays
-        })
+        .update(updates)
         .eq('id', order.id);
 
       if (error) throw error;
+
+      // Log Audit if sent to transit
+      if (sendToTransit) {
+        try {
+          await logAudit('update_reception_status', { 
+            table: 'purchase_orders',
+            record_id: order.id,
+            description: `Estableció el estado de recepción a 'En tránsito' al aprobar la orden de compra.`,
+            new_data: { reception_status: 'En tránsito' },
+            old_data: { reception_status: 'Ninguno' }
+          });
+        } catch (e) {
+          console.error('Audit log error:', e);
+        }
+      }
 
       // Create Notification on status change
       try {
         await supabase.from('notifications').insert({
           user_id: order.user_id,
           title: 'Estado de OC Cambiado',
-          message: `La OC ha cambiado a: ${isCreditApprove ? 'Crédito' : 'Aprobada'}`,
+          message: `La OC ha cambiado a: ${isCreditApprove ? 'Crédito' : 'Aprobada'}${sendToTransit ? ' y se ha enviado a Tránsito' : ''}`,
           type: 'crud',
           resource_type: 'purchase_order',
           resource_id: order.id
@@ -262,7 +296,13 @@ const PurchaseOrderDetails = () => {
         console.error('Error creating notification:', e);
       }
 
-      showSuccess(isCreditApprove ? 'Orden de Compra aprobada (Con Crédito) exitosamente.' : 'Orden de Compra aprobada exitosamente.');
+      showSuccess(
+        sendToTransit
+          ? 'Orden de Compra aprobada y enviada a Tránsito exitosamente.'
+          : isCreditApprove
+            ? 'Orden de Compra aprobada (Con Crédito) exitosamente.'
+            : 'Orden de Compra aprobada exitosamente.'
+      );
       queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
     } catch (error: any) {
@@ -505,7 +545,8 @@ const PurchaseOrderDetails = () => {
   const getStatusColorClass = (status: string) => {
     switch (status) {
       case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
-      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
+      case 'Approved':
+      case 'Received': return 'bg-green-50 text-procarni-secondary border-green-200';
       case 'Credit': return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'ToPay': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       case 'Paid': return 'bg-teal-50 text-teal-700 border-teal-200';
@@ -669,6 +710,18 @@ const PurchaseOrderDetails = () => {
                   <Copy className="h-4 w-4" />
                   <span className="hidden sm:inline">Duplicar</span>
                 </Button>
+
+                {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && (
+                  <Button 
+                    onClick={() => setIsTransitDialogOpen(true)} 
+                    variant="outline" 
+                    size="sm" 
+                    className="order-2 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold shrink-0 gap-1.5 px-2.5 sm:px-3 sm:gap-2"
+                  >
+                    <Package className="h-4 w-4 text-procarni-secondary" />
+                    <span className="hidden sm:inline">Recepción</span>
+                  </Button>
+                )}
 
                 {/* Secondary Actions: Dropdown */}
                 <DropdownMenu>
@@ -999,6 +1052,28 @@ const PurchaseOrderDetails = () => {
               </div>
             </div>
           )}
+
+          {/* Reception Progress Bar */}
+          {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && receptionStats.requested > 0 && (
+            <div className="mt-3 p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
+              <div className="flex justify-between text-xs font-bold text-gray-500">
+                <span>Materiales Recibidos: {receptionStats.received} / {receptionStats.requested}</span>
+                <span className="text-procarni-secondary font-mono">{receptionStats.percent}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div 
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    receptionStats.percent === 100 ? "bg-green-600" : "bg-procarni-primary"
+                  )}
+                  style={{ width: `${receptionStats.percent}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-right text-gray-400 font-medium italic">
+                Pendiente de entrega: {receptionStats.requested - receptionStats.received} unidades
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1014,7 +1089,7 @@ const PurchaseOrderDetails = () => {
       />
 
       <AlertDialog open={isApproveConfirmOpen} onOpenChange={setIsApproveConfirmOpen}>
-        <AlertDialogContent className="max-w-md bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
+        <AlertDialogContent className="max-w-xl bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
           <AlertDialogHeader className="space-y-2">
             <AlertDialogTitle className="text-xl font-extrabold tracking-tight text-procarni-dark flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
@@ -1057,16 +1132,26 @@ const PurchaseOrderDetails = () => {
             )}
           </div>
           
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel disabled={isApproving} className="rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50">
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 w-full">
+            <AlertDialogCancel disabled={isApproving} className="w-full sm:w-auto rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50 order-3 sm:order-1">
               Cancelar
             </AlertDialogCancel>
+            
             <AlertDialogAction 
-              onClick={handleApproveOrder} 
+              onClick={() => handleApproveOrder(true)} 
               disabled={isApproving || (isCreditApprove && creditDaysApprove <= 0)} 
-              className="bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-primary/20"
+              className="w-full sm:w-auto bg-procarni-secondary hover:bg-procarni-secondary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-secondary/20 flex gap-1.5 items-center justify-center order-1 sm:order-2 px-4"
             >
-              {isApproving ? 'Procesando...' : 'Confirmar y Aprobar'}
+              <Truck className="h-4 w-4 shrink-0" />
+              <span className="truncate">Aprobar y Enviar a Tránsito</span>
+            </AlertDialogAction>
+
+            <AlertDialogAction 
+              onClick={() => handleApproveOrder(false)} 
+              disabled={isApproving || (isCreditApprove && creditDaysApprove <= 0)} 
+              className="w-full sm:w-auto bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-primary/20 order-2 sm:order-3 flex items-center justify-center px-4"
+            >
+              <span>Sólo Aprobar</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1129,6 +1214,17 @@ const PurchaseOrderDetails = () => {
           sequenceNumber={formatSequenceNumber(order.sequence_number, order.created_at)}
           isOpen={isDocumentManagerOpen}
           onOpenChange={setIsDocumentManagerOpen}
+        />
+      )}
+
+      {isTransitDialogOpen && order && (
+        <TransitReportDialog
+          isOpen={isTransitDialogOpen}
+          onClose={() => {
+            setIsTransitDialogOpen(false);
+            refetch();
+          }}
+          orderIds={[order.id]}
         />
       )}
     </div>
