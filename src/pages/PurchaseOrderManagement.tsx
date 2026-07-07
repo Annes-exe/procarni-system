@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,22 @@ const PurchaseOrderManagement = () => {
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isTransitReportOpen, setIsTransitReportOpen] = useState(false);
+  const [transitOrderIds, setTransitOrderIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const openTransit = searchParams.get('openTransitReport');
+    const orderIdParam = searchParams.get('orderId');
+    if (openTransit === 'true' && orderIdParam) {
+      const ids = orderIdParam.split(',');
+      setTransitOrderIds(ids);
+      setIsTransitReportOpen(true);
+      setSearchParams(prev => {
+        prev.delete('openTransitReport');
+        prev.delete('orderId');
+        return prev;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
   const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
@@ -289,6 +305,25 @@ const PurchaseOrderManagement = () => {
     }
   };
 
+  const renderReceptionStatusBadge = (recStatus?: string | null) => {
+    if (!recStatus || recStatus === 'Ninguno') return null;
+    
+    let colorClass = "bg-gray-100 text-gray-800 border-gray-200";
+    if (recStatus === 'En tránsito') {
+      colorClass = "bg-blue-50 text-blue-700 border-blue-200/50";
+    } else if (recStatus === 'Parcial') {
+      colorClass = "bg-amber-50 text-amber-700 border-amber-200/50";
+    } else if (recStatus === 'Recibido') {
+      colorClass = "bg-green-50 text-green-700 border-green-200/50";
+    }
+
+    return (
+      <span className={cn("px-2 py-0.5 text-[10px] font-bold rounded-full border whitespace-nowrap uppercase tracking-wider", colorClass)}>
+        {recStatus}
+      </span>
+    );
+  };
+
   if (error) {
     showError(error.message);
     return (
@@ -383,9 +418,14 @@ const PurchaseOrderManagement = () => {
           )}
           <CardTitle className="text-lg truncate font-mono text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
         </div>
-        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0 border", getStatusBadgeClass(order.status))}>
-          {STATUS_TRANSLATIONS[order.status] || order.status}
-        </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full border", getStatusBadgeClass(order.status))}>
+            {STATUS_TRANSLATIONS[order.status] || order.status}
+          </span>
+          {order.reception_status && order.reception_status !== 'Ninguno' && (
+            renderReceptionStatusBadge(order.reception_status)
+          )}
+        </div>
       </div>
       <div className="min-w-0 mb-2">
         <p className="text-sm font-medium text-gray-500">Proveedor</p>
@@ -472,6 +512,13 @@ const PurchaseOrderManagement = () => {
       </div>
     </Card>
   );
+
+  // Compute bulk action conditions
+  const selectedOrders = currentOrders.filter(order => selectedIds.has(order.id));
+  const canBulkApprove = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Draft');
+  const canBulkReject = selectedOrders.length > 0 && selectedOrders.some(order => order.status !== 'Rejected' && order.status !== 'Archived');
+  const canBulkArchive = selectedOrders.length > 0 && selectedOrders.some(order => order.status !== 'Archived');
+  const canBulkRestore = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Archived' || order.status === 'Rejected');
 
   return (
     <div className="container mx-auto p-4 pb-20">
@@ -571,6 +618,7 @@ const PurchaseOrderManagement = () => {
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Moneda</TableHead>
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Calculada en</TableHead>
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Estado</TableHead>
+                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Recepción</TableHead>
                           <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Fecha</TableHead>
                           <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4">Acciones</TableHead>
                         </TableRow>
@@ -593,6 +641,9 @@ const PurchaseOrderManagement = () => {
                               <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
                                 {STATUS_TRANSLATIONS[order.status] || order.status}
                               </span>
+                            </TableCell>
+                            <TableCell className="py-3">
+                              {renderReceptionStatusBadge(order.reception_status)}
                             </TableCell>
                             <TableCell className="py-3 text-gray-500 text-sm">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
                             {renderActions(order)}
@@ -778,7 +829,10 @@ const PurchaseOrderManagement = () => {
               variant="outline"
               size="sm"
               className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
-              onClick={() => setIsTransitReportOpen(true)}
+              onClick={() => {
+                setTransitOrderIds(Array.from(selectedIds));
+                setIsTransitReportOpen(true);
+              }}
               title="Reporte de Materiales en Tránsito"
             >
               <Truck className="h-4 w-4 text-procarni-secondary" />
@@ -793,6 +847,7 @@ const PurchaseOrderManagement = () => {
                     size="sm"
                     className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
                     onClick={() => setIsBulkApproveDialogOpen(true)}
+                    disabled={!canBulkApprove}
                     title="Aprobar Seleccionadas"
                   >
                     <CheckCircle className="h-4 w-4" />
@@ -806,6 +861,7 @@ const PurchaseOrderManagement = () => {
                     size="sm"
                     className="h-8 md:h-9 border-red-500/30 text-red-600 hover:bg-red-500/10 font-bold text-xs px-2.5 rounded-xl transition-all"
                     onClick={() => setIsBulkRejectDialogOpen(true)}
+                    disabled={!canBulkReject}
                     title="Rechazar Seleccionadas"
                   >
                     <XCircle className="h-4 w-4" />
@@ -818,6 +874,7 @@ const PurchaseOrderManagement = () => {
                   size="sm"
                   className="h-8 md:h-9 border-gray-500/30 text-gray-600 hover:bg-gray-500/10 font-bold text-xs px-2.5 rounded-xl transition-all"
                   onClick={() => setIsBulkArchiveDialogOpen(true)}
+                  disabled={!canBulkArchive}
                   title="Archivar Seleccionadas"
                 >
                   <Archive className="h-4 w-4" />
@@ -832,6 +889,7 @@ const PurchaseOrderManagement = () => {
                     size="sm"
                     className="h-8 md:h-9 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 font-bold text-xs px-2.5 rounded-xl transition-all"
                     onClick={() => setIsBulkRestoreDialogOpen(true)}
+                    disabled={!canBulkRestore}
                     title="Restaurar Seleccionadas"
                   >
                     <RotateCcw className="h-4 w-4" />
@@ -871,8 +929,11 @@ const PurchaseOrderManagement = () => {
       {isTransitReportOpen && (
         <TransitReportDialog
           isOpen={isTransitReportOpen}
-          onClose={() => setIsTransitReportOpen(false)}
-          orderIds={Array.from(selectedIds)}
+          onClose={() => {
+            setIsTransitReportOpen(false);
+            setTransitOrderIds([]);
+          }}
+          orderIds={transitOrderIds}
         />
       )}
     </div>

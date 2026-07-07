@@ -104,6 +104,7 @@ export type PurchaseOrder = {
   service_order_id?: string | null; // Added
   supplier: Supplier; // Assuming we might join this
   company: Company; // Assuming we might join this
+  reception_status?: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido' | null;
 };
 
 export type PurchaseOrderItem = {
@@ -124,6 +125,7 @@ export type PurchaseOrderItem = {
   sales_percentage: number | null; // NEW
   discount_percentage: number | null; // NEW
   was_recalculated?: boolean | null;
+  received_quantity?: number;
 };
 
 export type QuoteRequest = {

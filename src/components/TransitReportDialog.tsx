@@ -3,12 +3,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, FileSpreadsheet, FileText, AlertCircle, Truck } from 'lucide-react';
+import { Loader2, FileSpreadsheet, FileText, AlertCircle, Truck, Package, PackageCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
 
 interface TransitItem {
   id: string;
@@ -20,6 +23,7 @@ interface TransitItem {
   unit_id: string | null;
   supplier_code: string | null;
   description: string | null;
+  received_quantity?: number | null;
   purchase_orders: {
     sequence_number: number | null;
     delivery_date: string | null;
@@ -59,50 +63,149 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 }) => {
   const [items, setItems] = useState<TransitItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const fetchTransitItems = async () => {
+    if (orderIds.length === 0 || !isOpen) return;
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('purchase_order_items')
+        .select(`
+          id,
+          order_id,
+          material_name,
+          quantity,
+          unit_price,
+          unit,
+          unit_id,
+          supplier_code,
+          description,
+          received_quantity,
+          purchase_orders (
+            sequence_number,
+            delivery_date,
+            created_at,
+            status,
+            currency,
+            suppliers (
+              name
+            )
+          )
+        `)
+        .in('order_id', orderIds);
+
+      if (error) throw error;
+      const fetchedItems = (data as unknown as TransitItem[]) || [];
+      setItems(fetchedItems);
+      
+      const initialQuantities: Record<string, number> = {};
+      fetchedItems.forEach(item => {
+        initialQuantities[item.id] = Number(item.received_quantity || 0);
+      });
+      setReceptionQuantities(initialQuantities);
+    } catch (error: any) {
+      console.error('[TransitReportDialog] Error fetching items:', error);
+      showError('Error al cargar la vista previa de materiales.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchTransitItems = async () => {
-      if (orderIds.length === 0 || !isOpen) return;
-
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('purchase_order_items')
-          .select(`
-            id,
-            order_id,
-            material_name,
-            quantity,
-            unit_price,
-            unit,
-            unit_id,
-            supplier_code,
-            description,
-            purchase_orders (
-              sequence_number,
-              delivery_date,
-              created_at,
-              status,
-              currency,
-              suppliers (
-                name
-              )
-            )
-          `)
-          .in('order_id', orderIds);
-
-        if (error) throw error;
-        setItems((data as unknown as TransitItem[]) || []);
-      } catch (error: any) {
-        console.error('[TransitReportDialog] Error fetching items:', error);
-        showError('Error al cargar la vista previa de materiales.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchTransitItems();
   }, [isOpen, orderIds]);
+
+  const handleSetInTransit = async () => {
+    // Check if any order is not in an approved state
+    const nonApproved = items.some(item => {
+      const status = item.purchase_orders?.status;
+      return !['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(status || '');
+    });
+
+    if (nonApproved) {
+      showError('Solo las órdenes aprobadas pueden establecerse en tránsito.');
+      return;
+    }
+
+    // Filter order IDs: only target those whose reception status is still 'Ninguno' or null
+    const ordersToSet = new Set<string>();
+    items.forEach(item => {
+      const recStatus = item.purchase_orders?.reception_status;
+      if (!recStatus || recStatus === 'Ninguno') {
+        ordersToSet.add(item.order_id);
+      }
+    });
+
+    if (ordersToSet.size === 0) {
+      showSuccess('Las órdenes seleccionadas ya se encuentran en tránsito o recepción parcial.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const success = await purchaseOrderService.updateReceptionStatus(Array.from(ordersToSet), 'En tránsito');
+      if (success) {
+        showSuccess('Órdenes marcadas en tránsito (se omitieron las que ya tienen recepción parcial/completa).');
+        await fetchTransitItems();
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Error al marcar en tránsito.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveReception = async () => {
+    // 1. Check if any order is not in an approved state
+    const nonApproved = items.some(item => {
+      const status = item.purchase_orders?.status;
+      return !['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(status || '');
+    });
+
+    if (nonApproved) {
+      showError('Solo se pueden registrar recepciones para órdenes aprobadas.');
+      return;
+    }
+
+    // 2. Check if any quantity exceeds the requested quantity
+    const exceeds = Object.entries(receptionQuantities).some(([id, val]) => {
+      const item = items.find(i => i.id === id);
+      return item && val > item.quantity;
+    });
+
+    if (exceeds) {
+      showError('No se puede recibir más de la cantidad solicitada.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = Object.entries(receptionQuantities).map(([id, val]) => ({
+        id,
+        received_quantity: val
+      }));
+
+      const successItems = await purchaseOrderService.updateReceivedQuantities(payload);
+      if (!successItems) throw new Error("Error updating quantities");
+
+      const updateOrderPromises = orderIds.map(orderId =>
+        purchaseOrderService.updateOrderReceptionState(orderId)
+      );
+      await Promise.all(updateOrderPromises);
+
+      showSuccess('Recepción registrada exitosamente.');
+      onClose();
+    } catch (err) {
+      console.error(err);
+      showError('Error al guardar la recepción.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleExportXLSX = () => {
     if (items.length === 0) return;
@@ -329,23 +432,28 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     }
   };
 
+  const canSetInTransit = items.some(item => {
+    const recStatus = item.purchase_orders?.reception_status;
+    return !recStatus || recStatus === 'Ninguno';
+  });
+
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col bg-white rounded-3xl border-none shadow-2xl p-6 ring-1 ring-black/5">
+      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col bg-white rounded-[2rem] border-none shadow-2xl p-6 ring-1 ring-black/5">
         <DialogHeader className="pb-2">
           <DialogTitle className="text-xl font-extrabold text-procarni-dark flex items-center gap-2">
-            <Truck className="h-5 w-5 text-procarni-primary" />
-            Reporte Consolidador de Materiales en Tránsito
+            <Package className="h-5 w-5 text-procarni-primary" />
+            Consolidador de Materiales y Recepción
           </DialogTitle>
           <DialogDescription className="text-xs italic text-gray-500 font-medium">
-            Resumen consolidado de materiales solicitados en las {orderIds.length} órdenes seleccionadas.
+            Gestiona la recepción y visualiza los materiales en tránsito de las {orderIds.length} órdenes seleccionadas.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
-            <span className="text-sm font-medium text-slate-500">Cargando ítems en tránsito...</span>
+            <span className="text-sm font-medium text-slate-500">Cargando ítems...</span>
           </div>
         ) : items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
@@ -354,17 +462,18 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-[250px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
-              <ScrollArea className="h-[40vh] w-full">
+            <div className="flex-1 min-h-[300px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
+              <ScrollArea className="h-[45vh] w-full">
                 <Table>
                   <TableHeader className="bg-slate-100/80 sticky top-0 z-10">
                     <TableRow>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Cantidad</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Precio</TableHead>
-                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Total</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido (Progreso)</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Recibir Cant.</TableHead>
+                      <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
                       <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -379,19 +488,62 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                         ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE')
                         : 'No asignada';
 
+                      const receivedQty = receptionQuantities[item.id] ?? Number(item.received_quantity || 0);
+                      const progressPercent = Math.min(100, Math.max(0, Math.round((receivedQty / item.quantity) * 100)));
+
                       return (
                         <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
                           <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
-                          <TableCell className="text-xs text-gray-600 font-medium max-w-[150px] truncate" title={supplierName}>
+                          <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>
                             {supplierName}
                           </TableCell>
                           <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
                           <TableCell className="text-xs text-center font-bold font-mono">
                             {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
                           </TableCell>
-                          <TableCell className="text-xs text-right font-mono font-semibold">{formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}</TableCell>
-                          <TableCell className="text-xs text-right font-mono font-bold text-procarni-dark">{formatCurrencyVal(item.quantity * item.unit_price, item.purchase_orders?.currency)}</TableCell>
-                          <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
+                          
+                          {/* Progress bar and numeric tracking */}
+                          <TableCell className="text-xs text-center">
+                            <div className="flex flex-col items-center gap-1 min-w-[110px]">
+                              <span className="font-bold font-mono text-xs">
+                                {receivedQty} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
+                              </span>
+                              <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={cn(
+                                    "h-full rounded-full transition-all duration-300",
+                                    progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary"
+                                  )}
+                                  style={{ width: `${progressPercent}%` }}
+                                />
+                              </div>
+                            </div>
+                          </TableCell>
+
+                           {/* Editable quantity received */}
+                          <TableCell className="text-center">
+                            <Input
+                              type="number"
+                              min="0"
+                              max={item.quantity}
+                              value={receptionQuantities[item.id] ?? 0}
+                              onChange={(e) => {
+                                const val = Math.min(item.quantity, Math.max(0, Number(e.target.value)));
+                                setReceptionQuantities(prev => ({
+                                  ...prev,
+                                  [item.id]: val
+                                }));
+                              }}
+                              className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                            />
+                          </TableCell>
+
+                          <TableCell className="text-xs text-right font-mono font-semibold">
+                            {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
+                          </TableCell>
+                          <TableCell className="text-xs text-right text-muted-foreground pr-4">
+                            {deliveryDateStr}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -400,16 +552,36 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
               </ScrollArea>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row gap-2 mt-4">
-              <Button variant="ghost" onClick={onClose} className="w-full sm:w-auto h-10 px-4 rounded-xl text-slate-500">
-                Cerrar
-              </Button>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto ml-auto">
+            <DialogFooter className="pt-4 border-t border-gray-100 flex flex-col md:flex-row gap-2 mt-4 items-center justify-between w-full">
+              <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500">
+                  Cerrar
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSetInTransit}
+                  disabled={isSaving || items.length === 0 || !canSetInTransit}
+                  className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
+                >
+                  <Truck className="h-4 w-4 text-procarni-primary" />
+                  Establecer En Tránsito
+                </Button>
+                <Button
+                  onClick={handleSaveReception}
+                  disabled={isSaving || items.length === 0}
+                  className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  Guardar Recepción
+                </Button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto ml-auto">
                 <Button
                   variant="outline"
                   onClick={handleExportXLSX}
                   disabled={items.length === 0}
-                  className="w-full sm:w-auto h-10 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 hover:text-procarni-secondary px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
+                  className="h-10 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 hover:text-procarni-secondary px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Exportar Excel
@@ -417,7 +589,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                 <Button
                   onClick={handleExportPDF}
                   disabled={items.length === 0}
-                  className="w-full sm:w-auto h-10 bg-procarni-primary hover:bg-red-750 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
+                  className="h-10 bg-procarni-primary hover:bg-red-750 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
                 >
                   <FileText className="h-4 w-4" />
                   Exportar PDF
