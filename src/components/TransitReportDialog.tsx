@@ -12,6 +12,7 @@ import autoTable from 'jspdf-autotable';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 
 interface TransitItem {
   id: string;
@@ -214,6 +215,26 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 
       const successItems = await purchaseOrderService.updateReceivedQuantities(payload);
       if (!successItems) throw new Error("Error updating quantities");
+
+      // Register audit logs for each received material
+      const auditPromises = payload.map(async p => {
+        const item = items.find(i => i.id === p.id);
+        const orderNum = formatSequenceNumber(item?.purchase_orders?.sequence_number, item?.purchase_orders?.created_at);
+        const addedQty = p.received_quantity - Number(item?.received_quantity || 0);
+
+        try {
+          await logAudit('update_received_quantity', {
+            table: 'purchase_order_items',
+            record_id: p.id,
+            description: `Recibió ${addedQty} unidades del material '${item?.material_name}' en la orden de compra ${orderNum}.`,
+            new_data: { received_quantity: p.received_quantity },
+            old_data: { received_quantity: item?.received_quantity || 0 }
+          });
+        } catch (e) {
+          console.error('[TransitReportDialog] Audit logging error:', e);
+        }
+      });
+      await Promise.all(auditPromises);
 
       const updateOrderPromises = orderIds.map(orderId =>
         purchaseOrderService.updateOrderReceptionState(orderId)
