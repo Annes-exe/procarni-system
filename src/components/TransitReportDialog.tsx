@@ -228,7 +228,10 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
             record_id: p.id,
             description: `Recibió ${addedQty} unidades del material '${item?.material_name}' en la orden de compra ${orderNum}.`,
             new_data: { received_quantity: p.received_quantity },
-            old_data: { received_quantity: item?.received_quantity || 0 }
+            old_data: { received_quantity: item?.received_quantity || 0 },
+            material_name: item?.material_name,
+            order_number: orderNum,
+            quantity_received: addedQty
           });
         } catch (e) {
           console.error('[TransitReportDialog] Audit logging error:', e);
