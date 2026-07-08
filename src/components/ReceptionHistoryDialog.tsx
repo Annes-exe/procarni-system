@@ -27,10 +27,40 @@ interface ReceptionRecord {
   orderNumber: string;
 }
 
+const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
+  if (!sequence) return 'N/A';
+  const date = dateString ? new Date(dateString) : new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const seq = String(sequence).padStart(3, '0');
+  return `OC-${year}-${month}-${seq}`;
+};
+
 export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ isOpen, onClose }) => {
   const [filterPeriod, setFilterPeriod] = useState<'all' | 'week' | 'month' | 'custom'>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+
+  // Fetch a map of order_id to order number details
+  const { data: orderDetailsMap = {} } = useQuery<Record<string, { sequence: number | null; createdAt: string | null }>>({
+    queryKey: ['purchase_orders_lookup_map'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('purchase_orders')
+        .select('id, sequence_number, created_at');
+      if (error) throw error;
+      
+      const map: Record<string, { sequence: number | null; createdAt: string | null }> = {};
+      (data || []).forEach(o => {
+        map[o.id] = {
+          sequence: o.sequence_number,
+          createdAt: o.created_at
+        };
+      });
+      return map;
+    },
+    enabled: isOpen
+  });
 
   const { data: rawLogs = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['reception_history_logs'],
@@ -106,20 +136,27 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
           const addedQty = newQty - oldQty;
           const materialName = newData.material_name || oldData.material_name || '';
 
+          const orderId = newData.order_id || oldData.order_id || '';
+          let orderNumber = 'N/A';
+          if (orderId && orderDetailsMap[orderId]) {
+            const orderInfo = orderDetailsMap[orderId];
+            orderNumber = formatSequenceNumber(orderInfo.sequence, orderInfo.createdAt);
+          }
+
           list.push({
             id: log.id,
             timestamp: log.timestamp,
             user_email: log.user_email || 'Sistema DB',
             materialName: materialName || 'Material Desconocido',
             quantity: addedQty,
-            orderNumber: 'O.C. Reg', // Label since O.C. sequence is not stored directly in the item table
+            orderNumber,
           });
         }
       }
     });
 
     return list;
-  }, [rawLogs]);
+  }, [rawLogs, orderDetailsMap]);
 
   // Filter records based on selected period
   const filteredRecords = useMemo(() => {
