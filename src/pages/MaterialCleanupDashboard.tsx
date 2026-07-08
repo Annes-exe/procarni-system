@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Material } from '@/integrations/supabase/types';
 import MaterialResolutionModal from '@/components/MaterialResolutionModal';
@@ -171,6 +171,7 @@ const MaterialCleanupDashboard = () => {
       return data as Material[];
     },
     enabled: !!suggestions && suggestions.length > 0,
+    placeholderData: keepPreviousData,
   });
 
   const { data: history = [], isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
