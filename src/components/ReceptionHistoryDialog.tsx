@@ -35,10 +35,11 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
   const { data: rawLogs = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['reception_history_logs'],
     queryFn: async () => {
+      // Query both explicit actions and trigger logs for purchase_order_items
       const { data, error } = await supabase
         .from('audit_logs')
         .select('*')
-        .eq('action', 'update_received_quantity')
+        .or("action.eq.update_received_quantity,action.like.%Ítems de O.C.%,action.like.%Orden de Compra%")
         .order('timestamp', { ascending: false });
 
       if (error) throw error;
@@ -49,42 +50,75 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
 
   // Process and parse logs
   const receptionRecords = useMemo((): ReceptionRecord[] => {
-    return rawLogs.map((log: any) => {
-      const details = log.details || {};
-      let materialName = details.material_name || '';
-      let quantity = Number(details.quantity_received || 0);
-      let orderNumber = details.order_number || '';
+    const list: ReceptionRecord[] = [];
 
-      // Fallback parsing from description text if structured fields are missing
-      if (!materialName || !quantity || !orderNumber) {
-        const desc = details.description || '';
-        const match = desc.match(/Recibió\s+([\d\.]+)\s+unidades\s+del\s+material\s+'(.*)'\s+en\s+la\s+orden\s+de\s+compra\s+([A-Za-z0-9\-]+)/);
-        if (match) {
-          quantity = Number(match[1]);
-          materialName = match[2];
-          orderNumber = match[3];
-        } else {
-          // Alternative regex for variations
-          const altMatch = desc.match(/Recibió\s+([\d\.]+)\s+.*material\s+'(.*)'\s+en.*orden.*(OC-[\d\-]+)/i);
-          if (altMatch) {
-            quantity = Number(altMatch[1]);
-            materialName = altMatch[2];
-            orderNumber = altMatch[3];
+    rawLogs.forEach((log: any) => {
+      const details = log.details || {};
+      const action = log.action || '';
+
+      // Case 1: Explicit frontend action
+      if (action === 'update_received_quantity') {
+        let materialName = details.material_name || '';
+        let quantity = Number(details.quantity_received || 0);
+        let orderNumber = details.order_number || '';
+
+        // Fallback parsing from description text if structured fields are missing
+        if (!materialName || !quantity || !orderNumber) {
+          const desc = details.description || '';
+          const match = desc.match(/Recibió\s+([\d\.]+)\s+unidades\s+del\s+material\s+'(.*)'\s+en\s+la\s+orden\s+de\s+compra\s+([A-Za-z0-9\-]+)/);
+          if (match) {
+            quantity = Number(match[1]);
+            materialName = match[2];
+            orderNumber = match[3];
           } else {
-            materialName = desc || 'Material Desconocido';
+            // Alternative regex for variations
+            const altMatch = desc.match(/Recibió\s+([\d\.]+)\s+.*material\s+'(.*)'\s+en.*orden.*(OC-[\d\-]+)/i);
+            if (altMatch) {
+              quantity = Number(altMatch[1]);
+              materialName = altMatch[2];
+              orderNumber = altMatch[3];
+            } else {
+              materialName = desc || 'Material Desconocido';
+            }
           }
         }
-      }
 
-      return {
-        id: log.id,
-        timestamp: log.timestamp,
-        user_email: log.user_email || 'Sistema',
-        materialName,
-        quantity,
-        orderNumber: orderNumber || 'N/A',
-      };
+        if (quantity > 0) {
+          list.push({
+            id: log.id,
+            timestamp: log.timestamp,
+            user_email: log.user_email || 'Sistema',
+            materialName: materialName || 'Material Desconocido',
+            quantity,
+            orderNumber: orderNumber || 'N/A',
+          });
+        }
+      }
+      // Case 2: Database trigger log on purchase_order_items table
+      else if (details.table === 'purchase_order_items') {
+        const oldData = details.old_data || {};
+        const newData = details.new_data || {};
+
+        const oldQty = Number(oldData.received_quantity || 0);
+        const newQty = Number(newData.received_quantity || 0);
+
+        if (newQty > oldQty) {
+          const addedQty = newQty - oldQty;
+          const materialName = newData.material_name || oldData.material_name || '';
+
+          list.push({
+            id: log.id,
+            timestamp: log.timestamp,
+            user_email: log.user_email || 'Sistema DB',
+            materialName: materialName || 'Material Desconocido',
+            quantity: addedQty,
+            orderNumber: 'O.C. Reg', // Label since O.C. sequence is not stored directly in the item table
+          });
+        }
+      }
     });
+
+    return list;
   }, [rawLogs]);
 
   // Filter records based on selected period
