@@ -154,15 +154,23 @@ const MaterialCleanupDashboard = () => {
   });
 
   const { data: materials = [] } = useQuery({
-    queryKey: ['dashboard_all_active_materials'],
+    queryKey: ['dashboard_all_active_materials', suggestions?.map(s => `${s.target_id}-${s.source_id}`).join(',')],
     queryFn: async () => {
+      if (!suggestions || suggestions.length === 0) return [];
+      
+      const ids = Array.from(new Set(
+        suggestions.flatMap(s => [s.target_id, s.source_id])
+      ));
+      
       const { data, error } = await supabase
         .from('materials')
         .select('*')
-        .eq('status', 'active');
+        .in('id', ids);
+        
       if (error) throw error;
       return data as Material[];
     },
+    enabled: !!suggestions && suggestions.length > 0,
   });
 
   const { data: history = [], isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
