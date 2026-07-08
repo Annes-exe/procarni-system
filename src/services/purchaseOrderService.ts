@@ -578,5 +578,21 @@ export const purchaseOrderService = {
             console.error('[purchaseOrderService.updateOrderReceptionState] Error:', error);
             return false;
         }
+    },
+
+    getBySupplierId: async (supplierId: string): Promise<unknown[]> => {
+        const { data, error } = await supabase
+            .from('purchase_orders')
+            .select('*, companies(name), purchase_order_items(*)')
+            .eq('supplier_id', supplierId)
+            .order('sequence_number', { ascending: false });
+
+        if (error) {
+            console.error('[purchaseOrderService.getBySupplierId] Error:', error);
+            showError('Error al cargar órdenes de compra del proveedor.');
+            return [];
+        }
+        return data || [];
     }
 };
+

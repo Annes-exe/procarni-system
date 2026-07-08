@@ -57,6 +57,7 @@ import {
   deleteFichaTecnica,
   getFichaTecnicaBySupplierAndProduct, // Exported
   getPriceHistoryByMaterialId, // Exported
+  getPriceHistoryBySupplierId, // Exported
   getAllAuditLogs, // NEW: Exported
   logAudit, // NEW: Exported
   getQuotesByMaterial, // NEW: Exported
@@ -396,6 +397,7 @@ export {
   deleteFichaTecnica,
   getFichaTecnicaBySupplierAndProduct,
   getPriceHistoryByMaterialId,
+  getPriceHistoryBySupplierId,
   getAllAuditLogs,
   logAudit,
   getQuotesByMaterial,

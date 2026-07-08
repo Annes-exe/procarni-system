@@ -438,5 +438,21 @@ export const serviceOrderService = {
             return false;
         }
         return true;
+    },
+
+    getBySupplierId: async (supplierId: string): Promise<unknown[]> => {
+        const { data, error } = await supabase
+            .from('service_orders')
+            .select('*, companies(name), service_order_items(*), service_order_materials(*)')
+            .eq('supplier_id', supplierId)
+            .order('sequence_number', { ascending: false });
+
+        if (error) {
+            console.error('[serviceOrderService.getBySupplierId] Error:', error);
+            showError('Error al cargar órdenes de servicio del proveedor.');
+            return [];
+        }
+        return data || [];
     }
 };
+

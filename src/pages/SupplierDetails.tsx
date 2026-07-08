@@ -3,10 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp, TrendingDown, Clock, ArrowUpRight, Activity, Percent } from 'lucide-react';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport } from '@/integrations/supabase/data';
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport, getPriceHistoryBySupplierId } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { detectLocation } from '@/utils/location-detector';
 import { isGenericRif, validateRif } from '@/utils/validators';
@@ -29,6 +29,13 @@ import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistor
 import SupplierForm from '@/components/SupplierForm'; // Import SupplierForm
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { purchaseOrderService } from '@/services/purchaseOrderService';
+import { serviceOrderService } from '@/services/serviceOrderService';
+import { calculateTotals } from '@/utils/calculations';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { format } from 'date-fns';
+
 
 interface MaterialAssociation {
   id: string; // ID of supplier_materials entry
@@ -81,6 +88,7 @@ const SupplierDetails = () => {
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
   const [isEditOpen, setIsEditOpen] = useState(false); // New state for edit dialog
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAnalysisMaterial, setSelectedAnalysisMaterial] = useState<string>('all');
 
   const { data: supplier, isLoading, error } = useQuery<SupplierDetailsData | null>({
     queryKey: ['supplierDetails', id],
@@ -92,6 +100,25 @@ const SupplierDetails = () => {
     },
     enabled: !!id,
   });
+
+  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = useQuery({
+    queryKey: ['supplierPurchaseOrders', id],
+    queryFn: () => purchaseOrderService.getBySupplierId(id!),
+    enabled: !!id,
+  });
+
+  const { data: serviceOrders = [], isLoading: isLoadingSOs } = useQuery({
+    queryKey: ['supplierServiceOrders', id],
+    queryFn: () => serviceOrderService.getBySupplierId(id!),
+    enabled: !!id,
+  });
+
+  const { data: supplierPriceHistory = [], isLoading: isLoadingPriceHistory } = useQuery({
+    queryKey: ['supplierPriceHistory', id],
+    queryFn: () => getPriceHistoryBySupplierId(id!),
+    enabled: !!id,
+  });
+
 
   // --- Fetch Ficha Tecnica Status for all materials using useQueries ---
   // Optimized ficha checks: Only one query per unique material name to avoid Duplicate Queries warning
@@ -295,6 +322,163 @@ const SupplierDetails = () => {
 
     return Object.values(groups);
   }, [filteredMaterials]);
+
+  const stats = useMemo(() => {
+    const approvedPOs = purchaseOrders.filter(o => ['Approved', 'Paid', 'Credit', 'Received', 'ToPay'].includes(o.status));
+    const approvedSOs = serviceOrders.filter(o => ['Approved', 'Paid', 'Credit'].includes(o.status));
+
+    let totalUSD = 0;
+    approvedPOs.forEach(po => {
+      const items = po.purchase_order_items || [];
+      const orderTotal = calculateTotals(items).total;
+      if (po.currency === 'VES' && po.exchange_rate) {
+        totalUSD += orderTotal / po.exchange_rate;
+      } else {
+        totalUSD += orderTotal;
+      }
+    });
+
+    approvedSOs.forEach(so => {
+      const items = [
+        ...(so.service_order_items || []).map(i => ({ ...i, unit_price: i.unit_price })),
+        ...(so.service_order_materials || []).map(m => ({ ...m, unit_price: m.unit_price }))
+      ];
+      const orderTotal = calculateTotals(items as any).total;
+      if (so.currency === 'VES' && so.exchange_rate) {
+        totalUSD += orderTotal / so.exchange_rate;
+      } else {
+        totalUSD += orderTotal;
+      }
+    });
+
+    return {
+      totalTransactedUSD: totalUSD,
+      totalOrdersCount: purchaseOrders.length + serviceOrders.length,
+      approvedOrdersCount: approvedPOs.length + approvedSOs.length,
+      materialsCount: supplier?.materials?.length || 0
+    };
+  }, [purchaseOrders, serviceOrders, supplier]);
+
+  const priceAnalysisByMaterial = useMemo(() => {
+    if (!supplierPriceHistory || supplierPriceHistory.length === 0) return [];
+    
+    const groups: Record<string, {
+      materialId: string;
+      name: string;
+      code: string;
+      unit: string;
+      prices: number[];
+      dates: Date[];
+      latestPrice: number;
+      latestDate: string;
+      currency: string;
+    }> = {};
+
+    supplierPriceHistory.forEach(entry => {
+      const matId = entry.material_id;
+      if (!matId) return;
+
+      const matName = entry.materials?.name || 'Desconocido';
+      const matCode = entry.materials?.code || 'S/C';
+      const matUnit = entry.units_of_measure?.name || entry.materials?.unit || 'UND';
+      const price = entry.unit_price;
+      const date = new Date(entry.recorded_at);
+
+      if (!groups[matId]) {
+        groups[matId] = {
+          materialId: matId,
+          name: matName,
+          code: matCode,
+          unit: matUnit,
+          prices: [price],
+          dates: [date],
+          latestPrice: price,
+          latestDate: entry.recorded_at,
+          currency: entry.currency
+        };
+      } else {
+        groups[matId].prices.push(price);
+        groups[matId].dates.push(date);
+        
+        if (new Date(entry.recorded_at) > new Date(groups[matId].latestDate)) {
+          groups[matId].latestPrice = price;
+          groups[matId].latestDate = entry.recorded_at;
+          groups[matId].currency = entry.currency;
+        }
+      }
+    });
+
+    return Object.values(groups).map(g => {
+      const min = Math.min(...g.prices);
+      const max = Math.max(...g.prices);
+      const avg = g.prices.reduce((sum, p) => sum + p, 0) / g.prices.length;
+      
+      let trend: 'up' | 'down' | 'stable' = 'stable';
+      if (g.latestPrice > avg * 1.02) trend = 'up';
+      else if (g.latestPrice < avg * 0.98) trend = 'down';
+
+      return {
+        ...g,
+        min,
+        max,
+        avg,
+        trend
+      };
+    });
+  }, [supplierPriceHistory]);
+
+  const chartData = useMemo(() => {
+    if (!supplierPriceHistory || supplierPriceHistory.length === 0) return [];
+    
+    const filtered = selectedAnalysisMaterial === 'all'
+      ? supplierPriceHistory
+      : supplierPriceHistory.filter(h => h.material_id === selectedAnalysisMaterial);
+
+    return filtered
+      .map(entry => ({
+        fechaFormato: format(new Date(entry.recorded_at), 'dd/MM/yyyy'),
+        rawDate: new Date(entry.recorded_at),
+        Precio: entry.unit_price,
+        material: entry.materials?.name || 'Material',
+        moneda: entry.currency
+      }))
+      .sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime());
+  }, [supplierPriceHistory, selectedAnalysisMaterial]);
+
+  const uniquePriceMaterials = useMemo(() => {
+    if (!supplierPriceHistory || supplierPriceHistory.length === 0) return [];
+    const seen = new Set();
+    return supplierPriceHistory
+      .map(h => ({ id: h.material_id, name: h.materials?.name || 'Desconocido' }))
+      .filter(m => {
+        if (seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+      });
+  }, [supplierPriceHistory]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Draft':
+        return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 uppercase text-[9px] font-bold">Borrador</Badge>;
+      case 'Approved':
+        return <Badge className="bg-green-50 text-green-700 border-green-200 uppercase text-[9px] font-bold">Aprobada</Badge>;
+      case 'Paid':
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 uppercase text-[9px] font-bold">Pagada</Badge>;
+      case 'Credit':
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 uppercase text-[9px] font-bold">Crédito</Badge>;
+      case 'ToPay':
+        return <Badge className="bg-yellow-50 text-yellow-800 border-yellow-200 uppercase text-[9px] font-bold">Por Pagar</Badge>;
+      case 'Received':
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 uppercase text-[9px] font-bold">Recibido</Badge>;
+      case 'Archived':
+        return <Badge variant="secondary" className="uppercase text-[9px] font-bold">Archivada</Badge>;
+      case 'Rejected':
+        return <Badge className="bg-red-50 text-red-700 border-red-200 uppercase text-[9px] font-bold">Rechazada</Badge>;
+      default:
+        return <Badge variant="outline" className="uppercase text-[9px] font-bold">{status}</Badge>;
+    }
+  };
   // --------------------------------------------------------------------
 
   // Mutation for updating supplier
@@ -769,181 +953,586 @@ const SupplierDetails = () => {
 
       </div>
 
-      {/* Sugerencias de Compra Card */}
-      <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
-                Sugerencia de Compra (Materiales Frecuentes)
-              </CardTitle>
-              <CardDescription className="text-xs text-gray-500 italic mt-0.5">
-                Basado en los 10 materiales más comprados a este proveedor en el historial aprobado.
-              </CardDescription>
-            </div>
-            {suggestedMaterials.length > 0 && (
-              <Button
-                onClick={handleGenerateOCFromSuggestions}
-                disabled={selectedSuggestIds.size === 0}
-                className="bg-procarni-primary hover:bg-procarni-primary/95 text-white gap-2 shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all rounded-full px-5"
-                size="sm"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                Generar Orden ({selectedSuggestIds.size})
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          {suggestedMaterials.length === 0 ? (
-            <div className="text-center py-6 text-gray-400 text-xs italic">
-              No hay historial de compras aprobadas para este proveedor para sugerir materiales frecuentes.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {suggestedMaterials.map((item) => {
-                const key = item.material_id || item.material_name;
-                const isSelected = selectedSuggestIds.has(key);
-                return (
-                  <div
-                    key={key}
-                    onClick={() => toggleSuggestSelection(key)}
-                    className={cn(
-                      "flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none",
-                      isSelected
-                        ? "bg-blue-50/20 border-blue-200/60 shadow-sm"
-                        : "bg-gray-50/10 border-gray-100 hover:bg-gray-50/30"
-                    )}
-                  >
-                    <div className="flex items-center justify-center">
-                      <div
-                        className={cn(
-                          "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
-                          isSelected
-                            ? "bg-procarni-primary border-procarni-primary text-white"
-                            : "border-gray-300 bg-white"
-                        )}
+      <Tabs defaultValue="materials" className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TabsList className="bg-slate-100/60 backdrop-blur-xl p-1 rounded-2xl h-auto flex flex-row border border-slate-200/20 gap-1 w-full max-w-xl shadow-sm">
+              <TabsTrigger value="materials" className="flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider">
+                Materiales Ofrecidos
+              </TabsTrigger>
+              <TabsTrigger value="orders" className="flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider">
+                Historial de Órdenes ({purchaseOrders.length + serviceOrders.length})
+              </TabsTrigger>
+              <TabsTrigger value="analysis" className="flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider">
+                Análisis de Precios
+              </TabsTrigger>
+            </TabsList>
+
+            {/* TAB 1: MATERIALS & SUGGESTIONS */}
+            <TabsContent value="materials" className="space-y-6 focus-visible:outline-none">
+              {/* Sugerencias de Compra Card */}
+              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                        <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
+                        Sugerencia de Compra (Materiales Frecuentes)
+                      </CardTitle>
+                      <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                        Basado en los 10 materiales más comprados a este proveedor en el historial aprobado.
+                      </CardDescription>
+                    </div>
+                    {suggestedMaterials.length > 0 && (
+                      <Button
+                        onClick={handleGenerateOCFromSuggestions}
+                        disabled={selectedSuggestIds.size === 0}
+                        className="bg-procarni-primary hover:bg-procarni-primary/95 text-white gap-2 shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all rounded-full px-5"
+                        size="sm"
                       >
-                        {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                      </div>
+                        <ShoppingCart className="h-4 w-4" />
+                        Generar Orden ({selectedSuggestIds.size})
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {suggestedMaterials.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 text-xs italic">
+                      No hay historial de compras aprobadas para este proveedor para sugerir materiales frecuentes.
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-xs text-procarni-dark truncate uppercase tracking-tight">
-                        {item.material_name}
-                      </p>
-                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center mt-1 text-[10px] text-gray-400 font-medium">
-                        {item.supplier_code && (
-                          <span className="bg-gray-100 text-gray-600 px-1 rounded font-mono">
-                            Cód: {item.supplier_code}
-                          </span>
-                        )}
-                        <span>{item.unit || 'UND'}</span>
-                        <span className="text-gray-300">•</span>
-                        <span>{item.count} {item.count === 1 ? 'compra' : 'compras'}</span>
-                      </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {suggestedMaterials.map((item) => {
+                        const key = item.material_id || item.material_name;
+                        const isSelected = selectedSuggestIds.has(key);
+                        return (
+                          <div
+                            key={key}
+                            onClick={() => toggleSuggestSelection(key)}
+                            className={cn(
+                              "flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none",
+                              isSelected
+                                ? "bg-blue-50/20 border-blue-200/60 shadow-sm"
+                                : "bg-gray-50/10 border-gray-100 hover:bg-gray-50/30"
+                            )}
+                          >
+                            <div className="flex items-center justify-center">
+                              <div
+                                className={cn(
+                                  "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+                                  isSelected
+                                    ? "bg-procarni-primary border-procarni-primary text-white"
+                                    : "border-gray-300 bg-white"
+                                )}
+                              >
+                                {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-xs text-procarni-dark truncate uppercase tracking-tight">
+                                {item.material_name}
+                              </p>
+                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center mt-1 text-[10px] text-gray-400 font-medium">
+                                {item.supplier_code && (
+                                  <span className="bg-gray-100 text-gray-600 px-1 rounded font-mono">
+                                    Cód: {item.supplier_code}
+                                  </span>
+                                )}
+                                <span>{item.unit || 'UND'}</span>
+                                <span className="text-gray-300">•</span>
+                                <span>{item.count} {item.count === 1 ? 'compra' : 'compras'}</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block mb-0.5">Último Precio</span>
+                              <span className="font-mono text-xs font-bold text-procarni-dark">
+                                {item.unit_price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block mb-0.5">Último Precio</span>
-                      <span className="font-mono text-xs font-bold text-procarni-dark">
-                        {item.unit_price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Materials Card */}
+              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
+                      Materiales Ofrecidos
+                    </CardTitle>
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar material..."
+                        className="pl-8 h-9 text-xs bg-white border-gray-200"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {supplier.materials && supplier.materials.length > 0 ? (
+                    <div className="divide-y divide-gray-100/30">
+                      {groupedMaterials.length > 0 ? (
+                        groupedMaterials.map((group) => (
+                          <div key={group.material_id} className="bg-transparent overflow-hidden group/material border-b border-slate-100/40 last:border-b-0">
+                            {/* Material Group Header */}
+                            <div className="bg-slate-50/50 p-3 px-6 border-b border-slate-100/40 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-procarni-secondary" />
+                                  <h3 className="font-bold text-procarni-dark text-[13px] uppercase tracking-tight">
+                                    {group.name}
+                                  </h3>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 ml-3.5">
+                                  <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono text-gray-400 bg-white border-gray-100">
+                                    {group.code || 'S/C'}
+                                  </Badge>
+                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
+                                    {group.category || 'Sin categoría'}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                 <Badge className="bg-blue-50 text-blue-600 border-blue-100 shadow-none text-[10px] font-bold">
+                                   {group.items.length} {group.items.length === 1 ? 'Presentación' : 'Presentaciones'}
+                                 </Badge>
+                              </div>
+                            </div>
 
-      {/* PHASE 3: MATERIALS CARD */}
-      <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
-              Materiales Ofrecidos
-            </CardTitle>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Buscar material..."
-                className="pl-8 h-9 text-xs bg-white border-gray-200"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {supplier.materials && supplier.materials.length > 0 ? (
-            <div className="divide-y divide-gray-100/30">
-              {groupedMaterials.length > 0 ? (
-                groupedMaterials.map((group) => (
-                  <div key={group.material_id} className="bg-transparent overflow-hidden group/material border-b border-slate-100/40 last:border-b-0">
-                    {/* Material Group Header */}
-                    <div className="bg-slate-50/50 p-3 px-6 border-b border-slate-100/40 flex flex-col md:flex-row md:items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-procarni-secondary" />
-                          <h3 className="font-bold text-procarni-dark text-[13px] uppercase tracking-tight">
-                            {group.name}
-                          </h3>
+                            {/* Presentations Table/List */}
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader className="bg-white">
+                                  <TableRow className="border-b-0 hover:bg-transparent">
+                                    <TableHead className={cn(tableHeaderClass, "w-[150px] pl-10 h-8 py-0")}>Unidad</TableHead>
+                                    <TableHead className={cn(tableHeaderClass, "h-8 py-0")}>Especificación</TableHead>
+                                    <TableHead className={cn(tableHeaderClass, "w-[120px] text-center pr-6 h-8 py-0")}>Ficha Técnica</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {group.items.map((sm: any) => (
+                                    <TableRow key={sm.id} className="border-b border-slate-100/40 hover:bg-slate-100/40 transition-colors last:border-b-0">
+                                      <TableCell className="pl-10">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
+                                          {sm.units_of_measure?.name || 'N/A'}
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="text-slate-700 italic text-[12px]">
+                                        {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
+                                      </TableCell>
+                                      <TableCell className="text-center pr-6">
+                                        {sm.isLoadingFicha ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto text-gray-300" />
+                                        ) : sm.hasFichaResult ? (
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            onClick={() => handleViewFicha(sm.materials.name)} 
+                                            className="hover:bg-green-50 rounded-full h-8 w-8 group/ficha"
+                                          >
+                                            <FileText className="h-4 w-4 text-procarni-secondary transition-transform group-hover/ficha:scale-110" />
+                                          </Button>
+                                        ) : (
+                                          <span className="text-[10px] text-gray-300">N/A</span>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+                          <Search className="h-8 w-8 opacity-10" />
+                          <p className="italic text-sm">No se encontraron materiales que coincidan con la búsqueda.</p>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 ml-3.5">
-                          <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono text-gray-400 bg-white border-gray-100">
-                            {group.code || 'S/C'}
-                          </Badge>
-                          <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
-                            {group.category || 'Sin categoría'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                         <Badge className="bg-blue-50 text-blue-600 border-blue-100 shadow-none text-[10px] font-bold">
-                           {group.items.length} {group.items.length === 1 ? 'Presentación' : 'Presentaciones'}
-                         </Badge>
-                      </div>
+                      )}
                     </div>
+                  ) : (
+                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+                      <ShoppingCart className="h-10 w-10 opacity-10" />
+                      <p className="italic text-sm">Este proveedor no tiene materiales registrados.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                    {/* Presentations Table/List */}
+            {/* TAB 2: ORDER HISTORY */}
+            <TabsContent value="orders" className="space-y-6 focus-visible:outline-none">
+              {/* Purchase Orders List */}
+              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
+                    Órdenes de Compra (OC)
+                  </CardTitle>
+                  <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                    Histórico de órdenes de adquisición de bienes y materiales.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {isLoadingPOs ? (
+                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-procarni-primary" />
+                      Cargando órdenes de compra...
+                    </div>
+                  ) : purchaseOrders.length === 0 ? (
+                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+                      <ShoppingCart className="h-10 w-10 opacity-10" />
+                      <p className="italic text-sm">No se encontraron órdenes de compra para este proveedor.</p>
+                    </div>
+                  ) : (
                     <div className="overflow-x-auto">
                       <Table>
-                        <TableHeader className="bg-white">
-                          <TableRow className="border-b-0 hover:bg-transparent">
-                            <TableHead className={cn(tableHeaderClass, "w-[150px] pl-10 h-8 py-0")}>Unidad</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "h-8 py-0")}>Especificación</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "w-[120px] text-center pr-6 h-8 py-0")}>Ficha Técnica</TableHead>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50/50">
+                            <TableHead className={cn(tableHeaderClass, "pl-6 w-[120px]")}>Número</TableHead>
+                            <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
+                            <TableHead className={tableHeaderClass}>Empresa Solicitante</TableHead>
+                            <TableHead className={tableHeaderClass}>Tasa / Moneda</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {group.items.map((sm: any) => (
-                            <TableRow key={sm.id} className="border-b border-slate-100/40 hover:bg-slate-100/40 transition-colors last:border-b-0">
-                              <TableCell className="pl-10">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
-                                  {sm.units_of_measure?.name || 'N/A'}
+                          {purchaseOrders.map((order) => {
+                            const totals = calculateTotals(order.purchase_order_items || []);
+                            return (
+                              <TableRow key={order.id} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
+                                <TableCell className="pl-6 font-bold font-mono text-xs">
+                                  <Link to={`/purchase-orders/${order.id}`} className="text-blue-600 hover:underline">
+                                    #{order.sequence_number || 'S/N'}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-600 font-medium">
+                                  {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-700 font-semibold">
+                                  {order.companies?.name || 'N/A'}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 font-mono">
+                                  {order.currency} {order.exchange_rate ? `(Tasa: ${order.exchange_rate})` : ''}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
+                                  {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {getStatusBadge(order.status)}
+                                </TableCell>
+                                <TableCell className="pr-4 text-right">
+                                  <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
+                                    <Link to={`/purchase-orders/${order.id}`}>
+                                      <ArrowUpRight className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Service Orders List */}
+              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
+                    Órdenes de Servicio (OS)
+                  </CardTitle>
+                  <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                    Histórico de órdenes de servicio, reparaciones y mantenimiento técnico contratado.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {isLoadingSOs ? (
+                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-procarni-secondary" />
+                      Cargando órdenes de servicio...
+                    </div>
+                  ) : serviceOrders.length === 0 ? (
+                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+                      <FileText className="h-10 w-10 opacity-10" />
+                      <p className="italic text-sm">No se encontraron órdenes de servicio para este proveedor.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50/50">
+                            <TableHead className={cn(tableHeaderClass, "pl-6 w-[120px]")}>Número</TableHead>
+                            <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
+                            <TableHead className={tableHeaderClass}>Equipo</TableHead>
+                            <TableHead className={tableHeaderClass}>Tipo de Servicio</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {serviceOrders.map((order) => {
+                            const serviceItems = [
+                              ...(order.service_order_items || []).map(i => ({ ...i, unit_price: i.unit_price })),
+                              ...(order.service_order_materials || []).map(m => ({ ...m, unit_price: m.unit_price }))
+                            ];
+                            const totals = calculateTotals(serviceItems as any);
+                            return (
+                              <TableRow key={order.id} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
+                                <TableCell className="pl-6 font-bold font-mono text-xs">
+                                  <Link to={`/service-orders/${order.id}`} className="text-blue-600 hover:underline">
+                                    #{order.sequence_number || 'S/N'}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-600 font-medium">
+                                  {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-700 font-bold uppercase truncate max-w-[200px]">
+                                  {order.equipment_name || 'General'}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 font-medium italic">
+                                  {order.service_type || 'N/A'}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
+                                  {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {getStatusBadge(order.status)}
+                                </TableCell>
+                                <TableCell className="pr-4 text-right">
+                                  <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
+                                    <Link to={`/service-orders/${order.id}`}>
+                                      <ArrowUpRight className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* TAB 3: PRICE ANALYSIS */}
+            <TabsContent value="analysis" className="space-y-6 focus-visible:outline-none">
+              {/* Analysis Metrics Bento */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Total Transado</span>
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                  </div>
+                  <h4 className="text-xl font-extrabold text-slate-800 mt-2 font-mono">
+                    ${stats.totalTransactedUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-1 italic">Órdenes Aprobadas (en USD equivalent)</p>
+                </div>
+                
+                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Total de Órdenes</span>
+                    <Clock className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <h4 className="text-xl font-extrabold text-slate-800 mt-2">
+                    {stats.totalOrdersCount}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-1 italic">{stats.approvedOrdersCount} Aprobadas / {stats.totalOrdersCount - stats.approvedOrdersCount} Otras</p>
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Items Catalogados</span>
+                    <ShoppingCart className="h-4 w-4 text-procarni-primary" />
+                  </div>
+                  <h4 className="text-xl font-extrabold text-slate-800 mt-2">
+                    {stats.materialsCount}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-1 italic">Materiales registrados en su portafolio</p>
+                </div>
+
+                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Historial Precios</span>
+                    <Activity className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <h4 className="text-xl font-extrabold text-slate-800 mt-2">
+                    {supplierPriceHistory.length}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-1 italic">Registros de precios guardados</p>
+                </div>
+              </div>
+
+              {/* Price Evolution Chart */}
+              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
+                      Evolución Temporal de Precios
+                    </CardTitle>
+                    <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                      Visualización histórica de los precios ofrecidos por este proveedor.
+                    </CardDescription>
+                  </div>
+                  {uniquePriceMaterials.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase font-bold text-gray-400 whitespace-nowrap">Material:</span>
+                      <select 
+                        value={selectedAnalysisMaterial} 
+                        onChange={(e) => setSelectedAnalysisMaterial(e.target.value)}
+                        className="text-xs rounded-lg border border-gray-200 bg-white p-1.5 focus:outline-none focus:ring-1 focus:ring-procarni-primary"
+                      >
+                        <option value="all">Todos los materiales</option>
+                        {uniquePriceMaterials.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="p-6">
+                  {isLoadingPriceHistory ? (
+                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-procarni-primary" />
+                      Cargando gráfico...
+                    </div>
+                  ) : chartData.length === 0 ? (
+                    <div className="p-12 text-center text-gray-400 text-xs italic">
+                      No hay suficientes registros históricos de precios para graficar.
+                    </div>
+                  ) : (
+                    <div className="h-[250px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                          <XAxis dataKey="fechaFormato" tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
+                          <YAxis tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '11px' }}
+                            labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
+                            formatter={(value, name, props) => {
+                              const itemMaterial = props.payload?.material;
+                              const formattedPrice = `${Number(value).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${props.payload?.moneda || 'USD'}`;
+                              return [
+                                formattedPrice,
+                                selectedAnalysisMaterial === 'all' && itemMaterial ? itemMaterial : name
+                              ];
+                            }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                          <Line 
+                            name={selectedAnalysisMaterial === 'all' ? "Precio de Materiales" : chartData[0]?.material} 
+                            type="monotone" 
+                            dataKey="Precio" 
+                            stroke="#880a0a" 
+                            strokeWidth={2.5} 
+                            activeDot={{ r: 6 }} 
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Price Stats Table */}
+              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
+                    Análisis de Precios de Materiales
+                  </CardTitle>
+                  <CardDescription className="text-xs text-gray-500 italic mt-0.5">
+                    Estadísticas agregadas de precios históricos registrados en compras y cotizaciones.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {isLoadingPriceHistory ? (
+                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-procarni-secondary" />
+                      Calculando análisis...
+                    </div>
+                  ) : priceAnalysisByMaterial.length === 0 ? (
+                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
+                      <Activity className="h-10 w-10 opacity-10" />
+                      <p className="italic text-sm">Este proveedor no tiene historial de precios registrado.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50/50">
+                            <TableHead className={cn(tableHeaderClass, "pl-6")}>Material / Código</TableHead>
+                            <TableHead className={tableHeaderClass}>Presentación</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Mínimo</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Máximo</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Promedio</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right")}>Último Precio</TableHead>
+                            <TableHead className={tableHeaderClass}>Fecha Último Registro</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-center w-[80px]")}>Tendencia</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {priceAnalysisByMaterial.map((m) => (
+                            <TableRow key={m.materialId} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
+                              <TableCell className="pl-6 py-3.5">
+                                <p className="font-bold text-procarni-dark text-xs uppercase">{m.name}</p>
+                                <span className="text-[9px] text-gray-400 font-mono">{m.code}</span>
+                              </TableCell>
+                              <TableCell className="text-xs font-semibold text-slate-600">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px]">
+                                  {m.unit}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-slate-700 italic text-[12px]">
-                                {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
+                              <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
+                                {m.min.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
                               </TableCell>
-                              <TableCell className="text-center pr-6">
-                                {sm.isLoadingFicha ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto text-gray-300" />
-                                ) : sm.hasFichaResult ? (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    onClick={() => handleViewFicha(sm.materials.name)} 
-                                    className="hover:bg-green-50 rounded-full h-8 w-8 group/ficha"
-                                  >
-                                    <FileText className="h-4 w-4 text-procarni-secondary transition-transform group-hover/ficha:scale-110" />
-                                  </Button>
-                                ) : (
-                                  <span className="text-[10px] text-gray-300">N/A</span>
+                              <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
+                                {m.max.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-bold text-xs text-slate-700 bg-slate-50/30">
+                                {m.avg.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-bold text-xs text-procarni-blue">
+                                {m.latestPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-500 font-medium">
+                                {format(new Date(m.latestDate), 'dd/MM/yyyy')}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {m.trend === 'up' && (
+                                  <Badge className="bg-red-50 text-red-600 border-red-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                    <TrendingUp className="h-3 w-3" /> Alza
+                                  </Badge>
+                                )}
+                                {m.trend === 'down' && (
+                                  <Badge className="bg-green-50 text-green-600 border-green-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                    <TrendingDown className="h-3 w-3" /> Baja
+                                  </Badge>
+                                )}
+                                {m.trend === 'stable' && (
+                                  <Badge className="bg-slate-50 text-slate-500 border-slate-200 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                    Estable
+                                  </Badge>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -951,23 +1540,12 @@ const SupplierDetails = () => {
                         </TableBody>
                       </Table>
                     </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-                  <Search className="h-8 w-8 opacity-10" />
-                  <p className="italic text-sm">No se encontraron materiales que coincidan con la búsqueda.</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-              <ShoppingCart className="h-10 w-10 opacity-10" />
-              <p className="italic text-sm">Este proveedor no tiene materiales registrados.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
 
 
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
