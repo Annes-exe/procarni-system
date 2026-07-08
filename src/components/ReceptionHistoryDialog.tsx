@@ -300,6 +300,21 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
         },
       });
 
+      // Add page numbers in a loop over all generated pages
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184); // slate-400
+        
+        // Print page X of Y at the bottom right corner
+        doc.text(`Página ${i} de ${pageCount}`, 200, 287, { align: 'right' });
+        
+        // Print report footer at the bottom left corner
+        doc.text('PROCARNI SYSTEM - Reporte de Recepción de Materiales', 14, 287);
+      }
+
       // Save document
       const fileDate = new Date().toISOString().split('T')[0];
       doc.save(`Reporte_Historico_Recepciones_${fileDate}.pdf`);
