@@ -25,6 +25,22 @@ const MaterialService = {
     return data;
   },
 
+  getAllWithoutFilters: async (): Promise<Material[]> => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(10000);
+
+    if (error) {
+      console.error('[MaterialService.getAllWithoutFilters] Error:', error);
+      showError('Error al cargar todos los materiales.');
+      return [];
+    }
+    return data || [];
+  },
+
   create: async (materialData: Omit<Material, 'id' | 'created_at' | 'updated_at'>): Promise<Material | null> => {
     const payload = {
       ...materialData,
@@ -373,6 +389,7 @@ const MaterialService = {
 
 export const {
   getAll: getAllMaterials,
+  getAllWithoutFilters: getAllMaterialsWithoutFilters,
   create: createMaterial,
   update: updateMaterial,
   delete: deleteMaterial,

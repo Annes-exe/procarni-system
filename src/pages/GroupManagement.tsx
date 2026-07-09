@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllMaterials, updateMaterial } from '@/integrations/supabase/services/materialService';
+import { getAllMaterialsWithoutFilters, updateMaterial } from '@/integrations/supabase/services/materialService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { Material } from '@/integrations/supabase/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,8 +20,8 @@ const GroupManagement = () => {
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
 
   const { data: materials = [], isLoading } = useQuery({
-    queryKey: ['materials'],
-    queryFn: getAllMaterials,
+    queryKey: ['materials_all_active'],
+    queryFn: getAllMaterialsWithoutFilters,
   });
 
   // Materiales que son padres (tienen al menos un hijo) o coinciden con la búsqueda de padres
@@ -72,6 +72,7 @@ const GroupManagement = () => {
       return res;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       showSuccess('Operación realizada con éxito');
     },
