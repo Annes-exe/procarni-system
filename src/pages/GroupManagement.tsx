@@ -26,7 +26,7 @@ const GroupManagement = () => {
 
   // Materiales que son padres (tienen al menos un hijo) o coinciden con la búsqueda de padres
   const parentIds = new Set(materials.map(m => m.base_material_id).filter(Boolean));
-  const activeParentMaterials = materials.filter(m => parentIds.has(m.id));
+  const activeParentMaterials = materials.filter(m => parentIds.has(m.id) || m.is_master);
   
   const parentSearchResults = materials.filter(m => 
     (parentSearchTerm !== '' && (m.name.toLowerCase().includes(parentSearchTerm.toLowerCase()) || (m.code && m.code.toLowerCase().includes(parentSearchTerm.toLowerCase()))))
