@@ -491,7 +491,7 @@ const QuoteRequestManagement = () => {
                 ) : (
                   <>
                     <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
-                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Borradores</TabsTrigger>
                     <TabsTrigger value="Approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
                   </>
                 )}

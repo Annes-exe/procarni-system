@@ -468,7 +468,7 @@ const ServiceOrderManagement = () => {
                 {!showHistory ? (
                   <>
                     <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
-                    <TabsTrigger value="active" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="active" className="text-xs md:text-sm">Borradores</TabsTrigger>
                     <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
                     <TabsTrigger value="topay" className="text-xs md:text-sm">Por pagar</TabsTrigger>
                   </>
