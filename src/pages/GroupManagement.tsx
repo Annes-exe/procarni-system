@@ -26,10 +26,10 @@ const GroupManagement = () => {
 
   // Materiales que son padres (tienen al menos un hijo) o coinciden con la búsqueda de padres
   const parentIds = new Set(materials.map(m => m.base_material_id).filter(Boolean));
-  const activeParentMaterials = materials.filter(m => parentIds.has(m.id) || m.is_master);
+  const activeParentMaterials = materials.filter(m => parentIds.has(m.id) && m.status === 'active');
   
   const parentSearchResults = materials.filter(m => 
-    (parentSearchTerm !== '' && (m.name.toLowerCase().includes(parentSearchTerm.toLowerCase()) || (m.code && m.code.toLowerCase().includes(parentSearchTerm.toLowerCase()))))
+    m.status === 'active' && (parentSearchTerm !== '' && (m.name.toLowerCase().includes(parentSearchTerm.toLowerCase()) || (m.code && m.code.toLowerCase().includes(parentSearchTerm.toLowerCase()))))
   ).slice(0, 10);
 
   const displayParents = parentSearchTerm ? parentSearchResults : activeParentMaterials;
@@ -38,8 +38,9 @@ const GroupManagement = () => {
   const childrenOfSelected = materials.filter(m => m.base_material_id === selectedParentId);
   const selectedParent = materials.find(m => m.id === selectedParentId);
 
-  // Materiales disponibles para ser agregados (excluyendo a los propios maestros)
+  // Materiales disponibles para ser agregados (excluyendo a los propios maestros y archivados)
   const availableToJoin = materials.filter(m => 
+    m.status === 'active' &&
     m.id !== selectedParentId && 
     m.base_material_id !== selectedParentId &&
     !m.is_master &&
@@ -187,7 +188,14 @@ const GroupManagement = () => {
                       {childrenOfSelected.map(child => (
                         <div key={child.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 bg-white hover:shadow-sm transition-shadow">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">{child.name}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-medium">{child.name}</span>
+                              {child.status === 'archived' && (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[9px] font-bold uppercase py-0 px-1.5 h-max leading-none">
+                                  Fusionado
+                                </Badge>
+                              )}
+                            </div>
                             <span className="text-[10px] text-gray-400">{child.code}</span>
                           </div>
                           <Button 

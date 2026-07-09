@@ -29,7 +29,7 @@ const MaterialService = {
     const { data, error } = await supabase
       .from('materials')
       .select('*')
-      .eq('status', 'active')
+      .in('status', ['active', 'archived'])
       .order('created_at', { ascending: true })
       .limit(10000);
 

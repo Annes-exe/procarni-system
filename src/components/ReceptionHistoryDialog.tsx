@@ -82,6 +82,19 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
   const receptionRecords = useMemo((): ReceptionRecord[] => {
     const list: ReceptionRecord[] = [];
 
+    const addRecord = (record: ReceptionRecord) => {
+      const timestampMs = new Date(record.timestamp).getTime();
+      const isDuplicate = list.some(item => 
+        item.materialName === record.materialName &&
+        item.quantity === record.quantity &&
+        item.orderNumber === record.orderNumber &&
+        Math.abs(new Date(item.timestamp).getTime() - timestampMs) < 15000
+      );
+      if (!isDuplicate) {
+        list.push(record);
+      }
+    };
+
     rawLogs.forEach((log: any) => {
       const details = log.details || {};
       const action = log.action || '';
@@ -114,7 +127,7 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
         }
 
         if (quantity > 0) {
-          list.push({
+          addRecord({
             id: log.id,
             timestamp: log.timestamp,
             user_email: log.user_email || 'Sistema',
@@ -143,7 +156,7 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
             orderNumber = formatSequenceNumber(orderInfo.sequence, orderInfo.createdAt);
           }
 
-          list.push({
+          addRecord({
             id: log.id,
             timestamp: log.timestamp,
             user_email: log.user_email || 'Sistema DB',
