@@ -95,6 +95,29 @@ export const purchaseOrderService = {
           
         const supplierIds = matchedSuppliers?.map(s => s.id) || [];
         const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== '';
+
+        // Fetch matching master materials first
+        const { data: matchedMasterMaterials } = await supabase
+          .from('materials')
+          .select('id')
+          .ilike('name', searchPattern);
+
+        const materialIds = matchedMasterMaterials?.map(m => m.id) || [];
+
+        let orderIds: string[] = [];
+        if (materialIds.length > 0) {
+          const { data: matchedItems } = await supabase
+            .from('purchase_order_items')
+            .select('order_id')
+            .or(`material_name.ilike.${searchPattern},material_id.in.(${materialIds.join(',')})`);
+          orderIds = Array.from(new Set(matchedItems?.map(item => item.order_id).filter(Boolean) || []));
+        } else {
+          const { data: matchedItems } = await supabase
+            .from('purchase_order_items')
+            .select('order_id')
+            .ilike('material_name', searchPattern);
+          orderIds = Array.from(new Set(matchedItems?.map(item => item.order_id).filter(Boolean) || []));
+        }
         
         const orConditions: string[] = [];
         if (isNumericSearch) {
@@ -102,6 +125,9 @@ export const purchaseOrderService = {
         }
         if (supplierIds.length > 0) {
           orConditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        }
+        if (orderIds.length > 0) {
+          orConditions.push(`id.in.(${orderIds.join(',')})`);
         }
         
         if (orConditions.length > 0) {
