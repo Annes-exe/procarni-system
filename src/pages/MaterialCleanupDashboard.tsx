@@ -143,7 +143,9 @@ const MaterialCleanupDashboard = () => {
       const actionText = data.action === 'merge' ? 'Fusión rápida completada.' : 'Agrupación rápida completada.';
       showSuccess(actionText);
       queryClient.invalidateQueries({ queryKey: ['materials'] });
-      queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+      queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+      queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
       refetchSuggestions();
@@ -217,7 +219,9 @@ const MaterialCleanupDashboard = () => {
     onSuccess: () => {
       showSuccess("Acción deshecha correctamente. El material vuelve a estar activo.");
       queryClient.invalidateQueries({ queryKey: ['materials'] });
-      queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+      queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+      queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard_all_active_materials'] });
       queryClient.invalidateQueries({ queryKey: ['vw_soft_migration_suggestions'] });
       refetchSuggestions();

@@ -386,7 +386,9 @@ const MaterialManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
       queryClient.invalidateQueries({ queryKey: ['material_children'] });
-      queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+      queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+      queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
       setEditingMaterial(null);
       showSuccess('Material actualizado exitosamente.');
     },
@@ -410,7 +412,9 @@ const MaterialManagement = () => {
     },
     onSuccess: (ids) => {
       queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
-      queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+      queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+      queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
       setSelectedMaterialIds([]);
       showSuccess(`Se han marcado ${ids.length} materiales como Patrón de Oro.`);
     },
@@ -438,7 +442,9 @@ const MaterialManagement = () => {
     mutationFn: deleteMaterial,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
-      queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+      queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+      queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
       showSuccess('Material eliminado exitosamente.');
       setIsDeleteDialogOpen(false);
       setMaterialToDeleteId(null);
@@ -1082,7 +1088,9 @@ const MaterialManagement = () => {
           onSuccess={() => {
             setSelectedMaterialIds([]);
             queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
-            queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+            queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+            queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+            queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
           }}
           initialAction={resolutionAction}
         />
@@ -1099,7 +1107,9 @@ const MaterialManagement = () => {
           onMaterialCreated={() => {
             queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
             queryClient.invalidateQueries({ queryKey: ['material_children'] });
-            queryClient.invalidateQueries({ queryKey: ['materials_all_active'] });
+            queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+            queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+            queryClient.invalidateQueries({ queryKey: ['children_of_selected'] });
           }}
           editingMaterial={editingMaterial}
         />
