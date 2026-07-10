@@ -268,17 +268,22 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE')
           : 'No asignada';
         const curr = item.purchase_orders?.currency || 'USD';
+        const qtyOrdered = item.quantity;
+        const qtyReceived = Number(item.received_quantity || 0);
+        const qtyPending = Math.max(0, qtyOrdered - qtyReceived);
 
         return {
           'Orden de Compra': orderNum,
           'Proveedor': supplierName,
           'Material': item.material_name,
-          'Cantidad Pedida': item.quantity,
-          'Cantidad Recibida': Number(item.received_quantity || 0),
+          'Cantidad Pedida': qtyOrdered,
+          'Cantidad Recibida': qtyReceived,
+          'Cantidad Faltante (En Tránsito)': qtyPending,
           'Unidad': item.unit || 'UND',
           'Moneda': curr,
           'Precio Unitario': item.unit_price,
-          'Total': item.quantity * item.unit_price,
+          'Total Pedido': qtyOrdered * item.unit_price,
+          'Total en Tránsito / Pendiente': qtyPending * item.unit_price,
           'Fecha Entrega': deliveryDateStr,
           'Estado Orden': item.purchase_orders?.status || 'N/A',
         };
@@ -287,20 +292,25 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       const totalsByCurrency: Record<string, number> = {};
       items.forEach(item => {
         const curr = item.purchase_orders?.currency || 'USD';
-        totalsByCurrency[curr] = (totalsByCurrency[curr] || 0) + (item.quantity * item.unit_price);
+        const qtyOrdered = item.quantity;
+        const qtyReceived = Number(item.received_quantity || 0);
+        const qtyPending = Math.max(0, qtyOrdered - qtyReceived);
+        totalsByCurrency[curr] = (totalsByCurrency[curr] || 0) + (qtyPending * item.unit_price);
       });
 
       Object.entries(totalsByCurrency).forEach(([curr, totalAmount]) => {
         dataToExport.push({
-          'Orden de Compra': `TOTAL CONSOLIDADO (${curr})`,
+          'Orden de Compra': `TOTAL EN TRÁNSITO CONSOLIDADO (${curr})`,
           'Proveedor': '',
           'Material': '',
           'Cantidad Pedida': 0,
           'Cantidad Recibida': 0,
+          'Cantidad Faltante (En Tránsito)': 0,
           'Unidad': '',
           'Moneda': curr,
           'Precio Unitario': 0,
-          'Total': totalAmount,
+          'Total Pedido': 0,
+          'Total en Tránsito / Pendiente': totalAmount,
           'Fecha Entrega': '',
           'Estado Orden': '',
         });
@@ -386,6 +396,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
         const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
         const accumulatedQty = Number(item.received_quantity || 0);
         const isCompleted = accumulatedQty >= item.quantity;
+        const pendingQty = Math.max(0, item.quantity - accumulatedQty);
         const unitLabel = item.unit || 'UND';
         const curr = item.purchase_orders?.currency || 'USD';
 
@@ -395,15 +406,16 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           item.material_name,
           `${item.quantity} ${unitLabel}`,
           `${accumulatedQty} ${unitLabel}`,
+          `${pendingQty} ${unitLabel}`,
           isCompleted ? 'Recibido' : 'Pendiente',
           formatCurrencyVal(item.unit_price, curr),
-          formatCurrencyVal(item.quantity * item.unit_price, curr),
+          formatCurrencyVal(pendingQty * item.unit_price, curr),
         ];
       });
 
       autoTable(doc, {
         startY: 46,
-        head: [['O.C.', 'Proveedor', 'Material / Ítem', 'Pedida', 'Recibida', 'Estado', 'P. Unitario', 'Total']],
+        head: [['O.C.', 'Proveedor', 'Material / Ítem', 'Pedida', 'Recibida', 'Faltante', 'Estado', 'P. Unitario', 'T. Tránsito']],
         body: tableData,
         theme: 'plain',
         headStyles: {
@@ -427,14 +439,15 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           cellPadding: 2,
         },
         columnStyles: {
-          0: { cellWidth: 20 },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 42 },
-          3: { cellWidth: 15, halign: 'center' },
-          4: { cellWidth: 15, halign: 'center' },
-          5: { cellWidth: 20, halign: 'center' },
-          6: { cellWidth: 20, halign: 'right' },
-          7: { cellWidth: 20, halign: 'right' },
+          0: { cellWidth: 18 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 14, halign: 'center' },
+          4: { cellWidth: 14, halign: 'center' },
+          5: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+          6: { cellWidth: 16, halign: 'center' },
+          7: { cellWidth: 21, halign: 'right' },
+          8: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
         },
       });
 
@@ -444,7 +457,8 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       const totalsByCurrency: Record<string, number> = {};
       items.forEach(item => {
         const curr = item.purchase_orders?.currency || 'USD';
-        totalsByCurrency[curr] = (totalsByCurrency[curr] || 0) + (item.quantity * item.unit_price);
+        const pendingQty = Math.max(0, item.quantity - Number(item.received_quantity || 0));
+        totalsByCurrency[curr] = (totalsByCurrency[curr] || 0) + (pendingQty * item.unit_price);
       });
 
       const uniqueCurrencies = Object.keys(totalsByCurrency);
@@ -462,7 +476,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
         doc.setFont('Helvetica', 'bold');
         doc.setFontSize(8.5);
         doc.setTextColor(71, 85, 105);
-        doc.text(`Total General (${curr}):`, 18, currentTotalY);
+        doc.text(`Total en Tránsito Consolidado (${curr}):`, 18, currentTotalY);
         doc.text(value, 192, currentTotalY, { align: 'right' });
 
         currentTotalY += 8;
