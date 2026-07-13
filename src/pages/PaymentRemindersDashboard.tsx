@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { m } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +22,9 @@ import {
   PlusCircle,
   TrendingUp,
   History,
-  ArrowUpRight
+  ArrowUpRight,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -64,10 +68,13 @@ interface OrderItem {
   currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   paid_amount: number | null;
+  observations: string | null;
   suppliers: { name: string } | null;
   type: 'purchase_order' | 'service_order';
   displayId: string;
   totalAmount: number;
+  baseImponible: number;
+  montoIVA: number;
 }
 
 interface PaymentTransaction {
@@ -86,7 +93,7 @@ interface PaymentTransaction {
   created_at: string;
 }
 
-type SortOption = 'number_asc' | 'number_desc' | 'value_desc' | 'date_desc';
+type SortOption = 'urgency' | 'number_asc' | 'number_desc' | 'value_desc' | 'date_desc';
 
 // Helper to get local date string YYYY-MM-DD to avoid timezone shifts
 const getLocalDateString = (dateObjOrStr: Date | string) => {
@@ -106,10 +113,18 @@ const PaymentRemindersDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Sorting and filtering states
-  const [sortBy, setSortBy] = useState<SortOption>('date_desc');
+  const [sortBy, setSortBy] = useState<SortOption>('urgency');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
+
+  // Prepago Report Dialog states
+  const [isPrepagoDialogOpen, setIsPrepagoDialogOpen] = useState(false);
+  const [prepagoSort, setPrepagoSort] = useState<string>('urgency');
+  const [prepagoSupplier, setPrepagoSupplier] = useState<string>('all');
+  const [prepagoStartDate, setPrepagoStartDate] = useState<string>('');
+  const [prepagoEndDate, setPrepagoEndDate] = useState<string>('');
+  const [prepagoSearchFact, setPrepagoSearchFact] = useState<string>('');
 
   // Abono dialog states
   const [isAbonoDialogOpen, setIsAbonoDialogOpen] = useState(false);
@@ -132,30 +147,32 @@ const PaymentRemindersDashboard = () => {
   };
 
   // Fetch Credit Orders (Pending Payment and Paid) with item details to calculate totals
-  const { data: orders, isLoading } = useQuery<OrderItem[]>({
+  const { data: orders, isLoading, isError, refetch } = useQuery<OrderItem[]>({
     queryKey: ['creditOrdersDashboardFull'],
     queryFn: async () => {
       const [posResponse, sosResponse] = await Promise.all([
         supabase
           .from('purchase_orders')
-          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, suppliers(name), purchase_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)')
+          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, observations, suppliers(name), purchase_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)')
           .eq('payment_terms', 'Crédito')
           .in('status', ['Credit', 'ToPay', 'Paid']),
         supabase
           .from('service_orders')
-          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, suppliers(name), service_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage), service_order_materials(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)'),
+          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, observations, suppliers(name), service_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage), service_order_materials(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)'),
       ]);
 
       if (posResponse.error) console.error('Error fetching POs:', posResponse.error);
       if (sosResponse.error) console.error('Error fetching SOs:', sosResponse.error);
 
-      const pos = (posResponse.data || []).map((po: any) => {
+      const pos = (posResponse.data || []).map((po) => {
         const year = po.created_at ? new Date(po.created_at).getFullYear() : new Date().getFullYear();
         const month = po.created_at ? String(new Date(po.created_at).getMonth() + 1).padStart(2, '0') : '01';
         const totals = calculateTotals(po.purchase_order_items || []);
         return {
           ...po,
           totalAmount: totals.total,
+          baseImponible: totals.baseImponible,
+          montoIVA: totals.montoIVA,
           type: 'purchase_order' as const,
           displayId: `OC-${year}-${month}-${String(po.sequence_number).padStart(3, '0')}`,
         };
@@ -163,8 +180,8 @@ const PaymentRemindersDashboard = () => {
 
       // Service Orders credit payment terms check
       const sos = (sosResponse.data || [])
-        .filter((so: any) => so.payment_terms === 'Crédito' && ['Credit', 'ToPay', 'Paid'].includes(so.status))
-        .map((so: any) => {
+        .filter((so) => so.payment_terms === 'Crédito' && ['Credit', 'ToPay', 'Paid'].includes(so.status))
+        .map((so) => {
           const year = so.created_at ? new Date(so.created_at).getFullYear() : new Date().getFullYear();
           const month = so.created_at ? String(new Date(so.created_at).getMonth() + 1).padStart(2, '0') : '01';
           const items = [
@@ -175,6 +192,8 @@ const PaymentRemindersDashboard = () => {
           return {
             ...so,
             totalAmount: totals.total,
+            baseImponible: totals.baseImponible,
+            montoIVA: totals.montoIVA,
             type: 'service_order' as const,
             displayId: `OS-${year}-${month}-${String(so.sequence_number).padStart(3, '0')}`,
           };
@@ -185,7 +204,7 @@ const PaymentRemindersDashboard = () => {
   });
 
   // Fetch Kardex Payment Transactions
-  const { data: rawTransactions, isLoading: isLoadingKardex } = useQuery<PaymentTransaction[]>({
+  const { data: rawTransactions, isLoading: isLoadingKardex, isError: isErrorKardex, refetch: refetchKardex } = useQuery<PaymentTransaction[]>({
     queryKey: ['paymentTransactionsKardex'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -564,6 +583,205 @@ const PaymentRemindersDashboard = () => {
     printWindow.document.close();
   };
 
+  // Export Prepago Report to XLSX
+  const handleExportPrepagoXLSX = () => {
+    if (processedPrepagoOrders.length === 0) {
+      showError('No hay datos para exportar.');
+      return;
+    }
+
+    const data = processedPrepagoOrders.map(order => {
+      const issueDateObj = new Date(order.issue_date || order.created_at || '');
+      const creditDaysVal = order.credit_days || 0;
+      const dueDateVal = new Date(issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000);
+
+      // Calculations converted to USD if VES
+      const rate = (order.currency === 'VES' && order.exchange_rate) ? order.exchange_rate : 1;
+      const baseUSD = order.baseImponible / rate;
+      const ivaUSD = order.montoIVA / rate;
+      const totalUSD = order.totalAmount / rate;
+
+      return {
+        'FECHA': issueDateObj.toLocaleDateString('es-VE'),
+        'FACT Nº': '-',
+        'DESCRIPCION': order.observations || order.displayId,
+        'BASE ($)': Number(baseUSD.toFixed(2)),
+        '75% IVA ($)': Number((ivaUSD * 0.75).toFixed(2)),
+        '25% IVA ($)': Number((ivaUSD * 0.25).toFixed(2)),
+        'TOTAL $': Number(totalUSD.toFixed(2)),
+        'FECHA TOPE': dueDateVal.toLocaleDateString('es-VE'),
+        'PROVEEDOR': order.suppliers?.name || 'Desconocido',
+        'MONEDA ORIGEN': order.currency
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Prepago');
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `reporte_prepago_cxp_${dateStr}.xlsx`);
+    showSuccess('Reporte Prepago en Excel (.xlsx) descargado exitosamente.');
+  };
+
+  // Export Prepago Report to PDF
+  const handleExportPrepagoPDF = () => {
+    if (processedPrepagoOrders.length === 0) {
+      showError('No hay datos para exportar.');
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const dateStr = new Date().toLocaleDateString('es-VE');
+      
+      const rangeStr = prepagoStartDate || prepagoEndDate
+        ? `Período: ${prepagoStartDate || 'Inicio'} al ${prepagoEndDate || 'Fin'}`
+        : 'Período: Completo';
+
+      const supplierStr = prepagoSupplier !== 'all'
+        ? `Proveedor: ${prepagoSupplier}`
+        : 'Proveedores: Todos';
+
+      const filterSortStr = prepagoSort === 'urgency' ? 'Criterio: Más urgentes primero' :
+                            prepagoSort === 'amount_desc' ? 'Criterio: Montos más altos' :
+                            prepagoSort === 'number_asc' ? 'Criterio: Nro de Orden (Asc)' :
+                            prepagoSort === 'number_desc' ? 'Criterio: Nro de Orden (Desc)' : 'Criterio: Todas';
+
+      // Header
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(27, 41, 74); // #1B294A
+      doc.text('PROCARNI', 14, 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // #880a0a
+      doc.text('SYSTEM', 14, 24);
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // #0f172a
+      doc.text('Reporte de Cuentas por Pagar', 280, 18, { align: 'right' });
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Fecha Emisión: ${dateStr}`, 280, 23, { align: 'right' });
+
+      // Filters summary line
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${rangeStr}  |  ${supplierStr}  |  ${filterSortStr}`, 14, 32);
+
+      let sumBaseUSD = 0;
+      let sumIva75USD = 0;
+      let sumIva25USD = 0;
+      let sumTotalUSD = 0;
+
+      // Extract rows
+      const tableRows = processedPrepagoOrders.map(order => {
+        const issueDateObj = new Date(order.issue_date || order.created_at || '');
+        const creditDaysVal = order.credit_days || 0;
+        const dueDateVal = new Date(issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000);
+
+        const rate = (order.currency === 'VES' && order.exchange_rate) ? order.exchange_rate : 1;
+        const baseUSD = order.baseImponible / rate;
+        const ivaUSD = order.montoIVA / rate;
+        const totalUSD = order.totalAmount / rate;
+
+        sumBaseUSD += baseUSD;
+        sumIva75USD += ivaUSD * 0.75;
+        sumIva25USD += ivaUSD * 0.25;
+        sumTotalUSD += totalUSD;
+
+        const descriptionStr = `${order.suppliers?.name || 'Desconocido'} (${order.displayId}${order.observations ? ' - ' + order.observations : ''})`;
+
+        return [
+          issueDateObj.toLocaleDateString('es-VE'),
+          '-',
+          descriptionStr,
+          `$${baseUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `$${(ivaUSD * 0.75).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `$${(ivaUSD * 0.25).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `$${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          dueDateVal.toLocaleDateString('es-VE')
+        ];
+      });
+
+      // Append totals row
+      tableRows.push([
+        'TOTAL',
+        '',
+        'TOTAL DE CADA COLUMNA',
+        `$${sumBaseUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `$${sumIva75USD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `$${sumIva25USD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `$${sumTotalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        ''
+      ]);
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Fecha', 'Fact Nº', 'Descripción / Orden / Proveedor', 'Base ($)', '75% IVA ($)', '25% IVA ($)', 'Total $', 'Fecha Tope']],
+        body: tableRows,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1.5 },
+          lineColor: [203, 213, 225],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [226, 232, 240],
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255],
+        },
+        styles: {
+          cellPadding: 2.5,
+        },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 18 },
+          2: { cellWidth: 100 },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 28, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
+          6: { cellWidth: 28, halign: 'right', fontStyle: 'bold', textColor: [27, 41, 74] },
+          7: { cellWidth: 22 }
+        },
+        didParseCell: (data) => {
+          if (data.row.index === tableRows.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [241, 245, 249];
+            if (data.column.index === 6) {
+              data.cell.styles.textColor = [14, 87, 8];
+            }
+          }
+        }
+      });
+
+      // @ts-expect-error - lastAutoTable is injected dynamically by jspdf-autotable
+      const finalY = doc.lastAutoTable?.finalY || 120;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde el panel de control de CXP.', 148, finalY + 15, { align: 'center' });
+
+      doc.save(`Reporte_Prepago_CXP_${new Date().toISOString().split('T')[0]}.pdf`);
+      showSuccess('Reporte PDF descargado exitosamente.');
+    } catch (error) {
+      console.error('PDF Error:', error);
+      showError('Ocurrió un error al generar el PDF.');
+    }
+  };
+
   // Calculate frequent suppliers (Dynamic Top 5)
   const frequentSuppliers = useMemo(() => {
     if (!orders || orders.length === 0) return [];
@@ -606,7 +824,7 @@ const PaymentRemindersDashboard = () => {
 
       const tableName = order.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
 
-      const updateData: any = {
+      const updateData = {
         paid_amount: newPaid,
         status: updatedStatus
       };
@@ -882,6 +1100,14 @@ const PaymentRemindersDashboard = () => {
 
     // 3. Sort logic
     result.sort((a, b) => {
+      if (sortBy === 'urgency') {
+        const getDueDate = (order: OrderItem) => {
+          const issueDateObj = new Date(order.issue_date || order.created_at || '');
+          const creditDaysVal = order.credit_days || 0;
+          return issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
+        };
+        return getDueDate(a) - getDueDate(b);
+      }
       if (sortBy === 'number_asc') {
         return (a.sequence_number || 0) - (b.sequence_number || 0);
       }
@@ -903,8 +1129,77 @@ const PaymentRemindersDashboard = () => {
     return result;
   };
 
-  const pendingOrders = orders?.filter((o) => o.status !== 'Paid') || [];
-  const paidOrders = orders?.filter((o) => o.status === 'Paid') || [];
+  const pendingOrders = useMemo(() => {
+    return orders?.filter((o) => o.status !== 'Paid') || [];
+  }, [orders]);
+
+  const paidOrders = useMemo(() => {
+    return orders?.filter((o) => o.status === 'Paid') || [];
+  }, [orders]);
+
+  const processedPrepagoOrders = useMemo(() => {
+    let result = [...pendingOrders];
+
+    // 1. Supplier filter
+    if (prepagoSupplier !== 'all') {
+      result = result.filter(
+        (order) => order.suppliers?.name === prepagoSupplier
+      );
+    }
+
+    // 2. Date range filter (issue date)
+    if (prepagoStartDate) {
+      result = result.filter((order) => {
+        const localDate = getLocalDateString(order.issue_date || order.created_at || '');
+        return localDate >= prepagoStartDate;
+      });
+    }
+    if (prepagoEndDate) {
+      result = result.filter((order) => {
+        const localDate = getLocalDateString(order.issue_date || order.created_at || '');
+        return localDate <= prepagoEndDate;
+      });
+    }
+
+    // 3. Invoice / delivery note number filter (pending development text search)
+    if (prepagoSearchFact.trim()) {
+      const lower = prepagoSearchFact.toLowerCase();
+      // Since invoice field is pending, we can search displayId or observations
+      result = result.filter(
+        (order) =>
+          order.displayId.toLowerCase().includes(lower) ||
+          (order.observations || '').toLowerCase().includes(lower)
+      );
+    }
+
+    // 4. Sort logic
+    result.sort((a, b) => {
+      if (prepagoSort === 'urgency') {
+        const getDueDate = (order: OrderItem) => {
+          const issueDateObj = new Date(order.issue_date || order.created_at || '');
+          const creditDaysVal = order.credit_days || 0;
+          return issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
+        };
+        return getDueDate(a) - getDueDate(b);
+      }
+      if (prepagoSort === 'amount_desc') {
+        // Normalize to USD for accurate sorting by amount
+        const valA = a.currency === 'VES' ? (a.totalAmount / (a.exchange_rate || 1)) : a.totalAmount;
+        const valB = b.currency === 'VES' ? (b.totalAmount / (b.exchange_rate || 1)) : b.totalAmount;
+        return valB - valA;
+      }
+      if (prepagoSort === 'number_asc') {
+        return (a.sequence_number || 0) - (b.sequence_number || 0);
+      }
+      if (prepagoSort === 'number_desc') {
+        return (b.sequence_number || 0) - (a.sequence_number || 0);
+      }
+      // 'all' or default: sort by sequence number / date asc
+      return (a.sequence_number || 0) - (b.sequence_number || 0);
+    });
+
+    return result;
+  }, [pendingOrders, prepagoSort, prepagoSupplier, prepagoStartDate, prepagoEndDate, prepagoSearchFact]);
 
   const processedPending = processOrders(pendingOrders);
   const processedPaid = processOrders(paidOrders);
@@ -1067,6 +1362,93 @@ const PaymentRemindersDashboard = () => {
     );
   };
 
+  if (isError || isErrorKardex) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center bg-white/70 backdrop-blur-xl border border-red-200/50 rounded-[2rem] shadow-2xl shadow-gray-200/50 max-w-lg mx-auto my-12 space-y-5 animate-in fade-in duration-300">
+        <div className="p-4 rounded-full bg-red-50 text-procarni-primary">
+          <AlertCircle className="h-12 w-12 animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-black text-procarni-blue tracking-tight">Error de Conexión</h3>
+          <p className="text-xs text-gray-500 max-w-sm font-medium italic">
+            No se pudo establecer conexión con el servidor de base de datos. Por favor, verifique su acceso a internet o de red e intente de nuevo.
+          </p>
+        </div>
+        <Button 
+          onClick={() => {
+            refetch();
+            refetchKardex();
+          }}
+          className="h-11 px-6 rounded-xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all"
+        >
+          Reintentar Conexión
+        </Button>
+      </div>
+    );
+  }
+
+  if (isLoading || isLoadingKardex) {
+    return (
+      <div className="space-y-8 p-2 md:p-4 max-w-full animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-64 bg-slate-200/80 rounded-lg"></div>
+            <div className="h-4 w-96 bg-slate-200/80 rounded-lg"></div>
+          </div>
+          <div className="h-11 w-40 bg-slate-200/80 rounded-2xl"></div>
+        </div>
+
+        {/* Supplier Pills Skeleton */}
+        <div className="space-y-2.5">
+          <div className="h-3 w-32 bg-slate-200/80 rounded-lg"></div>
+          <div className="flex flex-wrap gap-2">
+            <div className="h-9 w-20 bg-slate-200/80 rounded-full"></div>
+            <div className="h-9 w-32 bg-slate-200/80 rounded-full"></div>
+            <div className="h-9 w-28 bg-slate-200/80 rounded-full"></div>
+          </div>
+        </div>
+
+        {/* Search & Sort Skeleton */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+          <div className="h-11 w-full sm:max-w-md bg-slate-200/80 rounded-2xl"></div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
+            <div className="h-11 w-24 bg-slate-200/80 rounded-xl"></div>
+            <div className="h-11 w-24 bg-slate-200/80 rounded-xl"></div>
+            <div className="h-11 w-40 bg-slate-200/80 rounded-xl"></div>
+          </div>
+        </div>
+
+        {/* Tab skeleton */}
+        <div className="h-12 w-full md:w-96 bg-slate-200/80 rounded-2xl"></div>
+
+        {/* Cards Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="border border-gray-100 rounded-[1.75rem] p-6 h-[300px] flex flex-col justify-between bg-white shadow-sm ring-1 ring-gray-100/50">
+              <div className="space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1.5 w-1/2">
+                    <div className="h-4 bg-slate-200/80 rounded-md w-24"></div>
+                    <div className="h-3.5 bg-slate-200/80 rounded-md w-16"></div>
+                  </div>
+                  <div className="h-5 bg-slate-200/80 rounded-full w-20"></div>
+                </div>
+                <div className="h-6 bg-slate-200/80 rounded-md w-3/4"></div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-slate-200/80 rounded-md w-1/2"></div>
+                  <div className="h-3 bg-slate-200/80 rounded-md w-1/3"></div>
+                  <div className="h-3 bg-slate-200/80 rounded-md w-2/3"></div>
+                </div>
+              </div>
+              <div className="h-10 bg-slate-200/80 rounded-xl w-full mt-4"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <m.div
       initial="hidden"
@@ -1083,6 +1465,13 @@ const PaymentRemindersDashboard = () => {
           </h1>
           <p className="text-[13px] text-gray-500 font-medium italic font-body">Consulta de órdenes a crédito, abonos parciales y descarga de comprobantes.</p>
         </div>
+         <Button
+          onClick={() => setIsPrepagoDialogOpen(true)}
+          className="h-11 px-5 rounded-2xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2"
+        >
+          <FileText className="h-4 w-4" />
+          Reporte Prepago
+        </Button>
       </div>
 
       {/* Frequent Suppliers Pills */}
@@ -1175,6 +1564,7 @@ const PaymentRemindersDashboard = () => {
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200">
+                <SelectItem value="urgency" className="text-xs font-medium">Más urgentes primero</SelectItem>
                 <SelectItem value="date_desc" className="text-xs font-medium">Recientes primero</SelectItem>
                 <SelectItem value="number_asc" className="text-xs font-medium">Número (Asc)</SelectItem>
                 <SelectItem value="number_desc" className="text-xs font-medium">Número (Desc)</SelectItem>
@@ -1502,6 +1892,224 @@ const PaymentRemindersDashboard = () => {
               className="rounded-xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
             >
               {isSubmittingAbono ? 'Registrando...' : 'Registrar Abono'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reporte Prepago Dialog */}
+      <Dialog open={isPrepagoDialogOpen} onOpenChange={setIsPrepagoDialogOpen}>
+        <DialogContent className="max-w-7xl w-[95vw] h-[90vh] flex flex-col rounded-[2rem] p-6 border-none bg-white shadow-2xl overflow-hidden">
+          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4 shrink-0">
+            <DialogTitle className="text-2xl font-black text-procarni-blue flex items-center gap-2.5">
+              <FileSpreadsheet className="h-6 w-6 text-procarni-primary" />
+              Reporte de Cuentas por Pagar
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Modal Filter and Action Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 py-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/60 mt-4 shrink-0">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Filtrar por Criterio</Label>
+              <Select value={prepagoSort} onValueChange={setPrepagoSort}>
+                <SelectTrigger className="h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200">
+                  <SelectItem value="all" className="text-xs font-medium">Todas</SelectItem>
+                  <SelectItem value="urgency" className="text-xs font-medium">Más urgentes</SelectItem>
+                  <SelectItem value="amount_desc" className="text-xs font-medium">Montos más altos</SelectItem>
+                  <SelectItem value="number_asc" className="text-xs font-medium">Número Orden (Asc)</SelectItem>
+                  <SelectItem value="number_desc" className="text-xs font-medium">Número Orden (Desc)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Proveedor</Label>
+              <Select value={prepagoSupplier} onValueChange={setPrepagoSupplier}>
+                <SelectTrigger className="h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200">
+                  <SelectItem value="all" className="text-xs font-medium">Todos</SelectItem>
+                  {Array.from(new Set(pendingOrders.map(o => o.suppliers?.name).filter(Boolean))).map(name => (
+                    <SelectItem key={name} value={name || ''} className="text-xs font-medium">{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Desde (Emisión)</Label>
+              <Input
+                type="date"
+                value={prepagoStartDate}
+                onChange={(e) => setPrepagoStartDate(e.target.value)}
+                className="h-10 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Hasta (Emisión)</Label>
+              <Input
+                type="date"
+                value={prepagoEndDate}
+                onChange={(e) => setPrepagoEndDate(e.target.value)}
+                className="h-10 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400 flex items-center gap-1">
+                Factura / Entrega <span className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-normal lowercase tracking-normal">pendiente</span>
+              </Label>
+              <Input
+                type="text"
+                placeholder="Nro Factura / Nota..."
+                value={prepagoSearchFact}
+                onChange={(e) => setPrepagoSearchFact(e.target.value)}
+                className="h-10 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600 focus:ring-procarni-primary/20"
+              />
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={handleExportPrepagoXLSX}
+                variant="outline"
+                size="sm"
+                className="h-10 flex-1 text-[11px] font-extrabold rounded-xl border-gray-200 bg-white hover:bg-slate-50 shadow-sm text-procarni-blue hover:text-procarni-primary"
+              >
+                Excel
+              </Button>
+              <Button
+                onClick={handleExportPrepagoPDF}
+                variant="outline"
+                size="sm"
+                className="h-10 flex-1 text-[11px] font-extrabold rounded-xl border-gray-200 bg-white hover:bg-slate-50 shadow-sm text-procarni-blue hover:text-procarni-primary"
+              >
+                PDF
+              </Button>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="flex-1 overflow-y-auto min-h-0 border border-gray-150 rounded-2xl my-4 bg-white">
+            {processedPrepagoOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full p-8 text-center text-gray-400">
+                <AlertCircle className="h-12 w-12 text-gray-200 mb-3" />
+                <p className="font-bold text-sm">No se encontraron cuentas pendientes que coincidan con los filtros.</p>
+              </div>
+            ) : (
+              <Table className="relative">
+                <TableHeader className="sticky top-0 bg-slate-50 z-10 border-b">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Fecha</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Fact Nº</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Descripción / Orden / Proveedor</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">Base ($)</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">75% IVA ($)</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">25% IVA ($)</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">Total $</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Fecha Tope</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {processedPrepagoOrders.map(order => {
+                    const issueDateObj = new Date(order.issue_date || order.created_at || '');
+                    const creditDaysVal = order.credit_days || 0;
+                    const dueDateVal = new Date(issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000);
+
+                    const rate = (order.currency === 'VES' && order.exchange_rate) ? order.exchange_rate : 1;
+                    const baseUSD = order.baseImponible / rate;
+                    const ivaUSD = order.montoIVA / rate;
+                    const totalUSD = order.totalAmount / rate;
+
+                    return (
+                      <TableRow key={order.id} className="hover:bg-blue-50/10 transition-colors">
+                        <TableCell className="text-xs text-gray-500 font-medium">
+                          {issueDateObj.toLocaleDateString('es-VE')}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-400 font-medium font-mono">
+                          -
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="font-extrabold text-procarni-blue">{order.suppliers?.name || 'Desconocido'}</div>
+                          <div className="flex gap-2 text-[10px] text-gray-400 font-mono mt-0.5">
+                            <span>{order.displayId}</span>
+                            {order.observations && <span>• {order.observations}</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-medium text-gray-600">
+                          ${baseUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-medium text-gray-600">
+                          ${(ivaUSD * 0.75).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-medium text-gray-600">
+                          ${(ivaUSD * 0.25).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-extrabold text-procarni-blue">
+                          ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs font-bold text-procarni-primary">
+                          {dueDateVal.toLocaleDateString('es-VE')}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+
+          {/* Sums and Currency Summary (Bottom Bar) */}
+          <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-6 items-center shrink-0">
+            {/* Column Sums */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-wrap gap-x-8 gap-y-2 text-xs font-black text-procarni-blue">
+              <div className="uppercase text-[9px] tracking-wider text-gray-400 w-full mb-1">Total de cada columna (USD):</div>
+              <div>Base: <span className="font-mono text-procarni-primary">${
+                processedPrepagoOrders.reduce((sum, o) => sum + (o.baseImponible / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+              <div>75% IVA: <span className="font-mono text-procarni-primary">${
+                processedPrepagoOrders.reduce((sum, o) => sum + ((o.montoIVA / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)) * 0.75), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+              <div>25% IVA: <span className="font-mono text-procarni-primary">${
+                processedPrepagoOrders.reduce((sum, o) => sum + ((o.montoIVA / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)) * 0.25), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+              <div>Total: <span className="font-mono text-emerald-600">${
+                processedPrepagoOrders.reduce((sum, o) => sum + (o.totalAmount / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+            </div>
+
+            {/* Original Currencies Summary */}
+            <div className="flex justify-end gap-3 text-xs">
+              {['USD', 'VES', 'EUR'].map(curr => {
+                const pendingSum = processedPrepagoOrders
+                  .filter(o => o.currency === curr)
+                  .reduce((sum, o) => sum + (o.totalAmount - (o.paid_amount || 0)), 0);
+
+                if (pendingSum <= 0) return null;
+                return (
+                  <div key={curr} className="bg-blue-50/50 border border-blue-100 rounded-xl px-3 py-2 text-right">
+                    <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Saldo Pendiente {curr}</span>
+                    <span className="font-mono font-bold text-procarni-blue">{formatCurrency(pendingSum, curr)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 pt-2 border-t shrink-0">
+            <Button
+              onClick={() => setIsPrepagoDialogOpen(false)}
+              className="rounded-xl border-gray-200 font-bold h-11 w-full sm:w-auto"
+            >
+              Cerrar Reporte
             </Button>
           </DialogFooter>
         </DialogContent>
