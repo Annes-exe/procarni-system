@@ -5,14 +5,14 @@ import { showError } from '@/utils/toast';
 import { Material } from '../types';
 import { logAudit } from './auditLogService';
 
-const ACTIVE_MASTER_FILTER = 'is_master.eq.true,category.not.in.(SECA,FRESCA,EMPAQUE),category.is.null';
+const ACTIVE_MASTER_FILTER = 'is_master.eq.true,status.eq.pending';
 
 const MaterialService = {
   getAll: async (): Promise<Material[]> => {
     const { data, error } = await supabase
       .from('materials')
       .select('*')
-      .eq('status', 'active')
+      .in('status', ['active', 'pending'])
       .or(ACTIVE_MASTER_FILTER)
       .order('created_at', { ascending: true })
       .limit(10000); // Override PostgREST's default 1000-row cap
@@ -132,7 +132,7 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .or(ACTIVE_MASTER_FILTER)
         .order('name', { ascending: true })
         .limit(10000);
@@ -161,7 +161,7 @@ const MaterialService = {
       const { data, error } = await supabase
         .from('materials')
         .select('*')
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .or(ACTIVE_MASTER_FILTER)
         .order('name', { ascending: true })
         .limit(10000);
@@ -251,7 +251,7 @@ const MaterialService = {
     let query = supabase
       .from('materials')
       .select('*', { count: 'exact' })
-      .eq('status', 'active');
+      .in('status', ['active', 'pending']);
 
     // Aplicar filtro de Patrón de Oro
     if (masterFilter === 'master') {
@@ -294,7 +294,7 @@ const MaterialService = {
       .from('materials')
       .select('*')
       .eq('base_material_id', parentId)
-      .eq('status', 'active')
+      .in('status', ['active', 'pending'])
       .order('name', { ascending: true });
 
     if (error) {
@@ -311,7 +311,7 @@ const MaterialService = {
       const { data: createdData, error: createdError } = await supabase
         .from('materials')
         .select('*')
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .or(ACTIVE_MASTER_FILTER)
         .order('created_at', { ascending: false })
         .limit(15);
@@ -349,7 +349,7 @@ const MaterialService = {
         const { data: fetchedUsed, error: fetchUsedError } = await supabase
           .from('materials')
           .select('*')
-          .eq('status', 'active')
+          .in('status', ['active', 'pending'])
           .or(ACTIVE_MASTER_FILTER)
           .in('id', Array.from(usedIds).slice(0, 15));
 
@@ -378,12 +378,27 @@ const MaterialService = {
       const { data } = await supabase
         .from('materials')
         .select('*')
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .or(ACTIVE_MASTER_FILTER)
         .order('created_at', { ascending: false })
         .limit(10);
       return data || [];
     }
+  },
+
+  getPendingMaterials: async (): Promise<Material[]> => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[MaterialService.getPendingMaterials] Error:', error);
+      showError('Error al cargar materiales pendientes de aprobación.');
+      return [];
+    }
+    return data || [];
   },
 };
 
@@ -400,4 +415,5 @@ export const {
   getPaginated: getPaginatedMaterials,
   getRecentMaterials,
   getChildren: getMaterialChildren,
+  getPendingMaterials,
 } = MaterialService;

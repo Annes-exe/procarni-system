@@ -30,6 +30,7 @@ import {
   getMaterialByName,
   getPaginatedMaterials,
   getMaterialChildren,
+  getPendingMaterials, // ADDED
   getAllCompanies,
   createCompany,
   updateCompany,
@@ -370,6 +371,7 @@ export {
   getRecentMaterials,
   getPaginatedMaterials,
   getMaterialChildren,
+  getPendingMaterials,
   getAllCompanies,
   createCompany,
   updateCompany,

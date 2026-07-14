@@ -40,7 +40,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   hideNameProvided = false,
   editingMaterial = null,
 }) => {
-  const { session } = useSession();
+  const { session, role } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: units = [], isLoading: isLoadingUnits } = useQuery<UnitOfMeasure[]>({
@@ -329,7 +329,8 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           base_material_id: finalParentId,
           color: color.trim() || null,
           brand: brand.trim() || null,
-          search_aliases: nameProvided.trim() ? [nameProvided.trim().toUpperCase()] : []
+          search_aliases: nameProvided.trim() ? [nameProvided.trim().toUpperCase()] : [],
+          status: role === 'admin' ? 'active' : 'pending'
         });
 
         if (!newMaterial) {
@@ -357,7 +358,10 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             showSuccess(`El material "${materialToAssociate.name}" ya estaba asociado a este proveedor.`);
           } else {
             if (isNewMaterial) {
-              showSuccess('Material creado y asociado exitosamente.');
+              const successMsg = role === 'admin' 
+                ? 'Material creado y asociado exitosamente.'
+                : 'Material creado (pendiente de revisión de administrador) y asociado exitosamente.';
+              showSuccess(successMsg);
             } else {
               showSuccess(`Material existente "${materialToAssociate.name}" asociado exitosamente.`);
             }
@@ -365,7 +369,10 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         }
       } else if (materialToAssociate) {
         if (isNewMaterial) {
-          showSuccess(`Material "${materialToAssociate.name}" creado.`);
+          const successMsg = role === 'admin' 
+            ? `Material "${materialToAssociate.name}" creado.`
+            : `Material "${materialToAssociate.name}" creado. Pendiente de aprobación.`;
+          showSuccess(successMsg);
         } else {
           showSuccess(`Material "${materialToAssociate.name}" seleccionado.`);
         }
