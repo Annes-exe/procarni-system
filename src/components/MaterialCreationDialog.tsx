@@ -69,6 +69,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const [suggestedMaterial, setSuggestedMaterial] = useState<Material | null>(null); // Best match suggestion
   const [isCheckingExistence, setIsCheckingExistence] = useState(false);
   const debounceTimeoutRef = useRef<number | null>(null);
+  const lastAutofilledRef = useRef<{ category: string; prefix: 'tripa' | 'bolsa' | 'other' | null }>({ category: '', prefix: null });
 
   const resetForm = () => {
     setMaterialName('');
@@ -141,6 +142,61 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     }
   }, [category, suggestedMaterial, units]);
 
+  // Effect to automatically pre-select unit and category based on category and materialName
+  useEffect(() => {
+    if (editingMaterial) return;
+
+    const trimmedName = materialName.trim();
+    const nameUpper = trimmedName.toUpperCase();
+
+    // 1. Auto-select category based on name prefix
+    let targetCategory = category;
+    if (nameUpper.startsWith('TRIPA') || nameUpper.startsWith('BOLSA')) {
+      const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
+      if (empCategory && category !== empCategory.name && (category === '' || category === (categories[0]?.name || ''))) {
+        setCategory(empCategory.name);
+        targetCategory = empCategory.name;
+      }
+    }
+
+    const categoryUpper = targetCategory?.toUpperCase() || '';
+    
+    let currentPrefix: 'tripa' | 'bolsa' | 'other' = 'other';
+    if (nameUpper.startsWith('TRIPA')) currentPrefix = 'tripa';
+    else if (nameUpper.startsWith('BOLSA')) currentPrefix = 'bolsa';
+
+    // Only run unit autofill if category or prefix changed from our last autofill
+    if (
+      lastAutofilledRef.current.category === categoryUpper &&
+      lastAutofilledRef.current.prefix === currentPrefix
+    ) {
+      return;
+    }
+
+    let targetUnitName = '';
+
+    if (categoryUpper === 'SECA' || categoryUpper === 'FRESCA') {
+      targetUnitName = 'KG';
+    } else if (categoryUpper === 'EMPAQUE') {
+      if (currentPrefix === 'tripa') {
+        targetUnitName = 'MT';
+      } else if (currentPrefix === 'bolsa') {
+        targetUnitName = 'UND';
+      }
+    } else if (categoryUpper) {
+      targetUnitName = 'UND';
+    }
+
+    if (targetUnitName && units.length > 0) {
+      const foundUnit = units.find(u => u.name.toUpperCase() === targetUnitName);
+      if (foundUnit) {
+        setUnit(foundUnit.id);
+        // Record this autofill to prevent loops or overriding manual changes
+        lastAutofilledRef.current = { category: categoryUpper, prefix: currentPrefix };
+      }
+    }
+  }, [category, materialName, units, categories, editingMaterial]);
+
   // Logic to check for existing material as the user types (debounced check)
   useEffect(() => {
     if (!isOpen) return;
@@ -168,41 +224,9 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               setUnit(bestMatch.unit_id || (units[0]?.id || ''));
               // Use existing material's exemption status
               setIsExempt(bestMatch.is_exempt || false);
-            } else if (trimmedName.toLowerCase().startsWith('tripa')) {
-              // Apply "tripa" auto-fill logic for new material candidate even if there are suggests
-              const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
-              const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
-              
-              const isDefaultCategory = category === (categories[0]?.name || '');
-              const isDefaultUnit = unit === (units[0]?.name || '');
-
-              if (empCategory && isDefaultCategory) setCategory(empCategory.name);
-              if (mtUnit && isDefaultUnit) setUnit(mtUnit.id);
             }
           } else {
             setSuggestedMaterial(null);
-            
-            // Apply "tripa" auto-fill logic if no match found
-            if (trimmedName.toLowerCase().startsWith('tripa')) {
-              const empCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
-              const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
-              
-              const isDefaultCategory = category === (categories[0]?.name || '');
-              const isDefaultUnit = unit === (units[0]?.name || '');
-
-              if (empCategory && isDefaultCategory) setCategory(empCategory.name);
-              if (mtUnit && isDefaultUnit) setUnit(mtUnit.id);
-              
-              // If we set category to EMPAQUE, we might want to update isExempt too if it was default
-              if (empCategory && isDefaultCategory) {
-                  setIsExempt(empCategory.name === 'FRESCA');
-              }
-            } else {
-              // Reset fields to default if no match found and not "tripa", respecting FRESCA rule
-              setCategory(categories[0]?.name || '');
-              setUnit(units[0]?.id || '');
-              setIsExempt((categories[0]?.name || '') === 'FRESCA');
-            }
           }
         } catch (e) {
           console.error("Error checking material existence:", e);
