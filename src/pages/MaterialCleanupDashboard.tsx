@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw, Sparkles, Wrench, ArrowRight, Loader2 } from 'lucide-react';
-import { getAllMaterials } from '@/integrations/supabase/data';
+import { getAllMaterials, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface UnifiedSuggestion {
   target_id: string;
@@ -123,6 +124,12 @@ const MaterialCleanupDashboard = () => {
   const [resolutionAction, setResolutionAction] = useState<'merge' | 'group'>('merge');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterSameCategoryOnly, setFilterSameCategoryOnly] = useState(false);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['material_categories'],
+    queryFn: getAllMaterialCategories,
+  });
 
   const { data: suggestions, isLoading: isLoadingSuggestions, refetch: refetchSuggestions } = useQuery({
     queryKey: ['fusion_suggestions'],
@@ -370,10 +377,29 @@ const MaterialCleanupDashboard = () => {
   });
 
   const filteredSuggestions = suggestions?.filter(suggestion => {
-    if (!filterSameCategoryOnly) return true;
-    const targetData = findMaterialData(suggestion.target_id);
-    const sourceData = findMaterialData(suggestion.source_id);
-    return targetData && sourceData && targetData.category === sourceData.category;
+    // 1. Same category filter
+    if (filterSameCategoryOnly) {
+      const targetData = findMaterialData(suggestion.target_id);
+      const sourceData = findMaterialData(suggestion.source_id);
+      if (!targetData || !sourceData || targetData.category !== sourceData.category) {
+        return false;
+      }
+    }
+
+    // 2. Specific category filter
+    if (selectedCategoryFilter !== 'all') {
+      const targetData = findMaterialData(suggestion.target_id);
+      const sourceData = findMaterialData(suggestion.source_id);
+      
+      const targetCat = targetData?.category;
+      const sourceCat = sourceData?.category;
+      
+      if (targetCat !== selectedCategoryFilter && sourceCat !== selectedCategoryFilter) {
+        return false;
+      }
+    }
+
+    return true;
   }) || [];
 
   return (
@@ -427,21 +453,41 @@ const MaterialCleanupDashboard = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Category Filter Switch */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-100/80 p-4 rounded-2xl shadow-sm">
+              {/* Category Filter Switch & Dropdown */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-slate-100/80 p-4 rounded-2xl shadow-sm">
                 <div className="space-y-0.5">
                   <p className="text-sm font-bold text-procarni-dark">Filtro de Categorías</p>
-                  <p className="text-xs text-slate-500">Compara coincidencias que pertenezcan a la misma categoría o muestra todas.</p>
+                  <p className="text-xs text-slate-500">Filtra sugerencias por una categoría específica y compara si pertenecen a la misma.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Label htmlFor="same-category-filter" className="text-xs font-bold uppercase tracking-wider text-slate-500 cursor-pointer">
-                    Solo misma categoría
-                  </Label>
-                  <Switch
-                    id="same-category-filter"
-                    checked={filterSameCategoryOnly}
-                    onCheckedChange={setFilterSameCategoryOnly}
-                  />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  {/* Category Dropdown */}
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="specific-category-filter" className="text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                      Categoría:
+                    </Label>
+                    <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                      <SelectTrigger id="specific-category-filter" className="w-[180px] bg-white border border-gray-200 rounded-xl h-9">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {categories.map((cat: any) => (
+                          <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="same-category-filter" className="text-xs font-bold uppercase tracking-wider text-slate-500 cursor-pointer">
+                      Solo misma categoría
+                    </Label>
+                    <Switch
+                      id="same-category-filter"
+                      checked={filterSameCategoryOnly}
+                      onCheckedChange={setFilterSameCategoryOnly}
+                    />
+                  </div>
                 </div>
               </div>
 
