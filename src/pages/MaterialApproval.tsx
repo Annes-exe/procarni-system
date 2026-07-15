@@ -151,8 +151,8 @@ const MaterialApproval = () => {
         </div>
       </div>
 
-      {/* Main Glass Card */}
-      <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden">
+      {/* Main Card */}
+      <Card className="bg-white border border-slate-100/80 shadow-2xl shadow-gray-200/50 rounded-[2rem] overflow-hidden">
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="space-y-1">
@@ -189,7 +189,7 @@ const MaterialApproval = () => {
         <CardContent>
           {filteredMaterials.length > 0 ? (
             <div className="overflow-x-auto">
-              <Table className="bg-white/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-gray-100">
+              <Table className="bg-white/50 rounded-2xl overflow-hidden border border-gray-100">
                 <TableHeader className="bg-slate-100/50">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre</TableHead>
