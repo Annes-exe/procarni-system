@@ -407,7 +407,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           `${item.quantity} ${unitLabel}`,
           `${accumulatedQty} ${unitLabel}`,
           `${pendingQty} ${unitLabel}`,
-          isCompleted ? 'Recibido' : 'Pendiente',
+          isCompleted ? 'Recibido' : (accumulatedQty > 0 ? 'Parcial' : 'Pendiente'),
           formatCurrencyVal(item.unit_price, curr),
           formatCurrencyVal(pendingQty * item.unit_price, curr),
         ];
