@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -73,6 +80,39 @@ const PurchaseOrderManagement = () => {
 
   const [showHistory, setShowHistory] = useState(false);
   const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
+  const [date, setDate] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [dateFilterType, setDateFilterType] = useState<'range' | 'single'>('range');
+  const [singleDate, setSingleDate] = useState<Date | undefined>(undefined);
+
+  const hasActiveDateFilter = useMemo(() => {
+    if (dateFilterType === 'single') {
+      return !!singleDate;
+    }
+    return !!(date.from || date.to);
+  }, [dateFilterType, date, singleDate]);
+
+  const clearDates = () => {
+    setSingleDate(undefined);
+    setDate({ from: undefined, to: undefined });
+  };
+
+  const effectiveStartDate = useMemo(() => {
+    if (dateFilterType === 'single') {
+      return singleDate ? format(singleDate, 'yyyy-MM-dd') : undefined;
+    }
+    return date.from ? format(date.from, 'yyyy-MM-dd') : undefined;
+  }, [dateFilterType, date.from, singleDate]);
+
+  const effectiveEndDate = useMemo(() => {
+    if (dateFilterType === 'single') {
+      return singleDate ? format(singleDate, 'yyyy-MM-dd') : undefined;
+    }
+    return date.to ? format(date.to, 'yyyy-MM-dd') : undefined;
+  }, [dateFilterType, date.to, singleDate]);
+
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -117,8 +157,8 @@ const PurchaseOrderManagement = () => {
 
   // Centralized query for all tabs with pagination
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab, onlyRawMaterials],
-    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, onlyRawMaterials),
+    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab, onlyRawMaterials, effectiveStartDate, effectiveEndDate],
+    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, onlyRawMaterials, effectiveStartDate, effectiveEndDate),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -591,7 +631,7 @@ const PurchaseOrderManagement = () => {
           <p className="text-muted-foreground text-sm">Administra tus órdenes de compra generadas.</p>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <Button
             variant={showHistory ? "secondary" : "outline"}
             onClick={() => {
@@ -605,6 +645,80 @@ const PurchaseOrderManagement = () => {
             {showHistory ? <CheckCircle className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
             {showHistory ? 'Ver Activos' : 'Historial'}
           </Button>
+
+          {/* Selector de fecha (Día / Periodo) */}
+          <div className="relative flex flex-col items-stretch sm:items-end">
+            <div className="flex items-center gap-2 bg-white px-2 py-0.5 h-9 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto">
+              <Select
+                value={dateFilterType}
+                onValueChange={(val: 'range' | 'single') => setDateFilterType(val)}
+              >
+                <SelectTrigger className="h-8 w-[95px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="range">Periodo</SelectItem>
+                  <SelectItem value="single">Día</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Separator orientation="vertical" className="h-4 bg-gray-200" />
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-2 text-xs text-gray-600 hover:bg-gray-50 font-normal px-2"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5 text-gray-400" />
+                    {dateFilterType === 'single' ? (
+                      singleDate ? (
+                        format(singleDate, 'dd/MM/yyyy')
+                      ) : (
+                        <span className="text-gray-400 font-normal">Elegir día</span>
+                      )
+                    ) : date.from ? (
+                      date.to ? (
+                        `${format(date.from, 'dd/MM/yyyy')} - ${format(date.to, 'dd/MM/yyyy')}`
+                      ) : (
+                        format(date.from, 'dd/MM/yyyy')
+                      )
+                    ) : (
+                      <span className="text-gray-400 font-normal">Rango de fechas</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    initialFocus
+                    mode={dateFilterType === 'single' ? 'single' : 'range'}
+                    selected={dateFilterType === 'single' ? singleDate : (date as any)}
+                    onSelect={(val: any) => {
+                      if (dateFilterType === 'single') {
+                        setSingleDate(val);
+                      } else {
+                        setDate(val || { from: undefined, to: undefined });
+                      }
+                    }}
+                    numberOfMonths={dateFilterType === 'single' ? 1 : 2}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {hasActiveDateFilter && (
+              <button
+                onClick={clearDates}
+                className="absolute top-full right-1 mt-1 text-[10px] text-gray-400 hover:text-procarni-primary transition-colors font-medium flex items-center gap-0.5 select-none"
+              >
+                <X className="h-3 w-3" />
+                Limpiar fechas
+              </button>
+            )}
+          </div>
+
           <Button
             asChild
             className="bg-procarni-secondary hover:bg-green-700 text-white gap-2"

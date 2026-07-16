@@ -57,7 +57,9 @@ export const purchaseOrderService = {
       pageSize: number,
       searchTerm: string = '',
       statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active',
-      onlyRawMaterials: boolean = false
+      onlyRawMaterials: boolean = false,
+      startDate?: string,
+      endDate?: string
     ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -68,6 +70,13 @@ export const purchaseOrderService = {
       let query = supabase
         .from('purchase_orders')
         .select(selectQuery, { count: 'exact' });
+
+      if (startDate) {
+        query = query.gte('issue_date', startDate);
+      }
+      if (endDate) {
+        query = query.lte('issue_date', endDate);
+      }
   
       if (statusFilter === 'Active') {
         query = query.in('status', ['Draft']);
