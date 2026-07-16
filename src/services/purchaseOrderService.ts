@@ -111,15 +111,18 @@ export const purchaseOrderService = {
         const rawMaterialNames = matchedRawMaterials?.map(m => m.name).filter(Boolean) || [];
         
         if (rawMaterialIds.length > 0 || rawMaterialNames.length > 0) {
-          const { data: matchedById } = await supabase
-            .from('purchase_order_items')
-            .select('order_id')
-            .in('material_id', rawMaterialIds);
-            
-          const { data: matchedByName } = await supabase
-            .from('purchase_order_items')
-            .select('order_id')
-            .in('material_name', rawMaterialNames);
+          const [matchedByIdResult, matchedByNameResult] = await Promise.all([
+            supabase
+              .from('purchase_order_items')
+              .select('order_id')
+              .in('material_id', rawMaterialIds),
+            supabase
+              .from('purchase_order_items')
+              .select('order_id')
+              .in('material_name', rawMaterialNames)
+          ]);
+          const matchedById = matchedByIdResult.data;
+          const matchedByName = matchedByNameResult.data;
             
           const rawOrderIds = Array.from(new Set([
             ...(matchedById?.map(item => item.order_id) || []),

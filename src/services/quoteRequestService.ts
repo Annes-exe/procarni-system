@@ -74,15 +74,18 @@ export const quoteRequestService = {
             const rawMaterialNames = matchedRawMaterials?.map(m => m.name).filter(Boolean) || [];
             
             if (rawMaterialIds.length > 0 || rawMaterialNames.length > 0) {
-                const { data: matchedById } = await supabase
-                    .from('quote_request_items')
-                    .select('request_id')
-                    .in('material_id', rawMaterialIds);
-                    
-                const { data: matchedByName } = await supabase
-                    .from('quote_request_items')
-                    .select('request_id')
-                    .in('material_name', rawMaterialNames);
+                const [matchedByIdResult, matchedByNameResult] = await Promise.all([
+                    supabase
+                        .from('quote_request_items')
+                        .select('request_id')
+                        .in('material_id', rawMaterialIds),
+                    supabase
+                        .from('quote_request_items')
+                        .select('request_id')
+                        .in('material_name', rawMaterialNames)
+                ]);
+                const matchedById = matchedByIdResult.data;
+                const matchedByName = matchedByNameResult.data;
                     
                 const rawRequestIds = Array.from(new Set([
                     ...(matchedById?.map(item => item.request_id) || []),

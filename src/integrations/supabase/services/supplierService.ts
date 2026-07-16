@@ -315,22 +315,76 @@ const SupplierService = {
       ];
       const { data: matchedRawMaterials } = await supabase
         .from('materials')
-        .select('id')
+        .select('id, name')
         .in('category', categoriesToMatch);
-      const rawMaterialIds = matchedRawMaterials?.map(m => m.id) || [];
+      const rawMaterialIds = matchedRawMaterials?.map(m => m.id).filter(Boolean) || [];
+      const rawMaterialNames = matchedRawMaterials?.map(m => m.name).filter(Boolean) || [];
       
-      if (rawMaterialIds.length > 0) {
-        const { data: matchedSupplierMaterials } = await supabase
-          .from('supplier_materials')
-          .select('supplier_id')
-          .in('material_id', rawMaterialIds);
-        const rawSupplierIds = Array.from(new Set(matchedSupplierMaterials?.map(sm => sm.supplier_id).filter(Boolean) || []));
-        
-        if (rawSupplierIds.length > 0) {
-          query = query.in('id', rawSupplierIds);
-        } else {
-          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
-        }
+      const supplierIdsSet = new Set<string>();
+
+      // Run first level queries in parallel (catalog, PO items, Quote items)
+      const [
+        catalogResult,
+        poByIdResult,
+        poByNameResult,
+        qByIdResult,
+        qByNameResult
+      ] = await Promise.all([
+        rawMaterialIds.length > 0
+          ? supabase.from('supplier_materials').select('supplier_id').in('material_id', rawMaterialIds)
+          : Promise.resolve({ data: [] }),
+        rawMaterialIds.length > 0
+          ? supabase.from('purchase_order_items').select('order_id').in('material_id', rawMaterialIds)
+          : Promise.resolve({ data: [] }),
+        rawMaterialNames.length > 0
+          ? supabase.from('purchase_order_items').select('order_id').in('material_name', rawMaterialNames)
+          : Promise.resolve({ data: [] }),
+        rawMaterialIds.length > 0
+          ? supabase.from('quote_request_items').select('request_id').in('material_id', rawMaterialIds)
+          : Promise.resolve({ data: [] }),
+        rawMaterialNames.length > 0
+          ? supabase.from('quote_request_items').select('request_id').in('material_name', rawMaterialNames)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      // A. Extract catalog suppliers
+      catalogResult.data?.forEach(sm => {
+        if (sm.supplier_id) supplierIdsSet.add(sm.supplier_id);
+      });
+
+      // B. Process purchase order items
+      const rawOrderIds = Array.from(new Set([
+        ...(poByIdResult.data?.map(item => item.order_id) || []),
+        ...(poByNameResult.data?.map(item => item.order_id) || [])
+      ].filter(Boolean)));
+
+      // C. Process quote request items
+      const rawRequestIds = Array.from(new Set([
+        ...(qByIdResult.data?.map(item => item.request_id) || []),
+        ...(qByNameResult.data?.map(item => item.request_id) || [])
+      ].filter(Boolean)));
+
+      // Run second level queries in parallel (fetching supplier IDs from POs and Quotes)
+      const [ordersResult, requestsResult] = await Promise.all([
+        rawOrderIds.length > 0
+          ? supabase.from('purchase_orders').select('supplier_id').in('id', rawOrderIds)
+          : Promise.resolve({ data: [] }),
+        rawRequestIds.length > 0
+          ? supabase.from('quote_requests').select('supplier_id').in('id', rawRequestIds)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      ordersResult.data?.forEach(o => {
+        if (o.supplier_id) supplierIdsSet.add(o.supplier_id);
+      });
+
+      requestsResult.data?.forEach(q => {
+        if (q.supplier_id) supplierIdsSet.add(q.supplier_id);
+      });
+
+      const rawSupplierIds = Array.from(supplierIdsSet);
+      if (rawSupplierIds.length > 0) {
+        query = query.in('id', rawSupplierIds);
       } else {
         query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
       }
