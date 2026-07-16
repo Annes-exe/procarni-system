@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { es } from 'date-fns/locale';
@@ -224,9 +224,9 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
       const recDate = new Date(rec.timestamp);
 
       if (filterPeriod === 'week') {
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(now.getDate() - 7);
-        return recDate >= oneWeekAgo;
+        const start = startOfWeek(now, { weekStartsOn: 1 });
+        const end = endOfWeek(now, { weekStartsOn: 1 });
+        return recDate >= start && recDate <= end;
       }
       if (filterPeriod === 'month') {
         const oneMonthAgo = new Date();
