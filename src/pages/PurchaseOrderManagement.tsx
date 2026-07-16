@@ -72,6 +72,7 @@ const PurchaseOrderManagement = () => {
   };
 
   const [showHistory, setShowHistory] = useState(false);
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -116,8 +117,8 @@ const PurchaseOrderManagement = () => {
 
   // Centralized query for all tabs with pagination
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab],
-    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any),
+    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab, onlyRawMaterials],
+    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, onlyRawMaterials),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -637,18 +638,32 @@ const PurchaseOrderManagement = () => {
                 )}
               </TabsList>
 
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar orden..."
-                  className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchInput}
-                  onChange={(e) => {
-                    setSearchInput(e.target.value);
-                    updateSearchParams('search', e.target.value);
-                  }}
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Switch Materia Prima */}
+                <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
+                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                    Materia Prima
+                  </Label>
+                  <Switch
+                    id="raw-materials-switch"
+                    checked={onlyRawMaterials}
+                    onCheckedChange={setOnlyRawMaterials}
+                  />
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar orden..."
+                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    value={searchInput}
+                    onChange={(e) => {
+                      setSearchInput(e.target.value);
+                      updateSearchParams('search', e.target.value);
+                    }}
+                  />
+                </div>
               </div>
             </div>
 

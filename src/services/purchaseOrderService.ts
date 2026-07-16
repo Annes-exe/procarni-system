@@ -56,7 +56,8 @@ export const purchaseOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active',
+      onlyRawMaterials: boolean = false
     ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -82,6 +83,30 @@ export const purchaseOrderService = {
         query = query.eq('status', 'Archived');
       } else if (statusFilter === 'Rejected') {
         query = query.eq('status', 'Rejected');
+      }
+   
+      if (onlyRawMaterials) {
+        const { data: matchedRawMaterials } = await supabase
+          .from('materials')
+          .select('id')
+          .in('category', ['SECA', 'FRESCA', 'EMPAQUE']);
+        const rawMaterialIds = matchedRawMaterials?.map(m => m.id) || [];
+        
+        if (rawMaterialIds.length > 0) {
+          const { data: matchedItems } = await supabase
+            .from('purchase_order_items')
+            .select('order_id')
+            .in('material_id', rawMaterialIds);
+          const rawOrderIds = Array.from(new Set(matchedItems?.map(item => item.order_id).filter(Boolean) || []));
+          
+          if (rawOrderIds.length > 0) {
+            query = query.in('id', rawOrderIds);
+          } else {
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
+          }
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
+        }
       }
   
       if (searchTerm) {

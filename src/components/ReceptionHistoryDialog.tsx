@@ -11,6 +11,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { es } from 'date-fns/locale';
 
 interface ReceptionHistoryDialogProps {
@@ -25,6 +27,7 @@ interface ReceptionRecord {
   materialName: string;
   quantity: number;
   orderNumber: string;
+  materialId?: string | null;
 }
 
 const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
@@ -40,6 +43,7 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
   const [filterPeriod, setFilterPeriod] = useState<'all' | 'week' | 'month' | 'day' | 'custom'>('week');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
   // Fetch a map of order_id to order number details
   const { data: orderDetailsMap = {} } = useQuery<Record<string, { sequence: number | null; createdAt: string | null }>>({
@@ -56,6 +60,25 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
           sequence: o.sequence_number,
           createdAt: o.created_at
         };
+      });
+      return map;
+    },
+    enabled: isOpen
+  });
+
+  // Fetch a map of material name and material ID to category
+  const { data: materialCategoriesMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ['materials_categories_map'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, name, category');
+      if (error) throw error;
+      
+      const map: Record<string, string> = {};
+      (data || []).forEach(m => {
+        if (m.id) map[m.id] = m.category || '';
+        if (m.name) map[m.name.toLowerCase().trim()] = m.category || '';
       });
       return map;
     },
@@ -126,6 +149,8 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
           }
         }
 
+        let materialId = details.material_id || '';
+
         if (quantity > 0) {
           addRecord({
             id: log.id,
@@ -134,6 +159,7 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
             materialName: materialName || 'Material Desconocido',
             quantity,
             orderNumber: orderNumber || 'N/A',
+            materialId: materialId || null,
           });
         }
       }
@@ -156,6 +182,8 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
             orderNumber = formatSequenceNumber(orderInfo.sequence, orderInfo.createdAt);
           }
 
+          const materialId = newData.material_id || oldData.material_id || '';
+
           addRecord({
             id: log.id,
             timestamp: log.timestamp,
@@ -163,6 +191,7 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
             materialName: materialName || 'Material Desconocido',
             quantity: addedQty,
             orderNumber,
+            materialId: materialId || null,
           });
         }
       }
@@ -171,10 +200,27 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
     return list;
   }, [rawLogs, orderDetailsMap]);
 
+  // Helper to resolve material category
+  const getMaterialCategory = (record: ReceptionRecord): string => {
+    if (record.materialId && materialCategoriesMap[record.materialId]) {
+      return materialCategoriesMap[record.materialId];
+    }
+    const nameKey = record.materialName.toLowerCase().trim();
+    return materialCategoriesMap[nameKey] || '';
+  };
+
   // Filter records based on selected period
   const filteredRecords = useMemo(() => {
     const now = new Date();
     return receptionRecords.filter((rec) => {
+      // Filter by raw materials category switch
+      if (onlyRawMaterials) {
+        const category = getMaterialCategory(rec);
+        if (!['SECA', 'FRESCA', 'EMPAQUE'].includes(category)) {
+          return false;
+        }
+      }
+
       const recDate = new Date(rec.timestamp);
 
       if (filterPeriod === 'week') {
@@ -208,7 +254,7 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
       }
       return true; // 'all'
     });
-  }, [receptionRecords, filterPeriod, startDate, endDate]);
+  }, [receptionRecords, filterPeriod, startDate, endDate, onlyRawMaterials, materialCategoriesMap]);
 
   // Group and consolidate quantities by material name
   const consolidatedSummary = useMemo(() => {
@@ -400,7 +446,8 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
         {/* Filter Controls */}
         <div className="space-y-4 my-4">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 p-3 rounded-2xl border border-slate-100">
-            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border shadow-sm">
               <Button
                 variant="ghost"
                 size="sm"
@@ -462,6 +509,19 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
                 Todos
               </Button>
             </div>
+
+            {/* Switch Materia Prima */}
+            <div className="flex items-center space-x-2 bg-white px-3 py-1.5 h-9 rounded-xl border shadow-sm">
+              <Label htmlFor="reception-raw-materials-switch" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest cursor-pointer select-none">
+                Materia Prima
+              </Label>
+              <Switch
+                id="reception-raw-materials-switch"
+                checked={onlyRawMaterials}
+                onCheckedChange={setOnlyRawMaterials}
+              />
+            </div>
+          </div>
 
             <div className="flex items-center gap-2">
               <Button

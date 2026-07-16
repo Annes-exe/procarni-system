@@ -37,7 +37,7 @@ export interface CreateQuoteRequestItemInput {
 
 export const quoteRequestService = {
 
-    async getAll(statusFilter?: 'Active' | 'History' | 'Draft' | 'Approved' | 'Rejected' | 'Archived') {
+    async getAll(statusFilter?: 'Active' | 'History' | 'Draft' | 'Approved' | 'Rejected' | 'Archived', onlyRawMaterials: boolean = false) {
         let query = supabase
             .from('quote_requests')
             .select(`
@@ -55,6 +55,30 @@ export const quoteRequestService = {
             query = query.eq('status', 'Rejected');
         } else if (statusFilter) {
             query = query.eq('status', statusFilter);
+        }
+
+        if (onlyRawMaterials) {
+            const { data: matchedRawMaterials } = await supabase
+                .from('materials')
+                .select('id')
+                .in('category', ['SECA', 'FRESCA', 'EMPAQUE']);
+            const rawMaterialIds = matchedRawMaterials?.map(m => m.id) || [];
+            
+            if (rawMaterialIds.length > 0) {
+                const { data: matchedItems } = await supabase
+                    .from('quote_request_items')
+                    .select('request_id')
+                    .in('material_id', rawMaterialIds);
+                const rawRequestIds = Array.from(new Set(matchedItems?.map(item => item.request_id).filter(Boolean) || []));
+                
+                if (rawRequestIds.length > 0) {
+                    query = query.in('id', rawRequestIds);
+                } else {
+                    query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
+                }
+            } else {
+                query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
+            }
         }
 
         const { data, error } = await query;

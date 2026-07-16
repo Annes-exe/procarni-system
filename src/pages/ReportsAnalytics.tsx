@@ -41,6 +41,8 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
@@ -613,6 +615,7 @@ const ReportsAnalytics = () => {
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<string>(initialTab);
+    const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
     // Effect to handle URL parameters for deep linking
     React.useEffect(() => {
@@ -700,21 +703,31 @@ const ReportsAnalytics = () => {
     // Filter by currency directly on the data for calculations
     const filteredData = useMemo(() => {
         return purchaseData
-            .filter((item: any) =>
-                item.purchase_orders.currency === currency &&
-                ['Approved', 'Archived'].includes(item.purchase_orders.status)
-            )
+            .filter((item: any) => {
+                if (onlyRawMaterials) {
+                    const category = item.materials?.category || '';
+                    if (!['SECA', 'FRESCA', 'EMPAQUE'].includes(category)) return false;
+                }
+                return (
+                    item.purchase_orders.currency === currency &&
+                    ['Approved', 'Archived'].includes(item.purchase_orders.status)
+                );
+            })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
-    }, [purchaseData, currency]);
+    }, [purchaseData, currency, onlyRawMaterials]);
 
     // Unified data without currency filtering for Detailed History (Buscador)
     const unifiedFilteredData = useMemo(() => {
         return purchaseData
-            .filter((item: any) =>
-                ['Approved', 'Archived'].includes(item.purchase_orders.status)
-            )
+            .filter((item: any) => {
+                if (onlyRawMaterials) {
+                    const category = item.materials?.category || '';
+                    if (!['SECA', 'FRESCA', 'EMPAQUE'].includes(category)) return false;
+                }
+                return ['Approved', 'Archived'].includes(item.purchase_orders.status);
+            })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
-    }, [purchaseData]);
+    }, [purchaseData, onlyRawMaterials]);
 
     const kpis = useMemo(() => {
         const totalSpend = filteredData.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
@@ -883,6 +896,18 @@ const ReportsAnalytics = () => {
                                 className="shadow-sm"
                             />
                         )}
+                    </div>
+
+                    {/* Switch Materia Prima */}
+                    <div className="flex items-center space-x-2 bg-white px-3 py-1.5 h-9 rounded-xl border border-gray-200 shadow-sm self-stretch sm:self-auto justify-between sm:justify-start">
+                        <Label htmlFor="reports-raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                            Materia Prima
+                        </Label>
+                        <Switch
+                            id="reports-raw-materials-switch"
+                            checked={onlyRawMaterials}
+                            onCheckedChange={setOnlyRawMaterials}
+                        />
                     </div>
 
                     {/* Filtro de Fecha Container (Relativo para posicionar el botón de limpiar sin alterar la altura) */}

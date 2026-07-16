@@ -21,6 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -40,6 +42,7 @@ const QuoteRequestManagement = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isHistoryMode, setIsHistoryMode] = useState(false);
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
 
   // Tabs state depends on mode
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -75,8 +78,8 @@ const QuoteRequestManagement = () => {
 
   // Fetch Requests based on Mode
   const { data: quoteRequests, isLoading, error } = useQuery({
-    queryKey: ['quoteRequests', isHistoryMode ? 'History' : 'Active'],
-    queryFn: async () => await quoteRequestService.getAll(isHistoryMode ? 'History' : 'Active'),
+    queryKey: ['quoteRequests', isHistoryMode ? 'History' : 'Active', onlyRawMaterials],
+    queryFn: async () => await quoteRequestService.getAll(isHistoryMode ? 'History' : 'Active' as any, onlyRawMaterials),
     enabled: !!session,
   });
 
@@ -497,15 +500,29 @@ const QuoteRequestManagement = () => {
                 )}
               </TabsList>
 
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar solicitud..."
-                  className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Switch Materia Prima */}
+                <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
+                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                    Materia Prima
+                  </Label>
+                  <Switch
+                    id="raw-materials-switch"
+                    checked={onlyRawMaterials}
+                    onCheckedChange={setOnlyRawMaterials}
+                  />
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar solicitud..."
+                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 

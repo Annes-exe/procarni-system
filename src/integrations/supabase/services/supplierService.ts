@@ -294,7 +294,8 @@ const SupplierService = {
     pageSize: number,
     searchTerm: string = '',
     statusFilter: string = 'All',
-    dataQualityFilter: string = 'All'
+    dataQualityFilter: string = 'All',
+    onlyRawMaterials: boolean = false
   ) => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -302,6 +303,30 @@ const SupplierService = {
     let query = supabase
       .from('suppliers')
       .select('*', { count: 'exact' });
+
+    if (onlyRawMaterials) {
+      const { data: matchedRawMaterials } = await supabase
+        .from('materials')
+        .select('id')
+        .in('category', ['SECA', 'FRESCA', 'EMPAQUE']);
+      const rawMaterialIds = matchedRawMaterials?.map(m => m.id) || [];
+      
+      if (rawMaterialIds.length > 0) {
+        const { data: matchedSupplierMaterials } = await supabase
+          .from('supplier_materials')
+          .select('supplier_id')
+          .in('material_id', rawMaterialIds);
+        const rawSupplierIds = Array.from(new Set(matchedSupplierMaterials?.map(sm => sm.supplier_id).filter(Boolean) || []));
+        
+        if (rawSupplierIds.length > 0) {
+          query = query.in('id', rawSupplierIds);
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
+        }
+      } else {
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
+      }
+    }
 
     if (searchTerm) {
       const sanitizedSearch = searchTerm.replace(/[,.]/g, ' ');
