@@ -58,48 +58,7 @@ export const quoteRequestService = {
         }
 
         if (onlyRawMaterials) {
-            const categoriesToMatch = [
-                'SECA', 'FRESCA', 'EMPAQUE',
-                'seca', 'fresca', 'empaque',
-                'Seca', 'Fresca', 'Empaque',
-                'SECAS', 'FRESCAS', 'EMPAQUES',
-                'secas', 'frescas', 'empaques',
-                'Secas', 'Frescas', 'Empaques'
-            ];
-            const { data: matchedRawMaterials } = await supabase
-                .from('materials')
-                .select('id, name')
-                .in('category', categoriesToMatch);
-            const rawMaterialIds = matchedRawMaterials?.map(m => m.id).filter(Boolean) || [];
-            const rawMaterialNames = matchedRawMaterials?.map(m => m.name).filter(Boolean) || [];
-            
-            if (rawMaterialIds.length > 0 || rawMaterialNames.length > 0) {
-                const [matchedByIdResult, matchedByNameResult] = await Promise.all([
-                    supabase
-                        .from('quote_request_items')
-                        .select('request_id')
-                        .in('material_id', rawMaterialIds),
-                    supabase
-                        .from('quote_request_items')
-                        .select('request_id')
-                        .in('material_name', rawMaterialNames)
-                ]);
-                const matchedById = matchedByIdResult.data;
-                const matchedByName = matchedByNameResult.data;
-                    
-                const rawRequestIds = Array.from(new Set([
-                    ...(matchedById?.map(item => item.request_id) || []),
-                    ...(matchedByName?.map(item => item.request_id) || [])
-                ].filter(Boolean)));
-                
-                if (rawRequestIds.length > 0) {
-                    query = query.in('id', rawRequestIds);
-                } else {
-                    query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
-                }
-            } else {
-                query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // Force empty
-            }
+            query = query.eq('is_raw_material', true);
         }
 
         const { data, error } = await query;
