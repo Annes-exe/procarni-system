@@ -37,7 +37,7 @@ const formatSequenceNumber = (sequence?: number | null, dateString?: string | nu
 };
 
 export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ isOpen, onClose }) => {
-  const [filterPeriod, setFilterPeriod] = useState<'all' | 'week' | 'month' | 'custom'>('all');
+  const [filterPeriod, setFilterPeriod] = useState<'all' | 'week' | 'month' | 'day' | 'custom'>('week');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
@@ -187,6 +187,10 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
         oneMonthAgo.setMonth(now.getMonth() - 1);
         return recDate >= oneMonthAgo;
       }
+      if (filterPeriod === 'day') {
+        if (!startDate) return true;
+        return format(recDate, 'yyyy-MM-dd') === startDate;
+      }
       if (filterPeriod === 'custom') {
         let matchStart = true;
         let matchEnd = true;
@@ -249,10 +253,17 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
       let periodLabel = 'Todos los registros';
       if (filterPeriod === 'week') periodLabel = 'Última Semana';
       else if (filterPeriod === 'month') periodLabel = 'Último Mes';
+      else if (filterPeriod === 'day') {
+        periodLabel = startDate ? `Día: ${format(new Date(startDate + 'T00:00:00'), 'dd/MM/yyyy')}` : 'Todos los registros';
+      }
       else if (filterPeriod === 'custom') {
-        const from = startDate ? format(new Date(startDate), 'dd/MM/yyyy') : 'Inicio';
-        const to = endDate ? format(new Date(endDate), 'dd/MM/yyyy') : 'Fin';
-        periodLabel = `Periodo: ${from} - ${to}`;
+        if (!startDate && !endDate) {
+          periodLabel = 'Todos los registros';
+        } else {
+          const from = startDate ? format(new Date(startDate), 'dd/MM/yyyy') : 'Inicio';
+          const to = endDate ? format(new Date(endDate), 'dd/MM/yyyy') : 'Fin';
+          periodLabel = `Periodo: ${from} - ${to}`;
+        }
       }
 
       doc.setFont('Helvetica', 'normal');
@@ -393,18 +404,11 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setFilterPeriod('all')}
-                className={cn(
-                  "h-7 text-xs px-2.5 rounded-lg transition-all",
-                  filterPeriod === 'all' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white"
-                )}
-              >
-                Todos
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setFilterPeriod('week')}
+                onClick={() => {
+                  setFilterPeriod('week');
+                  setStartDate('');
+                  setEndDate('');
+                }}
                 className={cn(
                   "h-7 text-xs px-2.5 rounded-lg transition-all",
                   filterPeriod === 'week' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white"
@@ -415,7 +419,11 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setFilterPeriod('month')}
+                onClick={() => {
+                  setFilterPeriod('month');
+                  setStartDate('');
+                  setEndDate('');
+                }}
                 className={cn(
                   "h-7 text-xs px-2.5 rounded-lg transition-all",
                   filterPeriod === 'month' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white"
@@ -426,13 +434,32 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setFilterPeriod('custom')}
+                onClick={() => {
+                  setFilterPeriod('day');
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className={cn(
+                  "h-7 text-xs px-2.5 rounded-lg transition-all",
+                  filterPeriod === 'day' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white"
+                )}
+              >
+                Día
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilterPeriod('custom');
+                  setStartDate('');
+                  setEndDate('');
+                }}
                 className={cn(
                   "h-7 text-xs px-2.5 rounded-lg transition-all",
                   filterPeriod === 'custom' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white"
                 )}
               >
-                Periodo
+                Todos
               </Button>
             </div>
 
@@ -459,32 +486,80 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
             </div>
           </div>
 
+          {filterPeriod === 'day' && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="grid grid-cols-1 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Seleccionar Día</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                </div>
+              </div>
+              {startDate && (
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setStartDate('');
+                    }}
+                    className="h-6 text-[10px] text-slate-400 hover:text-procarni-primary hover:bg-slate-100 rounded-lg px-2"
+                  >
+                    Limpiar fecha (Ver todos)
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           {filterPeriod === 'custom' && (
-            <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Desde</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
-                  />
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Desde</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hasta</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hasta</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
-                  />
+              {(startDate || endDate) && (
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                    }}
+                    className="h-6 text-[10px] text-slate-400 hover:text-procarni-primary hover:bg-slate-100 rounded-lg px-2"
+                  >
+                    Limpiar fechas (Ver todos)
+                  </Button>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

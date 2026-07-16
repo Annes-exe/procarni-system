@@ -593,6 +593,21 @@ const ReportsAnalytics = () => {
         from: undefined,
         to: undefined,
     });
+    const [dateFilterType, setDateFilterType] = useState<'range' | 'single'>('range');
+    const [singleDate, setSingleDate] = useState<Date | undefined>(undefined);
+    
+    const hasActiveDateFilter = useMemo(() => {
+        if (dateFilterType === 'single') {
+            return !!singleDate;
+        }
+        return !!(date.from || date.to);
+    }, [dateFilterType, date, singleDate]);
+
+    const clearDates = () => {
+        setSingleDate(undefined);
+        setDate({ from: undefined, to: undefined });
+    };
+
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
     const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
@@ -659,12 +674,15 @@ const ReportsAnalytics = () => {
         queryFn: getAllMaterials,
     });
 
+    const effectiveStartDate = dateFilterType === 'single' ? singleDate : date.from;
+    const effectiveEndDate = dateFilterType === 'single' ? singleDate : date.to;
+
     // 3. Main Purchase Data (Reports)
     const { data: purchaseData = [], isLoading: isLoadingPurchases } = useQuery({
-        queryKey: ['reportsPurchases', date.from, date.to, selectedSupplierId],
+        queryKey: ['reportsPurchases', dateFilterType, effectiveStartDate, effectiveEndDate, selectedSupplierId],
         queryFn: () => getPurchaseHistoryReport({
-            startDate: date.from,
-            endDate: date.to,
+            startDate: effectiveStartDate,
+            endDate: effectiveEndDate,
             supplierId: selectedSupplierId === 'all' ? undefined : selectedSupplierId,
         }),
     });
@@ -844,9 +862,9 @@ const ReportsAnalytics = () => {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-6 lg:gap-8 w-full lg:w-auto">
                     {/* Supplier Select */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial sm:mr-4">
                         <div className="w-full sm:w-[220px]">
                             <SmartSearch
                                 placeholder="Buscar proveedor..."
@@ -867,40 +885,85 @@ const ReportsAnalytics = () => {
                         )}
                     </div>
 
-                    {/* Date Range Picker */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn(
-                                    "h-9 justify-start text-left font-normal text-xs bg-white shadow-sm w-full sm:w-auto",
-                                    !date.from && "text-muted-foreground"
-                                )}
+                    {/* Filtro de Fecha Container (Relativo para posicionar el botón de limpiar sin alterar la altura) */}
+                    <div className="relative flex flex-col items-stretch sm:items-end w-full sm:w-auto">
+                        {/* Filtro de Fecha (Periodo / Día Específico) */}
+                        <div className="flex items-center gap-2 bg-white px-2 py-0.5 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto">
+                            <Select
+                                value={dateFilterType}
+                                onValueChange={(val: 'range' | 'single') => setDateFilterType(val)}
                             >
-                                <CalendarIcon className="mr-2 h-3.5 w-3.5 text-gray-500" />
-                                {date.from ? (
-                                    date.to ? (
-                                        <>{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</>
+                                <SelectTrigger className="h-8 w-[125px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1">
+                                    <SelectValue placeholder="Tipo de filtro" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="range">Periodo</SelectItem>
+                                    <SelectItem value="single">Día específico</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Separator orientation="vertical" className="h-4 bg-gray-200" />
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "h-8 justify-start text-left font-normal text-xs bg-transparent w-full sm:w-auto min-w-[155px] hover:bg-slate-50 px-2",
+                                            dateFilterType === 'single' ? !singleDate && "text-muted-foreground" : !date.from && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <CalendarIcon className="mr-2 h-3.5 w-3.5 text-gray-500 shrink-0" />
+                                        {dateFilterType === 'single' ? (
+                                            singleDate ? format(singleDate, "dd/MM/yyyy") : <span className="truncate">Seleccionar día</span>
+                                        ) : (
+                                            date.from ? (
+                                                date.to ? (
+                                                    <span className="truncate">{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</span>
+                                                ) : (
+                                                    <span className="truncate">{format(date.from, "dd/MM/yy")}</span>
+                                                )
+                                            ) : (
+                                                <span className="truncate">Seleccionar periodo</span>
+                                            )
+                                        )}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end">
+                                    {dateFilterType === 'single' ? (
+                                        <Calendar
+                                            initialFocus
+                                            mode="single"
+                                            selected={singleDate}
+                                            onSelect={(d) => setSingleDate(d)}
+                                            locale={es}
+                                        />
                                     ) : (
-                                        format(date.from, "dd/MM/yy")
-                                    )
-                                ) : (
-                                    <span>Seleccionar periodo</span>
-                                )}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={date.from}
-                                selected={date}
-                                onSelect={(range: any) => setDate(range || { from: undefined, to: undefined })}
-                                numberOfMonths={isMobile ? 1 : 2}
-                                locale={es}
-                            />
-                        </PopoverContent>
-                    </Popover>
+                                        <Calendar
+                                            initialFocus
+                                            mode="range"
+                                            defaultMonth={date.from}
+                                            selected={date}
+                                            onSelect={(range: any) => setDate(range || { from: undefined, to: undefined })}
+                                            numberOfMonths={isMobile ? 1 : 2}
+                                            locale={es}
+                                        />
+                                    )}
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+
+                        {/* Contenedor absoluto sutil para el botón de limpiar (evita desalineación vertical y layout shift) */}
+                        <div className={cn(
+                            "absolute top-full right-1 mt-1 flex items-center justify-end transition-all duration-200",
+                            hasActiveDateFilter ? "opacity-100" : "opacity-0 pointer-events-none"
+                        )}>
+                            <button
+                                onClick={clearDates}
+                                className="text-[10px] text-slate-400 hover:text-procarni-primary hover:underline transition-colors font-medium whitespace-nowrap"
+                            >
+                                Limpiar fechas (Ver todos)
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
