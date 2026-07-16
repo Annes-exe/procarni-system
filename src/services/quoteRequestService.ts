@@ -68,16 +68,26 @@ export const quoteRequestService = {
             ];
             const { data: matchedRawMaterials } = await supabase
                 .from('materials')
-                .select('id')
+                .select('id, name')
                 .in('category', categoriesToMatch);
-            const rawMaterialIds = matchedRawMaterials?.map(m => m.id) || [];
+            const rawMaterialIds = matchedRawMaterials?.map(m => m.id).filter(Boolean) || [];
+            const rawMaterialNames = matchedRawMaterials?.map(m => m.name).filter(Boolean) || [];
             
-            if (rawMaterialIds.length > 0) {
-                const { data: matchedItems } = await supabase
+            if (rawMaterialIds.length > 0 || rawMaterialNames.length > 0) {
+                const { data: matchedById } = await supabase
                     .from('quote_request_items')
                     .select('request_id')
                     .in('material_id', rawMaterialIds);
-                const rawRequestIds = Array.from(new Set(matchedItems?.map(item => item.request_id).filter(Boolean) || []));
+                    
+                const { data: matchedByName } = await supabase
+                    .from('quote_request_items')
+                    .select('request_id')
+                    .in('material_name', rawMaterialNames);
+                    
+                const rawRequestIds = Array.from(new Set([
+                    ...(matchedById?.map(item => item.request_id) || []),
+                    ...(matchedByName?.map(item => item.request_id) || [])
+                ].filter(Boolean)));
                 
                 if (rawRequestIds.length > 0) {
                     query = query.in('id', rawRequestIds);
