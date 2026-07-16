@@ -215,8 +215,8 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
     return receptionRecords.filter((rec) => {
       // Filter by raw materials category switch
       if (onlyRawMaterials) {
-        const category = getMaterialCategory(rec);
-        if (!['SECA', 'FRESCA', 'EMPAQUE'].includes(category)) {
+        const category = getMaterialCategory(rec).toLowerCase().trim();
+        if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) {
           return false;
         }
       }

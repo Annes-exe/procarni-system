@@ -58,10 +58,18 @@ export const quoteRequestService = {
         }
 
         if (onlyRawMaterials) {
+            const categoriesToMatch = [
+                'SECA', 'FRESCA', 'EMPAQUE',
+                'seca', 'fresca', 'empaque',
+                'Seca', 'Fresca', 'Empaque',
+                'SECAS', 'FRESCAS', 'EMPAQUES',
+                'secas', 'frescas', 'empaques',
+                'Secas', 'Frescas', 'Empaques'
+            ];
             const { data: matchedRawMaterials } = await supabase
                 .from('materials')
                 .select('id')
-                .in('category', ['SECA', 'FRESCA', 'EMPAQUE']);
+                .in('category', categoriesToMatch);
             const rawMaterialIds = matchedRawMaterials?.map(m => m.id) || [];
             
             if (rawMaterialIds.length > 0) {

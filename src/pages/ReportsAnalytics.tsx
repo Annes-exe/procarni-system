@@ -705,8 +705,8 @@ const ReportsAnalytics = () => {
         return purchaseData
             .filter((item: any) => {
                 if (onlyRawMaterials) {
-                    const category = item.materials?.category || '';
-                    if (!['SECA', 'FRESCA', 'EMPAQUE'].includes(category)) return false;
+                    const category = (item.materials?.category || '').toLowerCase().trim();
+                    if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) return false;
                 }
                 return (
                     item.purchase_orders.currency === currency &&
@@ -721,8 +721,8 @@ const ReportsAnalytics = () => {
         return purchaseData
             .filter((item: any) => {
                 if (onlyRawMaterials) {
-                    const category = item.materials?.category || '';
-                    if (!['SECA', 'FRESCA', 'EMPAQUE'].includes(category)) return false;
+                    const category = (item.materials?.category || '').toLowerCase().trim();
+                    if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) return false;
                 }
                 return ['Approved', 'Archived'].includes(item.purchase_orders.status);
             })
