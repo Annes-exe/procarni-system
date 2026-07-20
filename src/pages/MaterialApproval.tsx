@@ -58,12 +58,12 @@ const MaterialApproval = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name');
+        .select('id, first_name, last_name, username, email');
       if (error) return {};
       const map: Record<string, string> = {};
       data.forEach((p: any) => {
         const name = [p.first_name, p.last_name].filter(Boolean).join(' ');
-        map[p.id] = name || 'Usuario';
+        map[p.id] = name || p.username || p.email || 'Usuario';
       });
       return map;
     },
