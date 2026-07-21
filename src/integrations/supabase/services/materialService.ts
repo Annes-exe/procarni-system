@@ -261,7 +261,7 @@ const MaterialService = {
     // Aplicar filtro de búsqueda
     if (searchTerm) {
       const searchPattern = `%${searchTerm}%`;
-      const cleanTerm = searchTerm.toUpperCase().trim();
+      const cleanTerm = searchTerm.toUpperCase().trim().replace(/"/g, '\\"');
       query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"}`);
     } else {
       // Ocultar hijos (base_material_id no nulo) del nivel raíz si no hay búsqueda activa y no se filtra por "no maestros".
