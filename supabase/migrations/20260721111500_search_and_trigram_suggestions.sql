@@ -72,3 +72,21 @@ BEGIN
     ORDER BY sm.similarity_score DESC, sm.name ASC;
 END;
 $$;
+
+-- 4. DB Trigger to ensure that approved pending materials automatically become is_master = true if independent
+CREATE OR REPLACE FUNCTION public.handle_material_approval_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'active' AND OLD.status = 'pending' AND NEW.base_material_id IS NULL THEN
+        NEW.is_master := true;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER on_material_approval_status
+    BEFORE UPDATE ON public.materials
+    FOR EACH ROW
+    WHEN (NEW.status = 'active' AND OLD.status = 'pending')
+    EXECUTE FUNCTION public.handle_material_approval_trigger();
+
