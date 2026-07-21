@@ -133,7 +133,6 @@ const MaterialService = {
         .from('materials')
         .select('*')
         .in('status', ['active', 'pending'])
-        .or(ACTIVE_MASTER_FILTER)
         .order('name', { ascending: true })
         .limit(10000);
 
@@ -162,7 +161,6 @@ const MaterialService = {
         .from('materials')
         .select('*')
         .in('status', ['active', 'pending'])
-        .or(ACTIVE_MASTER_FILTER)
         .order('name', { ascending: true })
         .limit(10000);
 

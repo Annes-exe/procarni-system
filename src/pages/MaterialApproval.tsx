@@ -78,9 +78,15 @@ const MaterialApproval = () => {
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async (materialId: string) => {
+      const materialToApprove = pendingMaterials.find(m => m.id === materialId);
+      const isMaster = !materialToApprove?.base_material_id;
+
       const { data, error } = await supabase
         .from('materials')
-        .update({ status: 'active' })
+        .update({ 
+          status: 'active',
+          is_master: isMaster
+        })
         .eq('id', materialId)
         .select()
         .single();
@@ -317,28 +323,23 @@ const MaterialApproval = () => {
                   setSelectedParentName(item.name.split(' - ')[0]);
                 }}
                 fetchFunction={async (query) => {
-                  let dbQuery = supabase
-                    .from('materials')
-                    .select('id, name, code, category')
-                    .eq('is_master', true)
-                    .eq('status', 'active');
+                  if (!linkingMaterial) return [];
 
-                  if (linkingMaterial) {
-                    dbQuery = dbQuery.neq('id', linkingMaterial.id);
+                  const { data, error } = await supabase.rpc('search_master_materials_suggested', {
+                    p_target_name: linkingMaterial.name,
+                    p_search_query: query.trim(),
+                    p_exclude_id: linkingMaterial.id
+                  });
+
+                  if (error) {
+                    console.error('[search_master_materials_suggested Error]:', error);
+                    return [];
                   }
 
-                  if (query.trim()) {
-                    dbQuery = dbQuery.ilike('name', `%${query}%`);
-                  }
-
-                  const { data, error } = await dbQuery
-                    .order('name', { ascending: true })
-                    .limit(10);
-
-                  if (error) return [];
                   return (data || []).map((m: any) => ({
                     id: m.id,
-                    name: `${m.name} - ${m.code || 'Sin código'}`
+                    name: `${m.name} - ${m.code || 'Sin código'}`,
+                    group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
                   }));
                 }}
               />
