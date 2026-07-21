@@ -460,28 +460,23 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 }}
                 disabled={isSubmitting}
                 fetchFunction={async (query) => {
-                  let dbQuery = supabase
-                    .from('materials')
-                    .select('id, name, code, category')
-                    .eq('is_master', true)
-                    .eq('status', 'active');
+                  const searchTargetName = materialName.trim() || query.trim();
+                  
+                  const { data, error } = await supabase.rpc('search_master_materials_suggested', {
+                    p_target_name: searchTargetName,
+                    p_search_query: query.trim(),
+                    p_exclude_id: editingMaterial?.id || null
+                  });
 
-                  if (editingMaterial) {
-                    dbQuery = dbQuery.neq('id', editingMaterial.id); // Excluirse a sí mismo
+                  if (error) {
+                    console.error('[search_master_materials_suggested Error]:', error);
+                    return [];
                   }
 
-                  if (query.trim()) {
-                    dbQuery = dbQuery.ilike('name', `%${query}%`);
-                  }
-
-                  const { data, error } = await dbQuery
-                    .order('name', { ascending: true })
-                    .limit(10);
-
-                  if (error) return [];
-                  return (data || []).map(m => ({
+                  return (data || []).map((m: any) => ({
                     id: m.id,
                     name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
+                    group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
                   }));
                 }}
               />
