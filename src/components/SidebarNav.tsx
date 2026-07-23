@@ -6,7 +6,7 @@ import {
   ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, 
   ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
   BarChart3, ChevronDown, Home, Warehouse, Download, Wrench,
-  Package, Layers
+  Package, Layers, CreditCard, CheckCircle
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { m, AnimatePresence } from 'framer-motion';
@@ -100,10 +100,12 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
         return null;
       }
 
-      // Filter items inside category (only admin can see CXP in report menu)
+      // Filter items inside category (hide CXP only for specific non-admin users)
       const filteredItems = category.items.filter(item => {
         if (item.to === '/payment-reminders') {
-          return role === 'admin' || role === 'administrador';
+          // Show by default if role is not strictly defined yet, or if it's admin/administrador/buyer/etc.
+          // Only hide if role is specifically a restricted non-admin role if any
+          return role !== 'payment_viewer';
         }
         return true;
       });

@@ -39,6 +39,8 @@ import Notifications from "./pages/Notifications";
 import GroupManagement from "./pages/GroupManagement";
 import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 
+import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
+
 // Inventory Module Pages
 import StockGlobal from "./pages/StockGlobal";
 import Recepciones from "./pages/Recepciones";
@@ -90,6 +92,7 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/ficha-tecnica-upload" element={<FichaTecnicaUpload />} />
                   <Route path="/reports" element={<ReportsAnalytics />} />
+                  <Route path="/payment-reminders" element={<PaymentRemindersDashboard />} />
                   <Route path="/price-history" element={<PriceHistory />} />
                   <Route path="/purchase-history" element={<PurchaseHistory />} />
                   <Route path="/audit-log" element={<AuditLog />} />

@@ -19,7 +19,7 @@ export const purchaseOrderService = {
     /**
      * Fetch all Purchase Orders filtered by status
      */
-    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'Received' | 'ToPay' | 'Credit' | 'Paid' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
+    getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
         let query = supabase
             .from('purchase_orders')
             .select('*, suppliers(name), companies(name)')
@@ -29,8 +29,6 @@ export const purchaseOrderService = {
             query = query.in('status', ['Draft']);
         } else if (statusFilter === 'Approved') {
             query = query.in('status', ['Approved', 'Credit', 'Paid']);
-        } else if (statusFilter === 'Received') {
-            query = query.eq('status', 'Received');
         } else if (statusFilter === 'ToPay') {
             query = query.eq('status', 'ToPay');
         } else if (statusFilter === 'Credit') {
@@ -58,7 +56,10 @@ export const purchaseOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'Received' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active',
+      onlyRawMaterials: boolean = false,
+      startDate?: string,
+      endDate?: string
     ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -69,13 +70,18 @@ export const purchaseOrderService = {
       let query = supabase
         .from('purchase_orders')
         .select(selectQuery, { count: 'exact' });
+
+      if (startDate) {
+        query = query.gte('issue_date', startDate);
+      }
+      if (endDate) {
+        query = query.lte('issue_date', endDate);
+      }
   
       if (statusFilter === 'Active') {
         query = query.in('status', ['Draft']);
       } else if (statusFilter === 'Approved') {
         query = query.in('status', ['Approved', 'Credit', 'Paid', 'ToPay', 'Received']);
-      } else if (statusFilter === 'Received') {
-        query = query.eq('status', 'Received');
       } else if (statusFilter === 'ToPay') {
         query = query.eq('status', 'ToPay');
       } else if (statusFilter === 'Credit') {
@@ -86,6 +92,10 @@ export const purchaseOrderService = {
         query = query.eq('status', 'Archived');
       } else if (statusFilter === 'Rejected') {
         query = query.eq('status', 'Rejected');
+      }
+   
+      if (onlyRawMaterials) {
+        query = query.eq('is_raw_material', true);
       }
   
       if (searchTerm) {
@@ -99,6 +109,29 @@ export const purchaseOrderService = {
           
         const supplierIds = matchedSuppliers?.map(s => s.id) || [];
         const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== '';
+
+        // Fetch matching master materials first
+        const { data: matchedMasterMaterials } = await supabase
+          .from('materials')
+          .select('id')
+          .ilike('name', searchPattern);
+
+        const materialIds = matchedMasterMaterials?.map(m => m.id) || [];
+
+        let orderIds: string[] = [];
+        if (materialIds.length > 0) {
+          const { data: matchedItems } = await supabase
+            .from('purchase_order_items')
+            .select('order_id')
+            .or(`material_name.ilike.${searchPattern},material_id.in.(${materialIds.join(',')})`);
+          orderIds = Array.from(new Set(matchedItems?.map(item => item.order_id).filter(Boolean) || []));
+        } else {
+          const { data: matchedItems } = await supabase
+            .from('purchase_order_items')
+            .select('order_id')
+            .ilike('material_name', searchPattern);
+          orderIds = Array.from(new Set(matchedItems?.map(item => item.order_id).filter(Boolean) || []));
+        }
         
         const orConditions: string[] = [];
         if (isNumericSearch) {
@@ -106,6 +139,9 @@ export const purchaseOrderService = {
         }
         if (supplierIds.length > 0) {
           orConditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        }
+        if (orderIds.length > 0) {
+          orConditions.push(`id.in.(${orderIds.join(',')})`);
         }
         
         if (orConditions.length > 0) {
@@ -243,7 +279,19 @@ export const purchaseOrderService = {
             return null;
         }
 
-        // 2. Refresh Items
+        // 2. Fetch old items to preserve received_quantity
+        const { data: oldItems } = await supabase
+            .from('purchase_order_items')
+            .select('material_id, material_name, unit_id, received_quantity')
+            .eq('order_id', id);
+
+        const receivedQuantityMap = new Map<string, number>();
+        oldItems?.forEach(item => {
+            const key = `${item.material_id || ''}_${item.unit_id || ''}_${item.material_name || ''}`;
+            receivedQuantityMap.set(key, item.received_quantity || 0);
+        });
+
+        // 3. Refresh Items
         const { error: deleteError } = await supabase
             .from('purchase_order_items')
             .delete()
@@ -255,22 +303,28 @@ export const purchaseOrderService = {
         }
 
         if (items && items.length > 0) {
-            const orderItems = items.map(item => ({
-                order_id: id,
-                material_id: item.material_id || null,
-                material_name: item.material_name,
-                supplier_code: item.supplier_code || null,
-                description: item.description || null,
-                quantity: item.quantity,
-                unit: item.unit || null,
-                unit_price: item.unit_price,
-                tax_rate: item.tax_rate ?? 0.16,
-                is_exempt: !!item.is_exempt,
-                sales_percentage: item.sales_percentage || 0,
-                discount_percentage: item.discount_percentage || 0,
-                unit_id: item.unit_id || null,
-                was_recalculated: !!item.was_recalculated,
-            }));
+            const orderItems = items.map(item => {
+                const key = `${item.material_id || ''}_${item.unit_id || ''}_${item.material_name || ''}`;
+                const preservedReceived = receivedQuantityMap.get(key) || 0;
+                
+                return {
+                    order_id: id,
+                    material_id: item.material_id || null,
+                    material_name: item.material_name,
+                    supplier_code: item.supplier_code || null,
+                    description: item.description || null,
+                    quantity: item.quantity,
+                    unit: item.unit || null,
+                    unit_price: item.unit_price,
+                    tax_rate: item.tax_rate ?? 0.16,
+                    is_exempt: !!item.is_exempt,
+                    sales_percentage: item.sales_percentage || 0,
+                    discount_percentage: item.discount_percentage || 0,
+                    unit_id: item.unit_id || null,
+                    was_recalculated: !!item.was_recalculated,
+                    received_quantity: preservedReceived,
+                };
+            });
 
             const { error: insertError } = await supabase
                 .from('purchase_order_items')
@@ -281,7 +335,7 @@ export const purchaseOrderService = {
                 return null;
             }
 
-            // 3. Update Price History
+            // Update Price History
             await supabase.from('price_history').delete().eq('purchase_order_id', id);
 
             const priceHistoryEntries = items
@@ -294,7 +348,6 @@ export const purchaseOrderService = {
                     exchange_rate: updatedOrder.exchange_rate,
                     purchase_order_id: updatedOrder.id,
                     user_id: updatedOrder.user_id,
-                    unit: item.unit,
                     unit_id: item.unit_id,
                 }));
 
@@ -303,7 +356,10 @@ export const purchaseOrderService = {
             }
         }
 
-        // 4. Create Notification
+        // 4. Recalculate reception status of the order based on preserved quantities
+        await purchaseOrderService.updateOrderReceptionState(id);
+
+        // 5. Create Notification
         try {
             await supabase.from('notifications').insert({
                 user_id: updatedOrder.user_id,
@@ -582,5 +638,21 @@ export const purchaseOrderService = {
             console.error('[purchaseOrderService.updateOrderReceptionState] Error:', error);
             return false;
         }
+    },
+
+    getBySupplierId: async (supplierId: string): Promise<unknown[]> => {
+        const { data, error } = await supabase
+            .from('purchase_orders')
+            .select('*, companies(name), purchase_order_items(*)')
+            .eq('supplier_id', supplierId)
+            .order('sequence_number', { ascending: false });
+
+        if (error) {
+            console.error('[purchaseOrderService.getBySupplierId] Error:', error);
+            showError('Error al cargar órdenes de compra del proveedor.');
+            return [];
+        }
+        return data || [];
     }
 };
+
