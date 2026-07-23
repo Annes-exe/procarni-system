@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,20 @@ import { Input } from '@/components/ui/input';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDebounce } from 'use-debounce';
 import PaginationControls from '@/components/PaginationControls';
+import { Switch } from '@/components/ui/switch';
+import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -31,7 +39,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
-  'Received': 'Recibida',
+  'Received': 'Aprobada',
 };
 
 const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
@@ -47,7 +55,7 @@ const formatSequenceNumber = (sequence?: number | null, dateString?: string | nu
 
 const PurchaseOrderManagement = () => {
   const queryClient = useQueryClient();
-  const { session, role } = useSession();
+  const { session, role, supabase } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -58,7 +66,7 @@ const PurchaseOrderManagement = () => {
   const pageSize = 25;
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [debouncedSearch] = useDebounce(searchInput, 500);
-  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
+  const activeTab = (searchParams.get('tab') || 'all') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
 
   // Helper function to update search params
   const updateSearchParams = (key: string, value: string | null) => {
@@ -71,6 +79,40 @@ const PurchaseOrderManagement = () => {
   };
 
   const [showHistory, setShowHistory] = useState(false);
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
+  const [date, setDate] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [dateFilterType, setDateFilterType] = useState<'range' | 'single'>('range');
+  const [singleDate, setSingleDate] = useState<Date | undefined>(undefined);
+
+  const hasActiveDateFilter = useMemo(() => {
+    if (dateFilterType === 'single') {
+      return !!singleDate;
+    }
+    return !!(date.from || date.to);
+  }, [dateFilterType, date, singleDate]);
+
+  const clearDates = () => {
+    setSingleDate(undefined);
+    setDate({ from: undefined, to: undefined });
+  };
+
+  const effectiveStartDate = useMemo(() => {
+    if (dateFilterType === 'single') {
+      return singleDate ? format(singleDate, 'yyyy-MM-dd') : undefined;
+    }
+    return date.from ? format(date.from, 'yyyy-MM-dd') : undefined;
+  }, [dateFilterType, date.from, singleDate]);
+
+  const effectiveEndDate = useMemo(() => {
+    if (dateFilterType === 'single') {
+      return singleDate ? format(singleDate, 'yyyy-MM-dd') : undefined;
+    }
+    return date.to ? format(date.to, 'yyyy-MM-dd') : undefined;
+  }, [dateFilterType, date.to, singleDate]);
+
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [orderToModify, setOrderToModify] = useState<{ id: string; action: 'archive' | 'unarchive' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -92,6 +134,8 @@ const PurchaseOrderManagement = () => {
     }
   }, [searchParams, setSearchParams]);
   const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false);
+  const [isCreditApprove, setIsCreditApprove] = useState(false);
+  const [creditDaysApprove, setCreditDaysApprove] = useState(30);
   const [isBulkArchiveDialogOpen, setIsBulkArchiveDialogOpen] = useState(false);
   const [isBulkRejectDialogOpen, setIsBulkRejectDialogOpen] = useState(false);
   const [isBulkRestoreDialogOpen, setIsBulkRestoreDialogOpen] = useState(false);
@@ -103,7 +147,6 @@ const PurchaseOrderManagement = () => {
     switch (tab) {
       case 'active': return 'Active';
       case 'approved': return 'Approved';
-      case 'received': return 'Received';
       case 'topay': return 'ToPay';
       case 'archived': return 'Archived';
       case 'rejected': return 'Rejected';
@@ -114,8 +157,8 @@ const PurchaseOrderManagement = () => {
 
   // Centralized query for all tabs with pagination
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab],
-    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any),
+    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab, onlyRawMaterials, effectiveStartDate, effectiveEndDate],
+    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, onlyRawMaterials, effectiveStartDate, effectiveEndDate),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -213,10 +256,47 @@ const PurchaseOrderManagement = () => {
     }
   };
 
-  const executeBulkApprove = async () => {
+  const executeBulkApprove = async (sendToTransit: boolean = false) => {
     try {
-      await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Approved')));
+      const targetStatus = isCreditApprove ? 'ToPay' : 'Approved';
+      const targetPaymentTerms = isCreditApprove ? 'Crédito' : 'Contado';
+      const targetCreditDays = isCreditApprove ? creditDaysApprove : 0;
+
+      const updates: any = {
+        status: targetStatus,
+        payment_terms: targetPaymentTerms,
+        credit_days: targetCreditDays
+      };
+
+      if (sendToTransit) {
+        updates.reception_status = 'En tránsito';
+      }
+
+      const promises = Array.from(selectedIds).map(async id => {
+        const { error } = await supabase
+          .from('purchase_orders')
+          .update(updates)
+          .eq('id', id);
+        if (error) throw error;
+
+        if (sendToTransit) {
+          try {
+            await logAudit('update_reception_status', {
+              table: 'purchase_orders',
+              record_id: id,
+              description: `Estableció el estado de recepción a 'En tránsito' al aprobar la orden en lote.`,
+              new_data: { reception_status: 'En tránsito' },
+              old_data: { reception_status: 'Ninguno' }
+            });
+          } catch (e) {
+            console.error('Audit log error:', e);
+          }
+        }
+      });
+
+      await Promise.all(promises);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       showSuccess(`${selectedIds.size} órdenes aprobadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkApproveDialogOpen(false);
@@ -303,7 +383,7 @@ const PurchaseOrderManagement = () => {
       case 'Archived':
         return 'bg-gray-100 text-gray-600 border-gray-200';
       case 'Received':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        return 'bg-green-100 text-green-800 border-green-200';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -551,13 +631,13 @@ const PurchaseOrderManagement = () => {
           <p className="text-muted-foreground text-sm">Administra tus órdenes de compra generadas.</p>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <Button
             variant={showHistory ? "secondary" : "outline"}
             onClick={() => {
               const newMode = !showHistory;
               setShowHistory(newMode);
-              updateSearchParams('tab', newMode ? 'archived' : 'active');
+              updateSearchParams('tab', newMode ? 'archived' : 'all');
             }}
             className="gap-2"
             size="sm"
@@ -565,6 +645,80 @@ const PurchaseOrderManagement = () => {
             {showHistory ? <CheckCircle className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
             {showHistory ? 'Ver Activos' : 'Historial'}
           </Button>
+
+          {/* Selector de fecha (Día / Periodo) */}
+          <div className="relative flex flex-col items-stretch sm:items-end">
+            <div className="flex items-center gap-2 bg-white px-2 py-0.5 h-9 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto">
+              <Select
+                value={dateFilterType}
+                onValueChange={(val: 'range' | 'single') => setDateFilterType(val)}
+              >
+                <SelectTrigger className="h-8 w-[95px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="range">Periodo</SelectItem>
+                  <SelectItem value="single">Día</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Separator orientation="vertical" className="h-4 bg-gray-200" />
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-2 text-xs text-gray-600 hover:bg-gray-50 font-normal px-2"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5 text-gray-400" />
+                    {dateFilterType === 'single' ? (
+                      singleDate ? (
+                        format(singleDate, 'dd/MM/yyyy')
+                      ) : (
+                        <span className="text-gray-400 font-normal">Elegir día</span>
+                      )
+                    ) : date.from ? (
+                      date.to ? (
+                        `${format(date.from, 'dd/MM/yyyy')} - ${format(date.to, 'dd/MM/yyyy')}`
+                      ) : (
+                        format(date.from, 'dd/MM/yyyy')
+                      )
+                    ) : (
+                      <span className="text-gray-400 font-normal">Rango de fechas</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    initialFocus
+                    mode={dateFilterType === 'single' ? 'single' : 'range'}
+                    selected={dateFilterType === 'single' ? singleDate : (date as any)}
+                    onSelect={(val: any) => {
+                      if (dateFilterType === 'single') {
+                        setSingleDate(val);
+                      } else {
+                        setDate(val || { from: undefined, to: undefined });
+                      }
+                    }}
+                    numberOfMonths={dateFilterType === 'single' ? 1 : 2}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {hasActiveDateFilter && (
+              <button
+                onClick={clearDates}
+                className="absolute top-full right-1 mt-1 text-[10px] text-gray-400 hover:text-procarni-primary transition-colors font-medium flex items-center gap-0.5 select-none"
+              >
+                <X className="h-3 w-3" />
+                Limpiar fechas
+              </button>
+            )}
+          </div>
+
           <Button
             asChild
             className="bg-procarni-secondary hover:bg-green-700 text-white gap-2"
@@ -582,35 +736,48 @@ const PurchaseOrderManagement = () => {
         <CardContent className="p-0 md:p-6">
           <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); }} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className="grid w-full md:w-auto grid-cols-3 md:flex h-9">
+              <TabsList className={cn("grid w-full md:w-auto md:flex h-9", !showHistory ? "grid-cols-4" : "grid-cols-2")}>
                 {!showHistory ? (
                   <>
-                    <TabsTrigger value="active" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
+                    <TabsTrigger value="active" className="text-xs md:text-sm">Borradores</TabsTrigger>
                     <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
                     <TabsTrigger value="topay" className="text-xs md:text-sm">Por pagar</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
-                    <TabsTrigger value="received" className="text-xs md:text-sm">Recibidas</TabsTrigger>
                     <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
                     <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
 
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar orden..."
-                  className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchInput}
-                  onChange={(e) => {
-                    setSearchInput(e.target.value);
-                    updateSearchParams('search', e.target.value);
-                  }}
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Switch Materia Prima */}
+                <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
+                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                    Materia Prima
+                  </Label>
+                  <Switch
+                    id="raw-materials-switch"
+                    checked={onlyRawMaterials}
+                    onCheckedChange={setOnlyRawMaterials}
+                  />
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar orden..."
+                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    value={searchInput}
+                    onChange={(e) => {
+                      setSearchInput(e.target.value);
+                      updateSearchParams('search', e.target.value);
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -743,17 +910,69 @@ const PurchaseOrderManagement = () => {
 
       {/* Bulk Approve Confirmation Dialog */}
       <AlertDialog open={isBulkApproveDialogOpen} onOpenChange={setIsBulkApproveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Aprobación Masiva</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Estás seguro de que deseas aprobar las {selectedIds.size} órdenes de compra seleccionadas?
+        <AlertDialogContent className="max-w-xl bg-white/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] p-6">
+          <AlertDialogHeader className="space-y-2">
+            <AlertDialogTitle className="text-xl font-extrabold tracking-tight text-procarni-dark flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Aprobación Masiva de Órdenes ({selectedIds.size})
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500 font-medium leading-relaxed">
+              Esta acción dará validez comercial a las {selectedIds.size} órdenes seleccionadas. Por favor, especifica la modalidad de facturación y plazos para activar el seguimiento de vencimientos.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={executeBulkApprove} className="bg-procarni-secondary hover:bg-green-700 text-white">
-              Aprobar
+          
+          <div className="space-y-5 my-5 p-5 bg-slate-50 border border-slate-100 rounded-3xl">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-sm font-bold text-procarni-blue block">Pago a Crédito</span>
+                <span className="text-xs text-gray-400 font-medium">Habilitar financiamiento por días</span>
+              </div>
+              <Switch
+                id="bulk-dialog-credit-switch"
+                checked={isCreditApprove}
+                onCheckedChange={setIsCreditApprove}
+                className="data-[state=checked]:bg-procarni-primary"
+              />
+            </div>
+            
+            {isCreditApprove && (
+              <div className="space-y-2 pt-3 border-t border-slate-200/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label htmlFor="bulk-dialog-credit-days" className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                  Días de Crédito Concedidos
+                </label>
+                <Input
+                  id="bulk-dialog-credit-days"
+                  type="number"
+                  min="1"
+                  value={creditDaysApprove}
+                  onChange={(e) => setCreditDaysApprove(parseInt(e.target.value) || 0)}
+                  className="bg-white border-slate-200 focus-visible:ring-procarni-primary/20 h-10 rounded-xl"
+                  placeholder="Ej. 15, 30, 45 días"
+                />
+              </div>
+            )}
+          </div>
+          
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 w-full">
+            <AlertDialogCancel className="w-full sm:w-auto rounded-xl h-10 font-bold border-gray-200 hover:bg-slate-50 order-3 sm:order-1">
+              Cancelar
+            </AlertDialogCancel>
+            
+            <AlertDialogAction 
+              onClick={() => executeBulkApprove(true)} 
+              disabled={isCreditApprove && creditDaysApprove <= 0} 
+              className="w-full sm:w-auto bg-procarni-secondary hover:bg-procarni-secondary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-secondary/20 flex gap-1.5 items-center justify-center order-1 sm:order-2 px-4"
+            >
+              <Truck className="h-4 w-4 shrink-0" />
+              <span className="truncate">Aprobar y Enviar a Tránsito</span>
+            </AlertDialogAction>
+
+            <AlertDialogAction 
+              onClick={() => executeBulkApprove(false)} 
+              disabled={isCreditApprove && creditDaysApprove <= 0} 
+              className="w-full sm:w-auto bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold rounded-xl h-10 shadow-lg shadow-procarni-primary/20 order-2 sm:order-3 flex items-center justify-center px-4"
+            >
+              <span>Sólo Aprobar</span>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
