@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Download, Copy, Package, Truck } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, ChevronDown, Archive, RotateCcw, Clock, Copy, Package, Truck } from 'lucide-react';
 
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import TransitReportDialog from '@/components/TransitReportDialog';
@@ -50,7 +50,6 @@ interface PurchaseOrderItem {
   sales_percentage?: number;
   discount_percentage?: number;
   material_id?: string;
-  received_quantity?: number | null;
   materials?: {
     name: string;
   };
@@ -83,7 +82,7 @@ interface PurchaseOrderDetailsData {
   currency: 'USD' | 'VES';
   exchange_rate?: number | null;
   paid_amount?: number | null;
-  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Received' | 'Credit' | 'ToPay' | 'Paid';
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid';
   created_at: string;
   created_by?: string;
   user_id: string;
@@ -105,7 +104,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
   'Paid': 'Pagada',
   'Rejected': 'Rechazada',
   'Archived': 'Archivada',
-  'Received': 'Recibida',
+  'Received': 'Aprobada',
 };
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
@@ -553,7 +552,6 @@ const PurchaseOrderDetails = () => {
       case 'Paid': return 'bg-teal-50 text-teal-700 border-teal-200';
       case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
       case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
-      case 'Received': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       default: return 'bg-gray-50 text-gray-500';
     }
   };
@@ -658,18 +656,6 @@ const PurchaseOrderDetails = () => {
               </>
             ) : (
               <>
-                {/* Primary Actions: Approve, Edit, or Receive */}
-                {order.status === 'Approved' && (
-                  <Button
-                    onClick={() => navigate(`/inventory/receptions?orderId=${order.id}`)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm font-bold order-2 md:order-1"
-                    size="sm"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Registrar Recepción</span>
-                  </Button>
-                )}
-
                 {/* Primary Actions: Approve and Edit */}
                 {(order.status === 'Draft' || role === 'admin') && 
                   order.status !== 'Approved' && 
