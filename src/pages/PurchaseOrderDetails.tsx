@@ -50,6 +50,7 @@ interface PurchaseOrderItem {
   sales_percentage?: number;
   discount_percentage?: number;
   material_id?: string;
+  received_quantity?: number | null;
   materials?: {
     name: string;
   };
