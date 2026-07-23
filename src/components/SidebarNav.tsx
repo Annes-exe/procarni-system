@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3, Wrench, CheckCircle } from 'lucide-react';
+import { ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, BarChart3, Wrench, CheckCircle, CreditCard } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 
 const navItems = [
@@ -24,6 +24,7 @@ const navItems = [
     category: 'Reportes',
     items: [
       { to: '/reports', icon: <BarChart3 className="h-5 w-5" />, label: 'Centro de Reportes' },
+      { to: '/payment-reminders', icon: <CreditCard className="h-5 w-5" />, label: 'Cuentas por Pagar (CXP)' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
     ]
   },
@@ -70,10 +71,24 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
         }
         return null;
       }
-      if (category.category === 'Admin' && role !== 'admin') {
+      if (category.category === 'Admin' && role !== 'admin' && role !== 'administrador') {
         return null;
       }
-      return category;
+
+      // Filter items inside category (only admin can see CXP in report menu)
+      const filteredItems = category.items.filter(item => {
+        if (item.to === '/payment-reminders') {
+          return role === 'admin' || role === 'administrador';
+        }
+        return true;
+      });
+
+      if (filteredItems.length === 0) return null;
+
+      return {
+        ...category,
+        items: filteredItems
+      };
     })
     .filter((cat): cat is typeof navItems[0] => cat !== null);
 

@@ -40,6 +40,7 @@ import Notifications from "./pages/Notifications";
 import GroupManagement from "./pages/GroupManagement";
 import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 import MaterialApproval from "./pages/MaterialApproval";
+import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -94,6 +95,7 @@ const App = () => (
                   <Route path="/group-management" element={<GroupManagement />} />
                   <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
                   <Route path="/material-approval" element={<MaterialApproval />} />
+                  <Route path="/payment-reminders" element={<PaymentRemindersDashboard />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

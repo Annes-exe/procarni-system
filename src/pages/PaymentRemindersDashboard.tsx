@@ -24,7 +24,11 @@ import {
   History,
   ArrowUpRight,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ShieldCheck,
+  CheckCheck,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -33,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { currencyService } from '@/services/currencyService';
 import { calculateTotals } from '@/utils/calculations';
 import { showError, showSuccess, showLoading, dismissToast, showWarning } from '@/utils/toast';
+import { useSession } from '@/components/SessionContextProvider';
 import {
   Dialog,
   DialogContent,
@@ -110,6 +115,17 @@ const getLocalDateString = (dateObjOrStr: Date | string) => {
 const PaymentRemindersDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { role, session, isLoadingSession } = useSession();
+  const isAdmin = role === 'admin' || role === 'administrador';
+  const isAuthorized = isAdmin || role === 'payment_viewer';
+
+  React.useEffect(() => {
+    if (!isLoadingSession && !isAuthorized) {
+      showError('No tiene permisos para acceder al apartado de Cuentas por Pagar (CXP).');
+      navigate('/');
+    }
+  }, [role, isLoadingSession, isAuthorized, navigate]);
+
   const [searchTerm, setSearchTerm] = useState('');
 
   // Sorting and filtering states
@@ -134,6 +150,18 @@ const PaymentRemindersDashboard = () => {
   const [abonoExchangeRate, setAbonoExchangeRate] = useState('');
   const [orderCurrencyDailyRate, setOrderCurrencyDailyRate] = useState<number | null>(null);
   const [isSubmittingAbono, setIsSubmittingAbono] = useState(false);
+
+  // Admin Simulated Payment dialog states (Individual & Batch)
+  const [isSimulatedDialogOpen, setIsSimulatedDialogOpen] = useState(false);
+  const [selectedOrderForSimulated, setSelectedOrderForSimulated] = useState<OrderItem | null>(null);
+  const [simulatedNotes, setSimulatedNotes] = useState('[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO]');
+  const [isSubmittingSimulated, setIsSubmittingSimulated] = useState(false);
+
+  const [isBatchSimulatedDialogOpen, setIsBatchSimulatedDialogOpen] = useState(false);
+  const [selectedOrderIdsForBatch, setSelectedOrderIdsForBatch] = useState<string[]>([]);
+  const [batchSimulatedNotes, setBatchSimulatedNotes] = useState('[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO]');
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+  const [isBatchSelectionActive, setIsBatchSelectionActive] = useState(false);
 
   // Animation variants
   const containerVariants = {
@@ -327,260 +355,176 @@ const PaymentRemindersDashboard = () => {
     showSuccess('Reporte de Pagos en Excel (.xlsx) descargado exitosamente.');
   };
 
-  // Export History to PDF (Print-friendly layout styled like Quote Comparisons)
+  // Export History to PDF (Direct PDF download via jsPDF)
   const handleExportKardexPDF = () => {
     if (filteredKardex.length === 0) {
       showError('No hay datos para exportar.');
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      showError('No se pudo abrir la ventana de impresión. Verifique el bloqueo de popups.');
-      return;
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const dateStr = new Date().toLocaleDateString('es-VE');
+
+      const rangeStr = startDateFilter || endDateFilter
+        ? `Período: ${startDateFilter || 'Inicio'} al ${endDateFilter || 'Fin'}`
+        : 'Período: Histórico Completo';
+
+      const supplierStr = selectedSupplierFilter !== 'all'
+        ? `Proveedor: ${selectedSupplierFilter}`
+        : 'Proveedores: Todos';
+
+      const searchStr = searchTerm.trim()
+        ? `Búsqueda: "${searchTerm}"`
+        : '';
+
+      // Header
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(27, 41, 74); // #1B294A
+      doc.text('PROCARNI', 14, 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // #880a0a
+      doc.text('SYSTEM', 14, 24);
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // #0f172a
+      doc.text('Historial de Transacciones de Pago', 280, 18, { align: 'right' });
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Fecha Emisión: ${dateStr}`, 280, 23, { align: 'right' });
+
+      // Filters summary line
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${rangeStr}  |  ${supplierStr}${searchStr ? '  |  ' + searchStr : ''}`, 14, 32);
+
+      // Extract rows
+      const tableRows = filteredKardex.map(tx => [
+        new Date(tx.payment_date).toLocaleString('es-VE'),
+        tx.displayId,
+        tx.supplierName,
+        formatCurrency(tx.amount, tx.currency),
+        tx.exchange_rate ? `@ ${tx.exchange_rate.toFixed(4)}` : 'N/A',
+        formatCurrency(tx.converted_amount, tx.orderCurrency),
+        tx.notes || ''
+      ]);
+
+      // Totals by transaction currency (Monto Transacción)
+      const totalVES = filteredKardex.filter(tx => tx.currency === 'VES').reduce((sum, tx) => sum + tx.amount, 0);
+      const totalUSD = filteredKardex.filter(tx => tx.currency === 'USD').reduce((sum, tx) => sum + tx.amount, 0);
+      const totalEUR = filteredKardex.filter(tx => tx.currency === 'EUR').reduce((sum, tx) => sum + tx.amount, 0);
+
+      const transaccionSummaryArr: string[] = [];
+      if (totalVES > 0) transaccionSummaryArr.push(`Bs. ${totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalUSD > 0) transaccionSummaryArr.push(`$ ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalEUR > 0) transaccionSummaryArr.push(`€ ${totalEUR.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+      const summaryTransaccionText = transaccionSummaryArr.length > 0
+        ? transaccionSummaryArr.join('\n')
+        : '-';
+
+      // Totals by document currency (Monto Acreditado)
+      const totalAcreditadoVES = filteredKardex.filter(tx => tx.orderCurrency === 'VES').reduce((sum, tx) => sum + tx.converted_amount, 0);
+      const totalAcreditadoUSD = filteredKardex.filter(tx => tx.orderCurrency === 'USD').reduce((sum, tx) => sum + tx.converted_amount, 0);
+      const totalAcreditadoEUR = filteredKardex.filter(tx => tx.orderCurrency === 'EUR').reduce((sum, tx) => sum + tx.converted_amount, 0);
+
+      const acreditadoSummaryArr: string[] = [];
+      if (totalAcreditadoVES > 0) acreditadoSummaryArr.push(`Bs. ${totalAcreditadoVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalAcreditadoUSD > 0) acreditadoSummaryArr.push(`$ ${totalAcreditadoUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalAcreditadoEUR > 0) acreditadoSummaryArr.push(`€ ${totalAcreditadoEUR.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+      const summaryAcreditadoText = acreditadoSummaryArr.length > 0
+        ? acreditadoSummaryArr.join('\n')
+        : '-';
+
+      // Append summary row at bottom of table
+      tableRows.push([
+        'TOTALES',
+        '',
+        '',
+        summaryTransaccionText,
+        '',
+        summaryAcreditadoText,
+        ''
+      ]);
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Fecha/Hora', 'Documento', 'Proveedor', 'Monto Transacción', 'Tasa de Cambio', 'Monto Acreditado', 'Observaciones / Notas']],
+        body: tableRows,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1.5 },
+          lineColor: [203, 213, 225],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [226, 232, 240],
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255],
+        },
+        styles: {
+          cellPadding: 2.5,
+        },
+        columnStyles: {
+          0: { cellWidth: 35 },
+          1: { cellWidth: 28, fontStyle: 'bold' },
+          2: { cellWidth: 55, fontStyle: 'bold', textColor: [27, 41, 74] },
+          3: { cellWidth: 32, halign: 'right', fontStyle: 'bold', textColor: [14, 87, 8] },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 35, halign: 'right', fontStyle: 'bold', textColor: [27, 41, 74] },
+          6: { cellWidth: 'auto' }
+        },
+        didParseCell: (data) => {
+          if (data.row.index === tableRows.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [241, 245, 249];
+            if (data.column.index === 3) {
+              data.cell.styles.textColor = [14, 87, 8];
+            }
+            if (data.column.index === 5) {
+              data.cell.styles.textColor = [27, 41, 74];
+            }
+          }
+        }
+      });
+
+      // @ts-expect-error - lastAutoTable is injected dynamically by jspdf-autotable
+      const finalY = doc.lastAutoTable?.finalY || 120;
+
+      // Subtle explanatory notes below table totals
+      doc.setFont('Helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('* Monto Transacción: Muestra el acumulado abonado según la moneda del pago (Bs., $, €).', 14, finalY + 7);
+      doc.text('* Monto Acreditado: Muestra el acumulado abonado equivalente según la moneda original del documento (Bs., $, €).', 14, finalY + 12);
+
+      // System Footer
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde el panel de control de CXP.', 148, finalY + 22, { align: 'center' });
+
+      const fileDate = new Date().toISOString().split('T')[0];
+      doc.save(`Reporte_Historial_Pagos_CXP_${fileDate}.pdf`);
+      showSuccess('Reporte PDF del Historial de Pagos descargado exitosamente.');
+    } catch (error) {
+      console.error('Kardex PDF Export Error:', error);
+      showError('Ocurrió un error al generar el PDF del historial de pagos.');
     }
-
-    const dateStr = new Date().toLocaleDateString('es-VE');
-    const rangeStr = startDateFilter || endDateFilter
-      ? `Período: ${startDateFilter || 'Inicio'} al ${endDateFilter || 'Fin'}`
-      : 'Período: Histórico Completo';
-
-    const supplierStr = selectedSupplierFilter !== 'all'
-      ? `Proveedor: ${selectedSupplierFilter}`
-      : 'Proveedores: Todos';
-
-    const searchStr = searchTerm.trim()
-      ? `Búsqueda: "${searchTerm}"`
-      : '';
-
-    const rowsHtml = filteredKardex.map(tx => `
-      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
-        <td style="padding: 10px 12px; text-align: left; color: #475569;">${new Date(tx.payment_date).toLocaleString('es-VE')}</td>
-        <td style="padding: 10px 12px; text-align: left; font-family: monospace; font-weight: bold; color: #0f172a;">${tx.displayId}</td>
-        <td style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">${tx.supplierName}</td>
-        <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #0e5708;">${formatCurrency(tx.amount, tx.currency)}</td>
-        <td style="padding: 10px 12px; text-align: right; color: #64748b;">${tx.exchange_rate ? `@ ${tx.exchange_rate.toFixed(4)}` : 'N/A'}</td>
-        <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #1B294A;">${formatCurrency(tx.converted_amount, tx.orderCurrency)}</td>
-        <td style="padding: 10px 12px; text-align: left; color: #64748b; font-style: italic;">${tx.notes || ''}</td>
-      </tr>
-    `).join('');
-
-    const totalVES = filteredKardex
-      .filter(tx => tx.currency === 'VES')
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const totalUSD = filteredKardex
-      .filter(tx => tx.currency === 'USD')
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const totalEUR = filteredKardex
-      .filter(tx => tx.currency === 'EUR')
-      .reduce((sum, tx) => sum + tx.amount, 0);
-
-    const totalAcreditadoUSD = filteredKardex
-      .filter(tx => tx.orderCurrency === 'USD')
-      .reduce((sum, tx) => sum + tx.converted_amount, 0);
-
-    const totalAcreditadoEUR = filteredKardex
-      .filter(tx => tx.orderCurrency === 'EUR')
-      .reduce((sum, tx) => sum + tx.converted_amount, 0);
-
-    const totalAcreditadoVES = filteredKardex
-      .filter(tx => tx.orderCurrency === 'VES')
-      .reduce((sum, tx) => sum + tx.converted_amount, 0);
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Reporte de Pagos - Procarni</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              color: #0f172a;
-              margin: 0;
-              padding: 40px;
-              background-color: #ffffff;
-            }
-            .header-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 25px;
-            }
-            .logo-section {
-              text-align: left;
-            }
-            .company-name {
-              font-size: 26px;
-              font-weight: 900;
-              color: #1B294A;
-              letter-spacing: -0.8px;
-            }
-            .company-tagline {
-              font-size: 10px;
-              color: #880a0a;
-              font-weight: bold;
-              text-transform: uppercase;
-              letter-spacing: 2px;
-              margin-top: 2px;
-            }
-            .report-title {
-              font-size: 18px;
-              font-weight: 800;
-              color: #0f172a;
-              text-align: right;
-              text-transform: uppercase;
-              letter-spacing: -0.5px;
-            }
-            .report-metadata {
-              font-size: 11px;
-              color: #64748b;
-              text-align: right;
-              margin-top: 5px;
-            }
-            .filters-box {
-              background-color: #f8fafc;
-              border: 1px solid #f1f5f9;
-              border-radius: 16px;
-              padding: 12px 20px;
-              margin-bottom: 30px;
-              font-size: 11px;
-              color: #475569;
-              display: flex;
-              justify-content: space-between;
-              flex-wrap: wrap;
-              gap: 12px;
-            }
-            .data-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 35px;
-            }
-            .data-table th {
-              background-color: #f8fafc;
-              color: #475569;
-              font-size: 9px;
-              font-weight: bold;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              padding: 12px;
-              border-bottom: 2px solid #cbd5e1;
-            }
-            .totals-section {
-              display: flex;
-              justify-content: flex-end;
-              margin-top: 20px;
-              margin-bottom: 50px;
-            }
-            .totals-table {
-              border-collapse: collapse;
-              min-width: 320px;
-              background-color: #f8fafc;
-              border-radius: 16px;
-              border: 1px solid #f1f5f9;
-            }
-            .totals-table td {
-              padding: 10px 16px;
-              font-size: 12px;
-            }
-            .totals-label {
-              color: #64748b;
-              text-align: left;
-              font-weight: 500;
-            }
-            .totals-value {
-              font-weight: bold;
-              text-align: right;
-              color: #0f172a;
-            }
-            .footer-notes {
-              margin-top: 80px;
-              font-size: 9px;
-              color: #94a3b8;
-              text-align: center;
-              border-top: 1px solid #f1f5f9;
-              padding-top: 20px;
-            }
-            @media print {
-              body {
-                padding: 0;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <table class="header-table">
-            <tr>
-              <td class="logo-section">
-                <div class="company-name">PROCARNI</div>
-                <div class="company-tagline">System</div>
-              </td>
-              <td>
-                <div class="report-title">Historial de Transacciones de Pago</div>
-                <div class="report-metadata">Fecha Emisión: ${dateStr}</div>
-              </td>
-            </tr>
-          </table>
-
-          <div class="filters-box">
-            <div><strong>${rangeStr}</strong></div>
-            <div><strong>${supplierStr}</strong></div>
-            ${searchStr ? `<div><strong>${searchStr}</strong></div>` : ''}
-          </div>
-
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="text-align: left;">Fecha/Hora</th>
-                <th style="text-align: left;">Documento</th>
-                <th style="text-align: left;">Proveedor</th>
-                <th style="text-align: right;">Monto Aportado</th>
-                <th style="text-align: right;">Tasa de Cambio</th>
-                <th style="text-align: right;">Equivalente Acreditado</th>
-                <th style="text-align: left;">Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-
-          <div class="totals-section">
-            <table class="totals-table">
-              <tr>
-                <td colspan="2" style="font-size: 10px; font-weight: bold; color: #475569; text-transform: uppercase; padding: 12px 16px 2px 16px;">Total Pagado por Moneda:</td>
-              </tr>
-              ${totalVES > 0 ? `
-              <tr>
-                <td class="totals-label">Total VES:</td>
-                <td class="totals-value" style="color: #0e5708; font-family: monospace;">Bs. ${totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-              ${totalUSD > 0 ? `
-              <tr>
-                <td class="totals-label">Total USD:</td>
-                <td class="totals-value" style="color: #0e5708; font-family: monospace;">$ ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-              ${totalEUR > 0 ? `
-              <tr>
-                <td class="totals-label">Total EUR:</td>
-                <td class="totals-value" style="color: #0e5708; font-family: monospace;">€ ${totalEUR.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-            </table>
-          </div>
-
-          <div class="footer-notes">
-            Reporte generado electrónicamente desde el panel administrativo de Procarni System.
-          </div>
-
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
   };
 
   // Export Prepago Report to XLSX
@@ -1063,6 +1007,160 @@ const PaymentRemindersDashboard = () => {
     return null;
   }, [selectedOrderForAbono, abonoAmount, abonoCurrency, abonoExchangeRate]);
 
+  // Admin Simulated Payment Handlers (Individual & Batch)
+  const handleOpenSimulatedDialog = (order: OrderItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedOrderForSimulated(order);
+    setSimulatedNotes(`[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO] Documento: ${order.displayId}`);
+    setIsSimulatedDialogOpen(true);
+  };
+
+  const handleExecuteSimulatedPayment = async () => {
+    if (!selectedOrderForSimulated) return;
+    setIsSubmittingSimulated(true);
+    const toastId = showLoading('Procesando pago transitorio por sistema...');
+
+    try {
+      const order = selectedOrderForSimulated;
+      const currentPaid = order.paid_amount || 0;
+      const remaining = Number((order.totalAmount - currentPaid).toFixed(2));
+      const tableName = order.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
+
+      // Update Order Status to Paid
+      const { error: updateError } = await supabase
+        .from(tableName)
+        .update({
+          paid_amount: order.totalAmount,
+          status: 'Paid'
+        })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+
+      // Insert transaction into payment_transactions Kardex
+      const { error: txError } = await supabase
+        .from('payment_transactions')
+        .insert({
+          order_id: order.id,
+          order_type: order.type,
+          amount: remaining > 0 ? remaining : order.totalAmount,
+          currency: order.currency,
+          exchange_rate: order.exchange_rate,
+          converted_amount: remaining > 0 ? remaining : order.totalAmount,
+          registered_by: session?.user?.id || null,
+          previous_paid: currentPaid,
+          new_paid: order.totalAmount,
+          notes: simulatedNotes.trim() || '[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO]'
+        });
+
+      if (txError) throw txError;
+
+      showSuccess(`¡Orden ${order.displayId} marcada como Pagada con etiqueta transitoria de sistema!`);
+      queryClient.invalidateQueries({ queryKey: ['creditOrdersDashboardFull'] });
+      queryClient.invalidateQueries({ queryKey: ['paymentTransactionsKardex'] });
+      setIsSimulatedDialogOpen(false);
+      setSelectedOrderForSimulated(null);
+    } catch (err) {
+      console.error('Error executing simulated payment:', err);
+      showError('Ocurrió un error al registrar el pago transitorio por sistema.');
+    } finally {
+      dismissToast(toastId);
+      setIsSubmittingSimulated(false);
+    }
+  };
+
+  const handleOpenBatchSimulatedDialog = () => {
+    setBatchSimulatedNotes(`[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO] (${selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length} documentos)`);
+    setIsBatchSimulatedDialogOpen(true);
+  };
+
+  const handleToggleSelectOrderForBatch = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setSelectedOrderIdsForBatch(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllPendingForBatch = () => {
+    if (selectedOrderIdsForBatch.length === processedPending.length) {
+      setSelectedOrderIdsForBatch([]);
+    } else {
+      setSelectedOrderIdsForBatch(processedPending.map(o => o.id));
+    }
+  };
+
+  const handleExecuteBatchSimulatedPayment = async () => {
+    const targetIds = selectedOrderIdsForBatch.length > 0
+      ? selectedOrderIdsForBatch
+      : processedPending.map(o => o.id);
+
+    if (targetIds.length === 0) {
+      showError('No hay órdenes seleccionadas para procesar.');
+      return;
+    }
+
+    setIsSubmittingBatch(true);
+    const toastId = showLoading(`Procesando ${targetIds.length} pago(s) transitorio(s)...`);
+
+    try {
+      const ordersToPay = pendingOrders.filter(o => targetIds.includes(o.id));
+      let successCount = 0;
+
+      for (const order of ordersToPay) {
+        const currentPaid = order.paid_amount || 0;
+        const remaining = Number((order.totalAmount - currentPaid).toFixed(2));
+        const tableName = order.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
+
+        const { error: updateError } = await supabase
+          .from(tableName)
+          .update({
+            paid_amount: order.totalAmount,
+            status: 'Paid'
+          })
+          .eq('id', order.id);
+
+        if (updateError) {
+          console.error(`Error actualizando orden ${order.displayId}:`, updateError);
+          continue;
+        }
+
+        await supabase
+          .from('payment_transactions')
+          .insert({
+            order_id: order.id,
+            order_type: order.type,
+            amount: remaining > 0 ? remaining : order.totalAmount,
+            currency: order.currency,
+            exchange_rate: order.exchange_rate,
+            converted_amount: remaining > 0 ? remaining : order.totalAmount,
+            registered_by: session?.user?.id || null,
+            previous_paid: currentPaid,
+            new_paid: order.totalAmount,
+            notes: batchSimulatedNotes.trim() || '[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO]'
+          });
+
+        successCount++;
+      }
+
+      showSuccess(`¡Procesadas exitosamente ${successCount} órdenes como Pago Transitorio por Sistema!`);
+      queryClient.invalidateQueries({ queryKey: ['creditOrdersDashboardFull'] });
+      queryClient.invalidateQueries({ queryKey: ['paymentTransactionsKardex'] });
+      setIsBatchSimulatedDialogOpen(false);
+      setSelectedOrderIdsForBatch([]);
+      setIsBatchSelectionActive(false);
+    } catch (err) {
+      console.error('Error executing batch simulated payment:', err);
+      showError('Ocurrió un error al procesar el lote de pagos simulados.');
+    } finally {
+      dismissToast(toastId);
+      setIsSubmittingBatch(false);
+    }
+  };
+
   // Filter and sort core logic
   const processOrders = (list: OrderItem[]) => {
     let result = [...list];
@@ -1255,21 +1353,39 @@ const PaymentRemindersDashboard = () => {
     const paidAmt = order.paid_amount || 0;
     const progressPercent = Math.min(100, Math.max(0, Math.round((paidAmt / order.totalAmount) * 100)));
 
+    const isSelectedForBatch = selectedOrderIdsForBatch.includes(order.id);
+
     return (
       <Card
         key={order.id}
         className={cn(
           "group relative p-6 border rounded-[1.75rem] transition-all duration-300 hover:shadow-lg flex flex-col justify-between min-h-[300px]",
-          urgencyColor
+          urgencyColor,
+          isSelectedForBatch && "ring-2 ring-amber-500 bg-amber-50/20"
         )}
       >
         <div>
           <div className="flex justify-between items-start mb-4">
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <span className="font-mono text-sm font-black text-procarni-dark leading-none truncate">{order.displayId}</span>
-              <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider text-center w-fit", typeColor)}>
-                {typeLabel}
-              </span>
+            <div className="flex items-center gap-2 min-w-0">
+              {isAdmin && order.status !== 'Paid' && (
+                <button
+                  onClick={(e) => handleToggleSelectOrderForBatch(order.id, e)}
+                  className="text-amber-600 hover:text-amber-800 transition-colors p-0.5"
+                  title="Seleccionar para pago simulado en lote"
+                >
+                  {isSelectedForBatch ? (
+                    <CheckSquare className="h-5 w-5 text-amber-600 fill-amber-100" />
+                  ) : (
+                    <Square className="h-5 w-5 text-gray-300 hover:text-amber-500" />
+                  )}
+                </button>
+              )}
+              <div className="flex flex-col gap-1.5 min-w-0">
+                <span className="font-mono text-sm font-black text-procarni-dark leading-none truncate">{order.displayId}</span>
+                <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider text-center w-fit", typeColor)}>
+                  {typeLabel}
+                </span>
+              </div>
             </div>
             <span className={cn("px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0", badgeColor)}>
               {badgeText}
@@ -1317,26 +1433,40 @@ const PaymentRemindersDashboard = () => {
         </div>
 
         <div className="mt-5 pt-3 border-t border-gray-100/80 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             {/* View Details Link */}
             <button
               onClick={() => navigate(order.type === 'purchase_order' ? `/purchase-orders/${order.id}` : `/service-orders/${order.id}`)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-procarni-blue hover:text-procarni-primary hover:bg-slate-50 rounded-xl transition-all h-10 min-w-[50px] shrink-0 justify-center"
+              className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-procarni-blue hover:text-procarni-primary hover:bg-slate-50 rounded-xl transition-all h-10 shrink-0 justify-center"
             >
               Ver <ArrowRight className="h-3.5 w-3.5" />
             </button>
 
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div className="flex flex-wrap items-center gap-1.5 ml-auto">
               {/* Registrar Abono Button */}
               {order.status !== 'Paid' && (
                 <Button
                   onClick={(e) => handleOpenAbonoDialog(order, e)}
                   size="sm"
                   variant="outline"
-                  className="h-10 text-xs font-extrabold rounded-xl bg-procarni-primary/5 hover:bg-procarni-primary hover:text-white border-procarni-primary/10 hover:border-transparent text-procarni-primary shadow-sm hover:scale-[1.02] transition-all px-3"
+                  className="h-10 text-xs font-extrabold rounded-xl bg-procarni-primary/5 hover:bg-procarni-primary hover:text-white border-procarni-primary/10 hover:border-transparent text-procarni-primary shadow-sm hover:scale-[1.02] transition-all px-2.5"
                 >
                   <PlusCircle className="h-3.5 w-3.5 mr-1 shrink-0" />
                   Abonar
+                </Button>
+              )}
+
+              {/* Admin Simulated Payment Button */}
+              {isAdmin && order.status !== 'Paid' && (
+                <Button
+                  onClick={(e) => handleOpenSimulatedDialog(order, e)}
+                  size="sm"
+                  variant="outline"
+                  title="Marcar como Pago Simulado Transitorio (Solo Admin)"
+                  className="h-10 text-xs font-extrabold rounded-xl bg-amber-50 hover:bg-amber-600 hover:text-white border-amber-200 text-amber-800 shadow-sm hover:scale-[1.02] transition-all px-2.5"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 mr-1 shrink-0" />
+                  Pago Simulado
                 </Button>
               )}
 
@@ -1594,6 +1724,50 @@ const PaymentRemindersDashboard = () => {
 
         {/* Tab 1: Pending */}
         <TabsContent value="pending" className="mt-0 outline-none">
+          {isAdmin && processedPending.length > 0 && (
+            <div className="mb-6 p-4 md:p-5 rounded-3xl bg-amber-50/70 border border-amber-200/80 backdrop-blur-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-800 shrink-0">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-amber-950 flex items-center gap-2">
+                    Administración: Solución Transitoria CXP
+                  </h4>
+                  <p className="text-xs text-amber-800 font-medium">
+                    Mientras el módulo de CXP finaliza su desarrollo, puedes regularizar la acumulación de cuentas pendientes realizando un pago simulado por sistema con etiqueta de trazabilidad.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 justify-end">
+                <Button
+                  onClick={handleSelectAllPendingForBatch}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 text-xs font-extrabold rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                >
+                  {selectedOrderIdsForBatch.length === processedPending.length ? (
+                    <>
+                      <Square className="h-3.5 w-3.5 mr-1" /> Deseleccionar Todas
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Seleccionar Todas ({processedPending.length})
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleOpenBatchSimulatedDialog}
+                  size="sm"
+                  className="h-10 text-xs font-extrabold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:scale-[1.02] transition-all px-4"
+                >
+                  <CheckCheck className="h-4 w-4 mr-1.5" />
+                  Liquidación Masiva ({selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex justify-center items-center h-48 text-sm text-gray-500">
               <span className="animate-pulse font-medium">Cargando vencimientos pendientes...</span>
@@ -1721,6 +1895,7 @@ const PaymentRemindersDashboard = () => {
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Monto Transacción</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Conversión</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Monto Acreditado</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Observaciones / Notas</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">Progreso de Pago</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1751,6 +1926,16 @@ const PaymentRemindersDashboard = () => {
                             </TableCell>
                             <TableCell className="text-xs font-bold text-gray-700">
                               {formatCurrency(tx.converted_amount, tx.orderCurrency)}
+                            </TableCell>
+                            <TableCell className="text-xs text-gray-600 max-w-[250px] truncate">
+                              {tx.notes && (tx.notes.includes('PAGO TRANSITORIO') || tx.notes.includes('PAGO SIMULADO')) ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold rounded-md bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider truncate">
+                                  <ShieldCheck className="h-3 w-3 shrink-0" />
+                                  {tx.notes}
+                                </span>
+                              ) : (
+                                <span>{tx.notes || '-'}</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex flex-col items-end gap-1">
@@ -1892,6 +2077,129 @@ const PaymentRemindersDashboard = () => {
               className="rounded-xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
             >
               {isSubmittingAbono ? 'Registrando...' : 'Registrar Abono'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Simulated Payment Dialog (Individual) */}
+      <Dialog open={isSimulatedDialogOpen} onOpenChange={setIsSimulatedDialogOpen}>
+        <DialogContent className="w-[95%] max-w-[480px] sm:w-full rounded-[2rem] p-6 border-none bg-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-amber-900 flex items-center gap-2.5">
+              <ShieldCheck className="h-6 w-6 text-amber-600 shrink-0" />
+              Pago Simulado Transitorio (Solo Admin)
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedOrderForSimulated && (
+            <div className="space-y-4 py-3">
+              <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/60 space-y-2 text-xs">
+                <div className="font-extrabold text-amber-950 flex justify-between">
+                  <span>Documento:</span>
+                  <span className="font-mono text-sm">{selectedOrderForSimulated.displayId}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-medium">
+                  <span>Proveedor:</span>
+                  <span className="font-bold">{selectedOrderForSimulated.suppliers?.name || 'Desconocido'}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-medium">
+                  <span>Monto Total:</span>
+                  <span className="font-bold font-mono">{formatCurrency(selectedOrderForSimulated.totalAmount, selectedOrderForSimulated.currency)}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-medium">
+                  <span>Saldo Pendiente:</span>
+                  <span className="font-extrabold font-mono text-procarni-primary">
+                    {formatCurrency(selectedOrderForSimulated.totalAmount - (selectedOrderForSimulated.paid_amount || 0), selectedOrderForSimulated.currency)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">
+                  Etiqueta / Observación para el Kardex
+                </Label>
+                <Input
+                  type="text"
+                  value={simulatedNotes}
+                  onChange={(e) => setSimulatedNotes(e.target.value)}
+                  placeholder="[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO]"
+                  className="h-11 rounded-xl border-gray-200 text-xs font-semibold"
+                />
+                <p className="text-[11px] text-gray-400 font-medium italic">
+                  Esta nota se registrará en el historial de transacciones para garantizar la trazabilidad cuando el módulo CXP esté completado.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsSimulatedDialogOpen(false)}
+              className="rounded-xl border-gray-200 font-bold h-11 w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExecuteSimulatedPayment}
+              disabled={isSubmittingSimulated}
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
+            >
+              {isSubmittingSimulated ? 'Procesando...' : 'Confirmar Pago Simulado'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Batch Simulated Payment Dialog */}
+      <Dialog open={isBatchSimulatedDialogOpen} onOpenChange={setIsBatchSimulatedDialogOpen}>
+        <DialogContent className="w-[95%] max-w-[520px] sm:w-full rounded-[2rem] p-6 border-none bg-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-amber-900 flex items-center gap-2.5">
+              <CheckCheck className="h-6 w-6 text-amber-600 shrink-0" />
+              Liquidación Masiva de Cuentas (Solo Admin)
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/60 space-y-2 text-xs">
+              <p className="font-bold text-amber-950">
+                Vas a procesar como Pago Simulado Transitorio un lote de {selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length} órden(es) pendiente(s).
+              </p>
+              <p className="text-[11px] text-amber-900 font-medium leading-relaxed">
+                Todas las órdenes seleccionadas cambiarán a estado <strong className="font-extrabold">Pagada</strong> (saldo 0) y sus movimientos quedarán archivados en el Kardex con la etiqueta de pago transitorio.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">
+                Etiqueta / Observación Masiva para el Kardex
+              </Label>
+              <Input
+                type="text"
+                value={batchSimulatedNotes}
+                onChange={(e) => setBatchSimulatedNotes(e.target.value)}
+                placeholder="[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO]"
+                className="h-11 rounded-xl border-gray-200 text-xs font-semibold"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsBatchSimulatedDialogOpen(false)}
+              className="rounded-xl border-gray-200 font-bold h-11 w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExecuteBatchSimulatedPayment}
+              disabled={isSubmittingBatch}
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
+            >
+              {isSubmittingBatch ? 'Procesando Lote...' : `Ejecutar Liquidación Masiva (${selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length})`}
             </Button>
           </DialogFooter>
         </DialogContent>
