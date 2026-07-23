@@ -258,7 +258,8 @@ const PurchaseOrderManagement = () => {
 
   const executeBulkApprove = async (sendToTransit: boolean = false) => {
     try {
-      const targetStatus = isCreditApprove ? 'ToPay' : 'Approved';
+      // CXP paused: approve credit orders directly as Approved instead of ToPay
+      const targetStatus = 'Approved';
       const targetPaymentTerms = isCreditApprove ? 'Crédito' : 'Contado';
       const targetCreditDays = isCreditApprove ? creditDaysApprove : 0;
 

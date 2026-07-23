@@ -75,10 +75,10 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
         return null;
       }
 
-      // Filter items inside category (only admin can see CXP in report menu)
+      // Filter items inside category (CXP paused temporarily during development)
       const filteredItems = category.items.filter(item => {
         if (item.to === '/payment-reminders') {
-          return role === 'admin' || role === 'administrador';
+          return false;
         }
         return true;
       });

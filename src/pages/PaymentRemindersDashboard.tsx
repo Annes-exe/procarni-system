@@ -1579,6 +1579,27 @@ const PaymentRemindersDashboard = () => {
     );
   }
 
+  // CXP Panel is temporarily paused during development
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[450px] p-8 text-center bg-white/80 backdrop-blur-xl border border-amber-200/60 rounded-[2.5rem] shadow-2xl shadow-gray-200/50 max-w-lg mx-auto my-12 space-y-6 animate-in fade-in duration-300">
+      <div className="p-5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+        <Clock className="h-12 w-12 animate-pulse" />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-2xl font-black text-procarni-blue tracking-tight">Módulo CXP en Mantenimiento</h3>
+        <p className="text-xs text-gray-500 max-w-sm font-medium leading-relaxed">
+          Las funciones del panel de Cuentas por Pagar y el registro de pagos se encuentran temporalmente pausadas mientras finaliza el desarrollo del módulo.
+        </p>
+      </div>
+      <Button
+        onClick={() => navigate('/')}
+        className="h-11 px-6 rounded-2xl bg-procarni-blue hover:bg-procarni-dark text-white font-extrabold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all"
+      >
+        Volver al Inicio
+      </Button>
+    </div>
+  );
+
   return (
     <m.div
       initial="hidden"

@@ -246,7 +246,8 @@ const PurchaseOrderDetails = () => {
     const toastId = showLoading(sendToTransit ? 'Aprobando y enviando a tránsito...' : 'Aprobando orden...');
 
     try {
-      const targetStatus = isCreditApprove ? 'ToPay' : 'Approved';
+      // CXP paused: approve credit orders directly as Approved instead of ToPay
+      const targetStatus = 'Approved';
       const targetPaymentTerms = isCreditApprove ? 'Crédito' : 'Contado';
       const targetCreditDays = isCreditApprove ? creditDaysApprove : 0;
 
