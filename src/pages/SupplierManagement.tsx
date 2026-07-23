@@ -20,6 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { useDebounce } from 'use-debounce';
 import PaginationControls from '@/components/PaginationControls';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface MaterialAssociation {
   id?: string;
@@ -88,6 +90,7 @@ const SupplierManagement = () => {
   const [debouncedSearch] = useDebounce(searchInput, 500);
   const selectedStatus = (searchParams.get('status') || 'Active') as 'All' | 'Active' | 'Inactive';
   const dataQualityFilter = searchParams.get('quality') || 'All';
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -96,8 +99,8 @@ const SupplierManagement = () => {
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter],
-    queryFn: () => getPaginatedSuppliers(page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter),
+    queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter, onlyRawMaterials],
+    queryFn: () => getPaginatedSuppliers(page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter, onlyRawMaterials),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -375,14 +378,28 @@ const SupplierManagement = () => {
       <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
         <CardContent className="p-0 md:p-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-            <div className="relative w-full md:w-72">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar proveedor por RIF, nombre o email..."
-                value={searchInput}
-                onChange={handleSearchChange}
-                className="w-full pl-10 bg-white"
-              />
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              {/* Switch Materia Prima */}
+              <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
+                <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                  Materia Prima
+                </Label>
+                <Switch
+                  id="raw-materials-switch"
+                  checked={onlyRawMaterials}
+                  onCheckedChange={setOnlyRawMaterials}
+                />
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar proveedor por RIF, nombre o email..."
+                  value={searchInput}
+                  onChange={handleSearchChange}
+                  className="w-full pl-10 bg-white"
+                />
+              </div>
             </div>
             <div className="relative w-full md:w-48">
               <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

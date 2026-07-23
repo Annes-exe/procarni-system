@@ -56,7 +56,7 @@ const ServiceOrderManagement = () => {
   const pageSize = 25;
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [debouncedSearch] = useDebounce(searchInput, 500);
-  const activeTab = (searchParams.get('tab') || 'active') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
+  const activeTab = (searchParams.get('tab') || 'all') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
 
   const updateSearchParams = (key: string, value: string | null) => {
     setSearchParams(prev => {
@@ -439,7 +439,7 @@ const ServiceOrderManagement = () => {
             onClick={() => {
               const newMode = !showHistory;
               setShowHistory(newMode);
-              updateSearchParams('tab', newMode ? 'archived' : 'active');
+              updateSearchParams('tab', newMode ? 'archived' : 'all');
             }}
             className="gap-2"
             size="sm"
@@ -464,16 +464,16 @@ const ServiceOrderManagement = () => {
         <CardContent className="p-0 md:p-6">
           <Tabs value={activeTab} onValueChange={(value) => updateSearchParams('tab', value)} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className="grid w-full md:w-auto grid-cols-3 md:flex h-9">
+              <TabsList className={cn("grid w-full md:w-auto md:flex h-9", !showHistory ? "grid-cols-4" : "grid-cols-2")}>
                 {!showHistory ? (
                   <>
-                    <TabsTrigger value="active" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
+                    <TabsTrigger value="active" className="text-xs md:text-sm">Borradores</TabsTrigger>
                     <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
                     <TabsTrigger value="topay" className="text-xs md:text-sm">Por pagar</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
                     <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
                     <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                   </>

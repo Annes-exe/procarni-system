@@ -42,6 +42,8 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
@@ -60,38 +62,38 @@ import {
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-// --- Sub-components (Defined before main component) ---
+const fmt = (n: number) => n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmt = (n: number, dec = 2) =>
-  n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-
-const KpiCard = ({ title, value, subtitle, icon, iconColorClass, delay = 0 }: any) => (
-  <m.div
-    initial={{ opacity: 0, y: 30 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
-    className="w-full"
-  >
-    <Card className="group relative overflow-hidden border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white p-1.5 rounded-[2rem] transition-all duration-500">
-      <m.div whileHover={{ y: -6 }} transition={{ duration: 0.4, ease: 'easeOut' }} className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className={cn('p-3 rounded-2xl transition-all duration-500', iconColorClass)}>
-            {React.cloneElement(icon as React.ReactElement, { className: 'h-5 w-5' })}
-          </div>
-        </div>
-        <div>
-          <div className="text-[28px] font-black text-gray-900 tracking-tighter mb-1 leading-tight truncate" title={typeof value === 'string' ? value : undefined}>{value}</div>
-          <div className="text-sm font-bold text-procarni-blue mb-0.5">{title}</div>
-          {subtitle && <p className="text-[12px] text-gray-500 font-medium">{subtitle}</p>}
-        </div>
-      </m.div>
-      {/* Background icon decoration */}
-      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-        {React.cloneElement(icon as React.ReactElement, { className: 'h-24 w-24 -mr-8 -mt-8 rotate-12' })}
-      </div>
-    </Card>
-  </m.div>
-);
+const KpiCard = ({ title, value, subtitle, icon, iconColorClass, delay }: any) => {
+    return (
+        <m.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay }}
+        >
+            <Card className="relative overflow-hidden bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 rounded-3xl p-5 hover:scale-[1.01] transition-all duration-300 ring-1 ring-white">
+                <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400">
+                        {title}
+                    </span>
+                    <div className={cn("p-3 rounded-2xl flex items-center justify-center transition-transform duration-300 hover:scale-110", iconColorClass)}>
+                        {React.cloneElement(icon, { className: 'h-5 w-5' })}
+                    </div>
+                </div>
+                <div className="mt-3">
+                    <div className="text-2xl font-extrabold tracking-tight text-procarni-dark font-mono">
+                        {value}
+                    </div>
+                    {subtitle && (
+                        <p className="text-xs font-medium text-gray-500 italic mt-1 truncate">
+                            {subtitle}
+                        </p>
+                    )}
+                </div>
+            </Card>
+        </m.div>
+    );
+};
 
 const CustomTooltip = ({ active, payload, label, currency }: any) => {
     if (active && payload && payload.length) {
@@ -607,11 +609,27 @@ const ReportsAnalytics = () => {
         from: undefined,
         to: undefined,
     });
+    const [dateFilterType, setDateFilterType] = useState<'range' | 'single'>('range');
+    const [singleDate, setSingleDate] = useState<Date | undefined>(undefined);
+    
+    const hasActiveDateFilter = useMemo(() => {
+        if (dateFilterType === 'single') {
+            return !!singleDate;
+        }
+        return !!(date.from || date.to);
+    }, [dateFilterType, date, singleDate]);
+
+    const clearDates = () => {
+        setSingleDate(undefined);
+        setDate({ from: undefined, to: undefined });
+    };
+
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all');
     const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<string>(initialTab);
+    const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
     // Effect to handle URL parameters for deep linking
     React.useEffect(() => {
@@ -673,12 +691,15 @@ const ReportsAnalytics = () => {
         queryFn: getAllMaterials,
     });
 
+    const effectiveStartDate = dateFilterType === 'single' ? singleDate : date.from;
+    const effectiveEndDate = dateFilterType === 'single' ? singleDate : date.to;
+
     // 3. Main Purchase Data (Reports)
     const { data: purchaseData = [], isLoading: isLoadingPurchases } = useQuery({
-        queryKey: ['reportsPurchases', date.from, date.to, selectedSupplierId],
+        queryKey: ['reportsPurchases', dateFilterType, effectiveStartDate, effectiveEndDate, selectedSupplierId],
         queryFn: () => getPurchaseHistoryReport({
-            startDate: date.from,
-            endDate: date.to,
+            startDate: effectiveStartDate,
+            endDate: effectiveEndDate,
             supplierId: selectedSupplierId === 'all' ? undefined : selectedSupplierId,
         }),
     });
@@ -696,21 +717,31 @@ const ReportsAnalytics = () => {
     // Filter by currency directly on the data for calculations
     const filteredData = useMemo(() => {
         return purchaseData
-            .filter((item: any) =>
-                item.purchase_orders.currency === currency &&
-                ['Approved', 'Archived'].includes(item.purchase_orders.status)
-            )
+            .filter((item: any) => {
+                if (onlyRawMaterials) {
+                    const category = (item.materials?.category || '').toLowerCase().trim();
+                    if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) return false;
+                }
+                return (
+                    item.purchase_orders.currency === currency &&
+                    ['Approved', 'Archived'].includes(item.purchase_orders.status)
+                );
+            })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
-    }, [purchaseData, currency]);
+    }, [purchaseData, currency, onlyRawMaterials]);
 
     // Unified data without currency filtering for Detailed History (Buscador)
     const unifiedFilteredData = useMemo(() => {
         return purchaseData
-            .filter((item: any) =>
-                ['Approved', 'Archived'].includes(item.purchase_orders.status)
-            )
+            .filter((item: any) => {
+                if (onlyRawMaterials) {
+                    const category = (item.materials?.category || '').toLowerCase().trim();
+                    if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) return false;
+                }
+                return ['Approved', 'Archived'].includes(item.purchase_orders.status);
+            })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
-    }, [purchaseData]);
+    }, [purchaseData, onlyRawMaterials]);
 
     const kpis = useMemo(() => {
         const totalSpend = filteredData.reduce((acc: number, item: any) => acc + (item.unit_price * item.quantity), 0);
@@ -851,16 +882,16 @@ const ReportsAnalytics = () => {
         <div className="container mx-auto p-4 pb-20">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6">
                 <div className="space-y-1">
-                    <h1 className="text-3xl font-extrabold text-procarni-dark tracking-tight">Reportes & Análisis</h1>
+                    <h1 className="text-3xl font-extrabold text-procarni-dark tracking-tight">Analítica de Compras</h1>
                     <p className="text-muted-foreground text-sm flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-procarni-primary" />
                         Monitoreo inteligente de costos y proveedores.
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-6 lg:gap-8 w-full lg:w-auto">
                     {/* Supplier Select */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial sm:mr-4">
                         <div className="w-full sm:w-[220px]">
                             <SmartSearch
                                 placeholder="Buscar proveedor..."
@@ -881,40 +912,97 @@ const ReportsAnalytics = () => {
                         )}
                     </div>
 
-                    {/* Date Range Picker */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn(
-                                    "h-9 justify-start text-left font-normal text-xs bg-white shadow-sm w-full sm:w-auto",
-                                    !date.from && "text-muted-foreground"
-                                )}
+                    {/* Switch Materia Prima */}
+                    <div className="flex items-center space-x-2 bg-white px-3 py-1.5 h-9 rounded-xl border border-gray-200 shadow-sm self-stretch sm:self-auto justify-between sm:justify-start">
+                        <Label htmlFor="reports-raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                            Materia Prima
+                        </Label>
+                        <Switch
+                            id="reports-raw-materials-switch"
+                            checked={onlyRawMaterials}
+                            onCheckedChange={setOnlyRawMaterials}
+                        />
+                    </div>
+
+                    {/* Filtro de Fecha Container (Relativo para posicionar el botón de limpiar sin alterar la altura) */}
+                    <div className="relative flex flex-col items-stretch sm:items-end w-full sm:w-auto">
+                        {/* Filtro de Fecha (Periodo / Día Específico) */}
+                        <div className="flex items-center gap-2 bg-white px-2 py-0.5 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto">
+                            <Select
+                                value={dateFilterType}
+                                onValueChange={(val: 'range' | 'single') => setDateFilterType(val)}
                             >
-                                <CalendarIcon className="mr-2 h-3.5 w-3.5 text-gray-500" />
-                                {date.from ? (
-                                    date.to ? (
-                                        <>{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</>
+                                <SelectTrigger className="h-8 w-[125px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1">
+                                    <SelectValue placeholder="Tipo de filtro" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="range">Periodo</SelectItem>
+                                    <SelectItem value="single">Día específico</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Separator orientation="vertical" className="h-4 bg-gray-200" />
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className={cn(
+                                            "h-8 justify-start text-left font-normal text-xs bg-transparent w-full sm:w-auto min-w-[155px] hover:bg-slate-50 px-2",
+                                            dateFilterType === 'single' ? !singleDate && "text-muted-foreground" : !date.from && "text-muted-foreground"
+                                        )}
+                                    >
+                                        <CalendarIcon className="mr-2 h-3.5 w-3.5 text-gray-500 shrink-0" />
+                                        {dateFilterType === 'single' ? (
+                                            singleDate ? format(singleDate, "dd/MM/yyyy") : <span className="truncate">Seleccionar día</span>
+                                        ) : (
+                                            date.from ? (
+                                                date.to ? (
+                                                    <span className="truncate">{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</span>
+                                                ) : (
+                                                    <span className="truncate">{format(date.from, "dd/MM/yy")}</span>
+                                                )
+                                            ) : (
+                                                <span className="truncate">Seleccionar periodo</span>
+                                            )
+                                        )}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end">
+                                    {dateFilterType === 'single' ? (
+                                        <Calendar
+                                            initialFocus
+                                            mode="single"
+                                            selected={singleDate}
+                                            onSelect={(d) => setSingleDate(d)}
+                                            locale={es}
+                                        />
                                     ) : (
-                                        format(date.from, "dd/MM/yy")
-                                    )
-                                ) : (
-                                    <span>Seleccionar periodo</span>
-                                )}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={date.from}
-                                selected={date}
-                                onSelect={(range: any) => setDate(range || { from: undefined, to: undefined })}
-                                numberOfMonths={isMobile ? 1 : 2}
-                                locale={es}
-                            />
-                        </PopoverContent>
-                    </Popover>
+                                        <Calendar
+                                            initialFocus
+                                            mode="range"
+                                            defaultMonth={date.from}
+                                            selected={date}
+                                            onSelect={(range: any) => setDate(range || { from: undefined, to: undefined })}
+                                            numberOfMonths={isMobile ? 1 : 2}
+                                            locale={es}
+                                        />
+                                    )}
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+
+                        {/* Contenedor absoluto sutil para el botón de limpiar (evita desalineación vertical y layout shift) */}
+                        <div className={cn(
+                            "absolute top-full right-1 mt-1 flex items-center justify-end transition-all duration-200",
+                            hasActiveDateFilter ? "opacity-100" : "opacity-0 pointer-events-none"
+                        )}>
+                            <button
+                                onClick={clearDates}
+                                className="text-[10px] text-slate-400 hover:text-procarni-primary hover:underline transition-colors font-medium whitespace-nowrap"
+                            >
+                                Limpiar fechas (Ver todos)
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1007,7 +1095,7 @@ const ReportsAnalytics = () => {
                                                         </span>
                                                         <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name}</h4>
                                                     </div>
-                                                    <Badge variant="outline" className="text-procarni-primary bg-procarni-primary/10 border-transparent">
+                                                    <Badge variant="ghost" className="text-procarni-primary bg-procarni-primary/10">
                                                         #{item.purchase_orders.sequence_number || 'OC'}
                                                     </Badge>
                                                 </div>

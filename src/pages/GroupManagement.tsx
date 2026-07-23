@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllMaterials, updateMaterial } from '@/integrations/supabase/services/materialService';
+import { updateMaterial } from '@/integrations/supabase/services/materialService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
+import { supabase } from '@/integrations/supabase/client';
 import { Material } from '@/integrations/supabase/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,44 +20,132 @@ const GroupManagement = () => {
   const [childSearchTerm, setChildSearchTerm] = useState('');
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
 
-  const { data: materials = [], isLoading } = useQuery({
-    queryKey: ['materials'],
-    queryFn: getAllMaterials,
+  // 1. Mapa de conteo de hijos por cada base_material_id
+  const { data: childCountMap = {} } = useQuery<Record<string, number>>({
+    queryKey: ['material_child_counts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('base_material_id')
+        .not('base_material_id', 'is', null);
+      if (error) throw error;
+      const countMap: Record<string, number> = {};
+      (data || []).forEach(r => {
+        if (r.base_material_id) {
+          countMap[r.base_material_id] = (countMap[r.base_material_id] || 0) + 1;
+        }
+      });
+      return countMap;
+    }
   });
 
-  // Materiales que son padres (tienen al menos un hijo) o coinciden con la búsqueda de padres
-  const parentIds = new Set(materials.map(m => m.base_material_id).filter(Boolean));
-  const activeParentMaterials = materials.filter(m => parentIds.has(m.id));
-  
-  const parentSearchResults = materials.filter(m => 
-    (parentSearchTerm !== '' && (m.name.toLowerCase().includes(parentSearchTerm.toLowerCase()) || (m.code && m.code.toLowerCase().includes(parentSearchTerm.toLowerCase()))))
-  ).slice(0, 10);
+  // 2. Padres activos con grupos existentes
+  const { data: activeParentMaterials = [], isLoading: isLoadingParents } = useQuery<Material[]>({
+    queryKey: ['active_parent_materials', childCountMap],
+    queryFn: async () => {
+      const parentIds = Object.keys(childCountMap);
+      if (parentIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .in('id', parentIds)
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!childCountMap
+  });
+
+  // 3. Resultados de búsqueda de padres
+  const { data: parentSearchResults = [] } = useQuery<Material[]>({
+    queryKey: ['parent_search', parentSearchTerm],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('status', 'active')
+        .or(`name.ilike.%${parentSearchTerm}%,code.ilike.%${parentSearchTerm}%`)
+        .order('name', { ascending: true })
+        .limit(10);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: parentSearchTerm.length > 0
+  });
 
   const displayParents = parentSearchTerm ? parentSearchResults : activeParentMaterials;
 
-  // Materiales hijos del padre seleccionado
-  const childrenOfSelected = materials.filter(m => m.base_material_id === selectedParentId);
-  const selectedParent = materials.find(m => m.id === selectedParentId);
+  // 4. Materiales hijos del padre seleccionado (soporta tanto activos como fusionados)
+  const { data: childrenOfSelected = [], isLoading: isLoadingChildren } = useQuery<Material[]>({
+    queryKey: ['children_of_selected', selectedParentId],
+    queryFn: async () => {
+      if (!selectedParentId) return [];
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('base_material_id', selectedParentId)
+        .in('status', ['active', 'archived'])
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedParentId,
+  });
 
-  // Materiales disponibles para ser agregados (excluyendo a los propios maestros)
-  const availableToJoin = materials.filter(m => 
-    m.id !== selectedParentId && 
-    m.base_material_id !== selectedParentId &&
-    !m.is_master &&
-    (childSearchTerm === '' || m.name.toLowerCase().includes(childSearchTerm.toLowerCase()) || (m.code && m.code.toLowerCase().includes(childSearchTerm.toLowerCase())))
-  ).slice(0, 10);
+  // 5. Detalles del padre seleccionado
+  const { data: selectedParent } = useQuery<Material | null>({
+    queryKey: ['selected_parent_material', selectedParentId],
+    queryFn: async () => {
+      if (!selectedParentId) return null;
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('id', selectedParentId)
+        .single();
+      if (error) throw error;
+      return data || null;
+    },
+    enabled: !!selectedParentId,
+  });
+
+  // 6. Materiales disponibles para unir (excluyendo maestros y ya asignados)
+  const { data: availableToJoin = [], isLoading: isLoadingAvailable } = useQuery<Material[]>({
+    queryKey: ['available_to_join', selectedParentId, childSearchTerm],
+    queryFn: async () => {
+      if (!selectedParentId || !childSearchTerm) return [];
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('status', 'active')
+        .neq('id', selectedParentId)
+        .neq('is_master', true)
+        .or(`name.ilike.%${childSearchTerm}%,code.ilike.%${childSearchTerm}%`)
+        .limit(10);
+      if (error) throw error;
+      
+      // Filtrar aquellos que ya están en este grupo
+      return (data || []).filter(m => m.base_material_id !== selectedParentId);
+    },
+    enabled: !!selectedParentId && childSearchTerm.length > 0,
+  });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, parentId }: { id: string, parentId: string | null }) => {
-      const childMaterial = materials.find(m => m.id === id);
-      const parentMaterial = materials.find(m => m.id === parentId);
+      // Obtener nombres para auditoría
+      const { data: childMaterial } = await supabase.from('materials').select('name').eq('id', id).single();
+      let parentMaterialName = null;
+      if (parentId) {
+        const { data: parentMat } = await supabase.from('materials').select('name').eq('id', parentId).single();
+        parentMaterialName = parentMat?.name;
+      }
       
       const res = await updateMaterial(id, { base_material_id: parentId });
       
       if (res) {
         const action = parentId ? 'GROUP_ADD' : 'GROUP_REMOVE';
         const description = parentId 
-          ? `Material "${childMaterial?.name}" agregado al grupo de "${parentMaterial?.name}"`
+          ? `Material "${childMaterial?.name}" agregado al grupo de "${parentMaterialName}"`
           : `Material "${childMaterial?.name}" removido de su grupo jerárquico`;
         
         await logAudit(action, {
@@ -64,7 +153,7 @@ const GroupManagement = () => {
           record_id: id,
           description,
           child_name: childMaterial?.name,
-          parent_name: parentMaterial?.name,
+          parent_name: parentMaterialName,
           action_type: parentId ? 'join' : 'leave'
         });
       }
@@ -72,6 +161,10 @@ const GroupManagement = () => {
       return res;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['material_child_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['active_parent_materials'] });
+      queryClient.invalidateQueries({ queryKey: ['children_of_selected', selectedParentId] });
+      queryClient.invalidateQueries({ queryKey: ['available_to_join', selectedParentId] });
       queryClient.invalidateQueries({ queryKey: ['materials'] });
       showSuccess('Operación realizada con éxito');
     },
@@ -90,6 +183,7 @@ const GroupManagement = () => {
     setChildSearchTerm('');
   };
 
+  const isLoading = isLoadingParents;
   if (isLoading) return <div className="p-8 text-center">Cargando gestión de grupos...</div>;
 
   return (
@@ -138,9 +232,9 @@ const GroupManagement = () => {
                       <span className="font-bold text-procarni-dark text-sm">{parent.name}</span>
                       <span className="text-[10px] text-gray-500 font-mono uppercase">{parent.code}</span>
                     </div>
-                    {parentIds.has(parent.id) ? (
+                    {childCountMap[parent.id] ? (
                       <Badge variant="secondary" className="bg-white border-gray-100 text-[10px]">
-                        {materials.filter(m => m.base_material_id === parent.id).length} hijos
+                        {childCountMap[parent.id]} hijos
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-[9px] border-dashed">Nuevo</Badge>
@@ -186,7 +280,14 @@ const GroupManagement = () => {
                       {childrenOfSelected.map(child => (
                         <div key={child.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 bg-white hover:shadow-sm transition-shadow">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium">{child.name}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-medium">{child.name}</span>
+                              {child.status === 'archived' && (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[9px] font-bold uppercase py-0 px-1.5 h-max leading-none">
+                                  Fusionado
+                                </Badge>
+                              )}
+                            </div>
                             <span className="text-[10px] text-gray-400">{child.code}</span>
                           </div>
                           <Button 

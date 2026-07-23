@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Analytics } from "@vercel/analytics/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import SearchManagement from "./pages/SearchManagement";
@@ -38,7 +39,7 @@ import PurchaseHistory from "./pages/PurchaseHistory"; // NEW IMPORT
 import Notifications from "./pages/Notifications";
 import GroupManagement from "./pages/GroupManagement";
 import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
-
+import MaterialApproval from "./pages/MaterialApproval";
 import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
 
 // Inventory Module Pages
@@ -59,6 +60,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <Analytics />
         <BrowserRouter
           future={{
             v7_relativeSplatPath: true,
@@ -92,7 +94,6 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/ficha-tecnica-upload" element={<FichaTecnicaUpload />} />
                   <Route path="/reports" element={<ReportsAnalytics />} />
-                  <Route path="/payment-reminders" element={<PaymentRemindersDashboard />} />
                   <Route path="/price-history" element={<PriceHistory />} />
                   <Route path="/purchase-history" element={<PurchaseHistory />} />
                   <Route path="/audit-log" element={<AuditLog />} />
@@ -100,6 +101,9 @@ const App = () => (
                   <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/group-management" element={<GroupManagement />} />
+                  <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
+                  <Route path="/material-approval" element={<MaterialApproval />} />
+                  <Route path="/payment-reminders" element={<PaymentRemindersDashboard />} />
                   {/* Inventory Module Routes */}
                   <Route path="/inventory" element={<StockGlobal />} />
                   <Route path="/inventory/receptions" element={<Recepciones />} />
@@ -107,7 +111,6 @@ const App = () => (
                   <Route path="/inventory/kardex" element={<HistorialKardex />} />
                   <Route path="/inventory/closings" element={<CierresYAjustes />} />
                   <Route path="/inventory/material/:id" element={<MaterialProfilePlaceholder />} />
-                  <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

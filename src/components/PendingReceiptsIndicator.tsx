@@ -5,8 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Package, PackageOpen, FileSpreadsheet, FileText, AlertCircle } from 'lucide-react';
+import { Loader2, Package, PackageOpen, FileSpreadsheet, FileText, AlertCircle, History } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
+import { ReceptionHistoryDialog } from './ReceptionHistoryDialog';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -44,6 +45,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedIndicatorIds, setSelectedIndicatorIds] = useState<Set<string>>(new Set());
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const handleOrderClick = (orderId: string) => {
     setIsOpen(false);
@@ -365,19 +367,27 @@ export const PendingReceiptsIndicator: React.FC = () => {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-4 bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-3xl ring-1 ring-black/5 mt-2 z-50">
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-extrabold text-sm text-procarni-dark flex items-center gap-1.5">
-                <Package className="h-4 w-4 text-procarni-primary" />
+          <div className="flex items-start justify-between gap-1">
+            <div className="min-w-0">
+              <h4 className="font-extrabold text-sm text-procarni-dark flex items-center gap-1.5 truncate">
+                <Package className="h-4 w-4 text-procarni-primary shrink-0" />
                 Recepciones Activas
               </h4>
-              <p className="text-[10px] text-gray-400 font-medium italic">Estado de órdenes en tránsito/parciales</p>
+              <p className="text-[10px] text-gray-400 font-medium italic truncate">Estado de órdenes en tránsito/parciales</p>
             </div>
-            {activeReceptionsCount > 0 && (
-              <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200/50 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                Activas: {activeReceptionsCount}
-              </span>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsHistoryOpen(true);
+              }}
+              className="h-7 px-2 text-[10px] font-bold text-slate-500 hover:text-procarni-primary hover:bg-slate-50 rounded-xl flex items-center gap-1 shrink-0 shadow-sm border border-slate-100 bg-white"
+              title="Ver historial de recepciones"
+            >
+              <History className="h-3.5 w-3.5" />
+              Historial
+            </Button>
           </div>
 
           {isLoading ? (
@@ -493,6 +503,12 @@ export const PendingReceiptsIndicator: React.FC = () => {
           )}
         </div>
       </PopoverContent>
+      {isHistoryOpen && (
+        <ReceptionHistoryDialog
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+        />
+      )}
     </Popover>
   );
 };

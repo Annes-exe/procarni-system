@@ -21,6 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -40,9 +42,10 @@ const QuoteRequestManagement = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isHistoryMode, setIsHistoryMode] = useState(false);
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
 
   // Tabs state depends on mode
-  const [activeTab, setActiveTab] = useState<string>('Draft');
+  const [activeTab, setActiveTab] = useState<string>('all');
 
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -75,8 +78,8 @@ const QuoteRequestManagement = () => {
 
   // Fetch Requests based on Mode
   const { data: quoteRequests, isLoading, error } = useQuery({
-    queryKey: ['quoteRequests', isHistoryMode ? 'History' : 'Active'],
-    queryFn: async () => await quoteRequestService.getAll(isHistoryMode ? 'History' : 'Active'),
+    queryKey: ['quoteRequests', isHistoryMode ? 'History' : 'Active', onlyRawMaterials],
+    queryFn: async () => await quoteRequestService.getAll(isHistoryMode ? 'History' : 'Active' as any, onlyRawMaterials),
     enabled: !!session,
   });
 
@@ -457,7 +460,7 @@ const QuoteRequestManagement = () => {
             onClick={() => {
               const newHistoryMode = !isHistoryMode;
               setIsHistoryMode(newHistoryMode);
-              setActiveTab(newHistoryMode ? 'all' : 'Draft');
+              setActiveTab(newHistoryMode ? 'Rejected' : 'all');
             }}
             className="gap-2"
             size="sm"
@@ -482,30 +485,44 @@ const QuoteRequestManagement = () => {
         <CardContent className="p-0 md:p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className="grid w-full md:w-auto grid-cols-2 md:flex h-9">
+              <TabsList className={cn("grid w-full md:w-auto md:flex h-9", isHistoryMode ? "grid-cols-2" : "grid-cols-3")}>
                 {isHistoryMode ? (
                   <>
-                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
                     <TabsTrigger value="Rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
                     <TabsTrigger value="Archived" className="text-xs md:text-sm hidden md:flex">Archivadas</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Activas</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
+                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Borradores</TabsTrigger>
                     <TabsTrigger value="Approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
 
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar solicitud..."
-                  className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Switch Materia Prima */}
+                <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
+                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                    Materia Prima
+                  </Label>
+                  <Switch
+                    id="raw-materials-switch"
+                    checked={onlyRawMaterials}
+                    onCheckedChange={setOnlyRawMaterials}
+                  />
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar solicitud..."
+                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 

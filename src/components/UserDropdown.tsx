@@ -13,7 +13,11 @@ import { showError, showSuccess } from '@/utils/toast';
 import { User, Bell, BellOff } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
-const UserDropdown = () => {
+interface UserDropdownProps {
+  showText?: boolean;
+}
+
+const UserDropdown = ({ showText = false }: UserDropdownProps) => {
   const { session, supabase } = useSession();
   const navigate = useNavigate();
   const [username, setUsername] = useState<string | null>(null);
@@ -67,12 +71,12 @@ const UserDropdown = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <div className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-all group">
-          <div className="text-right hidden sm:block">
+          <div className="w-[38px] h-[38px] rounded-[0.95rem] bg-gradient-to-tr from-procarni-primary to-procarni-blue flex items-center justify-center text-white shadow-xl shadow-procarni-primary/10 ring-2 ring-white group-hover:ring-procarni-primary/20 transition-all text-xs font-black shrink-0 font-mono">
+            {initials}
+          </div>
+          <div className={`text-left ${showText ? "block" : "hidden sm:block"}`}>
             <p className="text-[13.5px] font-black text-procarni-blue group-hover:text-procarni-primary transition-colors tracking-tight leading-tight">{displayName}</p>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{email}</p>
-          </div>
-          <div className="w-[38px] h-[38px] rounded-[0.95rem] bg-gradient-to-tr from-procarni-primary to-procarni-blue flex items-center justify-center text-white shadow-xl shadow-procarni-primary/10 ring-2 ring-white group-hover:ring-procarni-primary/20 transition-all text-xs font-black">
-            {initials}
           </div>
         </div>
       </DropdownMenuTrigger>

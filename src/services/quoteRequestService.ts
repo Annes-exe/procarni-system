@@ -37,7 +37,7 @@ export interface CreateQuoteRequestItemInput {
 
 export const quoteRequestService = {
 
-    async getAll(statusFilter?: 'Active' | 'History' | 'Draft' | 'Approved' | 'Rejected' | 'Archived') {
+    async getAll(statusFilter?: 'Active' | 'History' | 'Draft' | 'Approved' | 'Rejected' | 'Archived', onlyRawMaterials: boolean = false) {
         let query = supabase
             .from('quote_requests')
             .select(`
@@ -55,6 +55,10 @@ export const quoteRequestService = {
             query = query.eq('status', 'Rejected');
         } else if (statusFilter) {
             query = query.eq('status', statusFilter);
+        }
+
+        if (onlyRawMaterials) {
+            query = query.eq('is_raw_material', true);
         }
 
         const { data, error } = await query;

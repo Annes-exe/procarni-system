@@ -92,6 +92,29 @@ export const serviceOrderService = {
           
         const supplierIds = matchedSuppliers?.map(s => s.id) || [];
         const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== '';
+
+        // Fetch matching master materials first
+        const { data: matchedMasterMaterials } = await supabase
+          .from('materials')
+          .select('id')
+          .ilike('name', searchPattern);
+
+        const materialIds = matchedMasterMaterials?.map(m => m.id) || [];
+
+        let orderIds: string[] = [];
+        if (materialIds.length > 0) {
+          const { data: matchedMaterialsList } = await supabase
+            .from('service_order_materials')
+            .select('service_order_id')
+            .or(`description.ilike.${searchPattern},material_id.in.(${materialIds.join(',')})`);
+          orderIds = Array.from(new Set(matchedMaterialsList?.map(item => item.service_order_id).filter(Boolean) || []));
+        } else {
+          const { data: matchedMaterialsList } = await supabase
+            .from('service_order_materials')
+            .select('service_order_id')
+            .ilike('description', searchPattern);
+          orderIds = Array.from(new Set(matchedMaterialsList?.map(item => item.service_order_id).filter(Boolean) || []));
+        }
         
         const orConditions: string[] = [];
         if (isNumericSearch) {
@@ -99,6 +122,9 @@ export const serviceOrderService = {
         }
         if (supplierIds.length > 0) {
           orConditions.push(`supplier_id.in.(${supplierIds.join(',')})`);
+        }
+        if (orderIds.length > 0) {
+          orConditions.push(`id.in.(${orderIds.join(',')})`);
         }
         
         if (orConditions.length > 0) {
@@ -438,5 +464,21 @@ export const serviceOrderService = {
             return false;
         }
         return true;
+    },
+
+    getBySupplierId: async (supplierId: string): Promise<unknown[]> => {
+        const { data, error } = await supabase
+            .from('service_orders')
+            .select('*, companies(name), service_order_items(*), service_order_materials(*)')
+            .eq('supplier_id', supplierId)
+            .order('sequence_number', { ascending: false });
+
+        if (error) {
+            console.error('[serviceOrderService.getBySupplierId] Error:', error);
+            showError('Error al cargar órdenes de servicio del proveedor.');
+            return [];
+        }
+        return data || [];
     }
 };
+

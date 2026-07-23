@@ -6,7 +6,7 @@ import {
   ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, 
   ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
   BarChart3, ChevronDown, Home, Warehouse, Download, Wrench,
-  Package, Layers, CreditCard, CheckCircle
+  Package, Layers, CreditCard, CheckCircle, FileSpreadsheet, PieChart
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { m, AnimatePresence } from 'framer-motion';
@@ -40,7 +40,7 @@ const navItems = [
   {
     category: 'Reportes',
     items: [
-      { to: '/reports', icon: <BarChart3 className="h-5 w-5" />, label: 'Centro de Reportes' },
+      { to: '/reports', icon: <PieChart className="h-5 w-5" />, label: 'Analítica de Compras' },
       { to: '/payment-reminders', icon: <CreditCard className="h-5 w-5" />, label: 'Cuentas por Pagar (CXP)' },
     ]
   },
@@ -68,7 +68,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
   'Inicio': <Home className="h-[18px] w-[18px]" />,
   'Operaciones': <Briefcase className="h-[18px] w-[18px]" />,
   'Inventario': <Warehouse className="h-[18px] w-[18px]" />,
-  'Reportes': <BarChart3 className="h-[18px] w-[18px]" />,
+  'Reportes': <FileSpreadsheet className="h-[18px] w-[18px]" />,
   'Maestros': <Box className="h-[18px] w-[18px]" />,
   'Admin': <Cog className="h-[18px] w-[18px]" />,
 };

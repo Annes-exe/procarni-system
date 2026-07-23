@@ -294,7 +294,8 @@ const SupplierService = {
     pageSize: number,
     searchTerm: string = '',
     statusFilter: string = 'All',
-    dataQualityFilter: string = 'All'
+    dataQualityFilter: string = 'All',
+    onlyRawMaterials: boolean = false
   ) => {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -302,6 +303,10 @@ const SupplierService = {
     let query = supabase
       .from('suppliers')
       .select('*', { count: 'exact' });
+
+    if (onlyRawMaterials) {
+      query = query.eq('is_raw_material', true);
+    }
 
     if (searchTerm) {
       const sanitizedSearch = searchTerm.replace(/[,.]/g, ' ');
