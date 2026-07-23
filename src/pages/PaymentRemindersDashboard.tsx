@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { m } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +22,13 @@ import {
   PlusCircle,
   TrendingUp,
   History,
-  ArrowUpRight
+  ArrowUpRight,
+  FileText,
+  FileSpreadsheet,
+  ShieldCheck,
+  CheckCheck,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -29,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { currencyService } from '@/services/currencyService';
 import { calculateTotals } from '@/utils/calculations';
 import { showError, showSuccess, showLoading, dismissToast, showWarning } from '@/utils/toast';
+import { useSession } from '@/components/SessionContextProvider';
 import {
   Dialog,
   DialogContent,
@@ -64,10 +73,13 @@ interface OrderItem {
   currency: 'USD' | 'VES' | 'EUR';
   exchange_rate: number | null;
   paid_amount: number | null;
+  observations: string | null;
   suppliers: { name: string } | null;
   type: 'purchase_order' | 'service_order';
   displayId: string;
   totalAmount: number;
+  baseImponible: number;
+  montoIVA: number;
 }
 
 interface PaymentTransaction {
@@ -86,7 +98,7 @@ interface PaymentTransaction {
   created_at: string;
 }
 
-type SortOption = 'number_asc' | 'number_desc' | 'value_desc' | 'date_desc';
+type SortOption = 'urgency' | 'number_asc' | 'number_desc' | 'value_desc' | 'date_desc';
 
 // Helper to get local date string YYYY-MM-DD to avoid timezone shifts
 const getLocalDateString = (dateObjOrStr: Date | string) => {
@@ -103,13 +115,32 @@ const getLocalDateString = (dateObjOrStr: Date | string) => {
 const PaymentRemindersDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { role, session, isLoadingSession } = useSession();
+  const isAdmin = role === 'admin' || role === 'administrador';
+  const isAuthorized = isAdmin || role === 'payment_viewer';
+
+  React.useEffect(() => {
+    if (!isLoadingSession && !isAuthorized) {
+      showError('No tiene permisos para acceder al apartado de Cuentas por Pagar (CXP).');
+      navigate('/');
+    }
+  }, [role, isLoadingSession, isAuthorized, navigate]);
+
   const [searchTerm, setSearchTerm] = useState('');
 
   // Sorting and filtering states
-  const [sortBy, setSortBy] = useState<SortOption>('date_desc');
+  const [sortBy, setSortBy] = useState<SortOption>('urgency');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('all');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
+
+  // Prepago Report Dialog states
+  const [isPrepagoDialogOpen, setIsPrepagoDialogOpen] = useState(false);
+  const [prepagoSort, setPrepagoSort] = useState<string>('urgency');
+  const [prepagoSupplier, setPrepagoSupplier] = useState<string>('all');
+  const [prepagoStartDate, setPrepagoStartDate] = useState<string>('');
+  const [prepagoEndDate, setPrepagoEndDate] = useState<string>('');
+  const [prepagoSearchFact, setPrepagoSearchFact] = useState<string>('');
 
   // Abono dialog states
   const [isAbonoDialogOpen, setIsAbonoDialogOpen] = useState(false);
@@ -119,6 +150,18 @@ const PaymentRemindersDashboard = () => {
   const [abonoExchangeRate, setAbonoExchangeRate] = useState('');
   const [orderCurrencyDailyRate, setOrderCurrencyDailyRate] = useState<number | null>(null);
   const [isSubmittingAbono, setIsSubmittingAbono] = useState(false);
+
+  // Admin Simulated Payment dialog states (Individual & Batch)
+  const [isSimulatedDialogOpen, setIsSimulatedDialogOpen] = useState(false);
+  const [selectedOrderForSimulated, setSelectedOrderForSimulated] = useState<OrderItem | null>(null);
+  const [simulatedNotes, setSimulatedNotes] = useState('[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO]');
+  const [isSubmittingSimulated, setIsSubmittingSimulated] = useState(false);
+
+  const [isBatchSimulatedDialogOpen, setIsBatchSimulatedDialogOpen] = useState(false);
+  const [selectedOrderIdsForBatch, setSelectedOrderIdsForBatch] = useState<string[]>([]);
+  const [batchSimulatedNotes, setBatchSimulatedNotes] = useState('[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO]');
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+  const [isBatchSelectionActive, setIsBatchSelectionActive] = useState(false);
 
   // Animation variants
   const containerVariants = {
@@ -132,30 +175,32 @@ const PaymentRemindersDashboard = () => {
   };
 
   // Fetch Credit Orders (Pending Payment and Paid) with item details to calculate totals
-  const { data: orders, isLoading } = useQuery<OrderItem[]>({
+  const { data: orders, isLoading, isError, refetch } = useQuery<OrderItem[]>({
     queryKey: ['creditOrdersDashboardFull'],
     queryFn: async () => {
       const [posResponse, sosResponse] = await Promise.all([
         supabase
           .from('purchase_orders')
-          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, suppliers(name), purchase_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)')
+          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, observations, suppliers(name), purchase_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)')
           .eq('payment_terms', 'Crédito')
           .in('status', ['Credit', 'ToPay', 'Paid']),
         supabase
           .from('service_orders')
-          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, suppliers(name), service_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage), service_order_materials(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)'),
+          .select('id, sequence_number, issue_date, credit_days, created_at, status, payment_terms, currency, exchange_rate, paid_amount, observations, suppliers(name), service_order_items(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage), service_order_materials(quantity, unit_price, tax_rate, is_exempt, sales_percentage, discount_percentage)'),
       ]);
 
       if (posResponse.error) console.error('Error fetching POs:', posResponse.error);
       if (sosResponse.error) console.error('Error fetching SOs:', sosResponse.error);
 
-      const pos = (posResponse.data || []).map((po: any) => {
+      const pos = (posResponse.data || []).map((po) => {
         const year = po.created_at ? new Date(po.created_at).getFullYear() : new Date().getFullYear();
         const month = po.created_at ? String(new Date(po.created_at).getMonth() + 1).padStart(2, '0') : '01';
         const totals = calculateTotals(po.purchase_order_items || []);
         return {
           ...po,
           totalAmount: totals.total,
+          baseImponible: totals.baseImponible,
+          montoIVA: totals.montoIVA,
           type: 'purchase_order' as const,
           displayId: `OC-${year}-${month}-${String(po.sequence_number).padStart(3, '0')}`,
         };
@@ -163,8 +208,8 @@ const PaymentRemindersDashboard = () => {
 
       // Service Orders credit payment terms check
       const sos = (sosResponse.data || [])
-        .filter((so: any) => so.payment_terms === 'Crédito' && ['Credit', 'ToPay', 'Paid'].includes(so.status))
-        .map((so: any) => {
+        .filter((so) => so.payment_terms === 'Crédito' && ['Credit', 'ToPay', 'Paid'].includes(so.status))
+        .map((so) => {
           const year = so.created_at ? new Date(so.created_at).getFullYear() : new Date().getFullYear();
           const month = so.created_at ? String(new Date(so.created_at).getMonth() + 1).padStart(2, '0') : '01';
           const items = [
@@ -175,6 +220,8 @@ const PaymentRemindersDashboard = () => {
           return {
             ...so,
             totalAmount: totals.total,
+            baseImponible: totals.baseImponible,
+            montoIVA: totals.montoIVA,
             type: 'service_order' as const,
             displayId: `OS-${year}-${month}-${String(so.sequence_number).padStart(3, '0')}`,
           };
@@ -185,7 +232,7 @@ const PaymentRemindersDashboard = () => {
   });
 
   // Fetch Kardex Payment Transactions
-  const { data: rawTransactions, isLoading: isLoadingKardex } = useQuery<PaymentTransaction[]>({
+  const { data: rawTransactions, isLoading: isLoadingKardex, isError: isErrorKardex, refetch: refetchKardex } = useQuery<PaymentTransaction[]>({
     queryKey: ['paymentTransactionsKardex'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -308,260 +355,375 @@ const PaymentRemindersDashboard = () => {
     showSuccess('Reporte de Pagos en Excel (.xlsx) descargado exitosamente.');
   };
 
-  // Export History to PDF (Print-friendly layout styled like Quote Comparisons)
+  // Export History to PDF (Direct PDF download via jsPDF)
   const handleExportKardexPDF = () => {
     if (filteredKardex.length === 0) {
       showError('No hay datos para exportar.');
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      showError('No se pudo abrir la ventana de impresión. Verifique el bloqueo de popups.');
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const dateStr = new Date().toLocaleDateString('es-VE');
+
+      const rangeStr = startDateFilter || endDateFilter
+        ? `Período: ${startDateFilter || 'Inicio'} al ${endDateFilter || 'Fin'}`
+        : 'Período: Histórico Completo';
+
+      const supplierStr = selectedSupplierFilter !== 'all'
+        ? `Proveedor: ${selectedSupplierFilter}`
+        : 'Proveedores: Todos';
+
+      const searchStr = searchTerm.trim()
+        ? `Búsqueda: "${searchTerm}"`
+        : '';
+
+      // Header
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(27, 41, 74); // #1B294A
+      doc.text('PROCARNI', 14, 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // #880a0a
+      doc.text('SYSTEM', 14, 24);
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // #0f172a
+      doc.text('Historial de Transacciones de Pago', 280, 18, { align: 'right' });
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Fecha Emisión: ${dateStr}`, 280, 23, { align: 'right' });
+
+      // Filters summary line
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${rangeStr}  |  ${supplierStr}${searchStr ? '  |  ' + searchStr : ''}`, 14, 32);
+
+      // Extract rows
+      const tableRows = filteredKardex.map(tx => [
+        new Date(tx.payment_date).toLocaleString('es-VE'),
+        tx.displayId,
+        tx.supplierName,
+        formatCurrency(tx.amount, tx.currency),
+        tx.exchange_rate ? `@ ${tx.exchange_rate.toFixed(4)}` : 'N/A',
+        formatCurrency(tx.converted_amount, tx.orderCurrency),
+        tx.notes || ''
+      ]);
+
+      // Totals by transaction currency (Monto Transacción)
+      const totalVES = filteredKardex.filter(tx => tx.currency === 'VES').reduce((sum, tx) => sum + tx.amount, 0);
+      const totalUSD = filteredKardex.filter(tx => tx.currency === 'USD').reduce((sum, tx) => sum + tx.amount, 0);
+      const totalEUR = filteredKardex.filter(tx => tx.currency === 'EUR').reduce((sum, tx) => sum + tx.amount, 0);
+
+      const transaccionSummaryArr: string[] = [];
+      if (totalVES > 0) transaccionSummaryArr.push(`Bs. ${totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalUSD > 0) transaccionSummaryArr.push(`$ ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalEUR > 0) transaccionSummaryArr.push(`€ ${totalEUR.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+      const summaryTransaccionText = transaccionSummaryArr.length > 0
+        ? transaccionSummaryArr.join('\n')
+        : '-';
+
+      // Totals by document currency (Monto Acreditado)
+      const totalAcreditadoVES = filteredKardex.filter(tx => tx.orderCurrency === 'VES').reduce((sum, tx) => sum + tx.converted_amount, 0);
+      const totalAcreditadoUSD = filteredKardex.filter(tx => tx.orderCurrency === 'USD').reduce((sum, tx) => sum + tx.converted_amount, 0);
+      const totalAcreditadoEUR = filteredKardex.filter(tx => tx.orderCurrency === 'EUR').reduce((sum, tx) => sum + tx.converted_amount, 0);
+
+      const acreditadoSummaryArr: string[] = [];
+      if (totalAcreditadoVES > 0) acreditadoSummaryArr.push(`Bs. ${totalAcreditadoVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalAcreditadoUSD > 0) acreditadoSummaryArr.push(`$ ${totalAcreditadoUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (totalAcreditadoEUR > 0) acreditadoSummaryArr.push(`€ ${totalAcreditadoEUR.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+      const summaryAcreditadoText = acreditadoSummaryArr.length > 0
+        ? acreditadoSummaryArr.join('\n')
+        : '-';
+
+      // Append summary row at bottom of table
+      tableRows.push([
+        'TOTALES',
+        '',
+        '',
+        summaryTransaccionText,
+        '',
+        summaryAcreditadoText,
+        ''
+      ]);
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Fecha/Hora', 'Documento', 'Proveedor', 'Monto Transacción', 'Tasa de Cambio', 'Monto Acreditado', 'Observaciones / Notas']],
+        body: tableRows,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1.5 },
+          lineColor: [203, 213, 225],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [226, 232, 240],
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255],
+        },
+        styles: {
+          cellPadding: 2.5,
+        },
+        columnStyles: {
+          0: { cellWidth: 35 },
+          1: { cellWidth: 28, fontStyle: 'bold' },
+          2: { cellWidth: 55, fontStyle: 'bold', textColor: [27, 41, 74] },
+          3: { cellWidth: 32, halign: 'right', fontStyle: 'bold', textColor: [14, 87, 8] },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 35, halign: 'right', fontStyle: 'bold', textColor: [27, 41, 74] },
+          6: { cellWidth: 'auto' }
+        },
+        didParseCell: (data) => {
+          if (data.row.index === tableRows.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [241, 245, 249];
+            if (data.column.index === 3) {
+              data.cell.styles.textColor = [14, 87, 8];
+            }
+            if (data.column.index === 5) {
+              data.cell.styles.textColor = [27, 41, 74];
+            }
+          }
+        }
+      });
+
+      // @ts-expect-error - lastAutoTable is injected dynamically by jspdf-autotable
+      const finalY = doc.lastAutoTable?.finalY || 120;
+
+      // Subtle explanatory notes below table totals
+      doc.setFont('Helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('* Monto Transacción: Muestra el acumulado abonado según la moneda del pago (Bs., $, €).', 14, finalY + 7);
+      doc.text('* Monto Acreditado: Muestra el acumulado abonado equivalente según la moneda original del documento (Bs., $, €).', 14, finalY + 12);
+
+      // System Footer
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde el panel de control de CXP.', 148, finalY + 22, { align: 'center' });
+
+      const fileDate = new Date().toISOString().split('T')[0];
+      doc.save(`Reporte_Historial_Pagos_CXP_${fileDate}.pdf`);
+      showSuccess('Reporte PDF del Historial de Pagos descargado exitosamente.');
+    } catch (error) {
+      console.error('Kardex PDF Export Error:', error);
+      showError('Ocurrió un error al generar el PDF del historial de pagos.');
+    }
+  };
+
+  // Export Prepago Report to XLSX
+  const handleExportPrepagoXLSX = () => {
+    if (processedPrepagoOrders.length === 0) {
+      showError('No hay datos para exportar.');
       return;
     }
 
-    const dateStr = new Date().toLocaleDateString('es-VE');
-    const rangeStr = startDateFilter || endDateFilter
-      ? `Período: ${startDateFilter || 'Inicio'} al ${endDateFilter || 'Fin'}`
-      : 'Período: Histórico Completo';
+    const data = processedPrepagoOrders.map(order => {
+      const issueDateObj = new Date(order.issue_date || order.created_at || '');
+      const creditDaysVal = order.credit_days || 0;
+      const dueDateVal = new Date(issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000);
 
-    const supplierStr = selectedSupplierFilter !== 'all'
-      ? `Proveedor: ${selectedSupplierFilter}`
-      : 'Proveedores: Todos';
+      // Calculations converted to USD if VES
+      const rate = (order.currency === 'VES' && order.exchange_rate) ? order.exchange_rate : 1;
+      const baseUSD = order.baseImponible / rate;
+      const ivaUSD = order.montoIVA / rate;
+      const totalUSD = order.totalAmount / rate;
 
-    const searchStr = searchTerm.trim()
-      ? `Búsqueda: "${searchTerm}"`
-      : '';
+      return {
+        'FECHA': issueDateObj.toLocaleDateString('es-VE'),
+        'FACT Nº': '-',
+        'DESCRIPCION': order.observations || order.displayId,
+        'BASE ($)': Number(baseUSD.toFixed(2)),
+        '75% IVA ($)': Number((ivaUSD * 0.75).toFixed(2)),
+        '25% IVA ($)': Number((ivaUSD * 0.25).toFixed(2)),
+        'TOTAL $': Number(totalUSD.toFixed(2)),
+        'FECHA TOPE': dueDateVal.toLocaleDateString('es-VE'),
+        'PROVEEDOR': order.suppliers?.name || 'Desconocido',
+        'MONEDA ORIGEN': order.currency
+      };
+    });
 
-    const rowsHtml = filteredKardex.map(tx => `
-      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
-        <td style="padding: 10px 12px; text-align: left; color: #475569;">${new Date(tx.payment_date).toLocaleString('es-VE')}</td>
-        <td style="padding: 10px 12px; text-align: left; font-family: monospace; font-weight: bold; color: #0f172a;">${tx.displayId}</td>
-        <td style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">${tx.supplierName}</td>
-        <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #0e5708;">${formatCurrency(tx.amount, tx.currency)}</td>
-        <td style="padding: 10px 12px; text-align: right; color: #64748b;">${tx.exchange_rate ? `@ ${tx.exchange_rate.toFixed(4)}` : 'N/A'}</td>
-        <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #1B294A;">${formatCurrency(tx.converted_amount, tx.orderCurrency)}</td>
-        <td style="padding: 10px 12px; text-align: left; color: #64748b; font-style: italic;">${tx.notes || ''}</td>
-      </tr>
-    `).join('');
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Prepago');
 
-    const totalVES = filteredKardex
-      .filter(tx => tx.currency === 'VES')
-      .reduce((sum, tx) => sum + tx.amount, 0);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `reporte_prepago_cxp_${dateStr}.xlsx`);
+    showSuccess('Reporte Prepago en Excel (.xlsx) descargado exitosamente.');
+  };
 
-    const totalUSD = filteredKardex
-      .filter(tx => tx.currency === 'USD')
-      .reduce((sum, tx) => sum + tx.amount, 0);
+  // Export Prepago Report to PDF
+  const handleExportPrepagoPDF = () => {
+    if (processedPrepagoOrders.length === 0) {
+      showError('No hay datos para exportar.');
+      return;
+    }
 
-    const totalEUR = filteredKardex
-      .filter(tx => tx.currency === 'EUR')
-      .reduce((sum, tx) => sum + tx.amount, 0);
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const dateStr = new Date().toLocaleDateString('es-VE');
+      
+      const rangeStr = prepagoStartDate || prepagoEndDate
+        ? `Período: ${prepagoStartDate || 'Inicio'} al ${prepagoEndDate || 'Fin'}`
+        : 'Período: Completo';
 
-    const totalAcreditadoUSD = filteredKardex
-      .filter(tx => tx.orderCurrency === 'USD')
-      .reduce((sum, tx) => sum + tx.converted_amount, 0);
+      const supplierStr = prepagoSupplier !== 'all'
+        ? `Proveedor: ${prepagoSupplier}`
+        : 'Proveedores: Todos';
 
-    const totalAcreditadoEUR = filteredKardex
-      .filter(tx => tx.orderCurrency === 'EUR')
-      .reduce((sum, tx) => sum + tx.converted_amount, 0);
+      const filterSortStr = prepagoSort === 'urgency' ? 'Criterio: Más urgentes primero' :
+                            prepagoSort === 'amount_desc' ? 'Criterio: Montos más altos' :
+                            prepagoSort === 'number_asc' ? 'Criterio: Nro de Orden (Asc)' :
+                            prepagoSort === 'number_desc' ? 'Criterio: Nro de Orden (Desc)' : 'Criterio: Todas';
 
-    const totalAcreditadoVES = filteredKardex
-      .filter(tx => tx.orderCurrency === 'VES')
-      .reduce((sum, tx) => sum + tx.converted_amount, 0);
+      // Header
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(27, 41, 74); // #1B294A
+      doc.text('PROCARNI', 14, 20);
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Reporte de Pagos - Procarni</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              color: #0f172a;
-              margin: 0;
-              padding: 40px;
-              background-color: #ffffff;
-            }
-            .header-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 25px;
-            }
-            .logo-section {
-              text-align: left;
-            }
-            .company-name {
-              font-size: 26px;
-              font-weight: 900;
-              color: #1B294A;
-              letter-spacing: -0.8px;
-            }
-            .company-tagline {
-              font-size: 10px;
-              color: #880a0a;
-              font-weight: bold;
-              text-transform: uppercase;
-              letter-spacing: 2px;
-              margin-top: 2px;
-            }
-            .report-title {
-              font-size: 18px;
-              font-weight: 800;
-              color: #0f172a;
-              text-align: right;
-              text-transform: uppercase;
-              letter-spacing: -0.5px;
-            }
-            .report-metadata {
-              font-size: 11px;
-              color: #64748b;
-              text-align: right;
-              margin-top: 5px;
-            }
-            .filters-box {
-              background-color: #f8fafc;
-              border: 1px solid #f1f5f9;
-              border-radius: 16px;
-              padding: 12px 20px;
-              margin-bottom: 30px;
-              font-size: 11px;
-              color: #475569;
-              display: flex;
-              justify-content: space-between;
-              flex-wrap: wrap;
-              gap: 12px;
-            }
-            .data-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 35px;
-            }
-            .data-table th {
-              background-color: #f8fafc;
-              color: #475569;
-              font-size: 9px;
-              font-weight: bold;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              padding: 12px;
-              border-bottom: 2px solid #cbd5e1;
-            }
-            .totals-section {
-              display: flex;
-              justify-content: flex-end;
-              margin-top: 20px;
-              margin-bottom: 50px;
-            }
-            .totals-table {
-              border-collapse: collapse;
-              min-width: 320px;
-              background-color: #f8fafc;
-              border-radius: 16px;
-              border: 1px solid #f1f5f9;
-            }
-            .totals-table td {
-              padding: 10px 16px;
-              font-size: 12px;
-            }
-            .totals-label {
-              color: #64748b;
-              text-align: left;
-              font-weight: 500;
-            }
-            .totals-value {
-              font-weight: bold;
-              text-align: right;
-              color: #0f172a;
-            }
-            .footer-notes {
-              margin-top: 80px;
-              font-size: 9px;
-              color: #94a3b8;
-              text-align: center;
-              border-top: 1px solid #f1f5f9;
-              padding-top: 20px;
-            }
-            @media print {
-              body {
-                padding: 0;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <table class="header-table">
-            <tr>
-              <td class="logo-section">
-                <div class="company-name">PROCARNI</div>
-                <div class="company-tagline">System</div>
-              </td>
-              <td>
-                <div class="report-title">Historial de Transacciones de Pago</div>
-                <div class="report-metadata">Fecha Emisión: ${dateStr}</div>
-              </td>
-            </tr>
-          </table>
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // #880a0a
+      doc.text('SYSTEM', 14, 24);
 
-          <div class="filters-box">
-            <div><strong>${rangeStr}</strong></div>
-            <div><strong>${supplierStr}</strong></div>
-            ${searchStr ? `<div><strong>${searchStr}</strong></div>` : ''}
-          </div>
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // #0f172a
+      doc.text('Reporte de Cuentas por Pagar', 280, 18, { align: 'right' });
 
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="text-align: left;">Fecha/Hora</th>
-                <th style="text-align: left;">Documento</th>
-                <th style="text-align: left;">Proveedor</th>
-                <th style="text-align: right;">Monto Aportado</th>
-                <th style="text-align: right;">Tasa de Cambio</th>
-                <th style="text-align: right;">Equivalente Acreditado</th>
-                <th style="text-align: left;">Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Fecha Emisión: ${dateStr}`, 280, 23, { align: 'right' });
 
-          <div class="totals-section">
-            <table class="totals-table">
-              <tr>
-                <td colspan="2" style="font-size: 10px; font-weight: bold; color: #475569; text-transform: uppercase; padding: 12px 16px 2px 16px;">Total Pagado por Moneda:</td>
-              </tr>
-              ${totalVES > 0 ? `
-              <tr>
-                <td class="totals-label">Total VES:</td>
-                <td class="totals-value" style="color: #0e5708; font-family: monospace;">Bs. ${totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-              ${totalUSD > 0 ? `
-              <tr>
-                <td class="totals-label">Total USD:</td>
-                <td class="totals-value" style="color: #0e5708; font-family: monospace;">$ ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-              ${totalEUR > 0 ? `
-              <tr>
-                <td class="totals-label">Total EUR:</td>
-                <td class="totals-value" style="color: #0e5708; font-family: monospace;">€ ${totalEUR.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
-              </tr>` : ''}
-            </table>
-          </div>
+      // Filters summary line
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${rangeStr}  |  ${supplierStr}  |  ${filterSortStr}`, 14, 32);
 
-          <div class="footer-notes">
-            Reporte generado electrónicamente desde el panel administrativo de Procarni System.
-          </div>
+      let sumBaseUSD = 0;
+      let sumIva75USD = 0;
+      let sumIva25USD = 0;
+      let sumTotalUSD = 0;
 
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+      // Extract rows
+      const tableRows = processedPrepagoOrders.map(order => {
+        const issueDateObj = new Date(order.issue_date || order.created_at || '');
+        const creditDaysVal = order.credit_days || 0;
+        const dueDateVal = new Date(issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000);
+
+        const rate = (order.currency === 'VES' && order.exchange_rate) ? order.exchange_rate : 1;
+        const baseUSD = order.baseImponible / rate;
+        const ivaUSD = order.montoIVA / rate;
+        const totalUSD = order.totalAmount / rate;
+
+        sumBaseUSD += baseUSD;
+        sumIva75USD += ivaUSD * 0.75;
+        sumIva25USD += ivaUSD * 0.25;
+        sumTotalUSD += totalUSD;
+
+        const descriptionStr = `${order.suppliers?.name || 'Desconocido'} (${order.displayId}${order.observations ? ' - ' + order.observations : ''})`;
+
+        return [
+          issueDateObj.toLocaleDateString('es-VE'),
+          '-',
+          descriptionStr,
+          `$${baseUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `$${(ivaUSD * 0.75).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `$${(ivaUSD * 0.25).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `$${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          dueDateVal.toLocaleDateString('es-VE')
+        ];
+      });
+
+      // Append totals row
+      tableRows.push([
+        'TOTAL',
+        '',
+        'TOTAL DE CADA COLUMNA',
+        `$${sumBaseUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `$${sumIva75USD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `$${sumIva25USD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `$${sumTotalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        ''
+      ]);
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Fecha', 'Fact Nº', 'Descripción / Orden / Proveedor', 'Base ($)', '75% IVA ($)', '25% IVA ($)', 'Total $', 'Fecha Tope']],
+        body: tableRows,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1.5 },
+          lineColor: [203, 213, 225],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [226, 232, 240],
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255],
+        },
+        styles: {
+          cellPadding: 2.5,
+        },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 18 },
+          2: { cellWidth: 100 },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 28, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
+          6: { cellWidth: 28, halign: 'right', fontStyle: 'bold', textColor: [27, 41, 74] },
+          7: { cellWidth: 22 }
+        },
+        didParseCell: (data) => {
+          if (data.row.index === tableRows.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [241, 245, 249];
+            if (data.column.index === 6) {
+              data.cell.styles.textColor = [14, 87, 8];
+            }
+          }
+        }
+      });
+
+      // @ts-expect-error - lastAutoTable is injected dynamically by jspdf-autotable
+      const finalY = doc.lastAutoTable?.finalY || 120;
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde el panel de control de CXP.', 148, finalY + 15, { align: 'center' });
+
+      doc.save(`Reporte_Prepago_CXP_${new Date().toISOString().split('T')[0]}.pdf`);
+      showSuccess('Reporte PDF descargado exitosamente.');
+    } catch (error) {
+      console.error('PDF Error:', error);
+      showError('Ocurrió un error al generar el PDF.');
+    }
   };
 
   // Calculate frequent suppliers (Dynamic Top 5)
@@ -606,7 +768,7 @@ const PaymentRemindersDashboard = () => {
 
       const tableName = order.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
 
-      const updateData: any = {
+      const updateData = {
         paid_amount: newPaid,
         status: updatedStatus
       };
@@ -845,6 +1007,160 @@ const PaymentRemindersDashboard = () => {
     return null;
   }, [selectedOrderForAbono, abonoAmount, abonoCurrency, abonoExchangeRate]);
 
+  // Admin Simulated Payment Handlers (Individual & Batch)
+  const handleOpenSimulatedDialog = (order: OrderItem, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedOrderForSimulated(order);
+    setSimulatedNotes(`[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO] Documento: ${order.displayId}`);
+    setIsSimulatedDialogOpen(true);
+  };
+
+  const handleExecuteSimulatedPayment = async () => {
+    if (!selectedOrderForSimulated) return;
+    setIsSubmittingSimulated(true);
+    const toastId = showLoading('Procesando pago transitorio por sistema...');
+
+    try {
+      const order = selectedOrderForSimulated;
+      const currentPaid = order.paid_amount || 0;
+      const remaining = Number((order.totalAmount - currentPaid).toFixed(2));
+      const tableName = order.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
+
+      // Update Order Status to Paid
+      const { error: updateError } = await supabase
+        .from(tableName)
+        .update({
+          paid_amount: order.totalAmount,
+          status: 'Paid'
+        })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+
+      // Insert transaction into payment_transactions Kardex
+      const { error: txError } = await supabase
+        .from('payment_transactions')
+        .insert({
+          order_id: order.id,
+          order_type: order.type,
+          amount: remaining > 0 ? remaining : order.totalAmount,
+          currency: order.currency,
+          exchange_rate: order.exchange_rate,
+          converted_amount: remaining > 0 ? remaining : order.totalAmount,
+          registered_by: session?.user?.id || null,
+          previous_paid: currentPaid,
+          new_paid: order.totalAmount,
+          notes: simulatedNotes.trim() || '[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO]'
+        });
+
+      if (txError) throw txError;
+
+      showSuccess(`¡Orden ${order.displayId} marcada como Pagada con etiqueta transitoria de sistema!`);
+      queryClient.invalidateQueries({ queryKey: ['creditOrdersDashboardFull'] });
+      queryClient.invalidateQueries({ queryKey: ['paymentTransactionsKardex'] });
+      setIsSimulatedDialogOpen(false);
+      setSelectedOrderForSimulated(null);
+    } catch (err) {
+      console.error('Error executing simulated payment:', err);
+      showError('Ocurrió un error al registrar el pago transitorio por sistema.');
+    } finally {
+      dismissToast(toastId);
+      setIsSubmittingSimulated(false);
+    }
+  };
+
+  const handleOpenBatchSimulatedDialog = () => {
+    setBatchSimulatedNotes(`[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO] (${selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length} documentos)`);
+    setIsBatchSimulatedDialogOpen(true);
+  };
+
+  const handleToggleSelectOrderForBatch = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setSelectedOrderIdsForBatch(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllPendingForBatch = () => {
+    if (selectedOrderIdsForBatch.length === processedPending.length) {
+      setSelectedOrderIdsForBatch([]);
+    } else {
+      setSelectedOrderIdsForBatch(processedPending.map(o => o.id));
+    }
+  };
+
+  const handleExecuteBatchSimulatedPayment = async () => {
+    const targetIds = selectedOrderIdsForBatch.length > 0
+      ? selectedOrderIdsForBatch
+      : processedPending.map(o => o.id);
+
+    if (targetIds.length === 0) {
+      showError('No hay órdenes seleccionadas para procesar.');
+      return;
+    }
+
+    setIsSubmittingBatch(true);
+    const toastId = showLoading(`Procesando ${targetIds.length} pago(s) transitorio(s)...`);
+
+    try {
+      const ordersToPay = pendingOrders.filter(o => targetIds.includes(o.id));
+      let successCount = 0;
+
+      for (const order of ordersToPay) {
+        const currentPaid = order.paid_amount || 0;
+        const remaining = Number((order.totalAmount - currentPaid).toFixed(2));
+        const tableName = order.type === 'purchase_order' ? 'purchase_orders' : 'service_orders';
+
+        const { error: updateError } = await supabase
+          .from(tableName)
+          .update({
+            paid_amount: order.totalAmount,
+            status: 'Paid'
+          })
+          .eq('id', order.id);
+
+        if (updateError) {
+          console.error(`Error actualizando orden ${order.displayId}:`, updateError);
+          continue;
+        }
+
+        await supabase
+          .from('payment_transactions')
+          .insert({
+            order_id: order.id,
+            order_type: order.type,
+            amount: remaining > 0 ? remaining : order.totalAmount,
+            currency: order.currency,
+            exchange_rate: order.exchange_rate,
+            converted_amount: remaining > 0 ? remaining : order.totalAmount,
+            registered_by: session?.user?.id || null,
+            previous_paid: currentPaid,
+            new_paid: order.totalAmount,
+            notes: batchSimulatedNotes.trim() || '[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO]'
+          });
+
+        successCount++;
+      }
+
+      showSuccess(`¡Procesadas exitosamente ${successCount} órdenes como Pago Transitorio por Sistema!`);
+      queryClient.invalidateQueries({ queryKey: ['creditOrdersDashboardFull'] });
+      queryClient.invalidateQueries({ queryKey: ['paymentTransactionsKardex'] });
+      setIsBatchSimulatedDialogOpen(false);
+      setSelectedOrderIdsForBatch([]);
+      setIsBatchSelectionActive(false);
+    } catch (err) {
+      console.error('Error executing batch simulated payment:', err);
+      showError('Ocurrió un error al procesar el lote de pagos simulados.');
+    } finally {
+      dismissToast(toastId);
+      setIsSubmittingBatch(false);
+    }
+  };
+
   // Filter and sort core logic
   const processOrders = (list: OrderItem[]) => {
     let result = [...list];
@@ -882,6 +1198,14 @@ const PaymentRemindersDashboard = () => {
 
     // 3. Sort logic
     result.sort((a, b) => {
+      if (sortBy === 'urgency') {
+        const getDueDate = (order: OrderItem) => {
+          const issueDateObj = new Date(order.issue_date || order.created_at || '');
+          const creditDaysVal = order.credit_days || 0;
+          return issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
+        };
+        return getDueDate(a) - getDueDate(b);
+      }
       if (sortBy === 'number_asc') {
         return (a.sequence_number || 0) - (b.sequence_number || 0);
       }
@@ -903,8 +1227,77 @@ const PaymentRemindersDashboard = () => {
     return result;
   };
 
-  const pendingOrders = orders?.filter((o) => o.status !== 'Paid') || [];
-  const paidOrders = orders?.filter((o) => o.status === 'Paid') || [];
+  const pendingOrders = useMemo(() => {
+    return orders?.filter((o) => o.status !== 'Paid') || [];
+  }, [orders]);
+
+  const paidOrders = useMemo(() => {
+    return orders?.filter((o) => o.status === 'Paid') || [];
+  }, [orders]);
+
+  const processedPrepagoOrders = useMemo(() => {
+    let result = [...pendingOrders];
+
+    // 1. Supplier filter
+    if (prepagoSupplier !== 'all') {
+      result = result.filter(
+        (order) => order.suppliers?.name === prepagoSupplier
+      );
+    }
+
+    // 2. Date range filter (issue date)
+    if (prepagoStartDate) {
+      result = result.filter((order) => {
+        const localDate = getLocalDateString(order.issue_date || order.created_at || '');
+        return localDate >= prepagoStartDate;
+      });
+    }
+    if (prepagoEndDate) {
+      result = result.filter((order) => {
+        const localDate = getLocalDateString(order.issue_date || order.created_at || '');
+        return localDate <= prepagoEndDate;
+      });
+    }
+
+    // 3. Invoice / delivery note number filter (pending development text search)
+    if (prepagoSearchFact.trim()) {
+      const lower = prepagoSearchFact.toLowerCase();
+      // Since invoice field is pending, we can search displayId or observations
+      result = result.filter(
+        (order) =>
+          order.displayId.toLowerCase().includes(lower) ||
+          (order.observations || '').toLowerCase().includes(lower)
+      );
+    }
+
+    // 4. Sort logic
+    result.sort((a, b) => {
+      if (prepagoSort === 'urgency') {
+        const getDueDate = (order: OrderItem) => {
+          const issueDateObj = new Date(order.issue_date || order.created_at || '');
+          const creditDaysVal = order.credit_days || 0;
+          return issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
+        };
+        return getDueDate(a) - getDueDate(b);
+      }
+      if (prepagoSort === 'amount_desc') {
+        // Normalize to USD for accurate sorting by amount
+        const valA = a.currency === 'VES' ? (a.totalAmount / (a.exchange_rate || 1)) : a.totalAmount;
+        const valB = b.currency === 'VES' ? (b.totalAmount / (b.exchange_rate || 1)) : b.totalAmount;
+        return valB - valA;
+      }
+      if (prepagoSort === 'number_asc') {
+        return (a.sequence_number || 0) - (b.sequence_number || 0);
+      }
+      if (prepagoSort === 'number_desc') {
+        return (b.sequence_number || 0) - (a.sequence_number || 0);
+      }
+      // 'all' or default: sort by sequence number / date asc
+      return (a.sequence_number || 0) - (b.sequence_number || 0);
+    });
+
+    return result;
+  }, [pendingOrders, prepagoSort, prepagoSupplier, prepagoStartDate, prepagoEndDate, prepagoSearchFact]);
 
   const processedPending = processOrders(pendingOrders);
   const processedPaid = processOrders(paidOrders);
@@ -960,21 +1353,39 @@ const PaymentRemindersDashboard = () => {
     const paidAmt = order.paid_amount || 0;
     const progressPercent = Math.min(100, Math.max(0, Math.round((paidAmt / order.totalAmount) * 100)));
 
+    const isSelectedForBatch = selectedOrderIdsForBatch.includes(order.id);
+
     return (
       <Card
         key={order.id}
         className={cn(
           "group relative p-6 border rounded-[1.75rem] transition-all duration-300 hover:shadow-lg flex flex-col justify-between min-h-[300px]",
-          urgencyColor
+          urgencyColor,
+          isSelectedForBatch && "ring-2 ring-amber-500 bg-amber-50/20"
         )}
       >
         <div>
           <div className="flex justify-between items-start mb-4">
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <span className="font-mono text-sm font-black text-procarni-dark leading-none truncate">{order.displayId}</span>
-              <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider text-center w-fit", typeColor)}>
-                {typeLabel}
-              </span>
+            <div className="flex items-center gap-2 min-w-0">
+              {isAdmin && order.status !== 'Paid' && (
+                <button
+                  onClick={(e) => handleToggleSelectOrderForBatch(order.id, e)}
+                  className="text-amber-600 hover:text-amber-800 transition-colors p-0.5"
+                  title="Seleccionar para pago simulado en lote"
+                >
+                  {isSelectedForBatch ? (
+                    <CheckSquare className="h-5 w-5 text-amber-600 fill-amber-100" />
+                  ) : (
+                    <Square className="h-5 w-5 text-gray-300 hover:text-amber-500" />
+                  )}
+                </button>
+              )}
+              <div className="flex flex-col gap-1.5 min-w-0">
+                <span className="font-mono text-sm font-black text-procarni-dark leading-none truncate">{order.displayId}</span>
+                <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-md uppercase tracking-wider text-center w-fit", typeColor)}>
+                  {typeLabel}
+                </span>
+              </div>
             </div>
             <span className={cn("px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider shrink-0", badgeColor)}>
               {badgeText}
@@ -1022,26 +1433,40 @@ const PaymentRemindersDashboard = () => {
         </div>
 
         <div className="mt-5 pt-3 border-t border-gray-100/80 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             {/* View Details Link */}
             <button
               onClick={() => navigate(order.type === 'purchase_order' ? `/purchase-orders/${order.id}` : `/service-orders/${order.id}`)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-procarni-blue hover:text-procarni-primary hover:bg-slate-50 rounded-xl transition-all h-10 min-w-[50px] shrink-0 justify-center"
+              className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-procarni-blue hover:text-procarni-primary hover:bg-slate-50 rounded-xl transition-all h-10 shrink-0 justify-center"
             >
               Ver <ArrowRight className="h-3.5 w-3.5" />
             </button>
 
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div className="flex flex-wrap items-center gap-1.5 ml-auto">
               {/* Registrar Abono Button */}
               {order.status !== 'Paid' && (
                 <Button
                   onClick={(e) => handleOpenAbonoDialog(order, e)}
                   size="sm"
                   variant="outline"
-                  className="h-10 text-xs font-extrabold rounded-xl bg-procarni-primary/5 hover:bg-procarni-primary hover:text-white border-procarni-primary/10 hover:border-transparent text-procarni-primary shadow-sm hover:scale-[1.02] transition-all px-3"
+                  className="h-10 text-xs font-extrabold rounded-xl bg-procarni-primary/5 hover:bg-procarni-primary hover:text-white border-procarni-primary/10 hover:border-transparent text-procarni-primary shadow-sm hover:scale-[1.02] transition-all px-2.5"
                 >
                   <PlusCircle className="h-3.5 w-3.5 mr-1 shrink-0" />
                   Abonar
+                </Button>
+              )}
+
+              {/* Admin Simulated Payment Button */}
+              {isAdmin && order.status !== 'Paid' && (
+                <Button
+                  onClick={(e) => handleOpenSimulatedDialog(order, e)}
+                  size="sm"
+                  variant="outline"
+                  title="Marcar como Pago Simulado Transitorio (Solo Admin)"
+                  className="h-10 text-xs font-extrabold rounded-xl bg-amber-50 hover:bg-amber-600 hover:text-white border-amber-200 text-amber-800 shadow-sm hover:scale-[1.02] transition-all px-2.5"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 mr-1 shrink-0" />
+                  Pago Simulado
                 </Button>
               )}
 
@@ -1067,6 +1492,114 @@ const PaymentRemindersDashboard = () => {
     );
   };
 
+  if (isError || isErrorKardex) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center bg-white/70 backdrop-blur-xl border border-red-200/50 rounded-[2rem] shadow-2xl shadow-gray-200/50 max-w-lg mx-auto my-12 space-y-5 animate-in fade-in duration-300">
+        <div className="p-4 rounded-full bg-red-50 text-procarni-primary">
+          <AlertCircle className="h-12 w-12 animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-black text-procarni-blue tracking-tight">Error de Conexión</h3>
+          <p className="text-xs text-gray-500 max-w-sm font-medium italic">
+            No se pudo establecer conexión con el servidor de base de datos. Por favor, verifique su acceso a internet o de red e intente de nuevo.
+          </p>
+        </div>
+        <Button 
+          onClick={() => {
+            refetch();
+            refetchKardex();
+          }}
+          className="h-11 px-6 rounded-xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all"
+        >
+          Reintentar Conexión
+        </Button>
+      </div>
+    );
+  }
+
+  if (isLoading || isLoadingKardex) {
+    return (
+      <div className="space-y-8 p-2 md:p-4 max-w-full animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-64 bg-slate-200/80 rounded-lg"></div>
+            <div className="h-4 w-96 bg-slate-200/80 rounded-lg"></div>
+          </div>
+          <div className="h-11 w-40 bg-slate-200/80 rounded-2xl"></div>
+        </div>
+
+        {/* Supplier Pills Skeleton */}
+        <div className="space-y-2.5">
+          <div className="h-3 w-32 bg-slate-200/80 rounded-lg"></div>
+          <div className="flex flex-wrap gap-2">
+            <div className="h-9 w-20 bg-slate-200/80 rounded-full"></div>
+            <div className="h-9 w-32 bg-slate-200/80 rounded-full"></div>
+            <div className="h-9 w-28 bg-slate-200/80 rounded-full"></div>
+          </div>
+        </div>
+
+        {/* Search & Sort Skeleton */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+          <div className="h-11 w-full sm:max-w-md bg-slate-200/80 rounded-2xl"></div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
+            <div className="h-11 w-24 bg-slate-200/80 rounded-xl"></div>
+            <div className="h-11 w-24 bg-slate-200/80 rounded-xl"></div>
+            <div className="h-11 w-40 bg-slate-200/80 rounded-xl"></div>
+          </div>
+        </div>
+
+        {/* Tab skeleton */}
+        <div className="h-12 w-full md:w-96 bg-slate-200/80 rounded-2xl"></div>
+
+        {/* Cards Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="border border-gray-100 rounded-[1.75rem] p-6 h-[300px] flex flex-col justify-between bg-white shadow-sm ring-1 ring-gray-100/50">
+              <div className="space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1.5 w-1/2">
+                    <div className="h-4 bg-slate-200/80 rounded-md w-24"></div>
+                    <div className="h-3.5 bg-slate-200/80 rounded-md w-16"></div>
+                  </div>
+                  <div className="h-5 bg-slate-200/80 rounded-full w-20"></div>
+                </div>
+                <div className="h-6 bg-slate-200/80 rounded-md w-3/4"></div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-slate-200/80 rounded-md w-1/2"></div>
+                  <div className="h-3 bg-slate-200/80 rounded-md w-1/3"></div>
+                  <div className="h-3 bg-slate-200/80 rounded-md w-2/3"></div>
+                </div>
+              </div>
+              <div className="h-10 bg-slate-200/80 rounded-xl w-full mt-4"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // CXP Panel is temporarily paused during development
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[450px] p-8 text-center bg-white/80 backdrop-blur-xl border border-amber-200/60 rounded-[2.5rem] shadow-2xl shadow-gray-200/50 max-w-lg mx-auto my-12 space-y-6 animate-in fade-in duration-300">
+      <div className="p-5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+        <Clock className="h-12 w-12 animate-pulse" />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-2xl font-black text-procarni-blue tracking-tight">Módulo CXP en Mantenimiento</h3>
+        <p className="text-xs text-gray-500 max-w-sm font-medium leading-relaxed">
+          Las funciones del panel de Cuentas por Pagar y el registro de pagos se encuentran temporalmente pausadas mientras finaliza el desarrollo del módulo.
+        </p>
+      </div>
+      <Button
+        onClick={() => navigate('/')}
+        className="h-11 px-6 rounded-2xl bg-procarni-blue hover:bg-procarni-dark text-white font-extrabold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all"
+      >
+        Volver al Inicio
+      </Button>
+    </div>
+  );
+
   return (
     <m.div
       initial="hidden"
@@ -1083,6 +1616,13 @@ const PaymentRemindersDashboard = () => {
           </h1>
           <p className="text-[13px] text-gray-500 font-medium italic font-body">Consulta de órdenes a crédito, abonos parciales y descarga de comprobantes.</p>
         </div>
+         <Button
+          onClick={() => setIsPrepagoDialogOpen(true)}
+          className="h-11 px-5 rounded-2xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2"
+        >
+          <FileText className="h-4 w-4" />
+          Reporte Prepago
+        </Button>
       </div>
 
       {/* Frequent Suppliers Pills */}
@@ -1175,6 +1715,7 @@ const PaymentRemindersDashboard = () => {
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200">
+                <SelectItem value="urgency" className="text-xs font-medium">Más urgentes primero</SelectItem>
                 <SelectItem value="date_desc" className="text-xs font-medium">Recientes primero</SelectItem>
                 <SelectItem value="number_asc" className="text-xs font-medium">Número (Asc)</SelectItem>
                 <SelectItem value="number_desc" className="text-xs font-medium">Número (Desc)</SelectItem>
@@ -1204,6 +1745,50 @@ const PaymentRemindersDashboard = () => {
 
         {/* Tab 1: Pending */}
         <TabsContent value="pending" className="mt-0 outline-none">
+          {isAdmin && processedPending.length > 0 && (
+            <div className="mb-6 p-4 md:p-5 rounded-3xl bg-amber-50/70 border border-amber-200/80 backdrop-blur-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-800 shrink-0">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-amber-950 flex items-center gap-2">
+                    Administración: Solución Transitoria CXP
+                  </h4>
+                  <p className="text-xs text-amber-800 font-medium">
+                    Mientras el módulo de CXP finaliza su desarrollo, puedes regularizar la acumulación de cuentas pendientes realizando un pago simulado por sistema con etiqueta de trazabilidad.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 justify-end">
+                <Button
+                  onClick={handleSelectAllPendingForBatch}
+                  size="sm"
+                  variant="outline"
+                  className="h-10 text-xs font-extrabold rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                >
+                  {selectedOrderIdsForBatch.length === processedPending.length ? (
+                    <>
+                      <Square className="h-3.5 w-3.5 mr-1" /> Deseleccionar Todas
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Seleccionar Todas ({processedPending.length})
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleOpenBatchSimulatedDialog}
+                  size="sm"
+                  className="h-10 text-xs font-extrabold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:scale-[1.02] transition-all px-4"
+                >
+                  <CheckCheck className="h-4 w-4 mr-1.5" />
+                  Liquidación Masiva ({selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex justify-center items-center h-48 text-sm text-gray-500">
               <span className="animate-pulse font-medium">Cargando vencimientos pendientes...</span>
@@ -1331,6 +1916,7 @@ const PaymentRemindersDashboard = () => {
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Monto Transacción</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Conversión</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Monto Acreditado</TableHead>
+                          <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Observaciones / Notas</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">Progreso de Pago</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1361,6 +1947,16 @@ const PaymentRemindersDashboard = () => {
                             </TableCell>
                             <TableCell className="text-xs font-bold text-gray-700">
                               {formatCurrency(tx.converted_amount, tx.orderCurrency)}
+                            </TableCell>
+                            <TableCell className="text-xs text-gray-600 max-w-[250px] truncate">
+                              {tx.notes && (tx.notes.includes('PAGO TRANSITORIO') || tx.notes.includes('PAGO SIMULADO')) ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-extrabold rounded-md bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider truncate">
+                                  <ShieldCheck className="h-3 w-3 shrink-0" />
+                                  {tx.notes}
+                                </span>
+                              ) : (
+                                <span>{tx.notes || '-'}</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex flex-col items-end gap-1">
@@ -1502,6 +2098,347 @@ const PaymentRemindersDashboard = () => {
               className="rounded-xl bg-procarni-primary hover:bg-red-950 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
             >
               {isSubmittingAbono ? 'Registrando...' : 'Registrar Abono'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Simulated Payment Dialog (Individual) */}
+      <Dialog open={isSimulatedDialogOpen} onOpenChange={setIsSimulatedDialogOpen}>
+        <DialogContent className="w-[95%] max-w-[480px] sm:w-full rounded-[2rem] p-6 border-none bg-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-amber-900 flex items-center gap-2.5">
+              <ShieldCheck className="h-6 w-6 text-amber-600 shrink-0" />
+              Pago Simulado Transitorio (Solo Admin)
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedOrderForSimulated && (
+            <div className="space-y-4 py-3">
+              <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/60 space-y-2 text-xs">
+                <div className="font-extrabold text-amber-950 flex justify-between">
+                  <span>Documento:</span>
+                  <span className="font-mono text-sm">{selectedOrderForSimulated.displayId}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-medium">
+                  <span>Proveedor:</span>
+                  <span className="font-bold">{selectedOrderForSimulated.suppliers?.name || 'Desconocido'}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-medium">
+                  <span>Monto Total:</span>
+                  <span className="font-bold font-mono">{formatCurrency(selectedOrderForSimulated.totalAmount, selectedOrderForSimulated.currency)}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-medium">
+                  <span>Saldo Pendiente:</span>
+                  <span className="font-extrabold font-mono text-procarni-primary">
+                    {formatCurrency(selectedOrderForSimulated.totalAmount - (selectedOrderForSimulated.paid_amount || 0), selectedOrderForSimulated.currency)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">
+                  Etiqueta / Observación para el Kardex
+                </Label>
+                <Input
+                  type="text"
+                  value={simulatedNotes}
+                  onChange={(e) => setSimulatedNotes(e.target.value)}
+                  placeholder="[PAGO TRANSITORIO POR SISTEMA - MÓDULO CXP EN DESARROLLO]"
+                  className="h-11 rounded-xl border-gray-200 text-xs font-semibold"
+                />
+                <p className="text-[11px] text-gray-400 font-medium italic">
+                  Esta nota se registrará en el historial de transacciones para garantizar la trazabilidad cuando el módulo CXP esté completado.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsSimulatedDialogOpen(false)}
+              className="rounded-xl border-gray-200 font-bold h-11 w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExecuteSimulatedPayment}
+              disabled={isSubmittingSimulated}
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
+            >
+              {isSubmittingSimulated ? 'Procesando...' : 'Confirmar Pago Simulado'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Batch Simulated Payment Dialog */}
+      <Dialog open={isBatchSimulatedDialogOpen} onOpenChange={setIsBatchSimulatedDialogOpen}>
+        <DialogContent className="w-[95%] max-w-[520px] sm:w-full rounded-[2rem] p-6 border-none bg-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-amber-900 flex items-center gap-2.5">
+              <CheckCheck className="h-6 w-6 text-amber-600 shrink-0" />
+              Liquidación Masiva de Cuentas (Solo Admin)
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/60 space-y-2 text-xs">
+              <p className="font-bold text-amber-950">
+                Vas a procesar como Pago Simulado Transitorio un lote de {selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length} órden(es) pendiente(s).
+              </p>
+              <p className="text-[11px] text-amber-900 font-medium leading-relaxed">
+                Todas las órdenes seleccionadas cambiarán a estado <strong className="font-extrabold">Pagada</strong> (saldo 0) y sus movimientos quedarán archivados en el Kardex con la etiqueta de pago transitorio.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-500">
+                Etiqueta / Observación Masiva para el Kardex
+              </Label>
+              <Input
+                type="text"
+                value={batchSimulatedNotes}
+                onChange={(e) => setBatchSimulatedNotes(e.target.value)}
+                placeholder="[PAGO TRANSITORIO MASIVO POR SISTEMA - MÓDULO CXP EN DESARROLLO]"
+                className="h-11 rounded-xl border-gray-200 text-xs font-semibold"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsBatchSimulatedDialogOpen(false)}
+              className="rounded-xl border-gray-200 font-bold h-11 w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExecuteBatchSimulatedPayment}
+              disabled={isSubmittingBatch}
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold shadow-md hover:scale-[1.01] h-11 w-full sm:w-auto"
+            >
+              {isSubmittingBatch ? 'Procesando Lote...' : `Ejecutar Liquidación Masiva (${selectedOrderIdsForBatch.length > 0 ? selectedOrderIdsForBatch.length : processedPending.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reporte Prepago Dialog */}
+      <Dialog open={isPrepagoDialogOpen} onOpenChange={setIsPrepagoDialogOpen}>
+        <DialogContent className="max-w-7xl w-[95vw] h-[90vh] flex flex-col rounded-[2rem] p-6 border-none bg-white shadow-2xl overflow-hidden">
+          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4 shrink-0">
+            <DialogTitle className="text-2xl font-black text-procarni-blue flex items-center gap-2.5">
+              <FileSpreadsheet className="h-6 w-6 text-procarni-primary" />
+              Reporte de Cuentas por Pagar
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Modal Filter and Action Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 py-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/60 mt-4 shrink-0">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Filtrar por Criterio</Label>
+              <Select value={prepagoSort} onValueChange={setPrepagoSort}>
+                <SelectTrigger className="h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200">
+                  <SelectItem value="all" className="text-xs font-medium">Todas</SelectItem>
+                  <SelectItem value="urgency" className="text-xs font-medium">Más urgentes</SelectItem>
+                  <SelectItem value="amount_desc" className="text-xs font-medium">Montos más altos</SelectItem>
+                  <SelectItem value="number_asc" className="text-xs font-medium">Número Orden (Asc)</SelectItem>
+                  <SelectItem value="number_desc" className="text-xs font-medium">Número Orden (Desc)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Proveedor</Label>
+              <Select value={prepagoSupplier} onValueChange={setPrepagoSupplier}>
+                <SelectTrigger className="h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200">
+                  <SelectItem value="all" className="text-xs font-medium">Todos</SelectItem>
+                  {Array.from(new Set(pendingOrders.map(o => o.suppliers?.name).filter(Boolean))).map(name => (
+                    <SelectItem key={name} value={name || ''} className="text-xs font-medium">{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Desde (Emisión)</Label>
+              <Input
+                type="date"
+                value={prepagoStartDate}
+                onChange={(e) => setPrepagoStartDate(e.target.value)}
+                className="h-10 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400">Hasta (Emisión)</Label>
+              <Input
+                type="date"
+                value={prepagoEndDate}
+                onChange={(e) => setPrepagoEndDate(e.target.value)}
+                className="h-10 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider font-extrabold text-gray-400 flex items-center gap-1">
+                Factura / Entrega <span className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-normal lowercase tracking-normal">pendiente</span>
+              </Label>
+              <Input
+                type="text"
+                placeholder="Nro Factura / Nota..."
+                value={prepagoSearchFact}
+                onChange={(e) => setPrepagoSearchFact(e.target.value)}
+                className="h-10 bg-white border-gray-200 rounded-xl text-xs font-semibold text-gray-600 focus:ring-procarni-primary/20"
+              />
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={handleExportPrepagoXLSX}
+                variant="outline"
+                size="sm"
+                className="h-10 flex-1 text-[11px] font-extrabold rounded-xl border-gray-200 bg-white hover:bg-slate-50 shadow-sm text-procarni-blue hover:text-procarni-primary"
+              >
+                Excel
+              </Button>
+              <Button
+                onClick={handleExportPrepagoPDF}
+                variant="outline"
+                size="sm"
+                className="h-10 flex-1 text-[11px] font-extrabold rounded-xl border-gray-200 bg-white hover:bg-slate-50 shadow-sm text-procarni-blue hover:text-procarni-primary"
+              >
+                PDF
+              </Button>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="flex-1 overflow-y-auto min-h-0 border border-gray-150 rounded-2xl my-4 bg-white">
+            {processedPrepagoOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full p-8 text-center text-gray-400">
+                <AlertCircle className="h-12 w-12 text-gray-200 mb-3" />
+                <p className="font-bold text-sm">No se encontraron cuentas pendientes que coincidan con los filtros.</p>
+              </div>
+            ) : (
+              <Table className="relative">
+                <TableHeader className="sticky top-0 bg-slate-50 z-10 border-b">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Fecha</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Fact Nº</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Descripción / Orden / Proveedor</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">Base ($)</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">75% IVA ($)</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">25% IVA ($)</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 text-right">Total $</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Fecha Tope</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {processedPrepagoOrders.map(order => {
+                    const issueDateObj = new Date(order.issue_date || order.created_at || '');
+                    const creditDaysVal = order.credit_days || 0;
+                    const dueDateVal = new Date(issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000);
+
+                    const rate = (order.currency === 'VES' && order.exchange_rate) ? order.exchange_rate : 1;
+                    const baseUSD = order.baseImponible / rate;
+                    const ivaUSD = order.montoIVA / rate;
+                    const totalUSD = order.totalAmount / rate;
+
+                    return (
+                      <TableRow key={order.id} className="hover:bg-blue-50/10 transition-colors">
+                        <TableCell className="text-xs text-gray-500 font-medium">
+                          {issueDateObj.toLocaleDateString('es-VE')}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-400 font-medium font-mono">
+                          -
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="font-extrabold text-procarni-blue">{order.suppliers?.name || 'Desconocido'}</div>
+                          <div className="flex gap-2 text-[10px] text-gray-400 font-mono mt-0.5">
+                            <span>{order.displayId}</span>
+                            {order.observations && <span>• {order.observations}</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-medium text-gray-600">
+                          ${baseUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-medium text-gray-600">
+                          ${(ivaUSD * 0.75).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-medium text-gray-600">
+                          ${(ivaUSD * 0.25).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-mono font-extrabold text-procarni-blue">
+                          ${totalUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-xs font-bold text-procarni-primary">
+                          {dueDateVal.toLocaleDateString('es-VE')}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+
+          {/* Sums and Currency Summary (Bottom Bar) */}
+          <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-6 items-center shrink-0">
+            {/* Column Sums */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-wrap gap-x-8 gap-y-2 text-xs font-black text-procarni-blue">
+              <div className="uppercase text-[9px] tracking-wider text-gray-400 w-full mb-1">Total de cada columna (USD):</div>
+              <div>Base: <span className="font-mono text-procarni-primary">${
+                processedPrepagoOrders.reduce((sum, o) => sum + (o.baseImponible / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+              <div>75% IVA: <span className="font-mono text-procarni-primary">${
+                processedPrepagoOrders.reduce((sum, o) => sum + ((o.montoIVA / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)) * 0.75), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+              <div>25% IVA: <span className="font-mono text-procarni-primary">${
+                processedPrepagoOrders.reduce((sum, o) => sum + ((o.montoIVA / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)) * 0.25), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+              <div>Total: <span className="font-mono text-emerald-600">${
+                processedPrepagoOrders.reduce((sum, o) => sum + (o.totalAmount / ((o.currency === 'VES' && o.exchange_rate) ? o.exchange_rate : 1)), 0)
+                .toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              }</span></div>
+            </div>
+
+            {/* Original Currencies Summary */}
+            <div className="flex justify-end gap-3 text-xs">
+              {['USD', 'VES', 'EUR'].map(curr => {
+                const pendingSum = processedPrepagoOrders
+                  .filter(o => o.currency === curr)
+                  .reduce((sum, o) => sum + (o.totalAmount - (o.paid_amount || 0)), 0);
+
+                if (pendingSum <= 0) return null;
+                return (
+                  <div key={curr} className="bg-blue-50/50 border border-blue-100 rounded-xl px-3 py-2 text-right">
+                    <span className="text-[10px] text-gray-400 block uppercase font-bold tracking-wider">Saldo Pendiente {curr}</span>
+                    <span className="font-mono font-bold text-procarni-blue">{formatCurrency(pendingSum, curr)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 pt-2 border-t shrink-0">
+            <Button
+              onClick={() => setIsPrepagoDialogOpen(false)}
+              className="rounded-xl border-gray-200 font-bold h-11 w-full sm:w-auto"
+            >
+              Cerrar Reporte
             </Button>
           </DialogFooter>
         </DialogContent>

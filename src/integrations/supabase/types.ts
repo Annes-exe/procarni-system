@@ -29,6 +29,7 @@ export type Supplier = {
   city: string | null;
   alert_comment: string | null;
   website: string | null;
+  is_raw_material?: boolean | null;
 };
 
 export type Material = {
@@ -105,6 +106,7 @@ export type PurchaseOrder = {
   supplier: Supplier; // Assuming we might join this
   company: Company; // Assuming we might join this
   reception_status?: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido' | null;
+  is_raw_material?: boolean | null;
 };
 
 export type PurchaseOrderItem = {
@@ -141,6 +143,7 @@ export type QuoteRequest = {
   issue_date: string | null;
   deadline_date: string | null;
   print_date: string | null; // Added
+  is_raw_material?: boolean | null;
 };
 
 export type QuoteRequestItem = {

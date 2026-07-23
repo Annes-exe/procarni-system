@@ -234,7 +234,8 @@ const ServiceOrderDetails = () => {
 
     try {
       const isCredit = order.payment_terms === 'Crédito';
-      const targetStatus = isCredit ? 'ToPay' : 'Approved';
+      // CXP paused: approve credit service orders directly as Approved instead of ToPay
+      const targetStatus = 'Approved';
       const success = await serviceOrderService.updateStatus(order.id, targetStatus);
       if (success) {
         showSuccess(isCredit ? 'Orden de Servicio aprobada (Por Pagar) exitosamente.' : 'Orden de Servicio aprobada exitosamente.');
