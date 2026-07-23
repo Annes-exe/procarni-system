@@ -133,8 +133,29 @@ const PriceHistoryService = {
 
     return filteredData;
   },
+
+  getBySupplierId: async (supplierId: string): Promise<PriceHistoryEntry[]> => {
+    const { data, error } = await supabase
+      .from('price_history')
+      .select(`
+        *,
+        suppliers (name, rif, code),
+        materials (name, code, category, unit),
+        units_of_measure (name)
+      `)
+      .eq('supplier_id', supplierId)
+      .order('recorded_at', { ascending: false });
+
+    if (error) {
+      console.error('[PriceHistoryService.getBySupplierId] Error:', error);
+      showError('Error al cargar el historial de precios del proveedor.');
+      return [];
+    }
+    return data as PriceHistoryEntry[];
+  },
 };
 
 export const {
   getByMaterialId: getPriceHistoryByMaterialId,
-} = PriceHistoryService;
+  getBySupplierId: getPriceHistoryBySupplierId,
+} = PriceHistoryService;
