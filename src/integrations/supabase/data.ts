@@ -30,6 +30,7 @@ import {
   getMaterialByName,
   getPaginatedMaterials,
   getMaterialChildren,
+  getPendingMaterials, // ADDED
   getAllCompanies,
   createCompany,
   updateCompany,
@@ -57,6 +58,7 @@ import {
   deleteFichaTecnica,
   getFichaTecnicaBySupplierAndProduct, // Exported
   getPriceHistoryByMaterialId, // Exported
+  getPriceHistoryBySupplierId, // Exported
   getAllAuditLogs, // NEW: Exported
   logAudit, // NEW: Exported
   getQuotesByMaterial, // NEW: Exported
@@ -369,6 +371,7 @@ export {
   getRecentMaterials,
   getPaginatedMaterials,
   getMaterialChildren,
+  getPendingMaterials,
   getAllCompanies,
   createCompany,
   updateCompany,
@@ -396,6 +399,7 @@ export {
   deleteFichaTecnica,
   getFichaTecnicaBySupplierAndProduct,
   getPriceHistoryByMaterialId,
+  getPriceHistoryBySupplierId,
   getAllAuditLogs,
   logAudit,
   getQuotesByMaterial,
