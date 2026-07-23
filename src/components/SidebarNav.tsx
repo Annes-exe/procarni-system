@@ -41,6 +41,7 @@ const navItems = [
     category: 'Reportes',
     items: [
       { to: '/reports', icon: <BarChart3 className="h-5 w-5" />, label: 'Centro de Reportes' },
+      { to: '/payment-reminders', icon: <CreditCard className="h-5 w-5" />, label: 'Cuentas por Pagar (CXP)' },
     ]
   },
   {
@@ -55,6 +56,7 @@ const navItems = [
     category: 'Admin',
     items: [
       { to: '/bulk-upload', icon: <Upload className="h-5 w-5" />, label: 'Carga Masiva' },
+      { to: '/material-approval', icon: <CheckCircle className="h-5 w-5" />, label: 'Aprobación Mat.' },
       { to: '/material-cleanup', icon: <Wrench className="h-5 w-5" />, label: 'Limpiar Catálogo' },
       { to: '/settings', icon: <Cog className="h-5 w-5" />, label: 'Configuración' },
       { to: '/audit-log', icon: <ScrollText className="h-5 w-5" />, label: 'Auditoría' },
@@ -94,10 +96,24 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
         }
         return null;
       }
-      if (category.category === 'Admin' && role !== 'admin') {
+      if (category.category === 'Admin' && role !== 'admin' && role !== 'administrador') {
         return null;
       }
-      return category;
+
+      // Filter items inside category (only admin can see CXP in report menu)
+      const filteredItems = category.items.filter(item => {
+        if (item.to === '/payment-reminders') {
+          return role === 'admin' || role === 'administrador';
+        }
+        return true;
+      });
+
+      if (filteredItems.length === 0) return null;
+
+      return {
+        ...category,
+        items: filteredItems
+      };
     })
     .filter((cat): cat is typeof navItems[0] => cat !== null);
 
