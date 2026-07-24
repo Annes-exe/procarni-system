@@ -294,52 +294,63 @@ const QuoteRequestDetails = () => {
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
       {/* PHASE 1: STICKY HEADER & ACTIONS */}
-      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-10 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-xl bg-white/80 border border-slate-100/80 rounded-3xl p-4 mb-8 shadow-xl shadow-gray-200/50 ring-1 ring-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-300">
 
         {/* Title & Status */}
-        <div className="flex flex-col gap-1 w-full md:w-auto">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/quote-request-management')} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight flex items-center gap-2">
-              <span className="text-gray-400 font-light">#</span>{request.id.substring(0, 8)}
-            </h1>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/quote-request-management')}
+            className="text-slate-400 hover:text-procarni-primary hover:bg-slate-100/80 rounded-2xl h-10 w-10 shrink-0 group transition-all"
+            title="Volver"
+          >
+            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+          </Button>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-extrabold font-mono text-procarni-dark tracking-tight flex items-center gap-1.5">
+                <span className="text-slate-400 font-light">#</span>{request.id.substring(0, 8)}
+              </h1>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
-                    getStatusColorClass(request.status)
-                  )}
-                >
-                  {STATUS_TRANSLATIONS[request.status] || request.status}
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40">
-                <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
-                  const isRestrictedState = request.status === 'Approved' || request.status === 'Rejected';
-                  const isDisabled = isRestrictedState && role !== 'admin' && status !== request.status;
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-7 px-3 py-0.5 text-xs font-extrabold rounded-full shadow-sm border flex gap-1.5 items-center transition-all hover:scale-[1.02]",
+                      getStatusColorClass(request.status)
+                    )}
+                  >
+                    {STATUS_TRANSLATIONS[request.status] || request.status}
+                    <ChevronDown className="h-3 w-3 opacity-65" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44 rounded-2xl p-1.5 shadow-xl border-slate-100">
+                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-2 py-1">Cambiar Estado</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
+                    const isRestrictedState = request.status === 'Approved' || request.status === 'Rejected';
+                    const isDisabled = isRestrictedState && role !== 'admin' && status !== request.status;
 
-                  return (
-                    <DropdownMenuItem
-                      key={status}
-                      onSelect={() => handleStatusChange(status)}
-                      className={cn(status === request.status && "bg-gray-100 font-medium")}
-                      disabled={isDisabled}
-                    >
-                      {label}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    return (
+                      <DropdownMenuItem
+                        key={status}
+                        onSelect={() => handleStatusChange(status)}
+                        className={cn("rounded-xl text-xs font-semibold px-2 py-1.5 cursor-pointer", status === request.status && "bg-slate-100 text-procarni-dark")}
+                        disabled={isDisabled}
+                      >
+                        {label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <span className="text-xs text-slate-500 font-medium italic mt-0.5">
+              Solicitud de Cotización • {request.companies?.name || 'Procarni'}
+            </span>
           </div>
         </div>
 
@@ -351,7 +362,7 @@ const QuoteRequestDetails = () => {
               <Button
                 onClick={() => setIsApproveConfirmOpen(true)}
                 disabled={isApproving || isRejecting}
-                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm order-2 md:order-1"
+                className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm rounded-xl order-2 md:order-1"
                 size="sm"
               >
                 <CheckCircle className="h-4 w-4" />
@@ -364,7 +375,7 @@ const QuoteRequestDetails = () => {
                 onClick={() => navigate(`/quote-requests/edit/${request.id}`)}
                 variant="outline"
                 size="sm"
-                className="gap-2 order-1 md:order-2"
+                className="gap-2 order-1 md:order-2 rounded-xl"
               >
                 <Edit className="h-4 w-4" />
                 <span className="hidden sm:inline">Editar</span>
@@ -374,20 +385,20 @@ const QuoteRequestDetails = () => {
             {/* Secondary Actions: Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 order-3">
+                <Button variant="outline" size="sm" className="gap-2 order-3 rounded-xl">
                   <MoreVertical className="h-4 w-4" />
                   <span className="hidden sm:inline">Acciones</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Opciones de Documento</DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-xl border-slate-100">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-2 py-1">Opciones de Documento</DropdownMenuLabel>
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem onSelect={() => setIsModalOpen(true)}>
-                  <FileText className="mr-2 h-4 w-4" /> Previsualizar
+                <DropdownMenuItem onSelect={() => setIsModalOpen(true)} className="rounded-xl cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-slate-500" /> Previsualizar
                 </DropdownMenuItem>
 
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="rounded-xl cursor-pointer">
                   <PDFDownloadButton
                     requestId={request.id}
                     fileNameGenerator={generateFileName}
@@ -402,38 +413,40 @@ const QuoteRequestDetails = () => {
                   onSelect={() => setIsEmailModalOpen(true)}
                   // @ts-ignore
                   disabled={!request.suppliers?.email}
+                  className="rounded-xl cursor-pointer"
                 >
-                  <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+                  <Mail className="mr-2 h-4 w-4 text-slate-500" /> Enviar por Correo
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
                   onSelect={() => setIsWhatsAppModalOpen(true)}
                   // @ts-ignore
                   disabled={!request.suppliers?.phone && !request.suppliers?.phone_2}
+                  className="rounded-xl cursor-pointer"
                 >
-                  <Smartphone className="mr-2 h-4 w-4" /> Enviar por WhatsApp
+                  <Smartphone className="mr-2 h-4 w-4 text-slate-500" /> Enviar por WhatsApp
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Flujo de Trabajo</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-2 py-1">Flujo de Trabajo</DropdownMenuLabel>
 
-                <DropdownMenuItem onSelect={handleConvertToPurchaseOrder}>
-                  <ShoppingCart className="mr-2 h-4 w-4" /> Convertir a OC
+                <DropdownMenuItem onSelect={handleConvertToPurchaseOrder} className="rounded-xl cursor-pointer">
+                  <ShoppingCart className="mr-2 h-4 w-4 text-slate-500" /> Convertir a OC
                 </DropdownMenuItem>
 
                 {(request.status === 'Draft' || role === 'admin') && request.status !== 'Archived' && request.status !== 'Rejected' && (
-                  <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
+                  <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600 rounded-xl cursor-pointer">
                     <Clock className="mr-2 h-4 w-4" /> Rechazar Solicitud
                   </DropdownMenuItem>
                 )}
 
                 {request.status !== 'Archived' ? (
-                  <DropdownMenuItem onSelect={() => handleStatusChange('Archived')}>
-                    <Archive className="mr-2 h-4 w-4" /> Archivar
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Archived')} className="rounded-xl cursor-pointer">
+                    <Archive className="mr-2 h-4 w-4 text-slate-500" /> Archivar
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onSelect={() => handleStatusChange('Draft')}>
-                    <RotateCcw className="mr-2 h-4 w-4" /> Desarchivar
+                  <DropdownMenuItem onSelect={() => handleStatusChange('Draft')} className="rounded-xl cursor-pointer">
+                    <RotateCcw className="mr-2 h-4 w-4 text-slate-500" /> Desarchivar
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -460,9 +473,9 @@ const QuoteRequestDetails = () => {
         </div>
       </div>
 
-      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        {/* PHASE 2: INFO GRID */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1">
+      {/* PHASE 2: GENERAL INFORMATION GRID */}
+      <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 mb-8 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {/* Company */}
           <div className="space-y-1">
             <span className={microLabelClass}>Empresa</span>
@@ -506,7 +519,6 @@ const QuoteRequestDetails = () => {
             </p>
           </div>
 
-
           {/* Created By */}
           <div className="space-y-1">
             <span className={microLabelClass}>Elaborado Por</span>
@@ -514,52 +526,52 @@ const QuoteRequestDetails = () => {
             <p className={valueClass}>{request.created_by || '---'}</p>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* PHASE 3: ITEMS TABLE */}
-      <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
+      <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-500">
         <CardContent className="p-0">
           {/* @ts-ignore */}
           {request.quote_request_items && request.quote_request_items.length > 0 ? (
             isMobile ? (
-              <div className="grid gap-0 divide-y divide-gray-100">
+              <div className="grid gap-0 divide-y divide-slate-100">
                 {/* @ts-ignore */}
                 {request.quote_request_items.map((item) => (
-                  <div key={item.id} className="p-4 bg-white hover:bg-gray-50">
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex flex-col gap-1">
+                  <div key={item.id} className="p-4 bg-white space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex flex-col gap-1 min-w-0">
                         {/* @ts-ignore */}
-                        <p className="font-semibold text-procarni-primary text-sm">{item.material_name || item.materials?.name || 'Material'}</p>
+                        <p className="font-bold text-xs text-procarni-dark">{item.material_name || item.materials?.name || 'Material'}</p>
                         {/* @ts-ignore */}
                         {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
                           <Badge variant="outline" className="w-fit text-[9px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
                             Nuevo: {item.materials.name}
                           </Badge>
                         )}
+                        {item.description && (
+                          <p className="text-xs text-slate-500 italic mt-0.5">{item.description}</p>
+                        )}
                       </div>
-                      <Badge variant="outline" className="ml-2 font-mono text-[10px]">{item.quantity} {item.unit}</Badge>
+                      <Badge variant="outline" className="ml-2 font-mono text-[10px] bg-slate-50 border-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold">{item.quantity} {item.unit || 'UND'}</Badge>
                     </div>
-                    {item.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2">{item.description}</p>
-                    )}
                   </div>
                 ))}
               </div>
             ) : (
               <Table>
-                <TableHeader className="bg-gray-50/80">
-                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6 w-[40%]"}>Material / Descripción</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>Cantidad</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>Unidad</TableHead>
+                <TableHeader className="bg-slate-50/70 border-b border-slate-100">
+                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                    <TableHead className={tableHeaderClass + " h-10 py-2 pl-6 w-[50%]"}>Material / Descripción</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-center"}>Cantidad</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-center"}>Unidad</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {/* @ts-ignore */}
                   {request.quote_request_items.map((item) => (
-                    <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                    <TableRow key={item.id} className="border-b border-slate-100/60 hover:bg-slate-50/50 transition-colors last:border-b-0">
                       <TableCell className="pl-6 py-4">
-                        <span className="font-medium text-procarni-dark text-sm block">
+                        <span className="font-bold text-procarni-dark text-sm block">
                           {/* @ts-ignore */}
                           {item.material_name || item.materials?.name || 'Material'}
                         </span>
@@ -570,19 +582,19 @@ const QuoteRequestDetails = () => {
                           </Badge>
                         )}
                         {item.description && (
-                          <span className="text-xs text-gray-500 truncate max-w-[300px] block mt-0.5">{item.description}</span>
+                          <span className="text-xs text-slate-500 italic truncate max-w-[300px] block mt-0.5">{item.description}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-center font-mono text-sm text-gray-600">{item.quantity}</TableCell>
-                      <TableCell className="text-center text-xs text-gray-500">{item.unit || '---'}</TableCell>
+                      <TableCell className="text-center font-mono text-sm font-semibold text-slate-700">{item.quantity}</TableCell>
+                      <TableCell className="text-center text-xs text-slate-500 font-semibold">{item.unit || 'UND'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-white">
-              <ShoppingCart className="h-12 w-12 mb-3 text-gray-200" />
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white">
+              <ShoppingCart className="h-12 w-12 mb-3 text-slate-200" />
               <p className="text-sm">No hay ítems registrados.</p>
             </div>
           )}
