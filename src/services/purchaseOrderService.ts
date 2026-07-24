@@ -13,6 +13,7 @@ export type CreatePurchaseOrderItemInput = Omit<PurchaseOrderItem, 'id' | 'order
 export type PurchaseOrderWithRelations = PurchaseOrder & {
     suppliers: { name: string };
     companies: { name: string };
+    purchase_order_items?: PurchaseOrderItem[];
 };
 
 export const purchaseOrderService = {
@@ -22,7 +23,7 @@ export const purchaseOrderService = {
     getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
         let query = supabase
             .from('purchase_orders')
-            .select('*, suppliers(name), companies(name)')
+            .select('*, suppliers(name), companies(name), purchase_order_items(*)')
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
@@ -65,7 +66,7 @@ export const purchaseOrderService = {
       const to = from + pageSize - 1;
   
       // Use standard join
-      const selectQuery = '*, suppliers(name), companies(name)';
+      const selectQuery = '*, suppliers(name), companies(name), purchase_order_items(*)';
   
       let query = supabase
         .from('purchase_orders')
@@ -641,18 +642,22 @@ export const purchaseOrderService = {
     },
 
     getBySupplierId: async (supplierId: string): Promise<unknown[]> => {
-        const { data, error } = await supabase
-            .from('purchase_orders')
-            .select('*, companies(name), purchase_order_items(*)')
-            .eq('supplier_id', supplierId)
-            .order('sequence_number', { ascending: false });
+        try {
+            const { data, error } = await supabase
+                .from('purchase_orders')
+                .select('*, companies(name), purchase_order_items(*)')
+                .eq('supplier_id', supplierId)
+                .order('sequence_number', { ascending: false });
 
-        if (error) {
-            console.error('[purchaseOrderService.getBySupplierId] Error:', error);
-            showError('Error al cargar órdenes de compra del proveedor.');
+            if (error) {
+                console.error('[purchaseOrderService.getBySupplierId] Error:', error);
+                return [];
+            }
+            return data || [];
+        } catch (err) {
+            console.warn('[purchaseOrderService.getBySupplierId] Fetch error:', err);
             return [];
         }
-        return data || [];
     }
 };
 

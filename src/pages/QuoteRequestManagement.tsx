@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash, ChevronDown, ChevronRight, Package } from 'lucide-react';
 
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -43,6 +43,9 @@ const QuoteRequestManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isHistoryMode, setIsHistoryMode] = useState(false);
   const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
+
+  // Expanded row state for accordion (only 1 row open at a time)
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   // Tabs state depends on mode
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -316,12 +319,12 @@ const QuoteRequestManagement = () => {
     const isArchived = request.status === 'Archived';
 
     return (
-      <TableCell className="text-right pr-4 py-3">
+      <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
         <TooltipProvider delayDuration={0}>
           <div className="flex justify-end gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(request.id)} className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewDetails(request.id); }} className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
                   <Eye className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -330,27 +333,29 @@ const QuoteRequestManagement = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <PDFDownloadButton
-                  requestId={request.id}
-                  endpoint="generate-qr-pdf"
-                  fileNameGenerator={() => {
-                    const id = request.id.substring(0, 8);
-                    const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                    return `Cotizacion-${id}-${supplierName}.pdf`;
-                  }}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-blue-600"
-                  label=""
-                />
+                <div onClick={(e) => e.stopPropagation()}>
+                  <PDFDownloadButton
+                    requestId={request.id}
+                    endpoint="generate-qr-pdf"
+                    fileNameGenerator={() => {
+                      const id = request.id.substring(0, 8);
+                      const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                      return `Cotizacion-${id}-${supplierName}.pdf`;
+                    }}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                    label=""
+                  />
+                </div>
               </TooltipTrigger>
-              <TooltipContent>Descargar</TooltipContent>
+              <TooltipContent>Descargar PDF</TooltipContent>
             </Tooltip>
 
             {request.status === 'Draft' ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'archive')} className="h-8 w-8 text-gray-500">
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(request.id, 'archive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
                     <Archive className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -359,7 +364,7 @@ const QuoteRequestManagement = () => {
             ) : request.status === 'Archived' && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => confirmAction(request.id, 'unarchive')} className="h-8 w-8 text-gray-500">
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(request.id, 'unarchive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
                     <RotateCcw className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -372,79 +377,131 @@ const QuoteRequestManagement = () => {
     );
   };
 
-  const renderMobileCard = (request: any) => (
-    <Card key={request.id} className={cn("p-4 shadow-md bg-white", selectedIds.has(request.id) && "border-procarni-secondary border-2")}>
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Checkbox
-            checked={selectedIds.has(request.id)}
-            onCheckedChange={() => toggleSelection(request.id)}
-          />
-          <CardTitle className="text-lg truncate font-mono text-procarni-dark">{request.id.substring(0, 8)}</CardTitle>
+  const renderMobileCard = (request: any) => {
+    const isExpanded = expandedRowId === request.id;
+    const items = request.quote_request_items || [];
+
+    return (
+      <Card
+        key={request.id}
+        className={cn(
+          "bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-5 transition-all overflow-hidden",
+          selectedIds.has(request.id) && "ring-2 ring-procarni-secondary border-procarni-secondary",
+          isExpanded && "border-l-4 border-l-procarni-primary"
+        )}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Checkbox
+              checked={selectedIds.has(request.id)}
+              onCheckedChange={() => toggleSelection(request.id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <CardTitle className="text-base truncate font-mono font-bold text-procarni-dark">
+              {request.id.substring(0, 8)}
+            </CardTitle>
+          </div>
+          <span className={cn("px-2 py-0.5 text-[11px] font-semibold rounded-md border shrink-0", getStatusColorClass(request.status))}>
+            {STATUS_TRANSLATIONS[request.status] || request.status}
+          </span>
         </div>
-        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0 border", getStatusColorClass(request.status))}>
-          {STATUS_TRANSLATIONS[request.status] || request.status}
-        </span>
-      </div>
-      <div className="text-sm space-y-1 mt-2">
-        <p><strong>Proveedor:</strong> {request.suppliers?.name || 'Varios'}</p>
-        <p><strong>Fecha:</strong> {new Date(request.created_at).toLocaleDateString('es-VE')}</p>
-      </div>
-      <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-        <TooltipProvider delayDuration={0}>
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleViewDetails(request.id)}>
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver Detalles</TooltipContent>
-            </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PDFDownloadButton
-                  requestId={request.id}
-                  endpoint="generate-qr-pdf"
-                  fileNameGenerator={() => {
-                    const id = request.id.substring(0, 8);
-                    const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                    return `Cotizacion-${id}-${supplierName}.pdf`;
-                  }}
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50"
-                  label=""
-                />
-              </TooltipTrigger>
-              <TooltipContent>Descargar</TooltipContent>
-            </Tooltip>
+        <div className="space-y-1.5 text-xs mb-3">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Proveedor</span>
+            <p className="font-semibold text-slate-900 truncate">{request.suppliers?.name || 'Varios / General'}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Empresa</span>
+              <p className="font-medium text-slate-700 truncate">{request.companies?.name || 'N/A'}</p>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Fecha</span>
+              <p className="text-slate-600">{new Date(request.created_at).toLocaleDateString('es-VE')}</p>
+            </div>
+          </div>
+        </div>
 
-            {request.status === 'Draft' ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(request.id, 'archive')}>
-                    <Archive className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Archivar</TooltipContent>
-              </Tooltip>
-            ) : request.status === 'Archived' && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(request.id, 'unarchive')}>
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Desarchivar</TooltipContent>
-              </Tooltip>
+        {/* Expand Accordion Button for Mobile Items */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExpandedRowId(isExpanded ? null : request.id)}
+          className="w-full flex items-center justify-between text-xs py-2 bg-slate-50/80 hover:bg-slate-100/80 border-slate-200 text-slate-700 font-medium rounded-xl my-2"
+        >
+          <span className="flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5 text-procarni-primary" />
+            {items.length} {items.length === 1 ? 'material solicitado' : 'materiales solicitados'}
+          </span>
+          <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
+            {isExpanded ? 'Ocultar' : 'Ver detalle'}
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
+        </Button>
+
+        {/* Expanded Items Cards on Mobile */}
+        {isExpanded && (
+          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            {items.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta solicitud.</p>
+            ) : (
+              <div className="space-y-2">
+                {items.map((item: any, idx: number) => (
+                  <div key={item.id || idx} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'Material S/N'}</span>
+                      <span className="font-mono font-bold text-procarni-dark shrink-0">
+                        {item.quantity} {item.unit || 'UND'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </TooltipProvider>
-      </div>
-    </Card>
-  );
+        )}
+
+        {/* Action Buttons Footer */}
+        <div className="flex flex-wrap justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
+          <TooltipProvider delayDuration={0}>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+              <Button variant="outline" size="sm" className="h-9 px-3 text-xs gap-1.5" onClick={() => handleViewDetails(request.id)}>
+                <Eye className="h-3.5 w-3.5" />
+                <span>Detalles</span>
+              </Button>
+
+              <PDFDownloadButton
+                requestId={request.id}
+                endpoint="generate-qr-pdf"
+                fileNameGenerator={() => {
+                  const id = request.id.substring(0, 8);
+                  const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                  return `Cotizacion-${id}-${supplierName}.pdf`;
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
+                label="PDF"
+              />
+
+              {request.status === 'Draft' ? (
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(request.id, 'archive')}>
+                  <Archive className="h-3.5 w-3.5" />
+                  <span>Archivar</span>
+                </Button>
+              ) : request.status === 'Archived' && (
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(request.id, 'unarchive')}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Restaurar</span>
+                </Button>
+              )}
+            </div>
+          </TooltipProvider>
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <div className="container mx-auto p-4 pb-20">
@@ -638,47 +695,116 @@ const QuoteRequestManagement = () => {
                     {filteredQuoteRequests.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-gray-100 overflow-hidden">
+                  <div className="rounded-2xl border border-slate-200/80 shadow-sm bg-white overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-gray-50/50">
-                        <TableRow>
-                          <TableHead className="w-[40px] pl-4">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[30px] pl-3 py-3"></TableHead>
+                          <TableHead className="w-[40px] pl-2 py-3">
                             <Checkbox
                               checked={filteredQuoteRequests.length > 0 && selectedIds.size === filteredQuoteRequests.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">ID</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Proveedor</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Empresa</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Estado</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Fecha</TableHead>
-                          <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4">Acciones</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">ID</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Proveedor</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Empresa</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Estado</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Fecha</TableHead>
+                          <TableHead className="text-right font-bold text-[11px] tracking-wider uppercase text-slate-600 pr-4 py-3">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredQuoteRequests.map((request) => (
-                          <TableRow key={request.id} className="hover:bg-gray-50/50 transition-colors">
-                            <TableCell className="pl-4 py-3">
-                              <Checkbox
-                                checked={selectedIds.has(request.id)}
-                                onCheckedChange={() => toggleSelection(request.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="py-3 text-xs font-mono text-gray-500">{request.id.substring(0, 8)}</TableCell>
-                            {/* @ts-ignore */}
-                            <TableCell className="py-3 font-medium text-procarni-dark">{request.suppliers?.name || '---'}</TableCell>
-                            {/* @ts-ignore */}
-                            <TableCell className="py-3 text-gray-600">{request.companies?.name || '---'}</TableCell>
-                            <TableCell className="py-3">
-                              <Badge variant="outline" className={cn("rounded-md py-0.5 font-normal", getStatusColorClass(request.status))}>
-                                {STATUS_TRANSLATIONS[request.status] || request.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="py-3 text-gray-500 text-sm">{new Date(request.created_at).toLocaleDateString('es-VE')}</TableCell>
-                            {renderActions(request)}
-                          </TableRow>
-                        ))}
+                        {filteredQuoteRequests.map((request) => {
+                          const isExpanded = expandedRowId === request.id;
+                          const items = (request as any).quote_request_items || [];
+
+                          return (
+                            <React.Fragment key={request.id}>
+                              <TableRow
+                                onClick={() => setExpandedRowId(isExpanded ? null : request.id)}
+                                className={cn(
+                                  "cursor-pointer transition-colors border-b border-slate-100/80",
+                                  isExpanded
+                                    ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
+                                    : "hover:bg-slate-50/80"
+                                )}
+                              >
+                                <TableCell className="pl-3 py-3 text-slate-400">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="pl-2 py-3" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedIds.has(request.id)}
+                                    onCheckedChange={() => toggleSelection(request.id)}
+                                  />
+                                </TableCell>
+                                <TableCell className="py-3 text-xs font-mono font-medium text-slate-500">{request.id.substring(0, 8)}</TableCell>
+                                {/* @ts-ignore */}
+                                <TableCell className="py-3 font-semibold text-slate-900">{request.suppliers?.name || '---'}</TableCell>
+                                {/* @ts-ignore */}
+                                <TableCell className="py-3 text-slate-600">{request.companies?.name || '---'}</TableCell>
+                                <TableCell className="py-3">
+                                  <Badge variant="outline" className={cn("rounded-lg py-0.5 px-2 font-medium text-xs border shadow-none", getStatusColorClass(request.status))}>
+                                    {STATUS_TRANSLATIONS[request.status] || request.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="py-3 text-slate-500 text-xs font-medium">{new Date(request.created_at).toLocaleDateString('es-VE')}</TableCell>
+                                {renderActions(request)}
+                              </TableRow>
+
+                              {isExpanded && (
+                                <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
+                                  <TableCell colSpan={8} className="p-4 pl-12">
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <Package className="h-4 w-4 text-procarni-primary" />
+                                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems integrados en la Solicitud</h4>
+                                          <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                                            {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
+                                          </Badge>
+                                        </div>
+                                        <span className="text-[11px] text-slate-400 font-mono">ID Completo: {request.id}</span>
+                                      </div>
+
+                                      {items.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic py-2">No hay ítems registrados en esta solicitud.</p>
+                                      ) : (
+                                        <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                          <Table className="text-xs">
+                                            <TableHeader className="bg-slate-50">
+                                              <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                                                <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
+                                                <TableHead className="font-bold text-slate-500 py-2">Material / Descripción</TableHead>
+                                                <TableHead className="text-right font-bold text-slate-500 py-2">Cantidad</TableHead>
+                                                <TableHead className="text-center font-bold text-slate-500 py-2">Unidad</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {items.map((item: any, idx: number) => (
+                                                <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                  <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                  <TableCell className="font-medium text-slate-800 py-2">{item.material_name || item.description || 'S/N'}</TableCell>
+                                                  <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{item.quantity}</TableCell>
+                                                  <TableCell className="text-center text-slate-500 py-2">{item.unit || 'Und'}</TableCell>
+                                                </TableRow>
+                                              ))}
+                                            </TableBody>
+                                          </Table>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>

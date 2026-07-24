@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2, Package } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2, Package, ChevronDown, ChevronRight } from 'lucide-react';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
 import TransitReportDialog from '@/components/TransitReportDialog';
 
@@ -30,6 +30,7 @@ import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -60,6 +61,8 @@ const PurchaseOrderManagement = () => {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isMobileView = isMobile || isTablet;
+
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -428,12 +431,12 @@ const PurchaseOrderManagement = () => {
     };
 
     return (
-      <TableCell className="text-right whitespace-nowrap">
+      <TableCell className="text-right whitespace-nowrap pr-4 py-3" onClick={(e) => e.stopPropagation()}>
         <TooltipProvider delayDuration={0}>
           <div className="flex justify-end gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(order.id)} className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewDetails(order.id); }} className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
                   <Eye className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -442,22 +445,24 @@ const PurchaseOrderManagement = () => {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <PDFDownloadButton
-                  orderId={order.id}
-                  endpoint="generate-po-pdf"
-                  fileNameGenerator={generateFileName}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-blue-600"
-                  label=""
-                />
+                <div onClick={(e) => e.stopPropagation()}>
+                  <PDFDownloadButton
+                    orderId={order.id}
+                    endpoint="generate-po-pdf"
+                    fileNameGenerator={generateFileName}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                    label=""
+                  />
+                </div>
               </TooltipTrigger>
-              <TooltipContent>Descargar</TooltipContent>
+              <TooltipContent>Descargar PDF</TooltipContent>
             </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)} className="h-8 w-8 text-teal-600">
+                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/generate-po?duplicateFrom=${order.id}`); }} className="h-8 w-8 text-teal-600 hover:bg-teal-50">
                   <Copy className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -467,7 +472,7 @@ const PurchaseOrderManagement = () => {
             {!isArchived && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'archive')} className="h-8 w-8 text-gray-500">
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(order.id, 'archive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
                     <Archive className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -478,7 +483,7 @@ const PurchaseOrderManagement = () => {
             {isArchived && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'unarchive')} className="h-8 w-8 text-gray-500">
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(order.id, 'unarchive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
                     <RotateCcw className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -491,131 +496,221 @@ const PurchaseOrderManagement = () => {
     );
   };
 
-  const renderMobileCard = (order: PurchaseOrderWithRelations) => (
-    <Card key={order.id} className={cn("p-4 shadow-md", selectedIds.has(order.id) && "border-procarni-secondary border-2")}>
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {activeTab !== 'archived' && (
-            <Checkbox
-              checked={selectedIds.has(order.id)}
-              onCheckedChange={() => toggleSelection(order.id)}
-            />
-          )}
-          <CardTitle className="text-lg truncate font-mono text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
+  const renderMobileCard = (order: PurchaseOrderWithRelations) => {
+    const isExpanded = expandedRowId === order.id;
+    const items = order.purchase_order_items || [];
+
+    // Calculate totals for items
+    let summarySubtotal = 0;
+    let summaryTax = 0;
+    let summaryTotal = 0;
+
+    items.forEach((item: any) => {
+      const qty = Number(item.quantity || 0);
+      const unitPrice = Number(item.unit_price || 0);
+      const sub = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0)
+        ? Number(item.subtotal)
+        : qty * unitPrice;
+      const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt)
+        ? Number(item.tax_amount)
+        : (item.is_exempt ? 0 : sub * 0.16);
+      const tot = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0)
+        ? Number(item.total_price)
+        : ((item.total !== undefined && item.total !== null && Number(item.total) > 0) ? Number(item.total) : (sub + tax));
+
+      summarySubtotal += sub;
+      summaryTax += tax;
+      summaryTotal += tot;
+    });
+
+    return (
+      <Card
+        key={order.id}
+        className={cn(
+          "bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-5 transition-all overflow-hidden",
+          selectedIds.has(order.id) && "ring-2 ring-procarni-secondary border-procarni-secondary",
+          isExpanded && "border-l-4 border-l-procarni-primary"
+        )}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {activeTab !== 'archived' && (
+              <Checkbox
+                checked={selectedIds.has(order.id)}
+                onCheckedChange={() => toggleSelection(order.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+            <CardTitle className="text-base truncate font-mono font-bold text-procarni-dark">
+              {formatSequenceNumber(order.sequence_number, order.created_at)}
+            </CardTitle>
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className={cn("px-2 py-0.5 text-[11px] font-semibold rounded-md border", getStatusBadgeClass(order.status))}>
+              {STATUS_TRANSLATIONS[order.status] || order.status}
+            </span>
+            {order.reception_status && order.reception_status !== 'Ninguno' && (
+              renderReceptionStatusBadge(order.reception_status)
+            )}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full border", getStatusBadgeClass(order.status))}>
-            {STATUS_TRANSLATIONS[order.status] || order.status}
-          </span>
-          {order.reception_status && order.reception_status !== 'Ninguno' && (
-            renderReceptionStatusBadge(order.reception_status)
-          )}
-        </div>
-      </div>
-      <div className="min-w-0 mb-2">
-        <p className="text-sm font-medium text-gray-500">Proveedor</p>
-        <p className="text-base font-medium text-procarni-dark truncate">{order.suppliers.name}</p>
-      </div>
-      <div className="text-sm space-y-1 mb-4">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Empresa</p>
-            <p className="font-medium text-procarni-dark truncate" title={order.companies.name}>{order.companies.name}</p>
+
+        <div className="space-y-1.5 text-xs mb-3">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Proveedor</span>
+            <p className="font-semibold text-slate-900 truncate">{order.suppliers.name}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Empresa</span>
+              <p className="font-medium text-slate-700 truncate">{order.companies.name}</p>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Monto Total</span>
+              <p className="font-mono font-bold text-procarni-dark text-sm">
+                {summaryTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+              </p>
+            </div>
           </div>
           <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Moneda</p>
-            <p className="font-medium">{order.currency}</p>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Fecha</span>
+            <p className="text-slate-600">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</p>
           </div>
         </div>
-        <div className="pt-1">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Fecha</p>
-          <p className="font-medium">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</p>
-        </div>
-      </div>
 
-      <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-        <TooltipProvider delayDuration={0}>
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleViewDetails(order.id)}>
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver Detalles</TooltipContent>
-            </Tooltip>
+        {/* Expand Accordion Button for Mobile Items */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExpandedRowId(isExpanded ? null : order.id)}
+          className="w-full flex items-center justify-between text-xs py-2 bg-slate-50/80 hover:bg-slate-100/80 border-slate-200 text-slate-700 font-medium rounded-xl my-2"
+        >
+          <span className="flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5 text-procarni-primary" />
+            {items.length} {items.length === 1 ? 'ítem integrado' : 'ítems integrados'}
+          </span>
+          <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
+            {isExpanded ? 'Ocultar' : 'Ver detalle'}
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
+        </Button>
 
-            {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-9 w-9 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary/5 hover:text-procarni-secondary" 
-                    onClick={() => {
-                      setTransitOrderIds([order.id]);
-                      setIsTransitReportOpen(true);
-                    }}
-                  >
-                    <Package className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Registrar Recepción</TooltipContent>
-              </Tooltip>
-            )}
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PDFDownloadButton
-                  orderId={order.id}
-                  endpoint="generate-po-pdf"
-                  fileNameGenerator={() => {
-                    const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
-                    const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                    return `${sequence}-${supplierName}.pdf`;
-                  }}
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50"
-                  label=""
-                />
-              </TooltipTrigger>
-              <TooltipContent>Descargar</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9 text-teal-600 border-teal-100 hover:bg-teal-50" onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Duplicar Orden</TooltipContent>
-            </Tooltip>
-
-            {order.status !== 'Archived' ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(order.id, 'archive')}>
-                    <Archive className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Archivar</TooltipContent>
-              </Tooltip>
+        {/* Expanded Items Cards on Mobile */}
+        {isExpanded && (
+          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            {items.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta orden.</p>
             ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(order.id, 'unarchive')}>
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Desarchivar</TooltipContent>
-              </Tooltip>
+              <div className="space-y-2">
+                {items.map((item: any, idx: number) => {
+                  const qty = Number(item.quantity || 0);
+                  const unitPrice = Number(item.unit_price || 0);
+                  const subtotal = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0)
+                    ? Number(item.subtotal)
+                    : qty * unitPrice;
+                  const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt)
+                    ? Number(item.tax_amount)
+                    : (item.is_exempt ? 0 : subtotal * 0.16);
+                  const lineTotal = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0)
+                    ? Number(item.total_price)
+                    : ((item.total !== undefined && item.total !== null && Number(item.total) > 0) ? Number(item.total) : (subtotal + tax));
+
+                  return (
+                    <div key={item.id || idx} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'S/N'}</span>
+                        <span className="font-mono font-bold text-procarni-dark shrink-0">
+                          {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-500 font-mono pt-0.5">
+                        <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                        <span>IVA: {tax.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Sub-table Totals Summary Footer */}
+                <div className="bg-slate-100/80 p-2.5 rounded-xl text-xs font-mono space-y-1 border border-slate-200/60 mt-2">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">{summarySubtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>IVA (16%):</span>
+                    <span className="font-semibold">{summaryTax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-800 font-bold border-t border-slate-200/80 pt-1 mt-1">
+                    <span className="text-procarni-dark font-extrabold">TOTAL:</span>
+                    <span className="text-procarni-primary font-black text-sm">{summaryTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-        </TooltipProvider>
-      </div>
-    </Card>
-  );
+        )}
+
+        {/* Action Buttons Footer */}
+        <div className="flex flex-wrap justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
+          <TooltipProvider delayDuration={0}>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+              <Button variant="outline" size="sm" className="h-9 px-3 text-xs gap-1.5" onClick={() => handleViewDetails(order.id)}>
+                <Eye className="h-3.5 w-3.5" />
+                <span>Detalles</span>
+              </Button>
+
+              {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-9 px-3 text-xs text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary/5 gap-1.5" 
+                  onClick={() => {
+                    setTransitOrderIds([order.id]);
+                    setIsTransitReportOpen(true);
+                  }}
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  <span>Recepción</span>
+                </Button>
+              )}
+
+              <PDFDownloadButton
+                orderId={order.id}
+                endpoint="generate-po-pdf"
+                fileNameGenerator={() => {
+                  const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+                  const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                  return `${sequence}-${supplierName}.pdf`;
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
+                label="PDF"
+              />
+
+              <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-teal-600 border-teal-100 hover:bg-teal-50 gap-1.5" onClick={() => navigate(`/generate-po?duplicateFrom=${order.id}`)}>
+                <Copy className="h-3.5 w-3.5" />
+                <span>Duplicar</span>
+              </Button>
+
+              {order.status !== 'Archived' ? (
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(order.id, 'archive')}>
+                  <Archive className="h-3.5 w-3.5" />
+                  <span>Archivar</span>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(order.id, 'unarchive')}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Restaurar</span>
+                </Button>
+              )}
+            </div>
+          </TooltipProvider>
+        </div>
+      </Card>
+    );
+  };
 
   // Compute bulk action conditions
   const selectedOrders = currentOrders.filter(order => selectedIds.has(order.id));
@@ -794,53 +889,174 @@ const PurchaseOrderManagement = () => {
                     {currentOrders.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-gray-100 overflow-hidden">
+                  <div className="rounded-2xl border border-slate-200/80 shadow-sm bg-white overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-gray-50/50">
-                        <TableRow>
-                          <TableHead className="w-[40px] pl-4">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[30px] pl-3 py-3"></TableHead>
+                          <TableHead className="w-[40px] pl-2 py-3">
                             <Checkbox
                               checked={currentOrders.length > 0 && selectedIds.size === currentOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">N° Orden</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Proveedor</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Empresa</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Moneda</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Calculada en</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Estado</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Recepción</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Fecha</TableHead>
-                          <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4">Acciones</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">N° Orden</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Proveedor</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Empresa</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Moneda</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Calculada en</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Estado</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Recepción</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Fecha</TableHead>
+                          <TableHead className="text-right font-bold text-[11px] tracking-wider uppercase text-slate-600 pr-4 py-3">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {currentOrders.map((order) => (
-                          <TableRow key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                            <TableCell className="pl-4 py-3">
-                              <Checkbox
-                                checked={selectedIds.has(order.id)}
-                                onCheckedChange={() => toggleSelection(order.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="py-3 font-mono text-xs font-medium text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
-                            <TableCell className="py-3 font-medium text-procarni-dark">{order.suppliers.name}</TableCell>
-                            <TableCell className="py-3 text-gray-600">{order.companies.name}</TableCell>
-                            <TableCell className="py-3">{order.currency}</TableCell>
-                            <TableCell className="py-3 font-mono text-xs">{order.exchange_rate ? `Ref: ${order.exchange_rate.toFixed(2)}` : 'N/A'}</TableCell>
-                            <TableCell className="py-3">
-                              <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
-                                {STATUS_TRANSLATIONS[order.status] || order.status}
-                              </span>
-                            </TableCell>
-                            <TableCell className="py-3">
-                              {renderReceptionStatusBadge(order.reception_status)}
-                            </TableCell>
-                            <TableCell className="py-3 text-gray-500 text-sm">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
-                            {renderActions(order)}
-                          </TableRow>
-                        ))}
+                        {currentOrders.map((order) => {
+                          const isExpanded = expandedRowId === order.id;
+                          const items = order.purchase_order_items || [];
+
+                          // Calculate totals for items
+                          let summarySubtotal = 0;
+                          let summaryTax = 0;
+                          let summaryTotal = 0;
+
+                          items.forEach((item: any) => {
+                            const qty = Number(item.quantity || 0);
+                            const unitPrice = Number(item.unit_price || 0);
+                            const sub = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0)
+                              ? Number(item.subtotal)
+                              : qty * unitPrice;
+                            const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt)
+                              ? Number(item.tax_amount)
+                              : (item.is_exempt ? 0 : sub * 0.16);
+                            const tot = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0)
+                              ? Number(item.total_price)
+                              : ((item.total !== undefined && item.total !== null && Number(item.total) > 0) ? Number(item.total) : (sub + tax));
+
+                            summarySubtotal += sub;
+                            summaryTax += tax;
+                            summaryTotal += tot;
+                          });
+
+                          return (
+                            <React.Fragment key={order.id}>
+                              <TableRow
+                                onClick={() => setExpandedRowId(isExpanded ? null : order.id)}
+                                className={cn(
+                                  "cursor-pointer transition-colors border-b border-slate-100/80",
+                                  isExpanded
+                                    ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
+                                    : "hover:bg-slate-50/80"
+                                )}
+                              >
+                                <TableCell className="pl-3 py-3 text-slate-400">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="pl-2 py-3" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedIds.has(order.id)}
+                                    onCheckedChange={() => toggleSelection(order.id)}
+                                  />
+                                </TableCell>
+                                <TableCell className="py-3 font-mono text-xs font-bold text-procarni-dark">
+                                  {formatSequenceNumber(order.sequence_number, order.created_at)}
+                                </TableCell>
+                                <TableCell className="py-3 font-semibold text-slate-900">{order.suppliers?.name || '---'}</TableCell>
+                                <TableCell className="py-3 text-slate-600">{order.companies?.name || '---'}</TableCell>
+                                <TableCell className="py-3 font-mono text-xs text-slate-700">{order.currency}</TableCell>
+                                <TableCell className="py-3 font-mono text-xs text-slate-500">{order.exchange_rate ? `Ref: ${order.exchange_rate.toFixed(2)}` : 'N/A'}</TableCell>
+                                <TableCell className="py-3">
+                                  <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
+                                    {STATUS_TRANSLATIONS[order.status] || order.status}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  {renderReceptionStatusBadge(order.reception_status)}
+                                </TableCell>
+                                <TableCell className="py-3 text-slate-500 text-xs font-medium">{order.created_at ? new Date(order.created_at).toLocaleDateString('es-VE') : 'N/A'}</TableCell>
+                                {renderActions(order)}
+                              </TableRow>
+
+                              {isExpanded && (
+                                <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
+                                  <TableCell colSpan={11} className="p-4 pl-12">
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <Package className="h-4 w-4 text-procarni-primary" />
+                                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems integrados en la Orden de Compra</h4>
+                                          <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                                            {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
+                                          </Badge>
+                                        </div>
+                                        <span className="text-[11px] text-slate-400 font-mono">ID: {order.id}</span>
+                                      </div>
+
+                                      {items.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic py-2">No hay ítems registrados en esta orden de compra.</p>
+                                      ) : (
+                                        <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                          <Table className="text-xs">
+                                            <TableHeader className="bg-slate-50">
+                                              <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                                                <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
+                                                <TableHead className="font-bold text-slate-500 py-2">Descripción / Producto</TableHead>
+                                                <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
+                                                <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
+                                                <TableHead className="text-right font-bold text-slate-500 py-2">Subtotal</TableHead>
+                                                <TableHead className="text-right font-bold text-slate-500 py-2">IVA / Imp.</TableHead>
+                                                <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {items.map((item: any, idx: number) => {
+                                                const qty = Number(item.quantity || 0);
+                                                const unitPrice = Number(item.unit_price || 0);
+                                                const subtotal = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0)
+                                                  ? Number(item.subtotal)
+                                                  : qty * unitPrice;
+                                                const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt)
+                                                  ? Number(item.tax_amount)
+                                                  : (item.is_exempt ? 0 : subtotal * 0.16);
+                                                const lineTotal = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0)
+                                                  ? Number(item.total_price)
+                                                  : ((item.total !== undefined && item.total !== null && Number(item.total) > 0) ? Number(item.total) : (subtotal + tax));
+
+                                                return (
+                                                  <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                    <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                    <TableCell className="font-medium text-slate-800 py-2">{item.description || item.material_name || 'S/N'}</TableCell>
+                                                    <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
+                                                    <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                    <TableCell className="text-right font-mono text-slate-600 py-2">{subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                    <TableCell className="text-right font-mono text-slate-500 py-2">{tax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                    <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                  </TableRow>
+                                                );
+                                              })}
+                                            </TableBody>
+                                          </Table>
+
+                                          {/* Summary Footer for items */}
+                                          <div className="bg-slate-50/80 px-4 py-2 border-t border-slate-100 flex justify-end gap-6 text-xs font-mono">
+                                            <div><span className="text-slate-500 font-medium">Subtotal:</span> <span className="font-semibold text-slate-700">{summarySubtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
+                                            <div><span className="text-slate-500 font-medium">IVA (16%):</span> <span className="font-semibold text-slate-700">{summaryTax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
+                                            <div><span className="text-slate-600 font-bold">TOTAL:</span> <span className="font-extrabold text-procarni-primary">{summaryTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
