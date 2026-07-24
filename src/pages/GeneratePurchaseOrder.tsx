@@ -178,12 +178,12 @@ const GeneratePurchaseOrder = () => {
       // 3. Handle PO Duplication
       else if (duplicateFrom) {
         try {
-          const order = await purchaseOrderService.getById(duplicateFrom);
+          const order = await purchaseOrderService.getById(duplicateFrom) as any;
           if (order) {
-            setCompanyId(order.company_id);
-            setCompanyName(order.companies?.name || '');
-            setSupplierId(order.supplier_id);
-            setSupplierName(order.suppliers?.name || '');
+            setCompanyId(order.company_id || order.company?.id || '');
+            setCompanyName(order.companies?.name || order.company?.name || '');
+            setSupplierId(order.supplier_id || order.supplier?.id || '');
+            setSupplierName(order.suppliers?.name || order.supplier?.name || '');
             setCurrency(order.currency as any);
             setBaseCurrency((order.base_currency as any) || (order.currency === 'EUR' ? 'EUR' : 'USD'));
             setExchangeRate(order.exchange_rate || undefined);

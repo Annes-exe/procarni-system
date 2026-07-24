@@ -18,6 +18,7 @@ interface SupplierPriceHistoryDownloadButtonProps {
   disabled?: boolean;
   asChild?: boolean;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
+  className?: string;
 }
 
 const SupplierPriceHistoryDownloadButton = React.forwardRef<HTMLButtonElement, SupplierPriceHistoryDownloadButtonProps>(({
@@ -28,6 +29,7 @@ const SupplierPriceHistoryDownloadButton = React.forwardRef<HTMLButtonElement, S
   disabled = false,
   asChild = false,
   variant = 'ghost',
+  className,
 }, ref) => {
   const { session } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
