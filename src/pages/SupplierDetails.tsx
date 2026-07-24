@@ -1513,8 +1513,8 @@ const SupplierDetails = () => {
                           const totalItemsCount = serviceItems.length + materialItems.length;
 
                           const combinedItems = [
-                            ...serviceItems.map((i: any) => ({ ...i, unit_price: i.unit_price })),
-                            ...materialItems.map((m: any) => ({ ...m, unit_price: m.unit_price }))
+                            ...serviceItems.map((i: any) => ({ ...i, name: i.description, unit_price: i.unit_price })),
+                            ...materialItems.map((m: any) => ({ ...m, name: m.material_name, unit_price: m.unit_price }))
                           ];
                           const totals = calculateTotals(combinedItems as any);
 
@@ -1578,7 +1578,7 @@ const SupplierDetails = () => {
                                         return (
                                           <div key={item.id || idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
                                             <div className="flex justify-between items-start gap-2">
-                                              <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'Servicio/Material'}</span>
+                                              <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.name || 'Servicio/Material'}</span>
                                               <span className="font-mono font-bold text-procarni-dark shrink-0">
                                                 {total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
                                               </span>
@@ -1586,6 +1586,9 @@ const SupplierDetails = () => {
                                             <div className="flex justify-between text-[11px] text-slate-500 font-mono">
                                               <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
                                             </div>
+                                            {item.material_name && item.description && (
+                                              <p className="text-[10px] text-slate-400 italic font-medium">{item.description}</p>
+                                            )}
                                           </div>
                                         );
                                       })}
@@ -1621,8 +1624,8 @@ const SupplierDetails = () => {
                               const totalItemsCount = serviceItems.length + materialItems.length;
 
                               const combinedItems = [
-                                ...serviceItems.map((i: any) => ({ ...i, unit_price: i.unit_price })),
-                                ...materialItems.map((m: any) => ({ ...m, unit_price: m.unit_price }))
+                                ...serviceItems.map((i: any) => ({ ...i, name: i.description, isService: true })),
+                                ...materialItems.map((m: any) => ({ ...m, name: m.material_name, isService: false }))
                               ];
                               const totals = calculateTotals(combinedItems as any);
 

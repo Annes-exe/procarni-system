@@ -484,6 +484,21 @@ const EditPurchaseOrder = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Save Button at the Bottom */}
+      <div className="block md:hidden mt-6 pb-16 px-1">
+        <Button
+          onClick={handleSubmit}
+          disabled={isSubmitting || !userId || !companyId || !deliveryDate || items.length === 0}
+          className="w-full h-12 bg-procarni-primary hover:bg-red-800 text-white font-bold text-sm rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          {isSubmitting ? (
+            <><Loader2 className="h-5 w-5 animate-spin" /> Guardando...</>
+          ) : (
+            'Guardar Cambios'
+          )}
+        </Button>
+      </div>
       <SupplierCreationDialog
         isOpen={isAddSupplierDialogOpen}
         onClose={() => setIsAddSupplierDialogOpen(false)}

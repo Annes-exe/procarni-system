@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { calculateTotals } from '@/utils/calculations';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -333,8 +334,8 @@ const ServiceOrderManagement = () => {
     const totalItemsCount = serviceItems.length + materialItems.length;
 
     const combinedItems = [
-      ...serviceItems.map((i: any) => ({ ...i, unit_price: i.unit_price })),
-      ...materialItems.map((m: any) => ({ ...m, unit_price: m.unit_price }))
+      ...serviceItems.map((i: any) => ({ ...i, name: i.description, isService: true })),
+      ...materialItems.map((m: any) => ({ ...m, name: m.material_name || m.materials?.name || 'Material', isService: false }))
     ];
     const totals = calculateTotals(combinedItems as any);
 
@@ -418,7 +419,7 @@ const ServiceOrderManagement = () => {
                   return (
                     <div key={item.id || idx} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
                       <div className="flex justify-between items-start gap-2">
-                        <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'Servicio/Material'}</span>
+                        <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.name || 'Servicio/Material'}</span>
                         <span className="font-mono font-bold text-procarni-dark shrink-0">
                           {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
                         </span>
@@ -426,6 +427,9 @@ const ServiceOrderManagement = () => {
                       <div className="flex justify-between text-[11px] text-slate-500 font-mono pt-0.5">
                         <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
                       </div>
+                      {!item.isService && item.description && (
+                        <p className="text-[10px] text-slate-400 italic font-medium">{item.description}</p>
+                      )}
                     </div>
                   );
                 })}
@@ -877,7 +881,12 @@ const ServiceOrderManagement = () => {
                                                       return (
                                                         <TableRow key={mat.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
                                                           <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
-                                                          <TableCell className="font-medium text-slate-800 py-2">{mat.description || mat.material_name || 'Material'}</TableCell>
+                                                          <TableCell className="font-medium text-slate-800 py-2">
+                                                            <div>{mat.material_name || mat.materials?.name || 'Material'}</div>
+                                                            {mat.description && (
+                                                              <div className="text-[10px] text-slate-400 italic font-normal mt-0.5">{mat.description}</div>
+                                                            )}
+                                                          </TableCell>
                                                           <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
                                                           <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
                                                           <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{total.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>

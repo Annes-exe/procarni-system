@@ -769,6 +769,21 @@ const EditServiceOrder = () => {
                     </div>
                 </div>
 
+                {/* Mobile Save Button at the Bottom */}
+                <div className="block md:hidden mt-6 pb-16 px-1">
+                    <Button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || !companyId || !supplierId}
+                        className="w-full h-12 bg-procarni-secondary hover:bg-green-700 text-white font-bold text-sm rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                        {isSubmitting ? (
+                            <><Loader2 className="h-5 w-5 animate-spin" /> Guardando...</>
+                        ) : (
+                            <><Save className="h-5 w-5" /> Guardar Cambios</>
+                        )}
+                    </Button>
+                </div>
+
                 <div className="flex justify-end pt-4 pb-8" />
             </div>
             
