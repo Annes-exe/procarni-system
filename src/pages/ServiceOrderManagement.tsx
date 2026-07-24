@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, Archive, RotateCcw, Wrench, XCircle, Trash2, CheckCircle, Trash } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, Archive, RotateCcw, Wrench, XCircle, Trash2, CheckCircle, Trash, ChevronDown, ChevronRight, Package } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
 import { serviceOrderService, ServiceOrderWithRelations } from '@/services/serviceOrderService';
@@ -23,6 +23,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -45,11 +46,13 @@ const formatSequenceNumber = (sequence?: number, dateString?: string): string =>
 
 const ServiceOrderManagement = () => {
   const queryClient = useQueryClient();
-  const { session, role } = useSession();
+  const { session, role, supabase } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isMobileView = isMobile || isTablet;
+
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -323,107 +326,168 @@ const ServiceOrderManagement = () => {
     );
   }
 
-  const renderMobileCard = (order: ServiceOrderWithRelations) => (
-    <Card key={order.id} className={cn("p-4 shadow-md bg-white", selectedIds.has(order.id) && "border-procarni-secondary border-2")}>
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Checkbox
-            checked={selectedIds.has(order.id)}
-            onCheckedChange={() => toggleSelection(order.id)}
-          />
-          <CardTitle className="text-lg truncate font-mono text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</CardTitle>
-        </div>
-        <span className={cn("px-2 py-0.5 text-xs font-medium rounded-full shrink-0 border", getStatusBadgeClass(order.status))}>
-          {STATUS_TRANSLATIONS[order.status] || order.status}
-        </span>
-      </div>
-      <div className="min-w-0 mb-2">
-        <p className="text-sm font-medium text-gray-500">Proveedor</p>
-        <p className="text-base font-medium text-procarni-dark truncate">{order.suppliers.name}</p>
-      </div>
-      <div className="text-sm space-y-1 mb-4">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Empresa</p>
-            <p className="font-medium text-procarni-dark truncate" title={order.companies.name}>{order.companies.name}</p>
+  const renderMobileCard = (order: ServiceOrderWithRelations) => {
+    const isExpanded = expandedRowId === order.id;
+    const serviceItems = order.service_order_items || [];
+    const materialItems = order.service_order_materials || [];
+    const totalItemsCount = serviceItems.length + materialItems.length;
+
+    const combinedItems = [
+      ...serviceItems.map((i: any) => ({ ...i, unit_price: i.unit_price })),
+      ...materialItems.map((m: any) => ({ ...m, unit_price: m.unit_price }))
+    ];
+    const totals = calculateTotals(combinedItems as any);
+
+    return (
+      <Card
+        key={order.id}
+        className={cn(
+          "bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-5 transition-all overflow-hidden",
+          selectedIds.has(order.id) && "ring-2 ring-procarni-secondary border-procarni-secondary",
+          isExpanded && "border-l-4 border-l-procarni-primary"
+        )}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Checkbox
+              checked={selectedIds.has(order.id)}
+              onCheckedChange={() => toggleSelection(order.id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <CardTitle className="text-base truncate font-mono font-bold text-procarni-dark">
+              {formatSequenceNumber(order.sequence_number, order.created_at)}
+            </CardTitle>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Equipo</p>
-            <p className="font-medium truncate" title={order.equipment_name}>{order.equipment_name}</p>
+          <span className={cn("px-2 py-0.5 text-[11px] font-semibold rounded-md border shrink-0", getStatusBadgeClass(order.status))}>
+            {STATUS_TRANSLATIONS[order.status] || order.status}
+          </span>
+        </div>
+
+        <div className="space-y-1.5 text-xs mb-3">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Proveedor</span>
+            <p className="font-semibold text-slate-900 truncate">{order.suppliers?.name || 'N/A'}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Equipo / Servicio</span>
+              <p className="font-medium text-slate-700 truncate">{order.equipment_name || 'General'}</p>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400">Monto Total</span>
+              <p className="font-mono font-bold text-procarni-dark text-sm">
+                {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+              </p>
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400">Fecha Servicio</span>
+            <p className="text-slate-600">{order.service_date ? format(new Date(order.service_date), 'dd/MM/yyyy') : 'N/A'}</p>
           </div>
         </div>
-        <div className="pt-1">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Fecha Servicio</p>
-          <p className="font-medium">{format(new Date(order.service_date), 'dd/MM/yyyy')}</p>
-        </div>
-      </div>
 
-      <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-        <TooltipProvider delayDuration={0}>
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleViewDetails(order.id)}>
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver Detalles</TooltipContent>
-            </Tooltip>
+        {/* Expand Accordion Button for Mobile Items */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExpandedRowId(isExpanded ? null : order.id)}
+          className="w-full flex items-center justify-between text-xs py-2 bg-slate-50/80 hover:bg-slate-100/80 border-slate-200 text-slate-700 font-medium rounded-xl my-2"
+        >
+          <span className="flex items-center gap-1.5">
+            <Wrench className="h-3.5 w-3.5 text-procarni-secondary" />
+            {totalItemsCount} {totalItemsCount === 1 ? 'ítem e insumo' : 'ítems e insumos'}
+          </span>
+          <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
+            {isExpanded ? 'Ocultar' : 'Ver detalle'}
+            {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
+        </Button>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PDFDownloadButton
-                  orderId={order.id}
-                  endpoint="generate-so-pdf"
-                  fileNameGenerator={() => {
-                    const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
-                    const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                    return `${sequence}-${supplierName}.pdf`;
-                  }}
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 text-blue-600 border-blue-100 hover:bg-blue-50"
-                  label=""
-                />
-              </TooltipTrigger>
-              <TooltipContent>Descargar</TooltipContent>
-            </Tooltip>
-
-
-            {order.status !== 'Archived' ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(order.id, 'archive')}>
-                    <Archive className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Archivar</TooltipContent>
-              </Tooltip>
+        {/* Expanded Items Cards on Mobile */}
+        {isExpanded && (
+          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            {totalItemsCount === 0 ? (
+              <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems ni insumos registrados.</p>
             ) : (
-              <div className="flex gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-9 w-9 text-gray-500 border-gray-100 hover:bg-gray-50" onClick={() => confirmAction(order.id, 'unarchive')}>
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Desarchivar</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-9 w-9 text-destructive border-destructive/20 hover:bg-destructive hover:text-white" onClick={() => confirmDelete(order.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Eliminar Permanentemente</TooltipContent>
-                </Tooltip>
+              <div className="space-y-2">
+                {combinedItems.map((item: any, idx: number) => {
+                  const qty = Number(item.quantity || 1);
+                  const unitPrice = Number(item.unit_price || 0);
+                  const lineTotal = Number(item.total_price || qty * unitPrice);
+
+                  return (
+                    <div key={item.id || idx} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'Servicio/Material'}</span>
+                        <span className="font-mono font-bold text-procarni-dark shrink-0">
+                          {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-500 font-mono pt-0.5">
+                        <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Sub-table Totals Summary Footer */}
+                <div className="bg-slate-100/80 p-2.5 rounded-xl text-xs font-mono space-y-1 border border-slate-200/60 mt-2">
+                  <div className="flex justify-between text-slate-800 font-bold">
+                    <span className="text-procarni-dark font-extrabold">TOTAL SERVICIO:</span>
+                    <span className="text-procarni-primary font-black text-sm">{totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        </TooltipProvider>
-      </div>
-    </Card>
-  );
+        )}
+
+        {/* Action Buttons Footer */}
+        <div className="flex flex-wrap justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
+          <TooltipProvider delayDuration={0}>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+              <Button variant="outline" size="sm" className="h-9 px-3 text-xs gap-1.5" onClick={() => handleViewDetails(order.id)}>
+                <Eye className="h-3.5 w-3.5" />
+                <span>Detalles</span>
+              </Button>
+
+              <PDFDownloadButton
+                orderId={order.id}
+                endpoint="generate-so-pdf"
+                fileNameGenerator={() => {
+                  const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+                  const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                  return `${sequence}-${supplierName}.pdf`;
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
+                label="PDF"
+              />
+
+              {order.status !== 'Archived' ? (
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(order.id, 'archive')}>
+                  <Archive className="h-3.5 w-3.5" />
+                  <span>Archivar</span>
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(order.id, 'unarchive')}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Restaurar</span>
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-destructive border-destructive/20 hover:bg-destructive hover:text-white gap-1.5" onClick={() => confirmDelete(order.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Eliminar</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </TooltipProvider>
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <div className="container mx-auto p-4 pb-20">
@@ -602,111 +666,243 @@ const ServiceOrderManagement = () => {
                     {currentOrders.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-gray-100 overflow-hidden">
+                  <div className="rounded-2xl border border-slate-200/80 shadow-sm bg-white overflow-hidden">
                     <Table>
-                      <TableHeader className="bg-gray-50/50">
-                        <TableRow>
-                          <TableHead className="w-[40px] pl-4">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-[30px] pl-3 py-3"></TableHead>
+                          <TableHead className="w-[40px] pl-2 py-3">
                             <Checkbox
                               checked={currentOrders.length > 0 && selectedIds.size === currentOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">N° Orden</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Proveedor</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Equipo</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Tipo Servicio</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Fecha Servicio</TableHead>
-                          <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500">Estado</TableHead>
-                          <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4">Acciones</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">N° Orden</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Proveedor</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Equipo</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Tipo Servicio</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Fecha Servicio</TableHead>
+                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Estado</TableHead>
+                          <TableHead className="text-right font-bold text-[11px] tracking-wider uppercase text-slate-600 pr-4 py-3">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {currentOrders.map((order) => (
-                          <TableRow key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                            <TableCell className="pl-4 py-3">
-                              <Checkbox
-                                checked={selectedIds.has(order.id)}
-                                onCheckedChange={() => toggleSelection(order.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="py-3 font-mono text-xs font-medium text-procarni-dark">{formatSequenceNumber(order.sequence_number, order.created_at)}</TableCell>
-                            <TableCell className="py-3 font-medium text-procarni-dark">{order.suppliers.name}</TableCell>
-                            <TableCell className="py-3 text-gray-600">{order.equipment_name}</TableCell>
-                            <TableCell className="py-3 text-gray-600">{order.service_type}</TableCell>
-                            <TableCell className="py-3 text-gray-600">{format(new Date(order.service_date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell className="py-3">
-                              <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
-                                {STATUS_TRANSLATIONS[order.status] || order.status}
-                              </span>
-                            </TableCell>
-                            <TableCell className="py-3 text-right">
-                              <TooltipProvider delayDuration={0}>
-                                <div className="flex justify-end gap-1">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" onClick={() => handleViewDetails(order.id)} className="h-8 w-8">
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Ver Detalles</TooltipContent>
-                                  </Tooltip>
+                        {currentOrders.map((order) => {
+                          const isExpanded = expandedRowId === order.id;
+                          const serviceItems = order.service_order_items || [];
+                          const materialItems = order.service_order_materials || [];
+                          const totalItemsCount = serviceItems.length + materialItems.length;
 
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <PDFDownloadButton
-                                        orderId={order.id}
-                                        endpoint="generate-so-pdf"
-                                        fileNameGenerator={() => {
-                                          const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
-                                          const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                                          return `${sequence}-${supplierName}.pdf`;
-                                        }}
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-blue-600"
-                                        label=""
-                                      />
-                                    </TooltipTrigger>
-                                    <TooltipContent>Descargar</TooltipContent>
-                                  </Tooltip>
+                          const serviceTotal = serviceItems.reduce((sum, item) => sum + Number((item.quantity || 1) * (item.unit_price || 0)), 0);
+                          const materialTotal = materialItems.reduce((sum, item) => sum + Number((item.quantity || 1) * (item.unit_price || 0)), 0);
+                          const grandTotal = serviceTotal + materialTotal;
 
-                                  {order.status !== 'Archived' && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'archive')} className="h-8 w-8 text-gray-500">
-                                          <Archive className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Archivar</TooltipContent>
-                                    </Tooltip>
+                          return (
+                            <React.Fragment key={order.id}>
+                              <TableRow
+                                onClick={() => setExpandedRowId(isExpanded ? null : order.id)}
+                                className={cn(
+                                  "cursor-pointer transition-colors border-b border-slate-100/80",
+                                  isExpanded
+                                    ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
+                                    : "hover:bg-slate-50/80"
+                                )}
+                              >
+                                <TableCell className="pl-3 py-3 text-slate-400">
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
                                   )}
-
-                                  {order.status === 'Archived' && (
-                                    <>
+                                </TableCell>
+                                <TableCell className="pl-2 py-3" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={selectedIds.has(order.id)}
+                                    onCheckedChange={() => toggleSelection(order.id)}
+                                  />
+                                </TableCell>
+                                <TableCell className="py-3 font-mono text-xs font-bold text-procarni-dark">
+                                  {formatSequenceNumber(order.sequence_number, order.created_at)}
+                                </TableCell>
+                                <TableCell className="py-3 font-semibold text-slate-900">{order.suppliers?.name || '---'}</TableCell>
+                                <TableCell className="py-3 font-semibold text-slate-800 uppercase text-xs">{order.equipment_name || 'N/A'}</TableCell>
+                                <TableCell className="py-3 text-slate-600 text-xs">{order.service_type || 'N/A'}</TableCell>
+                                <TableCell className="py-3 text-slate-500 text-xs font-medium">{format(new Date(order.service_date), 'dd/MM/yyyy')}</TableCell>
+                                <TableCell className="py-3">
+                                  <span className={cn("px-2.5 py-0.5 text-xs font-semibold rounded-md border whitespace-nowrap", getStatusBadgeClass(order.status))}>
+                                    {STATUS_TRANSLATIONS[order.status] || order.status}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-3 text-right pr-4" onClick={(e) => e.stopPropagation()}>
+                                  <TooltipProvider delayDuration={0}>
+                                    <div className="flex justify-end gap-1">
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <Button variant="ghost" size="icon" onClick={() => confirmAction(order.id, 'unarchive')} className="h-8 w-8 text-gray-500">
-                                            <RotateCcw className="h-4 w-4" />
+                                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewDetails(order.id); }} className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
+                                            <Eye className="h-4 w-4" />
                                           </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent>Desarchivar</TooltipContent>
+                                        <TooltipContent>Ver Detalles</TooltipContent>
                                       </Tooltip>
+
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <Button variant="ghost" size="icon" onClick={() => confirmDelete(order.id)} className="h-8 w-8 text-destructive">
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
+                                          <div onClick={(e) => e.stopPropagation()}>
+                                            <PDFDownloadButton
+                                              orderId={order.id}
+                                              endpoint="generate-so-pdf"
+                                              fileNameGenerator={() => {
+                                                const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+                                                const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                                                return `${sequence}-${supplierName}.pdf`;
+                                              }}
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                              label=""
+                                            />
+                                          </div>
                                         </TooltipTrigger>
-                                        <TooltipContent>Eliminar Permanentemente</TooltipContent>
+                                        <TooltipContent>Descargar PDF</TooltipContent>
                                       </Tooltip>
-                                    </>
-                                  )}
-                                </div>
-                              </TooltipProvider>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+
+                                      {order.status !== 'Archived' && (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(order.id, 'archive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
+                                              <Archive className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Archivar</TooltipContent>
+                                        </Tooltip>
+                                      )}
+
+                                      {order.status === 'Archived' && (
+                                        <>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(order.id, 'unarchive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
+                                                <RotateCcw className="h-4 w-4" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Desarchivar</TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmDelete(order.id); }} className="h-8 w-8 text-destructive hover:bg-red-50">
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Eliminar Permanentemente</TooltipContent>
+                                          </Tooltip>
+                                        </>
+                                      )}
+                                    </div>
+                                  </TooltipProvider>
+                                </TableCell>
+                              </TableRow>
+
+                              {isExpanded && (
+                                <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
+                                  <TableCell colSpan={9} className="p-4 pl-12">
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <Wrench className="h-4 w-4 text-procarni-secondary" />
+                                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems e Insumos del Servicio</h4>
+                                          <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                                            {totalItemsCount} {totalItemsCount === 1 ? 'ítem' : 'ítems'}
+                                          </Badge>
+                                        </div>
+                                        <span className="text-[11px] text-slate-400 font-mono">ID: {order.id}</span>
+                                      </div>
+
+                                      {totalItemsCount === 0 ? (
+                                        <p className="text-xs text-slate-400 italic py-2">No hay ítems ni materiales registrados en esta orden de servicio.</p>
+                                      ) : (
+                                        <div className="space-y-3">
+                                          {serviceItems.length > 0 && (
+                                            <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                              <Table className="text-xs">
+                                                <TableHeader className="bg-slate-50">
+                                                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                                                    <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
+                                                    <TableHead className="font-bold text-slate-500 py-2">Descripción del Servicio</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
+                                                  </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                  {serviceItems.map((item: any, idx: number) => {
+                                                    const unitPrice = Number(item.unit_price || 0);
+                                                    const qty = Number(item.quantity || 1);
+                                                    const total = Number(item.total_price || qty * unitPrice);
+
+                                                    return (
+                                                      <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                        <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                        <TableCell className="font-medium text-slate-800 py-2">{item.description || 'Servicio Técnico'}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
+                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{total.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                      </TableRow>
+                                                    );
+                                                  })}
+                                                </TableBody>
+                                              </Table>
+                                            </div>
+                                          )}
+
+                                          {materialItems.length > 0 && (
+                                            <div className="space-y-1">
+                                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Materiales y Repuestos Utilizados</p>
+                                              <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                                <Table className="text-xs">
+                                                  <TableHeader className="bg-slate-50">
+                                                    <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                                                      <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
+                                                      <TableHead className="font-bold text-slate-500 py-2">Material / Repuesto</TableHead>
+                                                      <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
+                                                      <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
+                                                      <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
+                                                    </TableRow>
+                                                  </TableHeader>
+                                                  <TableBody>
+                                                    {materialItems.map((mat: any, idx: number) => {
+                                                      const unitPrice = Number(mat.unit_price || 0);
+                                                      const qty = Number(mat.quantity || 1);
+                                                      const total = Number(mat.total_price || qty * unitPrice);
+
+                                                      return (
+                                                        <TableRow key={mat.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                          <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                          <TableCell className="font-medium text-slate-800 py-2">{mat.description || mat.material_name || 'Material'}</TableCell>
+                                                          <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
+                                                          <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                          <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{total.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                        </TableRow>
+                                                      );
+                                                    })}
+                                                  </TableBody>
+                                                </Table>
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Total summary footer */}
+                                          <div className="bg-slate-50/80 px-4 py-2 border-t border-slate-100 flex justify-end gap-6 text-xs font-mono">
+                                            <div><span className="text-slate-500 font-bold">TOTAL SERVICIO:</span> <span className="font-bold text-procarni-primary">{grandTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</span></div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>

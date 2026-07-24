@@ -10,6 +10,8 @@ export type CreateServiceOrderMaterialInput = Omit<ServiceOrderMaterial, 'id' | 
 export type ServiceOrderWithRelations = ServiceOrder & {
     suppliers: { name: string };
     companies: { name: string };
+    service_order_items?: ServiceOrderItem[];
+    service_order_materials?: ServiceOrderMaterial[];
 };
 
 export const serviceOrderService = {
@@ -19,7 +21,7 @@ export const serviceOrderService = {
     getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' = 'Active'): Promise<ServiceOrderWithRelations[]> => {
         let query = supabase
             .from('service_orders')
-            .select('*, suppliers(name), companies(name)')
+            .select('*, suppliers(name), companies(name), service_order_items(*), service_order_materials(*)')
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
@@ -59,7 +61,7 @@ export const serviceOrderService = {
       const to = from + pageSize - 1;
   
       // Use standard join
-      const selectQuery = '*, suppliers(name), companies(name)';
+      const selectQuery = '*, suppliers(name), companies(name), service_order_items(*), service_order_materials(*)';
   
       let query = supabase
         .from('service_orders')
@@ -467,18 +469,22 @@ export const serviceOrderService = {
     },
 
     getBySupplierId: async (supplierId: string): Promise<unknown[]> => {
-        const { data, error } = await supabase
-            .from('service_orders')
-            .select('*, companies(name), service_order_items(*), service_order_materials(*)')
-            .eq('supplier_id', supplierId)
-            .order('sequence_number', { ascending: false });
+        try {
+            const { data, error } = await supabase
+                .from('service_orders')
+                .select('*, companies(name), service_order_items(*), service_order_materials(*)')
+                .eq('supplier_id', supplierId)
+                .order('sequence_number', { ascending: false });
 
-        if (error) {
-            console.error('[serviceOrderService.getBySupplierId] Error:', error);
-            showError('Error al cargar órdenes de servicio del proveedor.');
+            if (error) {
+                console.error('[serviceOrderService.getBySupplierId] Error:', error);
+                return [];
+            }
+            return data || [];
+        } catch (err) {
+            console.warn('[serviceOrderService.getBySupplierId] Fetch error:', err);
             return [];
         }
-        return data || [];
     }
 };
 

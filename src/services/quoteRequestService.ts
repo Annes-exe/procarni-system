@@ -43,7 +43,8 @@ export const quoteRequestService = {
             .select(`
         *,
         suppliers(name, rif),
-        companies(name, rif)
+        companies(name, rif),
+        quote_request_items(*)
       `)
             .order('created_at', { ascending: false });
 
@@ -63,7 +64,7 @@ export const quoteRequestService = {
 
         const { data, error } = await query;
         if (error) throw error;
-        return data as (QuoteRequest & { suppliers: { name: string, rif: string } | null, companies: { name: string, rif: string } | null })[];
+        return data as (QuoteRequest & { suppliers: { name: string, rif: string } | null, companies: { name: string, rif: string } | null, quote_request_items: QuoteRequestItem[] })[];
     },
 
     async getById(id: string) {

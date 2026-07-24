@@ -77,18 +77,42 @@ const FichaTecnicaService = {
   },
 
   getBySupplierAndProduct: async (proveedorId: string, nombreProducto: string): Promise<FichaTecnica | null> => {
-    const { data, error } = await supabase
-      .from('fichas_tecnicas')
-      .select('*')
-      .eq('proveedor_id', proveedorId)
-      .eq('nombre_producto', nombreProducto);
+    try {
+      const { data, error } = await supabase
+        .from('fichas_tecnicas')
+        .select('*')
+        .eq('proveedor_id', proveedorId)
+        .eq('nombre_producto', nombreProducto);
 
-    if (error) {
-      console.error('[FichaTecnicaService.getBySupplierAndProduct] Error:', error);
+      if (error) {
+        console.error('[FichaTecnicaService.getBySupplierAndProduct] Error:', error);
+        return null;
+      }
+
+      return data && data.length > 0 ? data[0] as FichaTecnica : null;
+    } catch (err) {
+      console.warn('[FichaTecnicaService.getBySupplierAndProduct] Fetch failed:', err);
       return null;
     }
+  },
 
-    return data.length > 0 ? data[0] as FichaTecnica : null;
+  getBySupplierId: async (proveedorId: string): Promise<FichaTecnica[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('fichas_tecnicas')
+        .select('*')
+        .eq('proveedor_id', proveedorId);
+
+      if (error) {
+        console.error('[FichaTecnicaService.getBySupplierId] Error:', error);
+        return [];
+      }
+
+      return (data || []) as FichaTecnica[];
+    } catch (err) {
+      console.warn('[FichaTecnicaService.getBySupplierId] Fetch failed:', err);
+      return [];
+    }
   },
 
   delete: async (fichaId: string, cloudinaryPublicId?: string): Promise<boolean> => {
@@ -152,4 +176,5 @@ export const {
   getAll: getAllFichasTecnicas,
   delete: deleteFichaTecnica,
   getBySupplierAndProduct: getFichaTecnicaBySupplierAndProduct,
+  getBySupplierId: getFichaTecnicaBySupplierId,
 } = FichaTecnicaService;

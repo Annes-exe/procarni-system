@@ -3,10 +3,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp, TrendingDown, Clock, ArrowUpRight, Activity, Percent } from 'lucide-react';
+import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp, TrendingDown, Clock, ArrowUpRight, Activity, Percent, ChevronDown, ChevronRight, Package, Wrench } from 'lucide-react';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport, getPriceHistoryBySupplierId } from '@/integrations/supabase/data';
+import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, getFichaTecnicaBySupplierId, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport, getPriceHistoryBySupplierId } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { detectLocation } from '@/utils/location-detector';
 import { isGenericRif, validateRif } from '@/utils/validators';
@@ -86,9 +86,13 @@ const SupplierDetails = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
-  const [isEditOpen, setIsEditOpen] = useState(false); // New state for edit dialog
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAnalysisMaterial, setSelectedAnalysisMaterial] = useState<string>('all');
+
+  // Expanded row state for OC & OS accordion (only 1 row open per table)
+  const [expandedOcId, setExpandedOcId] = useState<string | null>(null);
+  const [expandedOsId, setExpandedOsId] = useState<string | null>(null);
 
   const { data: supplier, isLoading, error } = useQuery<SupplierDetailsData | null>({
     queryKey: ['supplierDetails', id],
@@ -120,52 +124,42 @@ const SupplierDetails = () => {
   });
 
 
-  // --- Fetch Ficha Tecnica Status for all materials using useQueries ---
-  // Optimized ficha checks: Only one query per unique material name to avoid Duplicate Queries warning
-  const uniqueMaterialNames = useMemo(() => {
-    if (!supplier?.materials) return [];
-    return Array.from(new Set(supplier.materials.map(sm => sm.materials.name)));
-  }, [supplier?.materials]);
-
-  const materialQueries = uniqueMaterialNames.map(name => ({
-    queryKey: ['fichaTecnicaStatus', supplier?.id, name],
-    queryFn: () => getFichaTecnicaBySupplierAndProduct(supplier!.id, name),
-    select: (data: any) => !!data,
-    enabled: !!supplier?.id && !!name,
+  // --- Optimized Batch Fetch: 1 single query for all fichas tecnicas of the supplier ---
+  const { data: supplierFichas = [], isLoading: isLoadingFichaStatus } = useQuery({
+    queryKey: ['supplierFichas', supplier?.id],
+    queryFn: () => getFichaTecnicaBySupplierId(supplier!.id),
+    enabled: !!supplier?.id,
     staleTime: 1000 * 60 * 5,
-  }));
+  });
 
-  const fichaStatusResults = useQueries({ queries: materialQueries });
-
-  const fichaStatusMap = useMemo(() => {
-    const map: Record<string, { data?: boolean; isLoading: boolean }> = {};
-    uniqueMaterialNames.forEach((name, index) => {
-      map[name] = {
-        data: fichaStatusResults[index]?.data as boolean,
-        isLoading: fichaStatusResults[index]?.isLoading
-      };
+  const fichasSet = useMemo(() => {
+    const set = new Set<string>();
+    (supplierFichas || []).forEach((f: any) => {
+      if (f.nombre_producto) {
+        set.add(f.nombre_producto.trim().toLowerCase());
+      }
     });
-    return map;
-  }, [uniqueMaterialNames, fichaStatusResults]);
-  const isLoadingFichaStatus = fichaStatusResults.some(result => result.isLoading);
+    return set;
+  }, [supplierFichas]);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['material_categories'],
     queryFn: getAllMaterialCategories,
+    staleTime: 1000 * 60 * 10,
   });
 
-  // Combine materials with their ficha status from the map
+  // Combine materials with their ficha status from the batch set
   const materialsWithStatus = useMemo(() => {
     if (!supplier?.materials) return [];
     return supplier.materials.map((sm) => {
-      const status = fichaStatusMap[sm.materials.name];
+      const matNameLower = sm.materials?.name ? sm.materials.name.trim().toLowerCase() : '';
       return {
         ...sm,
-        hasFichaResult: status?.data || false,
-        isLoadingFicha: status?.isLoading || false
+        hasFichaResult: matNameLower ? fichasSet.has(matNameLower) : false,
+        isLoadingFicha: isLoadingFichaStatus
       };
     });
-  }, [supplier?.materials, fichaStatusMap]);
+  }, [supplier?.materials, fichasSet, isLoadingFichaStatus]);
 
   // Fetch supplier purchase history
   const { data: purchaseHistory = [], isLoading: isLoadingHistory } = useQuery({
@@ -954,14 +948,14 @@ const SupplierDetails = () => {
       </div>
 
       <Tabs defaultValue="materials" className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TabsList className="bg-slate-100/60 backdrop-blur-xl p-1 rounded-2xl h-auto flex flex-row border border-slate-200/20 gap-1 w-full max-w-xl shadow-sm">
-              <TabsTrigger value="materials" className="flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider">
+            <TabsList className="bg-slate-100/80 backdrop-blur-xl p-1.5 rounded-2xl h-auto flex flex-col sm:flex-row border border-slate-200/50 gap-1 w-full max-w-full sm:max-w-2xl shadow-sm">
+              <TabsTrigger value="materials" className="w-full sm:flex-1 rounded-xl py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-center">
                 Materiales Ofrecidos
               </TabsTrigger>
-              <TabsTrigger value="orders" className="flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider">
+              <TabsTrigger value="orders" className="w-full sm:flex-1 rounded-xl py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-center">
                 Historial de Órdenes ({purchaseOrders.length + serviceOrders.length})
               </TabsTrigger>
-              <TabsTrigger value="analysis" className="flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider">
+              <TabsTrigger value="analysis" className="w-full sm:flex-1 rounded-xl py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-center">
                 Análisis de Precios
               </TabsTrigger>
             </TabsList>
@@ -1108,8 +1102,43 @@ const SupplierDetails = () => {
                               </div>
                             </div>
 
-                            {/* Presentations Table/List */}
-                            <div className="overflow-x-auto">
+                            {/* Presentations Mobile Cards */}
+                            <div className="block md:hidden p-3 space-y-2">
+                              {group.items.map((sm: any) => (
+                                <div key={sm.id} className="bg-white/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-100 shadow-md shadow-gray-200/40 ring-1 ring-white flex items-center justify-between gap-2">
+                                  <div className="space-y-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
+                                        {sm.units_of_measure?.name || 'N/A'}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-700 italic text-xs">
+                                      {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
+                                    </p>
+                                  </div>
+                                  <div className="shrink-0">
+                                    {sm.isLoadingFicha ? (
+                                      <Loader2 className="h-4 w-4 animate-spin text-gray-300" />
+                                    ) : sm.hasFichaResult ? (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleViewFicha(sm.materials.name)} 
+                                        className="h-8 px-2.5 text-xs text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary/5 gap-1.5 rounded-lg"
+                                      >
+                                        <FileText className="h-3.5 w-3.5 text-procarni-secondary" />
+                                        <span>Ficha</span>
+                                      </Button>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-300 font-semibold">Sin Ficha</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Presentations Desktop Table */}
+                            <div className="hidden md:block overflow-x-auto">
                               <Table>
                                 <TableHeader className="bg-white">
                                   <TableRow className="border-b-0 hover:bg-transparent">
@@ -1194,56 +1223,258 @@ const SupplierDetails = () => {
                       <p className="italic text-sm">No se encontraron órdenes de compra para este proveedor.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50/50">
-                            <TableHead className={cn(tableHeaderClass, "pl-6 w-[120px]")}>Número</TableHead>
-                            <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
-                            <TableHead className={tableHeaderClass}>Empresa Solicitante</TableHead>
-                            <TableHead className={tableHeaderClass}>Tasa / Moneda</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {purchaseOrders.map((order) => {
-                            const totals = calculateTotals(order.purchase_order_items || []);
-                            return (
-                              <TableRow key={order.id} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
-                                <TableCell className="pl-6 font-bold font-mono text-xs">
-                                  <Link to={`/purchase-orders/${order.id}`} className="text-blue-600 hover:underline">
-                                    #{order.sequence_number || 'S/N'}
-                                  </Link>
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-600 font-medium">
-                                  {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-700 font-semibold">
-                                  {order.companies?.name || 'N/A'}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-500 font-mono">
-                                  {order.currency} {order.exchange_rate ? `(Tasa: ${order.exchange_rate})` : ''}
-                                </TableCell>
-                                <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
-                                  {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {getStatusBadge(order.status)}
-                                </TableCell>
-                                <TableCell className="pr-4 text-right">
-                                  <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
-                                    <Link to={`/purchase-orders/${order.id}`}>
-                                      <ArrowUpRight className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                    <div>
+                      {/* Mobile PO Cards */}
+                      <div className="block md:hidden p-4 space-y-3">
+                        {purchaseOrders.map((order: any) => {
+                          const isExpanded = expandedOcId === order.id;
+                          const items = order.purchase_order_items || [];
+                          const totals = calculateTotals(items);
+
+                          return (
+                            <Card key={order.id} className={cn("p-5 bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden transition-all", isExpanded && "border-l-4 border-l-procarni-primary")}>
+                              <div className="flex justify-between items-start mb-2">
+                                <Link to={`/purchase-orders/${order.id}`} className="font-bold font-mono text-sm text-blue-600 hover:underline">
+                                  #{order.sequence_number || 'S/N'}
+                                </Link>
+                                <div>{getStatusBadge(order.status)}</div>
+                              </div>
+
+                              <div className="space-y-1 text-xs mb-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Empresa</span>
+                                    <p className="font-semibold text-slate-800 truncate">{order.companies?.name || 'N/A'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Monto Total</span>
+                                    <p className="font-mono font-bold text-procarni-dark text-sm">
+                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-slate-400">Fecha Emisión</span>
+                                  <p className="text-slate-600">{order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}</p>
+                                </div>
+                              </div>
+
+                              {/* Mobile Accordion Toggle */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setExpandedOcId(isExpanded ? null : order.id)}
+                                className="w-full flex items-center justify-between text-xs py-2 bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium rounded-xl"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Package className="h-3.5 w-3.5 text-procarni-primary" />
+                                  {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
+                                </span>
+                                <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
+                                  {isExpanded ? 'Ocultar' : 'Ver detalle'}
+                                  {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
+                                </span>
+                              </Button>
+
+                              {/* Mobile Expanded Items */}
+                              {isExpanded && (
+                                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                                  {items.length === 0 ? (
+                                    <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta orden.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {items.map((item: any, idx: number) => {
+                                        const qty = Number(item.quantity || 0);
+                                        const unitPrice = Number(item.unit_price || 0);
+                                        const subtotal = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0) ? Number(item.subtotal) : qty * unitPrice;
+                                        const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt) ? Number(item.tax_amount) : (item.is_exempt ? 0 : subtotal * 0.16);
+                                        const lineTotal = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0) ? Number(item.total_price) : (subtotal + tax);
+
+                                        return (
+                                          <div key={item.id || idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                                            <div className="flex justify-between items-start gap-2">
+                                              <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'S/N'}</span>
+                                              <span className="font-mono font-bold text-procarni-dark shrink-0">
+                                                {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+                                              <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                              <span>IVA: {tax.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+
+                                      <div className="bg-slate-100/80 p-2.5 rounded-xl text-xs font-mono space-y-1 border border-slate-200/60 mt-2">
+                                        <div className="flex justify-between text-slate-600">
+                                          <span>Subtotal:</span>
+                                          <span className="font-semibold">{totals.subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-600">
+                                          <span>IVA (16%):</span>
+                                          <span className="font-semibold">{(totals.montoIVA || totals.subtotal * 0.16).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-800 font-bold border-t border-slate-200/80 pt-1 mt-1">
+                                          <span className="text-procarni-dark font-extrabold">TOTAL:</span>
+                                          <span className="text-procarni-primary font-black text-sm">{totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </Card>
+                          );
+                        })}
+                      </div>
+
+                      {/* Desktop PO Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50/50">
+                              <TableHead className="w-[30px] pl-3 py-2"></TableHead>
+                              <TableHead className={cn(tableHeaderClass, "pl-2 w-[120px]")}>Número</TableHead>
+                              <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
+                              <TableHead className={tableHeaderClass}>Empresa Solicitante</TableHead>
+                              <TableHead className={tableHeaderClass}>Tasa / Moneda</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {purchaseOrders.map((order: any) => {
+                              const isExpanded = expandedOcId === order.id;
+                              const items = order.purchase_order_items || [];
+                              const totals = calculateTotals(items);
+
+                              return (
+                                <React.Fragment key={order.id}>
+                                  <TableRow
+                                    onClick={() => setExpandedOcId(isExpanded ? null : order.id)}
+                                    className={cn(
+                                      "cursor-pointer transition-colors border-b border-slate-100/40",
+                                      isExpanded
+                                        ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
+                                        : "hover:bg-slate-100/30"
+                                    )}
+                                  >
+                                    <TableCell className="pl-3 py-3 text-slate-400">
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="pl-2 font-bold font-mono text-xs" onClick={(e) => e.stopPropagation()}>
+                                      <Link to={`/purchase-orders/${order.id}`} className="text-blue-600 hover:underline">
+                                        #{order.sequence_number || 'S/N'}
+                                      </Link>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-medium">
+                                      {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-700 font-semibold">
+                                      {order.companies?.name || 'N/A'}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-500 font-mono">
+                                      {order.currency} {order.exchange_rate ? `(Tasa: ${order.exchange_rate})` : ''}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
+                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {getStatusBadge(order.status)}
+                                    </TableCell>
+                                    <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                      <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
+                                        <Link to={`/purchase-orders/${order.id}`}>
+                                          <ArrowUpRight className="h-4 w-4" />
+                                        </Link>
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+
+                                  {isExpanded && (
+                                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
+                                      <TableCell colSpan={8} className="p-4 pl-10">
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                            <div className="flex items-center gap-2">
+                                              <Package className="h-4 w-4 text-procarni-primary" />
+                                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems de la Orden de Compra</h4>
+                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                                                {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
+                                              </Badge>
+                                            </div>
+                                            <span className="text-[11px] text-slate-400 font-mono">ID: {order.id}</span>
+                                          </div>
+
+                                          {items.length === 0 ? (
+                                            <p className="text-xs text-slate-400 italic py-2">No hay ítems registrados en esta orden.</p>
+                                          ) : (
+                                            <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                              <Table className="text-xs">
+                                                <TableHeader className="bg-slate-50">
+                                                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                                                    <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
+                                                    <TableHead className="font-bold text-slate-500 py-2">Descripción / Producto</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Subtotal</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">IVA / Imp.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
+                                                  </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                  {items.map((item: any, idx: number) => {
+                                                    const qty = Number(item.quantity || 0);
+                                                    const unitPrice = Number(item.unit_price || 0);
+                                                    const subtotal = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0)
+                                                      ? Number(item.subtotal)
+                                                      : qty * unitPrice;
+                                                    const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt)
+                                                      ? Number(item.tax_amount)
+                                                      : (item.is_exempt ? 0 : subtotal * 0.16);
+                                                    const lineTotal = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0)
+                                                      ? Number(item.total_price)
+                                                      : ((item.total !== undefined && item.total !== null && Number(item.total) > 0) ? Number(item.total) : (subtotal + tax));
+
+                                                    return (
+                                                      <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                        <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                        <TableCell className="font-medium text-slate-800 py-2">{item.description || item.material_name || 'S/N'}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
+                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                        <TableCell className="text-right font-mono text-slate-500 py-2">{tax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                      </TableRow>
+                                                    );
+                                                  })}
+                                                </TableBody>
+                                              </Table>
+
+                                              {/* Summary Footer for items */}
+                                              <div className="bg-slate-50/80 px-4 py-2 border-t border-slate-100 flex justify-end gap-6 text-xs font-mono">
+                                                <div><span className="text-slate-500 font-medium">Subtotal:</span> <span className="font-semibold text-slate-700">{totals.subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
+                                                <div><span className="text-slate-500 font-medium">IVA (16%):</span> <span className="font-semibold text-slate-700">{totals.montoIVA ? totals.montoIVA.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (totals.subtotal * 0.16).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
+                                                <div><span className="text-slate-600 font-bold">TOTAL:</span> <span className="font-extrabold text-procarni-primary">{totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -1272,60 +1503,235 @@ const SupplierDetails = () => {
                       <p className="italic text-sm">No se encontraron órdenes de servicio para este proveedor.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50/50">
-                            <TableHead className={cn(tableHeaderClass, "pl-6 w-[120px]")}>Número</TableHead>
-                            <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
-                            <TableHead className={tableHeaderClass}>Equipo</TableHead>
-                            <TableHead className={tableHeaderClass}>Tipo de Servicio</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {serviceOrders.map((order) => {
-                            const serviceItems = [
-                              ...(order.service_order_items || []).map(i => ({ ...i, unit_price: i.unit_price })),
-                              ...(order.service_order_materials || []).map(m => ({ ...m, unit_price: m.unit_price }))
-                            ];
-                            const totals = calculateTotals(serviceItems as any);
-                            return (
-                              <TableRow key={order.id} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
-                                <TableCell className="pl-6 font-bold font-mono text-xs">
-                                  <Link to={`/service-orders/${order.id}`} className="text-blue-600 hover:underline">
-                                    #{order.sequence_number || 'S/N'}
-                                  </Link>
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-600 font-medium">
-                                  {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-700 font-bold uppercase truncate max-w-[200px]">
-                                  {order.equipment_name || 'General'}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-500 font-medium italic">
-                                  {order.service_type || 'N/A'}
-                                </TableCell>
-                                <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
-                                  {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  {getStatusBadge(order.status)}
-                                </TableCell>
-                                <TableCell className="pr-4 text-right">
-                                  <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
-                                    <Link to={`/service-orders/${order.id}`}>
-                                      <ArrowUpRight className="h-4 w-4" />
-                                    </Link>
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                    <div>
+                      {/* Mobile OS Cards */}
+                      <div className="block md:hidden p-4 space-y-3">
+                        {serviceOrders.map((order: any) => {
+                          const isExpanded = expandedOsId === order.id;
+                          const serviceItems = order.service_order_items || [];
+                          const materialItems = order.service_order_materials || [];
+                          const totalItemsCount = serviceItems.length + materialItems.length;
+
+                          const combinedItems = [
+                            ...serviceItems.map((i: any) => ({ ...i, unit_price: i.unit_price })),
+                            ...materialItems.map((m: any) => ({ ...m, unit_price: m.unit_price }))
+                          ];
+                          const totals = calculateTotals(combinedItems as any);
+
+                          return (
+                            <Card key={order.id} className={cn("p-5 bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden transition-all", isExpanded && "border-l-4 border-l-procarni-primary")}>
+                              <div className="flex justify-between items-start mb-2">
+                                <Link to={`/service-orders/${order.id}`} className="font-bold font-mono text-sm text-blue-600 hover:underline">
+                                  #{order.sequence_number || 'S/N'}
+                                </Link>
+                                <div>{getStatusBadge(order.status)}</div>
+                              </div>
+
+                              <div className="space-y-1 text-xs mb-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Equipo / Servicio</span>
+                                    <p className="font-semibold text-slate-800 truncate">{order.equipment_name || 'General'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Monto Total</span>
+                                    <p className="font-mono font-bold text-procarni-dark text-sm">
+                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-slate-400">Fecha Emisión</span>
+                                  <p className="text-slate-600">{order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}</p>
+                                </div>
+                              </div>
+
+                              {/* Mobile Accordion Toggle */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setExpandedOsId(isExpanded ? null : order.id)}
+                                className="w-full flex items-center justify-between text-xs py-2 bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium rounded-xl"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Wrench className="h-3.5 w-3.5 text-procarni-secondary" />
+                                  {totalItemsCount} {totalItemsCount === 1 ? 'ítem e insumo' : 'ítems e insumos'}
+                                </span>
+                                <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
+                                  {isExpanded ? 'Ocultar' : 'Ver detalle'}
+                                  {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
+                                </span>
+                              </Button>
+
+                              {/* Mobile Expanded Items */}
+                              {isExpanded && (
+                                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                                  {totalItemsCount === 0 ? (
+                                    <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta orden de servicio.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {combinedItems.map((item: any, idx: number) => {
+                                        const qty = Number(item.quantity || 1);
+                                        const unitPrice = Number(item.unit_price || 0);
+                                        const total = Number(item.total_price || qty * unitPrice);
+
+                                        return (
+                                          <div key={item.id || idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                                            <div className="flex justify-between items-start gap-2">
+                                              <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'Servicio/Material'}</span>
+                                              <span className="font-mono font-bold text-procarni-dark shrink-0">
+                                                {total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+                                              <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </Card>
+                          );
+                        })}
+                      </div>
+
+                      {/* Desktop OS Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50/50">
+                              <TableHead className="w-[30px] pl-3 py-2"></TableHead>
+                              <TableHead className={cn(tableHeaderClass, "pl-2 w-[120px]")}>Número</TableHead>
+                              <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
+                              <TableHead className={tableHeaderClass}>Equipo</TableHead>
+                              <TableHead className={tableHeaderClass}>Tipo de Servicio</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {serviceOrders.map((order: any) => {
+                              const isExpanded = expandedOsId === order.id;
+                              const serviceItems = order.service_order_items || [];
+                              const materialItems = order.service_order_materials || [];
+                              const totalItemsCount = serviceItems.length + materialItems.length;
+
+                              const combinedItems = [
+                                ...serviceItems.map((i: any) => ({ ...i, unit_price: i.unit_price })),
+                                ...materialItems.map((m: any) => ({ ...m, unit_price: m.unit_price }))
+                              ];
+                              const totals = calculateTotals(combinedItems as any);
+
+                              return (
+                                <React.Fragment key={order.id}>
+                                  <TableRow
+                                    onClick={() => setExpandedOsId(isExpanded ? null : order.id)}
+                                    className={cn(
+                                      "cursor-pointer transition-colors border-b border-slate-100/40",
+                                      isExpanded
+                                        ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
+                                        : "hover:bg-slate-100/30"
+                                    )}
+                                  >
+                                    <TableCell className="pl-3 py-3 text-slate-400">
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="pl-2 font-bold font-mono text-xs" onClick={(e) => e.stopPropagation()}>
+                                      <Link to={`/service-orders/${order.id}`} className="text-blue-600 hover:underline">
+                                        #{order.sequence_number || 'S/N'}
+                                      </Link>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-medium">
+                                      {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-700 font-bold uppercase truncate max-w-[200px]">
+                                      {order.equipment_name || 'General'}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-500 font-medium italic">
+                                      {order.service_type || 'N/A'}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
+                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {getStatusBadge(order.status)}
+                                    </TableCell>
+                                    <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                      <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
+                                        <Link to={`/service-orders/${order.id}`}>
+                                          <ArrowUpRight className="h-4 w-4" />
+                                        </Link>
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+
+                                  {isExpanded && (
+                                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
+                                      <TableCell colSpan={8} className="p-4 pl-10">
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                            <div className="flex items-center gap-2">
+                                              <Wrench className="h-4 w-4 text-procarni-secondary" />
+                                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems e Insumos del Servicio</h4>
+                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                                                {totalItemsCount} {totalItemsCount === 1 ? 'ítem' : 'ítems'}
+                                              </Badge>
+                                            </div>
+                                            <span className="text-[11px] text-slate-400 font-mono">ID: {order.id}</span>
+                                          </div>
+
+                                          {totalItemsCount === 0 ? (
+                                            <p className="text-xs text-slate-400 italic py-2">No hay ítems registrados en esta orden de servicio.</p>
+                                          ) : (
+                                            <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                              <Table className="text-xs">
+                                                <TableHeader className="bg-slate-50">
+                                                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                                                    <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
+                                                    <TableHead className="font-bold text-slate-500 py-2">Descripción / Concepto</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
+                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
+                                                  </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                  {combinedItems.map((item: any, idx: number) => {
+                                                    const unitPrice = Number(item.unit_price || 0);
+                                                    const qty = Number(item.quantity || 1);
+                                                    const total = Number(item.total_price || qty * unitPrice);
+
+                                                    return (
+                                                      <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                        <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                        <TableCell className="font-medium text-slate-800 py-2">{item.description || item.material_name || 'Servicio/Material'}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
+                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                        <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{total.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
+                                                      </TableRow>
+                                                    );
+                                                  })}
+                                                </TableBody>
+                                              </Table>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -1477,68 +1883,118 @@ const SupplierDetails = () => {
                       <p className="italic text-sm">Este proveedor no tiene historial de precios registrado.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50/50">
-                            <TableHead className={cn(tableHeaderClass, "pl-6")}>Material / Código</TableHead>
-                            <TableHead className={tableHeaderClass}>Presentación</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Mínimo</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Máximo</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Promedio</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-right")}>Último Precio</TableHead>
-                            <TableHead className={tableHeaderClass}>Fecha Último Registro</TableHead>
-                            <TableHead className={cn(tableHeaderClass, "text-center w-[80px]")}>Tendencia</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {priceAnalysisByMaterial.map((m) => (
-                            <TableRow key={m.materialId} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
-                              <TableCell className="pl-6 py-3.5">
-                                <p className="font-bold text-procarni-dark text-xs uppercase">{m.name}</p>
-                                <span className="text-[9px] text-gray-400 font-mono">{m.code}</span>
-                              </TableCell>
-                              <TableCell className="text-xs font-semibold text-slate-600">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px]">
-                                  {m.unit}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
-                                {m.min.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                              </TableCell>
-                              <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
-                                {m.max.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                              </TableCell>
-                              <TableCell className="text-right font-mono font-bold text-xs text-slate-700 bg-slate-50/30">
-                                {m.avg.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                              </TableCell>
-                              <TableCell className="text-right font-mono font-bold text-xs text-procarni-blue">
-                                {m.latestPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                              </TableCell>
-                              <TableCell className="text-xs text-slate-500 font-medium">
-                                {format(new Date(m.latestDate), 'dd/MM/yyyy')}
-                              </TableCell>
-                              <TableCell className="text-center">
+                    <div>
+                      {/* Mobile Price Analysis Cards */}
+                      <div className="block md:hidden p-4 space-y-3">
+                        {priceAnalysisByMaterial.map((m) => (
+                          <div key={m.materialId} className="bg-white/80 backdrop-blur-xl p-4.5 rounded-3xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white space-y-2 overflow-hidden">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="min-w-0">
+                                <p className="font-bold text-procarni-dark text-xs uppercase truncate">{m.name}</p>
+                                <span className="text-[9px] text-gray-400 font-mono">Cód: {m.code} • {m.unit}</span>
+                              </div>
+                              <div>
                                 {m.trend === 'up' && (
-                                  <Badge className="bg-red-50 text-red-600 border-red-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                  <Badge className="bg-red-50 text-red-600 border-red-100 flex items-center gap-0.5 text-[9px] font-bold">
                                     <TrendingUp className="h-3 w-3" /> Alza
                                   </Badge>
                                 )}
                                 {m.trend === 'down' && (
-                                  <Badge className="bg-green-50 text-green-600 border-green-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                  <Badge className="bg-green-50 text-green-600 border-green-100 flex items-center gap-0.5 text-[9px] font-bold">
                                     <TrendingDown className="h-3 w-3" /> Baja
                                   </Badge>
                                 )}
                                 {m.trend === 'stable' && (
-                                  <Badge className="bg-slate-50 text-slate-500 border-slate-200 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                  <Badge className="bg-slate-50 text-slate-500 border-slate-200 text-[9px] font-bold">
                                     Estable
                                   </Badge>
                                 )}
-                              </TableCell>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <div>
+                                <span className="text-[9px] text-slate-400 uppercase tracking-tight block">Mín - Máx</span>
+                                <span className="text-slate-700 font-semibold">{m.min.toLocaleString('es-VE')} - {m.max.toLocaleString('es-VE')} {m.currency}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-slate-400 uppercase tracking-tight block">Último Precio</span>
+                                <span className="text-procarni-blue font-extrabold">{m.latestPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {m.currency}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                              <span>Promedio: <strong className="font-mono">{m.avg.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {m.currency}</strong></span>
+                              <span>Último reg: {format(new Date(m.latestDate), 'dd/MM/yyyy')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desktop Price Analysis Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50/50">
+                              <TableHead className={cn(tableHeaderClass, "pl-6")}>Material / Código</TableHead>
+                              <TableHead className={tableHeaderClass}>Presentación</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Mínimo</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Máximo</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Promedio</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right")}>Último Precio</TableHead>
+                              <TableHead className={tableHeaderClass}>Fecha Último Registro</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-center w-[80px]")}>Tendencia</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {priceAnalysisByMaterial.map((m) => (
+                              <TableRow key={m.materialId} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
+                                <TableCell className="pl-6 py-3.5">
+                                  <p className="font-bold text-procarni-dark text-xs uppercase">{m.name}</p>
+                                  <span className="text-[9px] text-gray-400 font-mono">{m.code}</span>
+                                </TableCell>
+                                <TableCell className="text-xs font-semibold text-slate-600">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px]">
+                                    {m.unit}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
+                                  {m.min.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
+                                  {m.max.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-xs text-slate-700 bg-slate-50/30">
+                                  {m.avg.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                                </TableCell>
+                                <TableCell className="text-right font-mono font-bold text-xs text-procarni-blue">
+                                  {m.latestPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 font-medium">
+                                  {format(new Date(m.latestDate), 'dd/MM/yyyy')}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {m.trend === 'up' && (
+                                    <Badge className="bg-red-50 text-red-600 border-red-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                      <TrendingUp className="h-3 w-3" /> Alza
+                                    </Badge>
+                                  )}
+                                  {m.trend === 'down' && (
+                                    <Badge className="bg-green-50 text-green-600 border-green-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                      <TrendingDown className="h-3 w-3" /> Baja
+                                    </Badge>
+                                  )}
+                                  {m.trend === 'stable' && (
+                                    <Badge className="bg-slate-50 text-slate-500 border-slate-200 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                      Estable
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   )}
                 </CardContent>
