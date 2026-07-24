@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit, FileText, Mail, CheckCircle, Smartphone, Printer, MoreVertical, Paperclip, Wrench, Package, ListOrdered, Calendar, User, MapPin, ChevronDown, Archive, RotateCcw, Clock } from 'lucide-react';
 
 import { serviceOrderService } from '@/services/serviceOrderService';
+import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -102,6 +103,7 @@ interface ServiceOrderDetailsData {
   payment_terms?: string | null;
   custom_payment_terms?: string | null;
   credit_days?: number | null;
+  paid_amount?: number | null;
   user_id: string;
   created_at: string | null;
   service_order_items: ServiceOrderItem[];

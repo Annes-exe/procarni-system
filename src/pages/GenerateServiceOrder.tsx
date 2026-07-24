@@ -397,6 +397,8 @@ const GenerateServiceOrder = () => {
       payment_terms: paymentTerms,
       custom_payment_terms: customPaymentTerms || null,
       credit_days: creditDays,
+      payment_date: null,
+      paid_amount: 0,
       user_id: userId,
     };
 

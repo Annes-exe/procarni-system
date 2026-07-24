@@ -1095,7 +1095,7 @@ const ReportsAnalytics = () => {
                                                         </span>
                                                         <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name}</h4>
                                                     </div>
-                                                    <Badge variant="ghost" className="text-procarni-primary bg-procarni-primary/10">
+                                                    <Badge variant="secondary" className="text-procarni-primary bg-procarni-primary/10">
                                                         #{item.purchase_orders.sequence_number || 'OC'}
                                                     </Badge>
                                                 </div>

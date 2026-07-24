@@ -318,8 +318,8 @@ const SupplierDetails = () => {
   }, [filteredMaterials]);
 
   const stats = useMemo(() => {
-    const approvedPOs = purchaseOrders.filter(o => ['Approved', 'Paid', 'Credit', 'Received', 'ToPay'].includes(o.status));
-    const approvedSOs = serviceOrders.filter(o => ['Approved', 'Paid', 'Credit'].includes(o.status));
+    const approvedPOs = (purchaseOrders as any[]).filter(o => ['Approved', 'Paid', 'Credit', 'Received', 'ToPay'].includes(o.status));
+    const approvedSOs = (serviceOrders as any[]).filter(o => ['Approved', 'Paid', 'Credit'].includes(o.status));
 
     let totalUSD = 0;
     approvedPOs.forEach(po => {
@@ -334,8 +334,8 @@ const SupplierDetails = () => {
 
     approvedSOs.forEach(so => {
       const items = [
-        ...(so.service_order_items || []).map(i => ({ ...i, unit_price: i.unit_price })),
-        ...(so.service_order_materials || []).map(m => ({ ...m, unit_price: m.unit_price }))
+        ...(so.service_order_items || []).map((i: any) => ({ ...i, unit_price: i.unit_price })),
+        ...(so.service_order_materials || []).map((m: any) => ({ ...m, unit_price: m.unit_price }))
       ];
       const orderTotal = calculateTotals(items as any).total;
       if (so.currency === 'VES' && so.exchange_rate) {
@@ -373,7 +373,7 @@ const SupplierDetails = () => {
       if (!matId) return;
 
       const matName = entry.materials?.name || 'Desconocido';
-      const matCode = entry.materials?.code || 'S/C';
+      const matCode = (entry.materials as any)?.code || 'S/C';
       const matUnit = entry.units_of_measure?.name || entry.materials?.unit || 'UND';
       const price = entry.unit_price;
       const date = new Date(entry.recorded_at);

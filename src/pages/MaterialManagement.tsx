@@ -11,6 +11,7 @@ import InlineEditableCell from '@/components/InlineEditableCell';
 
 import { getPaginatedMaterials, createMaterial, updateMaterial, deleteMaterial, getAllMaterialCategories, getAllUnits, getMaterialChildren } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
+import { Material } from '@/integrations/supabase/types';
 
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
