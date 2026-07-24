@@ -264,101 +264,29 @@ const SearchManagement = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
                   <CreditCard className="h-5 w-5" />
                 </div>
                 <h2 className="text-xl font-black text-procarni-blue tracking-tight">Órdenes Por Pagar (Crédito)</h2>
               </div>
               <p className="text-[13px] text-gray-500 font-medium italic">Seguimiento de vencimientos de órdenes de compra y servicio a crédito</p>
             </div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
-              Vencimiento
+            <div className="text-xs font-black uppercase tracking-[0.15em] text-amber-700 bg-amber-50 px-3.5 py-1.5 rounded-full border border-amber-200/60 flex items-center gap-1.5 self-start sm:self-auto">
+              <Clock className="h-3.5 w-3.5 animate-pulse" /> En Desarrollo
             </div>
           </div>
 
-          {isLoadingToPay ? (
-            <div className="text-center py-8 text-gray-500">Cargando cuentas por pagar...</div>
-          ) : !toPayOrders || toPayOrders.length === 0 ? (
-            <div className="text-center py-10 bg-gray-50/50 border border-dashed border-gray-200 rounded-[1.5rem]">
-              <p className="text-gray-500 text-sm font-medium">No hay órdenes pendientes de pago actualmente.</p>
+          <div className="flex flex-col items-center justify-center p-8 text-center bg-amber-50/40 border border-dashed border-amber-200 rounded-[1.5rem] space-y-3">
+            <div className="p-3.5 rounded-full bg-amber-100/70 text-amber-700">
+              <Clock className="h-7 w-7 animate-pulse" />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {toPayOrders.map((order: any) => {
-                const issueDateObj = new Date(order.issue_date || '');
-                const creditDaysVal = order.credit_days || 0;
-                const dueDateVal = issueDateObj.getTime() + creditDaysVal * 24 * 60 * 60 * 1000;
-                
-                // Days calculations
-                const daysElapsed = Math.floor((new Date().getTime() - issueDateObj.getTime()) / (1000 * 60 * 60 * 24));
-                const daysLeft = Math.ceil((dueDateVal - new Date().getTime()) / (1000 * 60 * 60 * 24));
-
-                let urgencyColor = "border-gray-100 bg-gray-50/20";
-                let badgeText = "";
-                let badgeColor = "bg-gray-100 text-gray-700";
-
-                if (daysLeft < 0) {
-                  urgencyColor = "border-red-100 bg-red-50/20 shadow-sm";
-                  badgeText = `Vencido hace ${Math.abs(daysLeft)} días`;
-                  badgeColor = "bg-red-100 text-red-700";
-                } else if (daysLeft === 0) {
-                  urgencyColor = "border-amber-100 bg-amber-50/20 shadow-sm";
-                  badgeText = "Vence hoy";
-                  badgeColor = "bg-amber-100 text-amber-700";
-                } else if (daysLeft <= 2) {
-                  urgencyColor = "border-orange-100 bg-orange-50/20 shadow-sm";
-                  badgeText = `Quedan ${daysLeft} días`;
-                  badgeColor = "bg-orange-100 text-orange-700";
-                } else if (daysLeft <= 5) {
-                  urgencyColor = "border-yellow-100 bg-yellow-50/20 shadow-sm";
-                  badgeText = `Quedan ${daysLeft} días`;
-                  badgeColor = "bg-yellow-100 text-yellow-700";
-                } else {
-                  badgeText = `Quedan ${daysLeft} días`;
-                  badgeColor = "bg-green-100 text-green-700";
-                }
-
-                return (
-                  <div 
-                    key={order.id}
-                    onClick={() => navigate(order.type === 'purchase_order' ? `/purchase-orders/${order.id}` : `/service-orders/${order.id}`)}
-                    className={cn(
-                      "group relative p-5 border rounded-[1.5rem] cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col justify-between",
-                      urgencyColor
-                    )}
-                  >
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="font-mono text-xs font-black text-procarni-dark">{order.displayId}</span>
-                        <span className={cn("px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider", badgeColor)}>
-                          {badgeText}
-                        </span>
-                      </div>
-
-                      <h4 className="font-bold text-procarni-blue text-sm mb-1 line-clamp-1">
-                        {order.suppliers?.name || 'Proveedor Desconocido'}
-                      </h4>
-
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <Calendar className="h-3 w-3" />
-                        <span>Emitido: {new Date(order.issue_date || '').toLocaleDateString('es-VE')}</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Antigüedad</span>
-                        <span className="text-gray-700 font-semibold">{daysElapsed} días transcurridos</span>
-                      </div>
-                      <div className="text-indigo-600 group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-bold">
-                        Ver <ArrowRight className="h-3 w-3" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-amber-950">Módulo de Cuentas por Pagar en Desarrollo</h3>
+              <p className="text-xs text-amber-900/80 max-w-lg font-medium leading-relaxed">
+                El apartado de Cuentas por Pagar (CXP) y el seguimiento de pagos a crédito se encuentran actualmente en desarrollo. El historial de pagos comenzará a registrarse desde aquí una vez completado el módulo.
+              </p>
             </div>
-          )}
+          </div>
         </Card>
       </m.div>
     </m.div>
