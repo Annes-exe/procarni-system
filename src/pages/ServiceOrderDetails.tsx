@@ -519,63 +519,74 @@ const ServiceOrderDetails = () => {
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
 
       {/* PHASE 1: STICKY HEADER & ACTIONS */}
-      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-md bg-white/90 border-b border-gray-200 pb-3 pt-4 mb-8 -mx-4 px-4 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200">
+      <div className="relative md:sticky md:top-0 z-20 backdrop-blur-xl bg-white/80 border border-slate-100/80 rounded-3xl p-4 mb-8 shadow-xl shadow-gray-200/50 ring-1 ring-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-300">
 
         {/* Title & Status */}
-        <div className="flex flex-col gap-1 w-full md:w-auto">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-gray-400 hover:text-procarni-dark hover:bg-gray-100 rounded-full h-8 w-8 -ml-2 mr-1">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-2xl font-bold font-mono text-procarni-dark tracking-tight">
-              {formatSequenceNumber(order.sequence_number, order.created_at)}
-            </h1>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="text-slate-400 hover:text-procarni-primary hover:bg-slate-100/80 rounded-2xl h-10 w-10 shrink-0 group transition-all"
+            title="Volver"
+          >
+            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+          </Button>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-extrabold font-mono text-procarni-dark tracking-tight">
+                {formatSequenceNumber(order.sequence_number, order.created_at)}
+              </h1>
 
-            {role === 'payment_viewer' ? (
-              <span
-                className={cn(
-                  "ml-2 inline-flex h-7 px-2.5 py-0.5 text-xs font-semibold border rounded-md items-center",
-                  getStatusColorClass(order.status)
-                )}
-              >
-                {STATUS_TRANSLATIONS[order.status] || order.status}
-              </span>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      "ml-2 h-7 px-2.5 py-0.5 text-xs font-semibold shadow-none border flex gap-1.5 items-center",
-                      getStatusColorClass(order.status)
-                    )}
-                  >
-                    {STATUS_TRANSLATIONS[order.status] || order.status}
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-40">
-                  <DropdownMenuLabel>Cambiar Estado</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
-                    const isRestrictedState = order.status === 'Rejected' || order.status === 'Archived';
-                    const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
+              {role === 'payment_viewer' ? (
+                <span
+                  className={cn(
+                    "inline-flex h-7 px-3 py-0.5 text-xs font-extrabold border rounded-full items-center shadow-sm",
+                    getStatusColorClass(order.status)
+                  )}
+                >
+                  {STATUS_TRANSLATIONS[order.status] || order.status}
+                </span>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "h-7 px-3 py-0.5 text-xs font-extrabold rounded-full shadow-sm border flex gap-1.5 items-center transition-all hover:scale-[1.02]",
+                        getStatusColorClass(order.status)
+                      )}
+                    >
+                      {STATUS_TRANSLATIONS[order.status] || order.status}
+                      <ChevronDown className="h-3 w-3 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-44 rounded-2xl p-1.5 shadow-xl border-slate-100">
+                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-2 py-1">Cambiar Estado</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {Object.entries(STATUS_TRANSLATIONS).map(([status, label]) => {
+                      const isRestrictedState = order.status === 'Rejected' || order.status === 'Archived';
+                      const isDisabled = isRestrictedState && role !== 'admin' && status !== order.status;
 
-                    return (
-                      <DropdownMenuItem
-                        key={status}
-                        onSelect={() => handleStatusChange(status)}
-                        className={cn(status === order.status && "bg-gray-100 font-medium")}
-                        disabled={isDisabled}
-                      >
-                        {label}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                      return (
+                        <DropdownMenuItem
+                          key={status}
+                          onSelect={() => handleStatusChange(status)}
+                          className={cn("rounded-xl text-xs font-semibold px-2 py-1.5 cursor-pointer", status === order.status && "bg-slate-100 text-procarni-dark")}
+                          disabled={isDisabled}
+                        >
+                          {label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            <span className="text-xs text-slate-500 font-medium italic mt-0.5">
+              Orden de Servicio • {order.companies?.name || 'Procarni'}
+            </span>
           </div>
         </div>
 
@@ -743,8 +754,8 @@ const ServiceOrderDetails = () => {
       </div>
 
       {/* PHASE 2: GENERAL INFORMATION GRID */}
-      <div className="mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-1 text-sm">
+      <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 mb-8 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
           {/* Company */}
           <div className="space-y-1">
             <span className={microLabelClass}>Empresa</span>
@@ -782,7 +793,6 @@ const ServiceOrderDetails = () => {
             </p>
           </div>
 
-
           {/* Equipment */}
           <div className="space-y-1">
             <span className={microLabelClass}>Equipo / Maquinaria</span>
@@ -811,81 +821,105 @@ const ServiceOrderDetails = () => {
         {/* Details & Observations */}
         <div className="mt-6 space-y-4">
           {order.detailed_service_description && (
-            <div className="p-4 bg-gray-50 border border-gray-100 rounded-md">
+            <div className="p-4 bg-slate-50/80 border border-slate-100 rounded-2xl">
               <span className={microLabelClass}>Detalle del Servicio</span>
-              <p className="whitespace-pre-wrap text-gray-700">{order.detailed_service_description}</p>
+              <p className="whitespace-pre-wrap text-slate-700">{order.detailed_service_description}</p>
             </div>
           )}
 
           {order.observations && (
-            <div className="p-4 bg-gray-50 border border-gray-100 rounded-md flex gap-3 text-sm text-gray-600 max-w-4xl">
-              <Paperclip className="h-4 w-4 flex-shrink-0 mt-0.5 text-gray-400" />
+            <div className="p-4 bg-slate-50/80 border border-slate-100 rounded-2xl flex gap-3 text-sm text-slate-600">
+              <Paperclip className="h-4 w-4 flex-shrink-0 mt-0.5 text-slate-400" />
               <div>
-                <span className="font-semibold text-gray-700 block mb-1">Observaciones:</span>
+                <span className="font-semibold text-slate-700 block mb-1">Observaciones:</span>
                 <p className="whitespace-pre-wrap">{order.observations}</p>
               </div>
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* PHASE 3: SERVICES LIST (READ-ONLY) */}
       {order.service_order_items && order.service_order_items.length > 0 && (
-        <Card className="mb-8 border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-100">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex items-center">
-              <Wrench className="h-3 w-3 mr-2" /> Servicios
+        <Card className="mb-8 border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+          <div className="bg-slate-50/70 px-6 py-3 border-b border-slate-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
+              <Wrench className="h-3.5 w-3.5 mr-2 text-procarni-primary" /> Servicios
             </h3>
           </div>
           <CardContent className="p-0">
             {isMobile ? (
-              <div className="divide-y divide-gray-100">
-                {order.service_order_items.map((item) => (
-                  <div key={item.id} className="p-4 bg-white">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium text-procarni-dark">{item.description}</span>
-                      <span className="font-mono text-sm font-semibold">{order.currency} {(item.quantity * item.unit_price).toFixed(2)}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
-                      <div>
-                        <span className="text-[10px] uppercase text-gray-400 block">Cant.</span>
-                        {item.quantity}
+              <div className="divide-y divide-slate-100">
+                {order.service_order_items.map((item) => {
+                  const qty = Number(item.quantity || 1);
+                  const unitPrice = Number(item.unit_price || 0);
+                  const subtotal = qty * unitPrice;
+                  const tax = item.is_exempt ? 0 : subtotal * (item.tax_rate ?? 0.16);
+                  const lineTotal = subtotal + tax;
+
+                  return (
+                    <div key={item.id} className="p-4 bg-white space-y-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="font-bold text-xs text-procarni-dark flex-1">{item.description}</span>
+                        <div className="text-right shrink-0">
+                          <span className="text-[9px] uppercase text-slate-400 font-bold block">Total Ítem</span>
+                          <span className="font-mono text-xs font-extrabold text-procarni-dark">
+                            {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] uppercase text-gray-400 block">Precio Unitarios</span>
-                        {item.unit_price.toFixed(2)}
+                      <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-mono">
+                        <div>
+                          <span className="text-[9px] uppercase text-slate-400 block font-semibold">Cant.</span>
+                          <span className="font-bold text-slate-800">{qty}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] uppercase text-slate-400 block font-semibold">P. Unit</span>
+                          <span>{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] uppercase text-slate-400 block font-semibold">IVA</span>
+                          <span>{tax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                    <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Descripción</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Cant.</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Precio ({order.currency})</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>IVA</TableHead>
-                    <TableHead className={tableHeaderClass + " h-9 py-2 text-right pr-6"}>Subtotal ({order.currency})</TableHead>
+                <TableHeader className="bg-slate-50/70 border-b border-slate-100">
+                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                    <TableHead className={tableHeaderClass + " h-10 py-2 pl-6"}>Descripción</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-right"}>Cant.</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-right"}>Precio ({order.currency})</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-right"}>Subtotal ({order.currency})</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-center"}>IVA</TableHead>
+                    <TableHead className={tableHeaderClass + " h-10 py-2 text-right pr-6"}>Total ({order.currency})</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {order.service_order_items.map((item) => {
-                    const subtotal = item.quantity * item.unit_price;
+                    const qty = Number(item.quantity || 1);
+                    const unitPrice = Number(item.unit_price || 0);
+                    const subtotal = qty * unitPrice;
+                    const tax = item.is_exempt ? 0 : subtotal * (item.tax_rate ?? 0.16);
+                    const lineTotal = subtotal + tax;
+
                     return (
-                      <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
-                        <TableCell className="pl-6 py-4 font-medium text-procarni-dark text-sm">{item.description}</TableCell>
-                        <TableCell className="text-right font-mono text-sm text-gray-600">{item.quantity}</TableCell>
-                        <TableCell className="text-right font-mono text-sm text-gray-600">{item.unit_price.toFixed(2)}</TableCell>
+                      <TableRow key={item.id} className="border-b border-slate-100/60 hover:bg-slate-50/50 transition-colors last:border-b-0">
+                        <TableCell className="pl-6 py-4 font-bold text-procarni-dark text-sm">{item.description}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-slate-700">{qty}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-slate-700">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right font-mono text-sm text-slate-700">{subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                         <TableCell className="text-center">
                           {item.is_exempt ? (
-                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Exento</span>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-semibold">Exento</span>
                           ) : (
-                            <span className="text-[10px] text-gray-400">{(item.tax_rate * 100).toFixed(0)}%</span>
+                            <span className="text-[10px] text-slate-500 font-semibold font-mono">{((item.tax_rate ?? 0.16) * 100).toFixed(0)}%</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-sm font-medium text-procarni-dark pr-6">{subtotal.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono text-sm font-bold text-procarni-dark pr-6">{lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -896,7 +930,6 @@ const ServiceOrderDetails = () => {
         </Card>
       )}
 
-
       {/* PHASE 4: SPARE PARTS (READ-ONLY) */}
       {Object.keys(groupedMaterials).length > 0 && (
         <div className="mb-8 space-y-4">
@@ -906,13 +939,13 @@ const ServiceOrderDetails = () => {
           </div>
 
           {Object.entries(groupedMaterials).map(([supplierId, group]) => (
-            <Card key={supplierId} className="border-gray-200 shadow-sm overflow-hidden">
-              <div className="bg-gray-50/80 px-6 py-3 border-b border-gray-100 flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-700">{group.name}</span>
+            <Card key={supplierId} className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
+              <div className="bg-slate-50/70 px-6 py-3 border-b border-slate-100 flex justify-between items-center">
+                <span className="text-sm font-bold text-slate-700">{group.name}</span>
                 <Button
                   size="sm"
                   variant="default"
-                  className="h-7 text-xs bg-procarni-secondary hover:bg-green-700 text-white"
+                  className="h-7 text-xs bg-procarni-secondary hover:bg-green-700 text-white rounded-xl shadow-sm"
                   onClick={() => {
                     navigate('/generate-po', {
                       state: {
@@ -928,68 +961,85 @@ const ServiceOrderDetails = () => {
               </div>
               <CardContent className="p-0">
                 {isMobile ? (
-                  <div className="divide-y divide-gray-100">
-                    {group.items.map((item: any) => (
-                      <div key={item.id} className="p-4 bg-white">
-                          <div className="flex flex-col gap-1">
-                            {/* @ts-ignore */}
-                            <span className="font-medium text-procarni-dark">{item.material_name || item.materials?.name || 'Material'}</span>
-                            {/* @ts-ignore */}
-                            {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
-                              <Badge variant="outline" className="w-fit text-[9px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
-                                Nuevo: {item.materials.name}
-                              </Badge>
-                            )}
+                  <div className="divide-y divide-slate-100">
+                    {group.items.map((item: any) => {
+                      const qty = Number(item.quantity || 1);
+                      const unitPrice = Number(item.unit_price || 0);
+                      const subtotal = qty * unitPrice;
+                      const tax = item.is_exempt ? 0 : subtotal * (item.tax_rate ?? 0.16);
+                      const lineTotal = subtotal + tax;
+
+                      return (
+                        <div key={item.id} className="p-4 bg-white space-y-2">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex flex-col gap-1 min-w-0">
+                              {/* @ts-ignore */}
+                              <span className="font-bold text-xs text-procarni-dark">{item.material_name || item.materials?.name || 'Material'}</span>
+                              {/* @ts-ignore */}
+                              {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
+                                <Badge variant="outline" className="w-fit text-[9px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
+                                  Nuevo: {item.materials.name}
+                                </Badge>
+                              )}
+                              {item.description && <p className="text-xs text-slate-500 italic">{item.description}</p>}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-[9px] uppercase text-slate-400 font-bold block">Total Ítem</span>
+                              <span className="font-mono text-xs font-extrabold text-procarni-dark">
+                                {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
+                              </span>
+                            </div>
                           </div>
-                          <span className="font-mono text-sm font-semibold">{order.currency} {(item.quantity * item.unit_price).toFixed(2)}</span>
-                        {item.description && <p className="text-xs text-gray-500 mb-2">{item.description}</p>}
-                        <div className="grid grid-cols-2 gap-y-2 text-xs text-gray-600">
-                          <div>
-                            <span className="text-[10px] uppercase text-gray-400 block">Cant.</span>
-                            {item.quantity}
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] uppercase text-gray-400 block">Precio</span>
-                            {item.unit_price.toFixed(2)}
+                          <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-mono">
+                            <div>
+                              <span className="text-[9px] uppercase text-slate-400 block font-semibold">Cant.</span>
+                              <span className="font-bold text-slate-800">{qty}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] uppercase text-slate-400 block font-semibold">P. Unit</span>
+                              <span>{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[9px] uppercase text-slate-400 block font-semibold">IVA</span>
+                              <span>{tax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
                           </div>
                         </div>
-                        <PriceAlert
-                          materialId={item.material_id}
-                          unitId={item.unit_id}
-                          currentPrice={item.unit_price}
-                          currency={order.currency}
-                          exchangeRate={order.exchange_rate}
-                          currentOrderId={order.id}
-                        />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <Table>
-                    <TableHeader>
-                      <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                        <TableHead className={tableHeaderClass + " h-9 py-2 pl-6"}>Material / Descripción</TableHead>
-                        <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Cant.</TableHead>
-                        <TableHead className={tableHeaderClass + " h-9 py-2 text-right"}>Precio ({order.currency})</TableHead>
-                        <TableHead className={tableHeaderClass + " h-9 py-2 text-center"}>IVA</TableHead>
-                        <TableHead className={tableHeaderClass + " h-9 py-2 text-right pr-6"}>Subtotal</TableHead>
+                    <TableHeader className="bg-slate-50/70 border-b border-slate-100">
+                      <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                        <TableHead className={tableHeaderClass + " h-10 py-2 pl-6"}>Material / Descripción</TableHead>
+                        <TableHead className={tableHeaderClass + " h-10 py-2 text-right"}>Cant.</TableHead>
+                        <TableHead className={tableHeaderClass + " h-10 py-2 text-right"}>Precio ({order.currency})</TableHead>
+                        <TableHead className={tableHeaderClass + " h-10 py-2 text-right"}>Subtotal ({order.currency})</TableHead>
+                        <TableHead className={tableHeaderClass + " h-10 py-2 text-center"}>IVA</TableHead>
+                        <TableHead className={tableHeaderClass + " h-10 py-2 text-right pr-6"}>Total ({order.currency})</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {group.items.map((item: any) => {
-                        const subtotal = item.quantity * item.unit_price;
+                        const qty = Number(item.quantity || 1);
+                        const unitPrice = Number(item.unit_price || 0);
+                        const subtotal = qty * unitPrice;
+                        const tax = item.is_exempt ? 0 : subtotal * (item.tax_rate ?? 0.16);
+                        const lineTotal = subtotal + tax;
+
                         return (
-                          <TableRow key={item.id} className="border-b border-gray-50 hover:bg-gray-50/30">
+                          <TableRow key={item.id} className="border-b border-slate-100/60 hover:bg-slate-50/50 transition-colors last:border-b-0">
                             <TableCell className="pl-6 py-4 text-sm">
                               {/* @ts-ignore */}
-                              <span className="font-medium text-procarni-dark block">{item.material_name || item.materials?.name || 'Material'}</span>
+                              <span className="font-bold text-procarni-dark block">{item.material_name || item.materials?.name || 'Material'}</span>
                               {/* @ts-ignore */}
                               {item.materials?.name && item.material_name && item.materials.name !== item.material_name && (
                                 <Badge variant="outline" className="mt-1 text-[10px] bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">
                                   Nuevo nombre: {item.materials.name}
                                 </Badge>
                               )}
-                              {item.description && <span className="text-xs text-gray-500 block mt-0.5">{item.description}</span>}
+                              {item.description && <span className="text-xs text-slate-500 italic block mt-0.5">{item.description}</span>}
                               <PriceAlert
                                 materialId={item.material_id}
                                 unitId={item.unit_id}
@@ -999,16 +1049,17 @@ const ServiceOrderDetails = () => {
                                 currentOrderId={order.id}
                               />
                             </TableCell>
-                            <TableCell className="text-right font-mono text-sm text-gray-600">{item.quantity}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-gray-600">{item.unit_price.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-slate-700">{qty}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-slate-700">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-mono text-sm text-slate-700">{subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="text-center">
                               {item.is_exempt ? (
-                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Exento</span>
+                                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-semibold">Exento</span>
                               ) : (
-                                <span className="text-[10px] text-gray-400">{(item.tax_rate * 100).toFixed(0)}%</span>
+                                <span className="text-[10px] text-slate-500 font-semibold font-mono">{((item.tax_rate ?? 0.16) * 100).toFixed(0)}%</span>
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-mono text-sm font-medium text-procarni-dark pr-6">{subtotal.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-mono text-sm font-bold text-procarni-dark pr-6">{lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -1023,45 +1074,45 @@ const ServiceOrderDetails = () => {
 
       {/* PHASE 5: TOTALS ("TICKET DE CAJA") */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
-        <div className="w-full md:w-1/2 text-xs text-gray-400 italic px-2">
+        <div className="w-full md:w-1/2 text-xs text-slate-400 italic px-2">
           Importe en letras: {amountInWords}
         </div>
 
-        <div className="w-full md:w-auto min-w-[300px] bg-gray-50/50 rounded-lg border border-gray-100 p-6 space-y-3">
+        <div className="w-full md:w-auto min-w-[340px] bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white p-6 space-y-3">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-500 font-medium">Base Imponible</span>
-            <span className="font-mono text-gray-700">{order.currency} {totals.baseImponible.toFixed(2)}</span>
+            <span className="text-slate-500 font-medium">Base Imponible</span>
+            <span className="font-mono font-semibold text-slate-700">{order.currency} {totals.baseImponible.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           {totals.montoDescuento > 0 && (
             <div className="flex justify-between items-center text-sm text-red-600">
               <span className="font-medium">Descuento</span>
-              <span className="font-mono">- {order.currency} {totals.montoDescuento.toFixed(2)}</span>
+              <span className="font-mono">- {order.currency} {totals.montoDescuento.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           )}
 
           {totals.montoVenta > 0 && (
             <div className="flex justify-between items-center text-sm text-blue-600">
               <span className="font-medium">Margen Comercial</span>
-              <span className="font-mono">+ {order.currency} {totals.montoVenta.toFixed(2)}</span>
+              <span className="font-mono">+ {order.currency} {totals.montoVenta.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           )}
 
           <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-500 font-medium">Monto IVA</span>
-            <span className="font-mono text-gray-700">+ {order.currency} {totals.montoIVA.toFixed(2)}</span>
+            <span className="text-slate-500 font-medium">Monto IVA (16%)</span>
+            <span className="font-mono font-semibold text-slate-700">+ {order.currency} {totals.montoIVA.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
-          <div className="h-px border-b border-dashed border-gray-300 my-2" />
+          <div className="h-px border-b border-dashed border-slate-200 my-2" />
 
           <div className="flex justify-between items-center text-lg">
             <span className="font-bold text-procarni-dark">Total Final</span>
-            <span className="font-mono font-bold text-procarni-secondary text-xl">{order.currency} {totals.total.toFixed(2)}</span>
+            <span className="font-mono font-black text-procarni-primary text-xl">{order.currency} {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
           {totalInUSD && order.currency === 'VES' && (
             <div className="flex justify-end pt-1">
-              <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-full border border-slate-200/50">
                 Ref. USD {totalInUSD} (@ {order.exchange_rate?.toFixed(2)})
               </span>
             </div>
