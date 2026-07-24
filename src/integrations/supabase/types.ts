@@ -411,4 +411,110 @@ export type PaymentTransaction = {
   new_paid: number;
   notes: string | null;
   created_at: string;
-};
+};
+
+// --- TYPES FOR INVENTORY ---
+
+export interface MaterialInventory {
+  id: string;
+  material_id: string;
+  sku: string;
+  inventory_category: 'MPF' | 'MPS' | 'EP' | 'ME' | 'SUM' | 'SE';
+  unit: string;
+  current_stock: number;
+  average_unit_cost: number;
+  last_purchase_price: number;
+  min_stock_alert: number;
+  is_active: boolean;
+  notes?: string | null;
+  enabled_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  materials?: {
+    id: string;
+    code: string | null;
+    name: string;
+    category: string | null;
+    unit: string | null;
+  } | null;
+}
+
+export interface RecepcionPayload {
+  p_material_id: string;
+  p_transaction_type: 'IN_PURCHASE' | 'IN_INITIAL' | 'IN_ADJUSTMENT';
+  p_peso_guia: number;
+  p_peso_recibido: number;
+  p_unit_cost: number;
+  p_reference_doc?: string;
+  p_notes?: string;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  material_id: string;
+  transaction_type: string;
+  quantity_in: number;
+  quantity_out: number;
+  unit_cost: number;
+  total_cost: number;
+  stock_after: number;
+  average_cost_after: number;
+  reference_doc?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  transaction_date: string;
+  created_at: string;
+  materials_inventory?: any;
+}
+
+export interface InventoryPeriod {
+  id: string;
+  period_name: string;
+  start_date: string;
+  end_date: string;
+  is_closed: boolean;
+  closed_at?: string | null;
+  closed_by?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface InventoryAdjustmentReason {
+  id: string;
+  code: string;
+  reason_name: string;
+  applies_to: 'LOSS' | 'ADD' | 'BOTH';
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface InventoryFamily {
+  category: 'MPF' | 'MPS' | 'EP' | 'ME' | 'SUM' | 'SE';
+  prefix: string;
+  description: string;
+  current_sequence: number;
+}
+
+export interface SalidaProduccionPayload {
+  p_orden_id: string;
+  p_destination_data?: any;
+  p_items: { material_id: string; quantity: number }[];
+  p_transaction_date?: string;
+}
+
+export interface SalidaVentaPayload {
+  p_material_id: string;
+  p_quantity: number;
+  p_reference_doc?: string;
+  p_notes?: string;
+}
+
+export interface AjusteInventarioPayload {
+  p_material_id: string;
+  p_adjustment_type: 'LOSS' | 'ADD';
+  p_quantity: number;
+  p_reason_code: string;
+  p_reference_doc?: string;
+  p_notes?: string;
+}
+
