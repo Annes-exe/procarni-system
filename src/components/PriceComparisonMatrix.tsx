@@ -33,7 +33,8 @@ import {
   ArrowUpDown,
   Filter,
   FileSpreadsheet,
-  FileDown
+  FileDown,
+  Pin
 } from 'lucide-react';
 import { Supplier, Material } from '@/integrations/supabase/types';
 
@@ -69,10 +70,31 @@ export default function PriceComparisonMatrix() {
     }
   });
 
+  // Pinned materials list
+  const [pinnedMaterials, setPinnedMaterials] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('procarni_matrix_pinned_materials');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Save custom prices to localStorage
   useEffect(() => {
     localStorage.setItem('procarni_matrix_custom_prices', JSON.stringify(customPrices));
   }, [customPrices]);
+
+  // Save pinned materials to localStorage
+  useEffect(() => {
+    localStorage.setItem('procarni_matrix_pinned_materials', JSON.stringify(pinnedMaterials));
+  }, [pinnedMaterials]);
+
+  const togglePinMaterial = (materialId: string) => {
+    setPinnedMaterials(prev =>
+      prev.includes(materialId) ? prev.filter(id => id !== materialId) : [...prev, materialId]
+    );
+  };
 
   // Fetch Exchange Rate
   useEffect(() => {
@@ -373,6 +395,9 @@ export default function PriceComparisonMatrix() {
     const initialFiltered = allMaterials.filter(m => {
       if (!m) return false;
       
+      const isPinned = pinnedMaterials.includes(m.id) || (m.base_material_id && pinnedMaterials.includes(m.base_material_id));
+      if (isPinned) return true;
+      
       const isRawMaterial = m.category && rawMaterialCategories.includes(m.category.toUpperCase());
       if (!isRawMaterial) return false;
 
@@ -423,7 +448,7 @@ export default function PriceComparisonMatrix() {
     });
 
     // Clean up empty groups or resolve missing base records
-    const result: Array<{ base: Material; items: Material[]; isGroup: boolean }> = [];
+    const result: Array<{ base: Material; items: Material[]; isGroup: boolean; isPinned: boolean }> = [];
     Object.keys(groupMap).forEach(key => {
       const g = groupMap[key];
       let baseRecord = g.base;
@@ -433,16 +458,22 @@ export default function PriceComparisonMatrix() {
       }
       
       if (baseRecord) {
+        const isPinned = pinnedMaterials.includes(baseRecord.id);
         result.push({
           base: baseRecord,
           items: g.items,
-          isGroup: g.items.length > 0
+          isGroup: g.items.length > 0,
+          isPinned
         });
       }
     });
 
-    return result.sort((a, b) => a.base.name.localeCompare(b.base.name));
-  }, [allMaterials, selectedSuppliers, selectedCategory, materialSearch, onlyCommonMaterials, priceMatrixData, customPrices]);
+    return result.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return a.base.name.localeCompare(b.base.name);
+    });
+  }, [allMaterials, selectedSuppliers, selectedCategory, materialSearch, onlyCommonMaterials, priceMatrixData, customPrices, pinnedMaterials]);
 
   // Find lowest price for a material across selected suppliers
   const getLowestSupplierId = (materialId: string, materialsInGroup: Material[] = []) => {
@@ -975,7 +1006,22 @@ export default function PriceComparisonMatrix() {
                                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                               </Button>
                             )}
-                            <div className="flex flex-col min-w-0">
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => togglePinMaterial(base.id)}
+                              className={`h-5 w-5 rounded-md transition-all duration-200 shrink-0 ${
+                                pinnedMaterials.includes(base.id)
+                                  ? 'text-procarni-primary opacity-100 scale-110'
+                                  : 'text-gray-400 opacity-0 group-hover:opacity-100'
+                              }`}
+                              title={pinnedMaterials.includes(base.id) ? "Desanclar material" : "Anclar material"}
+                            >
+                              <Pin className={`w-3.5 h-3.5 ${pinnedMaterials.includes(base.id) ? 'fill-current' : ''}`} />
+                            </Button>
+                            
+                            <div className="flex flex-col min-w-0 flex-1">
                               <span className="font-bold text-gray-900 leading-tight whitespace-normal break-words" title={base.name}>{base.name}</span>
                               <span className="text-[9px] text-gray-400 tracking-wider uppercase font-semibold">{base.code || 'SIN CÓDIGO'}</span>
                             </div>
