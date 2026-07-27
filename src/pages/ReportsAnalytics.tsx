@@ -43,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useDebounce } from 'use-debounce';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
@@ -615,6 +616,7 @@ const ReportsAnalytics = () => {
     const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery] = useDebounce(searchQuery, 400);
     const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
@@ -683,11 +685,12 @@ const ReportsAnalytics = () => {
 
     // 3. Main Purchase Data (Reports)
     const { data: purchaseData = [], isLoading: isLoadingPurchases } = useQuery({
-        queryKey: ['reportsPurchases', dateFilterType, effectiveStartDate, effectiveEndDate, selectedSupplierId],
+        queryKey: ['reportsPurchases', dateFilterType, effectiveStartDate, effectiveEndDate, selectedSupplierId, debouncedSearchQuery],
         queryFn: () => getPurchaseHistoryReport({
             startDate: effectiveStartDate,
             endDate: effectiveEndDate,
             supplierId: selectedSupplierId === 'all' ? undefined : selectedSupplierId,
+            searchTerm: debouncedSearchQuery.trim() || undefined,
         }),
     });
 

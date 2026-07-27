@@ -283,13 +283,15 @@ export const getPurchaseHistoryReport = async ({
   materialId,
   startDate,
   endDate,
-  status
+  status,
+  searchTerm
 }: {
   supplierId?: string;
   materialId?: string;
   startDate?: Date;
   endDate?: Date;
   status?: string;
+  searchTerm?: string;
 }) => {
   let query = supabase
     .from('purchase_order_items')
@@ -342,6 +344,44 @@ export const getPurchaseHistoryReport = async ({
 
   if (status) {
     query = query.eq('purchase_orders.status', status);
+  }
+
+  if (searchTerm) {
+    const searchPattern = `%${searchTerm}%`;
+    
+    // Fetch matching master materials
+    const { data: matchedMaterials } = await supabase
+      .from('materials')
+      .select('id')
+      .ilike('name', searchPattern);
+    const materialIds = matchedMaterials?.map(m => m.id) || [];
+    
+    // Fetch matching suppliers
+    const { data: matchedSuppliers } = await supabase
+      .from('suppliers')
+      .select('id')
+      .ilike('name', searchPattern);
+    const supplierIds = matchedSuppliers?.map(s => s.id) || [];
+    
+    let matchedOrderIds: string[] = [];
+    if (supplierIds.length > 0) {
+      const { data: matchedOrders } = await supabase
+        .from('purchase_orders')
+        .select('id')
+        .in('supplier_id', supplierIds);
+      matchedOrderIds = matchedOrders?.map(o => o.id) || [];
+    }
+    
+    const orConditions: string[] = [];
+    orConditions.push(`material_name.ilike.${searchPattern}`);
+    if (materialIds.length > 0) {
+      orConditions.push(`material_id.in.(${materialIds.join(',')})`);
+    }
+    if (matchedOrderIds.length > 0) {
+      orConditions.push(`order_id.in.(${matchedOrderIds.join(',')})`);
+    }
+    
+    query = query.or(orConditions.join(','));
   }
 
   const { data, error } = await query;
