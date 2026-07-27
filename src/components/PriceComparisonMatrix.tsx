@@ -543,6 +543,7 @@ export default function PriceComparisonMatrix() {
       });
 
       const rows: string[][] = [];
+      const rowMaterialIds: { id: string; items: Material[] }[] = [];
       processedMaterialsData.forEach(({ base, items, isGroup }) => {
         const baseRow = [
           base.name + (base.code ? ` (${base.code})` : ''),
@@ -560,6 +561,7 @@ export default function PriceComparisonMatrix() {
           }
         });
         rows.push(baseRow);
+        rowMaterialIds.push({ id: base.id, items });
 
         if (isGroup && items.length > 0) {
           items.forEach(child => {
@@ -578,6 +580,7 @@ export default function PriceComparisonMatrix() {
               }
             });
             rows.push(childRow);
+            rowMaterialIds.push({ id: child.id, items: [] });
           });
         }
       });
@@ -611,6 +614,23 @@ export default function PriceComparisonMatrix() {
         columnStyles: {
           0: { cellWidth: 75, fontStyle: 'bold', textColor: [27, 41, 74] }, // Procarni blue
           1: { cellWidth: 15, halign: 'center' }
+        },
+        didParseCell: (data) => {
+          if (data.section !== 'body' || data.column.index < 2) return;
+
+          const rowData = rowMaterialIds[data.row.index];
+          if (!rowData) return;
+
+          const supplierIndex = data.column.index - 2;
+          const supplier = selectedSuppliers[supplierIndex];
+          if (!supplier) return;
+
+          const lowestSupId = getLowestSupplierId(rowData.id, rowData.items);
+          if (lowestSupId === supplier.id) {
+            data.cell.styles.fillColor = [209, 250, 229]; // light green bg (emerald-100)
+            data.cell.styles.textColor = [6, 95, 70]; // emerald-800
+            data.cell.styles.fontStyle = 'bold';
+          }
         }
       });
 
@@ -646,6 +666,7 @@ export default function PriceComparisonMatrix() {
     try {
       const data: Record<string, string | number>[] = [];
       processedMaterialsData.forEach(({ base, items, isGroup }) => {
+        const lowestBaseSupId = getLowestSupplierId(base.id, items);
         const baseRow: Record<string, string | number> = {
           'Código': base.code || '',
           'Material / Grupo': base.name,
@@ -657,13 +678,16 @@ export default function PriceComparisonMatrix() {
           const rawPrice = priceMatrixData?.prices?.[base.id]?.[sup.id];
           const customVal = customPrices?.[base.id]?.[sup.id];
           const res = getDisplayPrice(rawPrice, customVal);
+          const isLowest = lowestBaseSupId === sup.id;
+          
           baseRow[`${sup.name} (${currency})`] = res ? res.price : '';
-          baseRow[`${sup.name} (Origen)`] = res ? res.label : '-';
+          baseRow[`${sup.name} (Origen)`] = res ? (isLowest ? `${res.label} (MÍNIMO)` : res.label) : '-';
         });
         data.push(baseRow);
 
         if (isGroup && items.length > 0) {
           items.forEach(child => {
+            const lowestChildSupId = getLowestSupplierId(child.id);
             const childRow: Record<string, string | number> = {
               'Código': child.code || '',
               'Material / Grupo': `    • ${base.name}`,
@@ -674,8 +698,10 @@ export default function PriceComparisonMatrix() {
               const rawPrice = priceMatrixData?.prices?.[child.id]?.[sup.id];
               const customVal = customPrices?.[child.id]?.[sup.id];
               const res = getDisplayPrice(rawPrice, customVal);
+              const isLowest = lowestChildSupId === sup.id;
+              
               childRow[`${sup.name} (${currency})`] = res ? res.price : '';
-              childRow[`${sup.name} (Origen)`] = res ? res.label : '-';
+              childRow[`${sup.name} (Origen)`] = res ? (isLowest ? `${res.label} (MÍNIMO)` : res.label) : '-';
             });
             data.push(childRow);
           });
