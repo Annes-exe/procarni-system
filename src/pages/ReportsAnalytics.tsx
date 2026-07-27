@@ -711,7 +711,7 @@ const ReportsAnalytics = () => {
                 }
                 return (
                     item.purchase_orders.currency === currency &&
-                    ['Approved', 'Archived'].includes(item.purchase_orders.status)
+                    ['Approved', 'Archived', 'Credit', 'Paid', 'ToPay', 'Received'].includes(item.purchase_orders.status)
                 );
             })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
@@ -725,7 +725,7 @@ const ReportsAnalytics = () => {
                     const category = (item.materials?.category || '').toLowerCase().trim();
                     if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) return false;
                 }
-                return ['Approved', 'Archived'].includes(item.purchase_orders.status);
+                return ['Approved', 'Archived', 'Credit', 'Paid', 'ToPay', 'Received'].includes(item.purchase_orders.status);
             })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
     }, [purchaseData, onlyRawMaterials]);
@@ -741,7 +741,7 @@ const ReportsAnalytics = () => {
         // Top Material
         const matGroups: Record<string, number> = {};
         filteredData.forEach((item: any) => {
-            const name = item.materials?.name || 'Desconocido';
+            const name = item.materials?.name || item.material_name || 'Desconocido';
             matGroups[name] = (matGroups[name] || 0) + (item.unit_price * item.quantity);
         });
         const topMat = Object.entries(matGroups).sort((a, b) => b[1] - a[1])[0];
@@ -848,9 +848,10 @@ const ReportsAnalytics = () => {
             const query = normalizeString(searchQuery);
             results = results.filter((item: any) => {
                 const nameMatch = normalizeString(item.materials?.name || '').includes(query);
+                const itemMaterialNameMatch = normalizeString(item.material_name || '').includes(query);
                 const supplierMatch = normalizeString(item.purchase_orders?.suppliers?.name || '').includes(query);
                 const aliasMatch = item.materials?.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
-                return nameMatch || supplierMatch || aliasMatch;
+                return nameMatch || itemMaterialNameMatch || supplierMatch || aliasMatch;
             });
         }
         return results;
@@ -859,7 +860,7 @@ const ReportsAnalytics = () => {
     const materialFrequencies = useMemo(() => {
         const freqs: Record<string, number> = {};
         unifiedFilteredData.forEach((item: any) => {
-            const name = item.materials?.name || 'Desconocido';
+            const name = item.materials?.name || item.material_name || 'Desconocido';
             freqs[name] = (freqs[name] || 0) + 1;
         });
         return freqs;
@@ -1091,7 +1092,7 @@ const ReportsAnalytics = () => {
                                                         <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
                                                             {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                         </span>
-                                                        <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name}</h4>
+                                                        <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name || item.material_name}</h4>
                                                     </div>
                                                     <Badge variant="secondary" className="text-procarni-primary bg-procarni-primary/10">
                                                         #{item.purchase_orders.sequence_number || 'OC'}
@@ -1149,9 +1150,9 @@ const ReportsAnalytics = () => {
                                                     </TableCell>
                                                     <TableCell className="py-3">
                                                         <div className="flex flex-col">
-                                                            <span className="text-procarni-dark font-medium text-sm">{item.materials?.name}</span>
+                                                            <span className="text-procarni-dark font-medium text-sm">{item.materials?.name || item.material_name}</span>
                                                             <span className="text-[10px] text-muted-foreground mt-0.5" title="Frecuencia de compra en el periodo">
-                                                                Comprado {materialFrequencies[item.materials?.name || 'Desconocido']} veces
+                                                                Comprado {materialFrequencies[item.materials?.name || item.material_name || 'Desconocido']} veces
                                                             </span>
                                                         </div>
                                                     </TableCell>
@@ -1317,7 +1318,7 @@ const ReportsAnalytics = () => {
                                                 <div className="flex justify-between items-end">
                                                     <div className="space-y-1 max-w-[60%]">
                                                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Material</p>
-                                                        <p className="text-gray-600 truncate text-xs">{item.materials?.name}</p>
+                                                        <p className="text-gray-600 truncate text-xs">{item.materials?.name || item.material_name}</p>
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Monto</p>
@@ -1356,7 +1357,7 @@ const ReportsAnalytics = () => {
                                                         {format(getPurchaseOrderDate(item), 'dd MMM yyyy')}
                                                     </TableCell>
                                                     <TableCell className="py-3 text-procarni-dark">{item.purchase_orders.suppliers.name}</TableCell>
-                                                    <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name}</TableCell>
+                                                    <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name || item.material_name}</TableCell>
                                                     <TableCell className="py-3 text-right font-mono font-medium">
                                                         {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                                     </TableCell>
