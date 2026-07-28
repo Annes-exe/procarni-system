@@ -45,6 +45,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useDebounce } from 'use-debounce';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Checkbox } from '@/components/ui/checkbox';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
@@ -54,7 +55,8 @@ import PriceComparisonMatrix from '@/components/PriceComparisonMatrix';
 import {
     getPurchaseHistoryReport,
     getAllSuppliers,
-    getAllMaterials,
+    getAllMaterialsWithoutFilters,
+    searchMaterialsForTrends,
     searchMaterials,
     getPriceHistoryByMaterialId,
     searchMaterialsBySupplier,
@@ -98,10 +100,63 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 };
 
 // Price Variation Component (Complex logic separated)
-const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds, filteredData }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>>, filteredData: any[] }) => {
+const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds, filteredData, hasActiveSearch, globalSearchQuery }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>>, filteredData: any[], hasActiveSearch?: boolean, globalSearchQuery?: string }) => {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const [localNames, setLocalNames] = useState<Record<string, string>>({});
+    const [categoryFilter, setCategoryFilter] = useState('Todas');
+    const [searchLocal, setSearchLocal] = useState('');
+
+    const categories = useMemo(() => {
+        const cats = new Set<string>();
+        materials.forEach((m: any) => {
+            if (m.category) {
+                cats.add(m.category.trim());
+            }
+        });
+        return ['Todas', ...Array.from(cats)];
+    }, [materials]);
+
+    const [debouncedSearchLocal] = useDebounce(searchLocal, 300);
+    const activeSearchQuery = debouncedSearchLocal.trim() || globalSearchQuery?.trim() || '';
+
+    // Fetch materials dynamically with 100-limit cap based on filters
+    const { data: searchResults = [] } = useQuery({
+        queryKey: ['trendMaterialsSearch', activeSearchQuery, categoryFilter],
+        queryFn: () => searchMaterialsForTrends(activeSearchQuery, categoryFilter),
+        enabled: true,
+        staleTime: 60 * 1000,
+    });
+
+    const filteredMaterialsList = useMemo(() => {
+        const list = [...searchResults];
+        
+        // Always ensure currently selected materials are in the checklist so they can be deselected
+        selectedMaterialIds.forEach(id => {
+            if (!list.some(m => m.id === id)) {
+                const name = localNames[id] || materials.find((m: any) => m.id === id)?.name || 'Material';
+                const foundMat = materials.find((m: any) => m.id === id);
+                list.push({ 
+                    id, 
+                    name, 
+                    category: foundMat?.category || '', 
+                    status: foundMat?.status || 'active' 
+                });
+            }
+        });
+        
+        return list;
+    }, [searchResults, selectedMaterialIds, localNames, materials]);
+
+    const toggleMaterial = (id: string, name: string) => {
+        if (selectedMaterialIds.includes(id)) {
+            setSelectedMaterialIds(selectedMaterialIds.filter(x => x !== id));
+        } else {
+            if (selectedMaterialIds.length >= 5) return;
+            setLocalNames(prev => ({ ...prev, [id]: name }));
+            setSelectedMaterialIds([...selectedMaterialIds, id]);
+        }
+    };
 
     const priceSpikes = useMemo(() => {
         const matHistory: Record<string, any[]> = {};
@@ -307,21 +362,81 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                                         className="w-full sm:w-auto shadow-sm"
                                     />
                                 )}
-                                <div className="w-full sm:w-[250px]">
-                                    <SmartSearch
-                                        placeholder="Agregar material..."
-                                        fetchFunction={searchMaterialsLocal}
-                                        onSelect={(item) => {
-                                            if (!selectedMaterialIds.includes(item.id)) {
-                                                setLocalNames(prev => ({ ...prev, [item.id]: item.name }));
-                                                if (selectedMaterialIds.length >= 5) {
-                                                    setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
-                                                } else {
-                                                    setSelectedMaterialIds([...selectedMaterialIds, item.id]);
-                                                }
-                                            }
-                                        }}
-                                    />
+                                {hasActiveSearch && (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200/50 font-medium">
+                                        Filtrado por búsqueda global
+                                    </span>
+                                )}
+                                <div className="w-full sm:w-auto">
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full sm:w-auto shadow-sm flex items-center gap-2 h-9">
+                                                <Filter className="h-4 w-4" />
+                                                Seleccionar Materiales ({selectedMaterialIds.length}/5)
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[300px] p-4 space-y-4" align="end">
+                                            <div className="space-y-2">
+                                                <h4 className="font-semibold text-sm text-gray-800">Filtrar Materiales</h4>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="Buscar por nombre..."
+                                                    value={searchLocal}
+                                                    onChange={(e) => setSearchLocal(e.target.value)}
+                                                    className="h-8 text-xs bg-white"
+                                                />
+                                            </div>
+                                            
+                                            <div className="space-y-1.5">
+                                                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Categoría</span>
+                                                <div className="flex gap-1 overflow-x-auto pb-1 max-w-full scrollbar-thin">
+                                                    {categories.map((cat) => (
+                                                        <Button
+                                                            key={cat}
+                                                            variant={categoryFilter === cat ? "default" : "outline"}
+                                                            size="sm"
+                                                            className="h-6 px-2 text-[10px] capitalize shrink-0 rounded-full"
+                                                            onClick={() => setCategoryFilter(cat)}
+                                                        >
+                                                            {cat}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <Separator className="my-1" />
+
+                                            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                                {filteredMaterialsList.map((m: any) => {
+                                                    const isChecked = selectedMaterialIds.includes(m.id);
+                                                    const isDisabled = !isChecked && selectedMaterialIds.length >= 5;
+                                                    return (
+                                                        <div key={m.id} className="flex items-center space-x-2 py-1">
+                                                            <Checkbox
+                                                                id={`mat-trend-${m.id}`}
+                                                                checked={isChecked}
+                                                                disabled={isDisabled}
+                                                                onCheckedChange={() => toggleMaterial(m.id, m.name)}
+                                                            />
+                                                            <label
+                                                                htmlFor={`mat-trend-${m.id}`}
+                                                                className={cn(
+                                                                    "text-xs font-medium cursor-pointer select-none truncate flex-1",
+                                                                    isDisabled ? "text-gray-400 cursor-not-allowed" : "text-gray-700"
+                                                                )}
+                                                                title={m.name}
+                                                            >
+                                                                {m.name}
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {filteredMaterialsList.length === 0 && (
+                                                    <p className="text-[11px] text-gray-400 italic text-center py-4">No hay materiales que coincidan.</p>
+                                                )}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                             </div>
                         </div>
@@ -396,7 +511,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                 </Card>
 
                 {/* Right Card: Critical Price Spikes */}
-                <Card className="border-gray-200 shadow-sm bg-white lg:col-span-1 flex flex-col justify-between overflow-hidden">
+                <Card className="border-gray-200 shadow-sm bg-white lg:col-span-1 flex flex-col overflow-hidden">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                             <TrendingUp className="h-5 w-5 text-procarni-primary" />
@@ -406,7 +521,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                             Mayores aumentos de precio en la última compra del periodo.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto max-h-[400px] pr-1 pt-0">
+                    <CardContent className="flex-1 overflow-y-auto pr-1 pt-0">
                         {priceSpikes.length === 0 ? (
                             <div className="h-full min-h-[250px] flex flex-col items-center justify-center text-gray-400 text-sm italic border-2 border-dashed rounded-lg border-gray-100 p-4 text-center">
                                 No se detectaron alzas de precio para los materiales comprados en este periodo.
@@ -620,19 +735,7 @@ const ReportsAnalytics = () => {
     const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
-    // Effect to handle URL parameters for deep linking
-    React.useEffect(() => {
-        if (materialIdFromUrl && !selectedMaterialsForTrend.includes(materialIdFromUrl)) {
-            setSelectedMaterialsForTrend(prev => {
-                if (prev.includes(materialIdFromUrl)) return prev;
-                // Add to trend if not already there, applying the same limit of 5
-                if (prev.length >= 5) {
-                    return [...prev.slice(1), materialIdFromUrl];
-                }
-                return [...prev, materialIdFromUrl];
-            });
-        }
-    }, [materialIdFromUrl]);
+
 
     // Handle tab change and update URL
     const handleTabChange = (value: string) => {
@@ -677,8 +780,36 @@ const ReportsAnalytics = () => {
     // 2. Materials for Trends
     const { data: materials = [] } = useQuery({
         queryKey: ['allMaterials'],
-        queryFn: getAllMaterials,
+        queryFn: getAllMaterialsWithoutFilters,
     });
+
+    const searchedMaterialIds = useMemo(() => {
+        if (!debouncedSearchQuery.trim()) return [];
+        const query = normalizeString(debouncedSearchQuery);
+        return materials
+            .filter((m: any) => {
+                const nameMatch = normalizeString(m.name || '').includes(query);
+                const aliasMatch = m.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
+                return nameMatch || aliasMatch;
+            })
+            .map((m: any) => m.id);
+    }, [materials, debouncedSearchQuery]);
+
+    // Effect to handle URL parameters for deep linking
+    React.useEffect(() => {
+        if (materialIdFromUrl && !selectedMaterialsForTrend.includes(materialIdFromUrl)) {
+            setSelectedMaterialsForTrend(prev => {
+                if (prev.includes(materialIdFromUrl)) return prev;
+                // Add to trend if not already there, applying the same limit of 5
+                if (prev.length >= 5) {
+                    return [...prev.slice(1), materialIdFromUrl];
+                }
+                return [...prev, materialIdFromUrl];
+            });
+        }
+    }, [materialIdFromUrl]);
+
+
 
     const effectiveStartDate = dateFilterType === 'single' ? singleDate : date.from;
     const effectiveEndDate = dateFilterType === 'single' ? singleDate : date.to;
@@ -1060,6 +1191,20 @@ const ReportsAnalytics = () => {
                         </TabsTrigger>
                     </TabsList>
 
+                    {/* Buscador Global (Debajo de la franja de pestañas) */}
+                    {activeTab !== 'price-matrix' && (
+                        <div className="relative w-full sm:w-[380px] mx-auto">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                                type="text"
+                                placeholder="Buscar material o proveedor..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 bg-white w-full h-9 rounded-xl border border-gray-200 shadow-sm"
+                            />
+                        </div>
+                    )}
+
                     {/* Tab: Buscador de Compras */}
                     <TabsContent value="search" className="space-y-6 animate-in fade-in-50">
                         <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
@@ -1069,16 +1214,6 @@ const ReportsAnalytics = () => {
                                     <CardDescription>
                                         Encuentra rápidamente qué se compró, cuándo, a quién y por cuánto.
                                     </CardDescription>
-                                </div>
-                                <div className="relative w-full sm:w-[300px]">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Buscar material o proveedor..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-9 bg-white w-full h-9"
-                                    />
                                 </div>
                             </CardHeader>
                             <div className="rounded-md overflow-hidden bg-white max-h-[600px] overflow-y-auto">
@@ -1395,6 +1530,8 @@ const ReportsAnalytics = () => {
                             selectedMaterialIds={selectedMaterialsForTrend}
                             setSelectedMaterialIds={setSelectedMaterialsForTrend}
                             filteredData={filteredData}
+                            hasActiveSearch={!!debouncedSearchQuery.trim()}
+                            globalSearchQuery={searchQuery}
                         />
                     </TabsContent>
 

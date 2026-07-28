@@ -754,17 +754,19 @@ export default function PriceComparisonMatrix() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in-50 duration-300">
       
-      {/* Panel Izquierdo: Buscador y Selección de Proveedores */}
-      <Card className="lg:col-span-1 bg-white/70 backdrop-blur-xl border border-white/20 shadow-2xl shadow-gray-200/50 rounded-3xl overflow-hidden flex flex-col h-[880px]">
-        <CardHeader className="border-b border-gray-100 bg-gray-50/50 p-5">
-          <CardTitle className="text-md font-bold text-gray-800 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-procarni-primary" />
-            Buscador Proveedores
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Selecciona o arrastra los proveedores a la derecha.
-          </CardDescription>
-          <div className="relative mt-2">
+      {/* Sección Superior: Selección de Proveedores */}
+      <Card className="lg:col-span-4 bg-white/70 backdrop-blur-xl border border-white/20 shadow-2xl shadow-gray-200/50 rounded-3xl overflow-hidden flex flex-col">
+        <CardHeader className="border-b border-gray-100 bg-gray-50/50 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-md font-bold text-gray-800 flex items-center gap-2">
+              <Filter className="w-4 h-4 text-procarni-primary" />
+              Proveedores para Comparar
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Busca y añade proveedores para comparar sus precios.
+            </CardDescription>
+          </div>
+          <div className="relative w-full sm:w-[300px]">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Buscar proveedor..."
@@ -774,57 +776,80 @@ export default function PriceComparisonMatrix() {
             />
           </div>
         </CardHeader>
-        
-        <ScrollArea className="flex-1 p-4">
-          {loadingSuppliers ? (
-            <div className="text-center text-xs text-gray-500 py-8">Cargando proveedores...</div>
-          ) : filteredSuppliersList.length === 0 ? (
-            <div className="text-center text-xs text-gray-500 py-8">No se encontraron proveedores.</div>
-          ) : (
-            <div className="space-y-2">
-              {filteredSuppliersList.map((sup) => {
-                const freq = supplierFrequencies[sup.id] || 0;
-                return (
-                  <div
-                    key={sup.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, sup)}
-                    className="p-3 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing group flex items-center justify-between gap-2"
+        <CardContent className="p-5 flex flex-col gap-4">
+          {/* Active selection row */}
+          {selectedSuppliers.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Seleccionados ({selectedSuppliers.length}):</span>
+              {selectedSuppliers.map((sup) => (
+                <Badge 
+                  key={sup.id} 
+                  variant="secondary" 
+                  className="pl-3 pr-1 py-1 rounded-xl bg-blue-50 text-procarni-blue border border-blue-100 flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                >
+                  <span>{sup.name}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeSupplier(sup.id)}
+                    className="h-5 w-5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 p-0"
                   >
-                    <div className="min-w-0 flex-1 flex flex-col gap-1">
-                      <div className="flex flex-col items-start gap-1">
-                        <p className="text-xs font-bold text-gray-800 whitespace-normal break-words leading-tight">{sup.name}</p>
-                        {freq > 0 && !supplierSearch.trim() && (
-                          <Badge variant="outline" className="text-[8px] px-1.5 py-0 h-3.5 bg-blue-50 text-blue-600 border-blue-200 uppercase font-bold shrink-0 self-start">
-                            Frecuente
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-400 font-semibold mt-0.5">
-                        {sup.rif || 'Sin RIF'} {freq > 0 && !supplierSearch.trim() ? `• ${freq} OCs` : ''}
-                      </p>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => addSupplier(sup)}
-                      className="h-8 w-8 rounded-xl border-gray-200 bg-gray-50 text-gray-500 hover:text-procarni-primary hover:bg-gray-100 shrink-0 ml-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                );
-              })}
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </Badge>
+              ))}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => setSelectedSuppliers([])}
+                className="text-xs text-red-600 hover:bg-red-50 rounded-xl px-3"
+              >
+                Limpiar Todos
+              </Button>
             </div>
           )}
-        </ScrollArea>
+          
+          {/* Horizontal scrollable row of available suppliers */}
+          <ScrollArea className="w-full whitespace-nowrap border border-gray-100 rounded-2xl bg-gray-50/30 p-3">
+            <div className="flex space-x-3 pb-2 overflow-x-auto">
+              {loadingSuppliers ? (
+                <div className="text-center text-xs text-gray-500 py-2 w-full">Cargando proveedores...</div>
+              ) : filteredSuppliersList.length === 0 ? (
+                <div className="text-center text-xs text-gray-500 py-2 w-full">No se encontraron proveedores.</div>
+              ) : (
+                filteredSuppliersList.map((sup) => {
+                  const isAlreadySelected = selectedSuppliers.some(s => s.id === sup.id);
+                  if (isAlreadySelected) return null;
+                  const freq = supplierFrequencies[sup.id] || 0;
+                  return (
+                    <div
+                      key={sup.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, sup)}
+                      onClick={() => addSupplier(sup)}
+                      className="inline-flex items-center gap-3 p-3 bg-white border border-gray-150 rounded-2xl shadow-sm hover:border-procarni-primary/30 hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing select-none shrink-0"
+                    >
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-gray-800 truncate max-w-[180px] leading-tight">{sup.name}</p>
+                        <p className="text-[9px] text-gray-400 font-semibold mt-0.5">
+                          {sup.rif || 'Sin RIF'} {freq > 0 ? `• ${freq} OCs` : ''}
+                        </p>
+                      </div>
+                      <Plus className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
       </Card>
-
-      {/* Panel Derecho: Matriz Comparativa */}
+ 
+      {/* Panel Derecho: Matriz Comparativa (Ahora de Ancho Completo) */}
       <Card 
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className="lg:col-span-3 bg-white/70 backdrop-blur-xl border border-white/20 shadow-2xl shadow-gray-200/50 rounded-3xl overflow-hidden flex flex-col h-[880px]"
+        className="lg:col-span-4 bg-white/70 backdrop-blur-xl border border-white/20 shadow-2xl shadow-gray-200/50 rounded-3xl overflow-hidden flex flex-col h-[880px]"
       >
         <CardHeader className="border-b border-gray-100 bg-gray-50/50 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -949,7 +974,7 @@ export default function PriceComparisonMatrix() {
             <Table>
               <TableHeader className="bg-gray-50/50 sticky top-0 z-10 shadow-sm">
                 <TableRow>
-                  <TableHead className="w-[30%] min-w-[200px] text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                  <TableHead className="w-[18%] min-w-[160px] text-[10px] uppercase font-bold text-gray-400 tracking-wider">
                     Material / Grupo
                   </TableHead>
                   <TableHead className="w-[8%] text-[10px] uppercase font-bold text-gray-400 tracking-wider text-center">
@@ -995,7 +1020,7 @@ export default function PriceComparisonMatrix() {
                       <React.Fragment key={base.id}>
                         {/* Fila Principal (Base) */}
                         <TableRow className="hover:bg-blue-50/20 group border-b border-gray-100">
-                          <TableCell className="font-medium text-xs text-procarni-dark py-4 flex items-center gap-2 w-[220px] max-w-[220px] min-w-[220px] whitespace-normal break-words">
+                          <TableCell className="font-medium text-xs text-procarni-dark py-4 flex items-center gap-2 w-[160px] max-w-[160px] min-w-[160px] whitespace-normal break-words">
                             {isGroup && (
                               <Button
                                 size="icon"
@@ -1110,7 +1135,7 @@ export default function PriceComparisonMatrix() {
                           const childLowestSupplierId = getLowestSupplierId(child.id);
                           return (
                             <TableRow key={child.id} className="bg-gray-50/30 hover:bg-blue-50/10 border-b border-gray-100/50">
-                              <TableCell className="pl-10 text-xs py-3 w-[220px] max-w-[220px] min-w-[220px] whitespace-normal break-words">
+                              <TableCell className="pl-10 text-xs py-3 w-[160px] max-w-[160px] min-w-[160px] whitespace-normal break-words">
                                 <div className="flex flex-col min-w-0 border-l-2 border-gray-200 pl-3">
                                   <span className="font-semibold text-gray-700 leading-tight whitespace-normal break-words" title={child.name}>{child.name}</span>
                                   <span className="text-[9px] text-gray-400 font-semibold">{child.code || 'SIN CÓDIGO'}</span>

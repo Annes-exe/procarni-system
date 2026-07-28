@@ -21,6 +21,8 @@ import {
   getSupplierDetails,
   getPaginatedSuppliers,
   getAllMaterials,
+  getAllMaterialsWithoutFilters,
+  searchMaterialsForTrends,
   createMaterial,
   updateMaterial,
   deleteMaterial,
@@ -373,7 +375,7 @@ export const getPurchaseHistoryReport = async ({
     }
     
     const orConditions: string[] = [];
-    orConditions.push(`material_name.ilike.${searchPattern}`);
+    orConditions.push(`material_name.ilike."${searchPattern}"`);
     if (materialIds.length > 0) {
       orConditions.push(`material_id.in.(${materialIds.join(',')})`);
     }
@@ -404,6 +406,8 @@ export {
   getSupplierDetails,
   getPaginatedSuppliers,
   getAllMaterials,
+  getAllMaterialsWithoutFilters,
+  searchMaterialsForTrends,
   createMaterial,
   updateMaterial,
   deleteMaterial,
