@@ -21,6 +21,28 @@ const materialFormSchema = z.object({
   category: z.string().min(1, { message: 'La categoría es requerida.' }),
   unit: z.string().min(1, { message: 'La unidad es requerida.' }),
   is_exempt: z.boolean().default(false).optional(),
+}).superRefine((data, ctx) => {
+  const catUpper = data.category.toUpperCase();
+  const unitUpper = data.unit.toUpperCase();
+  if (catUpper === 'SECA' && !['KG', 'LT', 'GR'].includes(unitUpper)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Las unidades permitidas para SECA son: KG, LT, GR',
+      path: ['unit'],
+    });
+  } else if (catUpper === 'FRESCA' && unitUpper !== 'KG') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'La unidad permitida para FRESCA es: KG',
+      path: ['unit'],
+    });
+  } else if (catUpper === 'EMPAQUE' && !['MT', 'UND'].includes(unitUpper)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Las unidades permitidas para EMPAQUE son: MT, UND',
+      path: ['unit'],
+    });
+  }
 });
 
 type MaterialFormValues = z.infer<typeof materialFormSchema>;
@@ -56,6 +78,49 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
 
   const watchedCategory = form.watch('category');
   const watchedName = form.watch('name');
+
+  const filteredUnits = React.useMemo(() => {
+    if (!watchedCategory) return units;
+    const catUpper = watchedCategory.toUpperCase();
+    if (catUpper === 'SECA') {
+      return units.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
+    }
+    if (catUpper === 'FRESCA') {
+      return units.filter(u => ['KG'].includes(u.name.toUpperCase()));
+    }
+    if (catUpper === 'EMPAQUE') {
+      return units.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
+    }
+    return units;
+  }, [watchedCategory, units]);
+
+  // Adjust unit if category changes and the current unit is not allowed
+  React.useEffect(() => {
+    if (!watchedCategory || units.length === 0) return;
+    const catUpper = watchedCategory.toUpperCase();
+    const currentUnitName = (form.getValues('unit') || '').toUpperCase();
+    
+    let allowedNames: string[] = [];
+    if (catUpper === 'SECA') allowedNames = ['KG', 'LT', 'GR'];
+    else if (catUpper === 'FRESCA') allowedNames = ['KG'];
+    else if (catUpper === 'EMPAQUE') allowedNames = ['MT', 'UND'];
+
+    if (allowedNames.length > 0 && !allowedNames.includes(currentUnitName)) {
+      let defaultUnitName = allowedNames[0];
+      if (catUpper === 'EMPAQUE') {
+        const nameUpper = watchedName.toUpperCase();
+        if (nameUpper.startsWith('TRIPA')) defaultUnitName = 'MT';
+        else if (nameUpper.startsWith('BOLSA')) defaultUnitName = 'UND';
+      }
+      const found = units.find(u => u.name.toUpperCase() === defaultUnitName);
+      if (found) {
+        form.setValue('unit', found.name, { shouldDirty: true });
+      } else {
+        const fallback = units.find(u => allowedNames.includes(u.name.toUpperCase()));
+        if (fallback) form.setValue('unit', fallback.name, { shouldDirty: true });
+      }
+    }
+  }, [watchedCategory, watchedName, units, form]);
 
   // Effect to auto-fill category and unit for "tripa" materials
   React.useEffect(() => {
@@ -161,7 +226,7 @@ const MaterialForm: React.FC<MaterialFormProps> = ({ initialData, onSubmit, onCa
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {units.map(unit => (
+                  {filteredUnits.map(unit => (
                     <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
                   ))}
                 </SelectContent>

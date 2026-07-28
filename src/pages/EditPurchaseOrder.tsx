@@ -155,6 +155,7 @@ const EditPurchaseOrder = () => {
         description: item.description || '',
         sales_percentage: item.sales_percentage || 0,
         discount_percentage: item.discount_percentage || 0,
+        category: item.materials?.category,
       })));
     }
   }, [initialOrder]);
@@ -186,14 +187,20 @@ const EditPurchaseOrder = () => {
   };
 
   const handleMaterialSelect = (index: number, material: MaterialSearchResult) => {
-    handleItemChange(index, 'material_id', material.id);
-    handleItemChange(index, 'material_name', material.name);
-    handleItemChange(index, 'unit', material.unit || 'KG');
-    handleItemChange(index, 'unit_id', material.unit_id || null);
-    handleItemChange(index, 'is_exempt', material.is_exempt || false);
-    if (material.specification) {
-      handleItemChange(index, 'description', material.specification);
-    }
+    setItems((prevItems) => {
+      const newItems = [...prevItems];
+      newItems[index] = {
+        ...newItems[index],
+        material_id: material.id,
+        material_name: material.name,
+        unit: material.unit || 'KG',
+        unit_id: material.unit_id || null,
+        is_exempt: material.is_exempt || false,
+        description: material.specification || '',
+        category: material.category,
+      };
+      return newItems;
+    });
   };
 
   const handleCompanySelect = (company: Company) => {

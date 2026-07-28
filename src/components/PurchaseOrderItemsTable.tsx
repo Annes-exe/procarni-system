@@ -33,6 +33,7 @@ interface PurchaseOrderItemForm {
   sales_percentage?: number;
   discount_percentage?: number;
   was_recalculated?: boolean;
+  category?: string;
 }
 
 interface MaterialSearchResult {
@@ -60,6 +61,21 @@ interface PurchaseOrderItemsTableProps {
   hideHeader?: boolean;
   showAddButton?: boolean;
 }
+
+const filterUnitsForCategory = (categoryName: string | undefined, allUnits: any[]) => {
+  if (!categoryName) return allUnits;
+  const catUpper = categoryName.toUpperCase();
+  if (catUpper === 'SECA') {
+    return allUnits.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
+  }
+  if (catUpper === 'FRESCA') {
+    return allUnits.filter(u => ['KG'].includes(u.name.toUpperCase()));
+  }
+  if (catUpper === 'EMPAQUE') {
+    return allUnits.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
+  }
+  return allUnits;
+};
 
 const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   items,
@@ -257,7 +273,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
               </SelectTrigger>
               <SelectContent>
-                {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                {filterUnitsForCategory(item.category, units).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -492,9 +508,9 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 <SelectTrigger className="h-9 bg-gray-50/50 border-gray-200">
                   <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
                 </SelectTrigger>
-                <SelectContent>
-                  {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                </SelectContent>
+                 <SelectContent>
+                   {filterUnitsForCategory(item.category, units).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                 </SelectContent>
               </Select>
             </div>
 

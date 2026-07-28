@@ -334,6 +334,7 @@ const GeneratePurchaseOrder = () => {
       unit_id: material.unit_id || (units.find((u: any) => u.name === material.unit)?.id || null),
       is_exempt: material.is_exempt || false,
       description: material.specification || '',
+      category: material.category,
     });
   };
 

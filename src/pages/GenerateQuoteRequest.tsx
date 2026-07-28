@@ -196,6 +196,7 @@ const GenerateQuoteRequest = () => {
     // @ts-ignore - material might have unit_id
     handleItemChange(index, 'unit_id', material.unit_id || (units.find(u => u.name === material.unit)?.id || (units[0]?.id || '')));
     handleItemChange(index, 'material_id', material.id); // Save ID
+    handleItemChange(index, 'category', material.category); // Save category
 
     if (material.specification && material.specification !== material.code) {
       handleItemChange(index, 'description', material.specification);
