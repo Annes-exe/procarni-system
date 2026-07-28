@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getAllSuppliers } from '@/integrations/supabase/data';
@@ -59,6 +60,7 @@ export default function PriceComparisonMatrix() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [editingCell, setEditingCell] = useState<{ materialId: string; supplierId: string } | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [onlyPinned, setOnlyPinned] = useState(false);
   
   // Custom manual prices map: { [materialId]: { [supplierId]: number } }
   const [customPrices, setCustomPrices] = useState<Record<string, Record<string, number>>>(() => {
@@ -396,7 +398,9 @@ export default function PriceComparisonMatrix() {
       if (!m) return false;
       
       const isPinned = pinnedMaterials.includes(m.id) || (m.base_material_id && pinnedMaterials.includes(m.base_material_id));
-      if (isPinned) return true;
+      if (onlyPinned && !isPinned) return false;
+      
+      if (!onlyPinned && isPinned) return true;
       
       const isRawMaterial = m.category && rawMaterialCategories.includes(m.category.toUpperCase());
       if (!isRawMaterial) return false;
@@ -473,7 +477,7 @@ export default function PriceComparisonMatrix() {
       if (!a.isPinned && b.isPinned) return 1;
       return a.base.name.localeCompare(b.base.name);
     });
-  }, [allMaterials, selectedSuppliers, selectedCategory, materialSearch, onlyCommonMaterials, priceMatrixData, customPrices, pinnedMaterials]);
+  }, [allMaterials, selectedSuppliers, selectedCategory, materialSearch, onlyCommonMaterials, priceMatrixData, customPrices, pinnedMaterials, onlyPinned]);
 
   // Find lowest price for a material across selected suppliers
   const getLowestSupplierId = (materialId: string, materialsInGroup: Material[] = []) => {
@@ -863,9 +867,26 @@ export default function PriceComparisonMatrix() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
+            {/* Filtro de Materiales Pineados (Al lado izquierdo del convertidor) */}
+            <Button
+              variant={onlyPinned ? "default" : "outline"}
+              size="sm"
+              onClick={() => setOnlyPinned(prev => !prev)}
+              className={cn(
+                "h-9 px-3 rounded-2xl text-xs font-bold shadow-sm flex items-center gap-1.5",
+                onlyPinned 
+                  ? "bg-procarni-primary text-white hover:bg-procarni-primary/95" 
+                  : "bg-white text-gray-500 border-gray-200 hover:text-procarni-primary hover:bg-gray-50"
+              )}
+              title={onlyPinned ? "Mostrando solo materiales pineados" : "Mostrar solo materiales pineados"}
+            >
+              <Pin className={cn("w-3.5 h-3.5", onlyPinned && "fill-current")} />
+              <span>{onlyPinned ? "Pineados" : "Todos"}</span>
+            </Button>
+
             {/* Convertidor de Divisas */}
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center space-x-2 bg-white px-3 h-9 rounded-2xl border border-gray-200 shadow-sm">
                 <Label htmlFor="currency-toggle" className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                   Moneda: {currency}
                 </Label>
@@ -875,8 +896,8 @@ export default function PriceComparisonMatrix() {
                   onCheckedChange={(checked) => setCurrency(checked ? 'VES' : 'USD')}
                 />
               </div>
-              <span className="text-[10px] text-gray-400 italic font-medium">
-                Tasa oficial BCV de referencia: Bs. {usdRate > 0 ? usdRate.toFixed(2) : '...'}
+              <span className="text-[10px] text-gray-400 italic font-medium hidden md:inline" title={`Tasa oficial BCV de referencia: Bs. ${usdRate > 0 ? usdRate.toFixed(2) : '...'}`}>
+                BCV: Bs. {usdRate > 0 ? usdRate.toFixed(2) : '...'}
               </span>
             </div>
 
