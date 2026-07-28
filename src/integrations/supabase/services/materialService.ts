@@ -398,6 +398,32 @@ const MaterialService = {
     }
     return data || [];
   },
+
+  searchMaterialsForTrends: async (searchTerm: string, category: string): Promise<Material[]> => {
+    let queryBuilder = supabase
+      .from('materials')
+      .select('*')
+      .in('status', ['active', 'archived']);
+      
+    if (category && category !== 'Todas') {
+      queryBuilder = queryBuilder.eq('category', category);
+    }
+    
+    if (searchTerm.trim()) {
+      const searchPattern = `%${searchTerm.trim()}%`;
+      queryBuilder = queryBuilder.ilike('name', searchPattern);
+    }
+    
+    const { data, error } = await queryBuilder
+      .order('name', { ascending: true })
+      .limit(100);
+      
+    if (error) {
+      console.error('[MaterialService.searchMaterialsForTrends] Error:', error);
+      return [];
+    }
+    return data || [];
+  },
 };
 
 export const {
@@ -414,4 +440,5 @@ export const {
   getRecentMaterials,
   getChildren: getMaterialChildren,
   getPendingMaterials,
+  searchMaterialsForTrends,
 } = MaterialService;

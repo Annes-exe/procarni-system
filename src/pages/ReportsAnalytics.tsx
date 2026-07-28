@@ -44,16 +44,20 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useDebounce } from 'use-debounce';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Checkbox } from '@/components/ui/checkbox';
 
 import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
 import { normalizeString } from '@/utils/normalization';
 import SmartSearch from '@/components/SmartSearch';
+import PriceComparisonMatrix from '@/components/PriceComparisonMatrix';
 import {
     getPurchaseHistoryReport,
     getAllSuppliers,
-    getAllMaterials,
+    getAllMaterialsWithoutFilters,
+    searchMaterialsForTrends,
     searchMaterials,
     getPriceHistoryByMaterialId,
     searchMaterialsBySupplier,
@@ -110,10 +114,63 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 };
 
 // Price Variation Component (Complex logic separated)
-const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds, filteredData }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>>, filteredData: any[] }) => {
+const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId, selectedMaterialIds, setSelectedMaterialIds, filteredData, hasActiveSearch, globalSearchQuery }: { materials: any[], currency: string, dateRange: any, selectedSupplierId: string, selectedMaterialIds: string[], setSelectedMaterialIds: React.Dispatch<React.SetStateAction<string[]>>, filteredData: any[], hasActiveSearch?: boolean, globalSearchQuery?: string }) => {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
     const [localNames, setLocalNames] = useState<Record<string, string>>({});
+    const [categoryFilter, setCategoryFilter] = useState('Todas');
+    const [searchLocal, setSearchLocal] = useState('');
+
+    const categories = useMemo(() => {
+        const cats = new Set<string>();
+        materials.forEach((m: any) => {
+            if (m.category) {
+                cats.add(m.category.trim());
+            }
+        });
+        return ['Todas', ...Array.from(cats)];
+    }, [materials]);
+
+    const [debouncedSearchLocal] = useDebounce(searchLocal, 300);
+    const activeSearchQuery = debouncedSearchLocal.trim() || globalSearchQuery?.trim() || '';
+
+    // Fetch materials dynamically with 100-limit cap based on filters
+    const { data: searchResults = [] } = useQuery({
+        queryKey: ['trendMaterialsSearch', activeSearchQuery, categoryFilter],
+        queryFn: () => searchMaterialsForTrends(activeSearchQuery, categoryFilter),
+        enabled: true,
+        staleTime: 60 * 1000,
+    });
+
+    const filteredMaterialsList = useMemo(() => {
+        const list = [...searchResults];
+        
+        // Always ensure currently selected materials are in the checklist so they can be deselected
+        selectedMaterialIds.forEach(id => {
+            if (!list.some(m => m.id === id)) {
+                const name = localNames[id] || materials.find((m: any) => m.id === id)?.name || 'Material';
+                const foundMat = materials.find((m: any) => m.id === id);
+                list.push({ 
+                    id, 
+                    name, 
+                    category: foundMat?.category || '', 
+                    status: foundMat?.status || 'active' 
+                });
+            }
+        });
+        
+        return list;
+    }, [searchResults, selectedMaterialIds, localNames, materials]);
+
+    const toggleMaterial = (id: string, name: string) => {
+        if (selectedMaterialIds.includes(id)) {
+            setSelectedMaterialIds(selectedMaterialIds.filter(x => x !== id));
+        } else {
+            if (selectedMaterialIds.length >= 5) return;
+            setLocalNames(prev => ({ ...prev, [id]: name }));
+            setSelectedMaterialIds([...selectedMaterialIds, id]);
+        }
+    };
 
     const priceSpikes = useMemo(() => {
         const matHistory: Record<string, any[]> = {};
@@ -319,21 +376,81 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                                         className="w-full sm:w-auto shadow-sm"
                                     />
                                 )}
-                                <div className="w-full sm:w-[250px]">
-                                    <SmartSearch
-                                        placeholder="Agregar material..."
-                                        fetchFunction={searchMaterialsLocal}
-                                        onSelect={(item) => {
-                                            if (!selectedMaterialIds.includes(item.id)) {
-                                                setLocalNames(prev => ({ ...prev, [item.id]: item.name }));
-                                                if (selectedMaterialIds.length >= 5) {
-                                                    setSelectedMaterialIds([...selectedMaterialIds.slice(1), item.id]);
-                                                } else {
-                                                    setSelectedMaterialIds([...selectedMaterialIds, item.id]);
-                                                }
-                                            }
-                                        }}
-                                    />
+                                {hasActiveSearch && (
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200/50 font-medium">
+                                        Filtrado por búsqueda global
+                                    </span>
+                                )}
+                                <div className="w-full sm:w-auto">
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full sm:w-auto shadow-sm flex items-center gap-2 h-9">
+                                                <Filter className="h-4 w-4" />
+                                                Seleccionar Materiales ({selectedMaterialIds.length}/5)
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[300px] p-4 space-y-4" align="end">
+                                            <div className="space-y-2">
+                                                <h4 className="font-semibold text-sm text-gray-800">Filtrar Materiales</h4>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="Buscar por nombre..."
+                                                    value={searchLocal}
+                                                    onChange={(e) => setSearchLocal(e.target.value)}
+                                                    className="h-8 text-xs bg-white"
+                                                />
+                                            </div>
+                                            
+                                            <div className="space-y-1.5">
+                                                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Categoría</span>
+                                                <div className="flex gap-1 overflow-x-auto pb-1 max-w-full scrollbar-thin">
+                                                    {categories.map((cat) => (
+                                                        <Button
+                                                            key={cat}
+                                                            variant={categoryFilter === cat ? "default" : "outline"}
+                                                            size="sm"
+                                                            className="h-6 px-2 text-[10px] capitalize shrink-0 rounded-full"
+                                                            onClick={() => setCategoryFilter(cat)}
+                                                        >
+                                                            {cat}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <Separator className="my-1" />
+
+                                            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                                {filteredMaterialsList.map((m: any) => {
+                                                    const isChecked = selectedMaterialIds.includes(m.id);
+                                                    const isDisabled = !isChecked && selectedMaterialIds.length >= 5;
+                                                    return (
+                                                        <div key={m.id} className="flex items-center space-x-2 py-1">
+                                                            <Checkbox
+                                                                id={`mat-trend-${m.id}`}
+                                                                checked={isChecked}
+                                                                disabled={isDisabled}
+                                                                onCheckedChange={() => toggleMaterial(m.id, m.name)}
+                                                            />
+                                                            <label
+                                                                htmlFor={`mat-trend-${m.id}`}
+                                                                className={cn(
+                                                                    "text-xs font-medium cursor-pointer select-none truncate flex-1",
+                                                                    isDisabled ? "text-gray-400 cursor-not-allowed" : "text-gray-700"
+                                                                )}
+                                                                title={m.name}
+                                                            >
+                                                                {m.name}
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {filteredMaterialsList.length === 0 && (
+                                                    <p className="text-[11px] text-gray-400 italic text-center py-4">No hay materiales que coincidan.</p>
+                                                )}
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                             </div>
                         </div>
@@ -408,7 +525,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                 </Card>
 
                 {/* Right Card: Critical Price Spikes */}
-                <Card className="border-gray-200 shadow-sm bg-white lg:col-span-1 flex flex-col justify-between overflow-hidden">
+                <Card className="border-gray-200 shadow-sm bg-white lg:col-span-1 flex flex-col overflow-hidden">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                             <TrendingUp className="h-5 w-5 text-procarni-primary" />
@@ -418,7 +535,7 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                             Mayores aumentos de precio en la última compra del periodo.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto max-h-[400px] pr-1 pt-0">
+                    <CardContent className="flex-1 overflow-y-auto pr-1 pt-0">
                         {priceSpikes.length === 0 ? (
                             <div className="h-full min-h-[250px] flex flex-col items-center justify-center text-gray-400 text-sm italic border-2 border-dashed rounded-lg border-gray-100 p-4 text-center">
                                 No se detectaron alzas de precio para los materiales comprados en este periodo.
@@ -628,22 +745,11 @@ const ReportsAnalytics = () => {
     const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
     const [selectedMaterialsForTrend, setSelectedMaterialsForTrend] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery] = useDebounce(searchQuery, 400);
     const [activeTab, setActiveTab] = useState<string>(initialTab);
     const [onlyRawMaterials, setOnlyRawMaterials] = useState<boolean>(false);
 
-    // Effect to handle URL parameters for deep linking
-    React.useEffect(() => {
-        if (materialIdFromUrl && !selectedMaterialsForTrend.includes(materialIdFromUrl)) {
-            setSelectedMaterialsForTrend(prev => {
-                if (prev.includes(materialIdFromUrl)) return prev;
-                // Add to trend if not already there, applying the same limit of 5
-                if (prev.length >= 5) {
-                    return [...prev.slice(1), materialIdFromUrl];
-                }
-                return [...prev, materialIdFromUrl];
-            });
-        }
-    }, [materialIdFromUrl]);
+
 
     // Handle tab change and update URL
     const handleTabChange = (value: string) => {
@@ -688,19 +794,48 @@ const ReportsAnalytics = () => {
     // 2. Materials for Trends
     const { data: materials = [] } = useQuery({
         queryKey: ['allMaterials'],
-        queryFn: getAllMaterials,
+        queryFn: getAllMaterialsWithoutFilters,
     });
+
+    const searchedMaterialIds = useMemo(() => {
+        if (!debouncedSearchQuery.trim()) return [];
+        const query = normalizeString(debouncedSearchQuery);
+        return materials
+            .filter((m: any) => {
+                const nameMatch = normalizeString(m.name || '').includes(query);
+                const aliasMatch = m.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
+                return nameMatch || aliasMatch;
+            })
+            .map((m: any) => m.id);
+    }, [materials, debouncedSearchQuery]);
+
+    // Effect to handle URL parameters for deep linking
+    React.useEffect(() => {
+        if (materialIdFromUrl && !selectedMaterialsForTrend.includes(materialIdFromUrl)) {
+            setSelectedMaterialsForTrend(prev => {
+                if (prev.includes(materialIdFromUrl)) return prev;
+                // Add to trend if not already there, applying the same limit of 5
+                if (prev.length >= 5) {
+                    return [...prev.slice(1), materialIdFromUrl];
+                }
+                return [...prev, materialIdFromUrl];
+            });
+        }
+    }, [materialIdFromUrl]);
+
+
 
     const effectiveStartDate = dateFilterType === 'single' ? singleDate : date.from;
     const effectiveEndDate = dateFilterType === 'single' ? singleDate : date.to;
 
     // 3. Main Purchase Data (Reports)
     const { data: purchaseData = [], isLoading: isLoadingPurchases } = useQuery({
-        queryKey: ['reportsPurchases', dateFilterType, effectiveStartDate, effectiveEndDate, selectedSupplierId],
+        queryKey: ['reportsPurchases', dateFilterType, effectiveStartDate, effectiveEndDate, selectedSupplierId, debouncedSearchQuery],
         queryFn: () => getPurchaseHistoryReport({
             startDate: effectiveStartDate,
             endDate: effectiveEndDate,
             supplierId: selectedSupplierId === 'all' ? undefined : selectedSupplierId,
+            searchTerm: debouncedSearchQuery.trim() || undefined,
         }),
     });
 
@@ -724,7 +859,7 @@ const ReportsAnalytics = () => {
                 }
                 return (
                     item.purchase_orders.currency === currency &&
-                    ['Approved', 'Archived'].includes(item.purchase_orders.status)
+                    ['Approved', 'Archived', 'Credit', 'Paid', 'ToPay', 'Received'].includes(item.purchase_orders.status)
                 );
             })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
@@ -738,7 +873,7 @@ const ReportsAnalytics = () => {
                     const category = (item.materials?.category || '').toLowerCase().trim();
                     if (!['seca', 'fresca', 'empaque', 'secas', 'frescas', 'empaques'].includes(category)) return false;
                 }
-                return ['Approved', 'Archived'].includes(item.purchase_orders.status);
+                return ['Approved', 'Archived', 'Credit', 'Paid', 'ToPay', 'Received'].includes(item.purchase_orders.status);
             })
             .sort((a: any, b: any) => getPurchaseOrderDate(b).getTime() - getPurchaseOrderDate(a).getTime());
     }, [purchaseData, onlyRawMaterials]);
@@ -754,7 +889,7 @@ const ReportsAnalytics = () => {
         // Top Material
         const matGroups: Record<string, number> = {};
         filteredData.forEach((item: any) => {
-            const name = item.materials?.name || 'Desconocido';
+            const name = item.materials?.name || item.material_name || 'Desconocido';
             matGroups[name] = (matGroups[name] || 0) + (item.unit_price * item.quantity);
         });
         const topMat = Object.entries(matGroups).sort((a, b) => b[1] - a[1])[0];
@@ -861,9 +996,10 @@ const ReportsAnalytics = () => {
             const query = normalizeString(searchQuery);
             results = results.filter((item: any) => {
                 const nameMatch = normalizeString(item.materials?.name || '').includes(query);
+                const itemMaterialNameMatch = normalizeString(item.material_name || '').includes(query);
                 const supplierMatch = normalizeString(item.purchase_orders?.suppliers?.name || '').includes(query);
                 const aliasMatch = item.materials?.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
-                return nameMatch || supplierMatch || aliasMatch;
+                return nameMatch || itemMaterialNameMatch || supplierMatch || aliasMatch;
             });
         }
         return results;
@@ -872,7 +1008,7 @@ const ReportsAnalytics = () => {
     const materialFrequencies = useMemo(() => {
         const freqs: Record<string, number> = {};
         unifiedFilteredData.forEach((item: any) => {
-            const name = item.materials?.name || 'Desconocido';
+            const name = item.materials?.name || item.material_name || 'Desconocido';
             freqs[name] = (freqs[name] || 0) + 1;
         });
         return freqs;
@@ -1056,7 +1192,24 @@ const ReportsAnalytics = () => {
                         <TabsTrigger value="top-suppliers" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
                             Proveedores
                         </TabsTrigger>
+                        <TabsTrigger value="price-matrix" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                            Matriz de Precios
+                        </TabsTrigger>
                     </TabsList>
+
+                    {/* Buscador Global (Debajo de la franja de pestañas) */}
+                    {activeTab !== 'price-matrix' && (
+                        <div className="relative w-full sm:w-[380px] mx-auto">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                                type="text"
+                                placeholder="Buscar material o proveedor..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 bg-white w-full h-9 rounded-xl border border-gray-200 shadow-sm"
+                            />
+                        </div>
+                    )}
 
                     {/* Tab: Buscador de Compras */}
                     <TabsContent value="search" className="space-y-6 animate-in fade-in-50">
@@ -1067,16 +1220,6 @@ const ReportsAnalytics = () => {
                                     <CardDescription>
                                         Encuentra rápidamente qué se compró, cuándo, a quién y por cuánto.
                                     </CardDescription>
-                                </div>
-                                <div className="relative w-full sm:w-[300px]">
-                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Buscar material o proveedor..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-9 bg-white w-full h-9"
-                                    />
                                 </div>
                             </CardHeader>
                             <div className="rounded-md overflow-hidden bg-white max-h-[600px] overflow-y-auto">
@@ -1093,7 +1236,7 @@ const ReportsAnalytics = () => {
                                                         <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
                                                             {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                         </span>
-                                                        <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name}</h4>
+                                                        <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name || item.material_name}</h4>
                                                     </div>
                                                     <Badge variant="secondary" className="text-procarni-primary bg-procarni-primary/10">
                                                         #{item.purchase_orders.sequence_number || 'OC'}
@@ -1151,9 +1294,9 @@ const ReportsAnalytics = () => {
                                                     </TableCell>
                                                     <TableCell className="py-3">
                                                         <div className="flex flex-col">
-                                                            <span className="text-procarni-dark font-medium text-sm">{item.materials?.name}</span>
+                                                            <span className="text-procarni-dark font-medium text-sm">{item.materials?.name || item.material_name}</span>
                                                             <span className="text-[10px] text-muted-foreground mt-0.5" title="Frecuencia de compra en el periodo">
-                                                                Comprado {materialFrequencies[item.materials?.name || 'Desconocido']} veces
+                                                                Comprado {materialFrequencies[item.materials?.name || item.material_name || 'Desconocido']} veces
                                                             </span>
                                                         </div>
                                                     </TableCell>
@@ -1319,7 +1462,7 @@ const ReportsAnalytics = () => {
                                                 <div className="flex justify-between items-end">
                                                     <div className="space-y-1 max-w-[60%]">
                                                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Material</p>
-                                                        <p className="text-gray-600 truncate text-xs">{item.materials?.name}</p>
+                                                        <p className="text-gray-600 truncate text-xs">{item.materials?.name || item.material_name}</p>
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-[10px] text-gray-400 uppercase font-semibold">Monto</p>
@@ -1358,7 +1501,7 @@ const ReportsAnalytics = () => {
                                                         {format(getPurchaseOrderDate(item), 'dd MMM yyyy')}
                                                     </TableCell>
                                                     <TableCell className="py-3 text-procarni-dark">{item.purchase_orders.suppliers.name}</TableCell>
-                                                    <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name}</TableCell>
+                                                    <TableCell className="py-3 text-gray-500 text-sm">{item.materials?.name || item.material_name}</TableCell>
                                                     <TableCell className="py-3 text-right font-mono font-medium">
                                                         {currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                                     </TableCell>
@@ -1393,6 +1536,8 @@ const ReportsAnalytics = () => {
                             selectedMaterialIds={selectedMaterialsForTrend}
                             setSelectedMaterialIds={setSelectedMaterialsForTrend}
                             filteredData={filteredData}
+                            hasActiveSearch={!!debouncedSearchQuery.trim()}
+                            globalSearchQuery={searchQuery}
                         />
                     </TabsContent>
 
@@ -1643,6 +1788,10 @@ const ReportsAnalytics = () => {
                                 )}
                             </div>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="price-matrix" className="space-y-6 animate-in fade-in-50">
+                        <PriceComparisonMatrix />
                     </TabsContent>
                 </Tabs>
             </div>
