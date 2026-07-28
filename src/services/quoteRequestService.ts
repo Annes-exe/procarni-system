@@ -83,7 +83,7 @@ export const quoteRequestService = {
 
         const { data: itemsWithMaterials, error: itemsError } = await supabase
             .from('quote_request_items')
-            .select('*, materials(name)')
+            .select('*, materials(name, category, unit, unit_id)')
             .eq('request_id', id);
 
         if (itemsError) throw itemsError;

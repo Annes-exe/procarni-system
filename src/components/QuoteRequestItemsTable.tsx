@@ -22,6 +22,7 @@ export interface QuoteRequestItemForm {
     description?: string;
     material_id?: string; // Added for name update propagation
     last_price_info?: string; // NEW: information about last purchase price
+    category?: string;
 }
 
 interface MaterialSearchResult {
@@ -45,6 +46,21 @@ interface QuoteRequestItemsTableProps {
     onItemChange: (index: number, field: keyof QuoteRequestItemForm, value: any) => void;
     onMaterialSelect: (index: number, material: MaterialSearchResult) => void;
 }
+
+const filterUnitsForCategory = (categoryName: string | undefined, allUnits: any[]) => {
+  if (!categoryName) return allUnits;
+  const catUpper = categoryName.toUpperCase();
+  if (catUpper === 'SECA') {
+    return allUnits.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
+  }
+  if (catUpper === 'FRESCA') {
+    return allUnits.filter(u => ['KG'].includes(u.name.toUpperCase()));
+  }
+  if (catUpper === 'EMPAQUE') {
+    return allUnits.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
+  }
+  return allUnits;
+};
 
 const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     items,
@@ -167,9 +183,9 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                             <SelectTrigger className="h-9">
                                 <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
                             </SelectTrigger>
-                            <SelectContent>
-                                {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                            </SelectContent>
+                                    <SelectContent>
+                                        {filterUnitsForCategory(item.category, units).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                    </SelectContent>
                         </Select>
                     </div>
                 </div>
@@ -289,7 +305,7 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                                     <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {units.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                    {filterUnitsForCategory(item.category, units).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>

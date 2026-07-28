@@ -119,7 +119,8 @@ const EditQuoteRequest = () => {
             unit: item.unit || (units[0]?.name || ''),
             unit_id: item.unit_id || (units.find(u => u.name === item.unit)?.id || (units[0]?.id || '')),
             material_id: item.material_id || undefined,
-            last_price_info: priceInfo
+            last_price_info: priceInfo,
+            category: item.materials?.category
           };
         }));
 
@@ -252,6 +253,7 @@ const EditQuoteRequest = () => {
     // @ts-ignore
     handleItemChange(index, 'unit_id', material.unit_id || (units.find(u => u.name === material.unit)?.id || (units[0]?.id || '')));
     handleItemChange(index, 'material_id', material.id);
+    handleItemChange(index, 'category', material.category);
     
     if (material.specification) {
       handleItemChange(index, 'description', material.specification);

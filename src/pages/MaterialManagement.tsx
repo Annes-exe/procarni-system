@@ -29,6 +29,21 @@ import PaginationControls from '@/components/PaginationControls';
 
 import MaterialResolutionModal from '@/components/MaterialResolutionModal';
 
+const getAllowedUnitsForCategory = (categoryName: string | null | undefined, unitsList: any[]) => {
+  if (!categoryName) return unitsList;
+  const catUpper = categoryName.toUpperCase();
+  if (catUpper === 'SECA') {
+    return unitsList.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
+  }
+  if (catUpper === 'FRESCA') {
+    return unitsList.filter(u => ['KG'].includes(u.name.toUpperCase()));
+  }
+  if (catUpper === 'EMPAQUE') {
+    return unitsList.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
+  }
+  return unitsList;
+};
+
 const ChildMaterialsRow = ({
   parentId,
   categories,
@@ -120,7 +135,7 @@ const ChildMaterialsRow = ({
                           value={child.unit || ''}
                           onSave={(v) => onInlineSave(child, 'unit', v)}
                           type="select"
-                          options={units.map(u => ({ value: u.name, label: u.name }))}
+                          options={getAllowedUnitsForCategory(child.category, units).map(u => ({ value: u.name, label: u.name }))}
                           displayClassName="text-xs text-slate-600"
                           placeholder="Sin unidad"
                         />
@@ -258,8 +273,8 @@ const MobileChildMaterialsList = ({
                 value={child.unit || ''}
                 onSave={(v) => onInlineSave(child, 'unit', v)}
                 type="select"
-                options={units.map((u: any) => ({ value: u.name, label: u.name }))}
-                displayClassName="text-xs text-gray-600"
+                options={getAllowedUnitsForCategory(child.category, units).map((u: any) => ({ value: u.name, label: u.name }))}
+                displayClassName="text-xs text-slate-600"
                 placeholder="Sin unidad"
               />
             </div>
@@ -434,6 +449,45 @@ const MaterialManagement = () => {
       const mtUnit = units.find(u => u.name.toLowerCase() === 'mt');
       if (empaqueCategory) updates.category = empaqueCategory.name;
       if (mtUnit) updates.unit = mtUnit.name;
+    }
+
+    // Auto-adjust unit if category changes and the current unit is not allowed
+    if (field === 'category') {
+      const targetCatUpper = newValue.toUpperCase();
+      const currentUnitUpper = (updates.unit || material.unit || '').toUpperCase();
+      let allowedNames: string[] = [];
+      if (targetCatUpper === 'SECA') allowedNames = ['KG', 'LT', 'GR'];
+      else if (targetCatUpper === 'FRESCA') allowedNames = ['KG'];
+      else if (targetCatUpper === 'EMPAQUE') allowedNames = ['MT', 'UND'];
+
+      if (allowedNames.length > 0 && !allowedNames.includes(currentUnitUpper)) {
+        let defaultUnitName = allowedNames[0];
+        if (targetCatUpper === 'EMPAQUE') {
+          const nameUpper = (updates.name || material.name || '').toUpperCase();
+          if (nameUpper.startsWith('TRIPA')) defaultUnitName = 'MT';
+          else if (nameUpper.startsWith('BOLSA')) defaultUnitName = 'UND';
+        }
+        updates.unit = defaultUnitName;
+      }
+    }
+
+    // Double check unit constraints validation
+    const finalCategory = (field === 'category' ? newValue : material.category) || '';
+    const finalUnit = (field === 'unit' ? newValue : updates.unit || material.unit) || '';
+    const catUpper = finalCategory.toUpperCase();
+    const unitUpper = finalUnit.toUpperCase();
+
+    if (catUpper === 'SECA' && !['KG', 'LT', 'GR'].includes(unitUpper)) {
+      showError('Para la categoría SECA, las unidades permitidas son: KG, LT, GR');
+      return;
+    }
+    if (catUpper === 'FRESCA' && unitUpper !== 'KG') {
+      showError('Para la categoría FRESCA, la única unidad permitida es: KG');
+      return;
+    }
+    if (catUpper === 'EMPAQUE' && !['MT', 'UND'].includes(unitUpper)) {
+      showError('Para la categoría EMPAQUE, las unidades permitidas son: MT, UND');
+      return;
     }
 
     await updateMutation.mutateAsync({ id: material.id, updates });
@@ -767,7 +821,7 @@ const MaterialManagement = () => {
                         value={material.unit || ''}
                         onSave={(v) => handleInlineSave(material, 'unit', v)}
                         type="select"
-                        options={units.map(u => ({ value: u.name, label: u.name }))}
+                        options={getAllowedUnitsForCategory(material.category, units).map(u => ({ value: u.name, label: u.name }))}
                         alwaysShowIcon
                         displayClassName="text-gray-600"
                         placeholder="Sin unidad"
@@ -967,7 +1021,7 @@ const MaterialManagement = () => {
                               value={material.unit || ''}
                               onSave={(v) => handleInlineSave(material, 'unit', v)}
                               type="select"
-                              options={units.map(u => ({ value: u.name, label: u.name }))}
+                              options={getAllowedUnitsForCategory(material.category, units).map(u => ({ value: u.name, label: u.name }))}
                               displayClassName="text-gray-600"
                               placeholder="Sin unidad"
                             />

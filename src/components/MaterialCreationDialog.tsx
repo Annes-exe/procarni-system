@@ -197,6 +197,52 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     }
   }, [category, materialName, units, categories, editingMaterial]);
 
+  // Restrict units based on selected category
+  const filteredUnits = React.useMemo(() => {
+    if (!category) return units;
+    const catUpper = category.toUpperCase();
+    if (catUpper === 'SECA') {
+      return units.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
+    }
+    if (catUpper === 'FRESCA') {
+      return units.filter(u => ['KG'].includes(u.name.toUpperCase()));
+    }
+    if (catUpper === 'EMPAQUE') {
+      return units.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
+    }
+    return units;
+  }, [category, units]);
+
+  // Adjust unit if category changes and the current unit is not allowed
+  useEffect(() => {
+    if (!category || units.length === 0) return;
+    const catUpper = category.toUpperCase();
+    const currentUnitObj = units.find(u => u.id === unit);
+    if (!currentUnitObj) return;
+
+    const currentUnitName = currentUnitObj.name.toUpperCase();
+    let allowedNames: string[] = [];
+    if (catUpper === 'SECA') allowedNames = ['KG', 'LT', 'GR'];
+    else if (catUpper === 'FRESCA') allowedNames = ['KG'];
+    else if (catUpper === 'EMPAQUE') allowedNames = ['MT', 'UND'];
+
+    if (allowedNames.length > 0 && !allowedNames.includes(currentUnitName)) {
+      let defaultUnitName = allowedNames[0];
+      if (catUpper === 'EMPAQUE') {
+        const nameUpper = materialName.toUpperCase();
+        if (nameUpper.startsWith('TRIPA')) defaultUnitName = 'MT';
+        else if (nameUpper.startsWith('BOLSA')) defaultUnitName = 'UND';
+      }
+      const found = units.find(u => u.name.toUpperCase() === defaultUnitName);
+      if (found) {
+        setUnit(found.id);
+      } else {
+        const fallback = units.find(u => allowedNames.includes(u.name.toUpperCase()));
+        if (fallback) setUnit(fallback.id);
+      }
+    }
+  }, [category, units, materialName]);
+
   // Logic to check for existing material as the user types (debounced check)
   useEffect(() => {
     if (!isOpen) return;
@@ -275,6 +321,24 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       const finalIsExempt = category === 'FRESCA' ? true : isExempt;
       const selectedUnitObj = units.find(u => u.id === unit);
       const unitName = selectedUnitObj?.name || '';
+
+      const catUpper = category.toUpperCase();
+      const unitUpper = unitName.toUpperCase();
+      if (catUpper === 'SECA' && !['KG', 'LT', 'GR'].includes(unitUpper)) {
+        showError('Para la categoría SECA, las unidades permitidas son: KG, LT, GR');
+        setIsSubmitting(false);
+        return;
+      }
+      if (catUpper === 'FRESCA' && unitUpper !== 'KG') {
+        showError('Para la categoría FRESCA, la única unidad permitida es: KG');
+        setIsSubmitting(false);
+        return;
+      }
+      if (catUpper === 'EMPAQUE' && !['MT', 'UND'].includes(unitUpper)) {
+        showError('Para la categoría EMPAQUE, las unidades permitidas son: MT (TRIPAS), UND (BOLSAS)');
+        setIsSubmitting(false);
+        return;
+      }
 
       if (editingMaterial && selectedParentId === editingMaterial.id) {
         showError('Un material no puede ser su propio patrón de oro.');
@@ -569,7 +633,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                   <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {units.map(u => (
+                  {filteredUnits.map(u => (
                     <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                   ))}
                 </SelectContent>
