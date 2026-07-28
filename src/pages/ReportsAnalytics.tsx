@@ -159,16 +159,21 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
     };
 
     const priceSpikes = useMemo(() => {
-        const matHistory: Record<string, any[]> = {};
+        // Group by material_id AND unit_id (or unit_name)
+        // Key format: `${materialId}_${unitId}`
+        const matUnitHistory: Record<string, any[]> = {};
         filteredData.forEach((item: any) => {
             const matId = item.material_id;
             if (!matId) return;
-            if (!matHistory[matId]) matHistory[matId] = [];
-            matHistory[matId].push(item);
+            const unitKey = item.unit_id || item.units_of_measure?.name || 'default';
+            const key = `${matId}_${unitKey}`;
+            if (!matUnitHistory[key]) matUnitHistory[key] = [];
+            matUnitHistory[key].push(item);
         });
 
         const spikes: any[] = [];
-        Object.entries(matHistory).forEach(([matId, items]) => {
+        Object.entries(matUnitHistory).forEach(([key, items]) => {
+            const [matId] = key.split('_');
             const sorted = items.sort((a: any, b: any) => {
                 const dateA = a.purchase_orders?.issue_date ? new Date(a.purchase_orders.issue_date + 'T12:00:00') : new Date(a.purchase_orders?.created_at || a.created_at);
                 const dateB = b.purchase_orders?.issue_date ? new Date(b.purchase_orders.issue_date + 'T12:00:00') : new Date(b.purchase_orders?.created_at || b.created_at);
@@ -183,9 +188,11 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
                 if (prevPrice > 0) {
                     const changePercent = ((latestPrice - prevPrice) / prevPrice) * 100;
                     if (changePercent > 0.01) {
+                        const unitName = latest.units_of_measure?.name || '';
+                        const displayName = unitName ? `${latest.materials?.name || 'Desconocido'} (${unitName})` : (latest.materials?.name || 'Desconocido');
                         spikes.push({
                             materialId: matId,
-                            name: latest.materials?.name || 'Desconocido',
+                            name: displayName,
                             changePercent,
                             latestPrice,
                             prevPrice,
