@@ -26,6 +26,11 @@ export interface PriceHistoryEntry {
     name: string;
     unit: string | null;
   };
+  purchase_orders?: {
+    id: string;
+    sequence_number: number;
+    issue_date: string;
+  } | null;
 }
 
 const PriceHistoryService = {
@@ -68,7 +73,8 @@ const PriceHistoryService = {
         *,
         suppliers (name, rif, code),
         materials (name, unit),
-        units_of_measure (name)
+        units_of_measure (name),
+        purchase_orders (id, sequence_number, issue_date)
       `)
       .in('material_id', materialIds);
 
