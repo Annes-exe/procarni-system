@@ -41,6 +41,7 @@ import GroupManagement from "./pages/GroupManagement";
 import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 import MaterialApproval from "./pages/MaterialApproval";
 import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
+import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -72,6 +73,7 @@ const App = () => (
                   <Route path="/suppliers/:id" element={<SupplierDetails />} />
                   <Route path="/supplier-management" element={<SupplierManagement />} />
                   <Route path="/material-management" element={<MaterialManagement />} />
+                  <Route path="/material/:id" element={<MaterialGeneralProfile />} />
                   <Route path="/bulk-upload" element={<BulkUpload />} />
                   <Route path="/quote-request-management" element={<QuoteRequestManagement />} />
                   <Route path="/quote-requests/:id" element={<QuoteRequestDetails />} />

@@ -51,7 +51,7 @@ export const searchService = {
                         title: m.name,
                         subtitle: `Material - Código: ${m.code || 'S/N'}`,
                         type: 'material',
-                        url: `/material-management?search=${encodeURIComponent(m.name)}`
+                        url: `/material/${m.id}`
                     });
                 });
 

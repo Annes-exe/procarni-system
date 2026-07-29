@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
@@ -63,6 +63,7 @@ const ChildMaterialsRow = ({
   confirmDeleteMaterial: (id: string) => void;
   updateMutation: any;
 }) => {
+  const navigate = useNavigate();
   const { data: children = [], isLoading } = useQuery({
     queryKey: ['material_children', parentId],
     queryFn: () => getMaterialChildren(parentId),
@@ -103,45 +104,38 @@ const ChildMaterialsRow = ({
                 <TableBody>
                   {children.map((child) => (
                     <TableRow key={child.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none">
-                      <TableCell className="py-2 pl-4 font-mono text-xs text-slate-500 w-32">{child.code}</TableCell>
-                      <TableCell className="py-2">
-                        <InlineEditableCell
+                      <TableCell className="font-mono text-[10px] text-slate-500 font-bold py-1.5 pl-4">{child.code || '—'}</TableCell>
+                      <TableCell className="py-1.5">
+                        <InlineEditableCell 
                           value={child.name}
-                          onSave={(v) => onInlineSave(child, 'name', v)}
-                          displayClassName="font-medium text-slate-700 text-sm whitespace-normal break-words"
-                          placeholder="Nombre"
-                          renderDisplay={(v) => (
-                            <span className="flex items-center gap-1.5 flex-wrap">
-                              {String(v)}
-                              {child.is_exempt && (
-                                <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
-                              )}
-                            </span>
-                          )}
+                          onSave={(val) => onInlineSave(child, 'name', val)}
+                          className="font-bold text-slate-800 text-xs hover:bg-slate-100/50 px-1 rounded cursor-pointer"
                         />
                       </TableCell>
-                      <TableCell className="py-2 w-48">
-                        <InlineEditableCell
-                          value={child.category || ''}
-                          onSave={(v) => onInlineSave(child, 'category', v)}
+                      <TableCell className="py-1.5">
+                        <InlineEditableCell 
+                          value={child.category}
+                          onSave={(val) => onInlineSave(child, 'category', val)}
                           type="select"
                           options={categories.map(c => ({ value: c.name, label: c.name }))}
-                          displayClassName="text-xs text-slate-600"
-                          placeholder="Sin categoría"
+                          className="text-xs text-slate-600 font-medium px-1 rounded cursor-pointer hover:bg-slate-100/50"
                         />
                       </TableCell>
-                      <TableCell className="py-2 w-32">
-                        <InlineEditableCell
-                          value={child.unit || ''}
-                          onSave={(v) => onInlineSave(child, 'unit', v)}
+                      <TableCell className="py-1.5">
+                        <InlineEditableCell 
+                          value={child.unit}
+                          onSave={(val) => onInlineSave(child, 'unit', val)}
                           type="select"
-                          options={getAllowedUnitsForCategory(child.category, units).map(u => ({ value: u.name, label: u.name }))}
-                          displayClassName="text-xs text-slate-600"
-                          placeholder="Sin unidad"
+                          options={units.map(u => ({ value: u.name, label: u.name }))}
+                          className="font-mono font-bold text-[10px] text-slate-500 px-1 rounded cursor-pointer hover:bg-slate-100/50"
                         />
                       </TableCell>
-                      <TableCell className="py-2 text-xs text-slate-600 w-24">{child.is_exempt ? 'Sí' : 'No'}</TableCell>
-                      <TableCell className="text-right pr-4 py-2 w-28 flex items-center justify-end gap-1.5">
+                      <TableCell className="py-1.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${child.is_exempt ? 'bg-amber-50 text-procarni-alert' : 'bg-slate-50 text-slate-500'}`}>
+                          {child.is_exempt ? 'EXENTO' : 'GRAVADO'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right pr-4 py-1.5 flex items-center justify-end gap-1">
                         {role === 'admin' && (
                           <Button
                             variant="ghost"
@@ -153,6 +147,15 @@ const ChildMaterialsRow = ({
                             Desvincular
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg hover:bg-slate-100 text-procarni-blue"
+                          onClick={() => navigate(`/material/${child.id}`)}
+                          title="Ver Perfil"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -512,13 +515,11 @@ const MaterialManagement = () => {
   });
 
   const handleAddMaterial = () => {
-    setEditingMaterial(null);
-    setIsCreateDialogOpen(true);
+    navigate('/material/new');
   };
 
   const handleEditMaterial = (material: Material) => {
-    setEditingMaterial(material);
-    setIsCreateDialogOpen(true);
+    navigate(`/material/${material.id}`);
   };
 
   const confirmDeleteMaterial = (id: string) => {
@@ -1051,7 +1052,16 @@ const MaterialManagement = () => {
                               </Button>
                             </TableCell>
                           )}
-                          <TableCell className="text-right pr-4 py-2">
+                          <TableCell className="text-right pr-4 py-2 flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/material/${material.id}`); }}
+                              disabled={deleteMutation.isPending}
+                              title="Ver Perfil"
+                            >
+                              <Eye className="h-4 w-4 text-procarni-blue" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
