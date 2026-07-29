@@ -965,9 +965,9 @@ const MaterialGeneralProfile = () => {
                         <p className="text-xs text-gray-400 font-medium">Ningún proveedor habilitado.</p>
                       </div>
                     ) : (
-                      suppliers.map((s: any) => (
+                      suppliers.map((s: any, idx: number) => (
                         <div
-                          key={s.id}
+                          key={`${s.id}-${idx}`}
                           onClick={() => navigate(`/suppliers/${s.id}`)}
                           className="flex items-center justify-between p-4 bg-white border border-slate-200/80 rounded-2xl hover:border-slate-300 hover:shadow-sm cursor-pointer transition-all"
                         >
@@ -996,8 +996,8 @@ const MaterialGeneralProfile = () => {
                         <p className="text-xs text-gray-400 font-medium">Sin compras registradas aún.</p>
                       </div>
                     ) : (
-                      priceHistory.slice(0, 5).map((ph: any) => (
-                        <div key={ph.id || ph.recorded_at} className="flex justify-between items-center p-4 bg-white border border-slate-200/80 rounded-2xl text-xs">
+                      priceHistory.slice(0, 5).map((ph: any, idx: number) => (
+                        <div key={`price-${ph.id || ph.recorded_at}-${idx}`} className="flex justify-between items-center p-4 bg-white border border-slate-200/80 rounded-2xl text-xs">
                           <div>
                             <p className="font-bold text-slate-800 truncate max-w-[150px]">{ph.suppliers?.name || 'Desconocido'}</p>
                             <p className="text-[9px] text-gray-400">
@@ -1093,13 +1093,13 @@ const MaterialGeneralProfile = () => {
                               <p className="text-xs text-gray-500 italic py-4 text-center">Sin historial de precios registrado.</p>
                             ) : (
                               <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                                {priceHistory.map((ph: any) => {
+                                {priceHistory.map((ph: any, idx: number) => {
                                   const po = ph.purchase_orders;
                                   const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
                                   const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
                                   const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'OC');
                                   return (
-                                    <div key={ph.id || ph.recorded_at} className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                                    <div key={`history-${ph.id || ph.recorded_at}-${idx}`} className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                                       <div className="space-y-1.5 min-w-0 flex-1 pr-3">
                                         <p className="font-bold text-slate-800 text-sm truncate">{ph.suppliers?.name || 'Desconocido'}</p>
                                         <div className="flex items-center gap-2 text-slate-500 font-semibold">
@@ -1139,7 +1139,7 @@ const MaterialGeneralProfile = () => {
                               <p className="text-xs text-gray-500 italic py-4 text-center">Sin órdenes de compra registradas para este ítem.</p>
                             ) : (
                               <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                                {materialPOs.map((item: any) => {
+                                {materialPOs.map((item: any, idx: number) => {
                                   const po = item.purchase_orders;
                                   if (!po) return null;
                                   const year = po.issue_date ? new Date(po.issue_date).getFullYear() : new Date().getFullYear();
@@ -1147,7 +1147,7 @@ const MaterialGeneralProfile = () => {
                                   const displayId = `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}`;
                                   return (
                                     <div
-                                      key={item.id}
+                                      key={`po-item-${item.id}-${idx}`}
                                       onClick={() => navigate(`/purchase-orders/${po.id}`)}
                                       className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs cursor-pointer shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
                                     >
