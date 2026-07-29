@@ -91,36 +91,6 @@ const MaterialGeneralProfile = () => {
     enabled: !!id && id !== 'new',
   });
 
-  // Fetch from materials_inventory to see if enabled for inventory
-  const { data: inventoryCheck } = useQuery({
-    queryKey: ['materialsInventoryCheck', id],
-    queryFn: async () => {
-      if (!id || id === 'new') return null;
-      console.log('[InventoryCheck] Querying inventory status for material_id:', id);
-      const { data, error } = await supabase
-        .from('materials_inventory')
-        .select('material_id, is_active')
-        .eq('material_id', id)
-        .maybeSingle();
-      if (error) {
-        console.error('[InventoryCheck] Error fetching inventory record:', error);
-        return null;
-      }
-      console.log('[InventoryCheck] Query returned:', data);
-      return data;
-    },
-    enabled: !!id && id !== 'new',
-  });
-
-  // Redirect if enabled for inventory
-  useEffect(() => {
-    console.log('[InventoryCheck] useEffect triggered. inventoryCheck:', inventoryCheck, 'id:', id);
-    if (inventoryCheck && inventoryCheck.is_active && id && id !== 'new') {
-      console.log('[InventoryCheck] Redirecting to /inventory/material/' + id);
-      navigate(`/inventory/material/${id}`, { replace: true });
-    }
-  }, [inventoryCheck, id, navigate]);
-
   // Fetch actual material categories
   const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
     queryKey: ['material_categories'],
