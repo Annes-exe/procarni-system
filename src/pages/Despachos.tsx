@@ -1177,7 +1177,7 @@ const Despachos = () => {
   const [mode, setMode] = useState<DespachoMode>('produccion');
 
   const { data: inventory = [], isLoading } = useQuery({
-    queryKey: ['materialsInventory'],
+    queryKey: ['materialsInventory', 'active'],
     queryFn: () => getMaterialsInventory(),
   });
 

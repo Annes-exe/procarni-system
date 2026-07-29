@@ -426,6 +426,7 @@ export interface MaterialInventory {
   last_purchase_price: number;
   min_stock_alert: number;
   is_active: boolean;
+  inventory_type?: 'Producción' | 'Suministro' | null;
   notes?: string | null;
   enabled_by?: string | null;
   created_at: string;

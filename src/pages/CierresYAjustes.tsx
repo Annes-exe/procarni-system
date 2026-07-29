@@ -400,7 +400,7 @@ const TabAjusteNegativo = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: inventory = [] } = useQuery<MaterialInventory[], Error>({
-    queryKey: ['materialsInventory'],
+    queryKey: ['materialsInventory', 'active'],
     queryFn: () => getMaterialsInventory(),
   });
 

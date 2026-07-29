@@ -177,7 +177,7 @@ const HistorialKardex = () => {
   const [materialSearch, setMaterialSearch] = useState('');
 
   const { data: inventory = [] } = useQuery({
-    queryKey: ['materialsInventory'],
+    queryKey: ['materialsInventory', 'active'],
     queryFn: () => getMaterialsInventory(),
   });
 

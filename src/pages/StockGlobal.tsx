@@ -405,7 +405,7 @@ const StockGlobal = () => {
 
   // Always fetch both active and inactive so client-side filters run instantly
   const { data: inventory = [], isLoading } = useQuery({
-    queryKey: ['materialsInventory'],
+    queryKey: ['materialsInventory', 'all'],
     queryFn: () => getMaterialsInventory(true),
   });
 

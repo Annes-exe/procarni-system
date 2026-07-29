@@ -798,7 +798,7 @@ const TabEntradaDirecta = ({ onSuccess }: TabProps) => {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: inventory = [] } = useQuery<MaterialInventory[]>({
-    queryKey: ['materialsInventory'],
+    queryKey: ['materialsInventory', 'active'],
     queryFn: () => getMaterialsInventory(),
   });
 
@@ -1005,7 +1005,7 @@ const TabAjustePositivo = ({ onSuccess }: TabProps) => {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: inventory = [] } = useQuery<MaterialInventory[]>({
-    queryKey: ['materialsInventory'],
+    queryKey: ['materialsInventory', 'active'],
     queryFn: () => getMaterialsInventory(),
   });
 
