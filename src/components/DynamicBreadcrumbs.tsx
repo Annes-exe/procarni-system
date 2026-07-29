@@ -84,6 +84,9 @@ export const DynamicBreadcrumbs = () => {
             } else if (location.pathname.startsWith('/suppliers/')) {
                 crumbs.push({ label: 'Proveedores', path: '/supplier-management' });
                 crumbs.push({ label: 'Detalles', path: location.pathname, isCurrent: true });
+            } else if (location.pathname.startsWith('/material/')) {
+                crumbs.push({ label: 'Materiales', path: '/material-management' });
+                crumbs.push({ label: 'Detalles del Material', path: location.pathname, isCurrent: true });
             }
         }
 

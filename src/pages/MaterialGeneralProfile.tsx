@@ -1,0 +1,985 @@
+import React, { useMemo, useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { m } from 'framer-motion';
+import {
+  ArrowLeft, Package, DollarSign, TrendingUp, Settings,
+  History, Save, ShoppingCart, Truck, ChevronRight, AlertCircle, Info, Tag, Layers
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { updateMaterial } from '@/integrations/supabase/services/materialService';
+import { getSuppliersByMaterial, getAllUnits } from '@/integrations/supabase/data';
+import { getPriceHistoryByMaterialId } from '@/integrations/supabase/services/priceHistoryService';
+import { getAllMaterialCategories } from '@/integrations/supabase/services/materialCategoryService';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
+} from '@/components/ui/sheet';
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger
+} from '@/components/ui/tabs';
+import { useShoppingCart } from '@/context/ShoppingCartContext';
+import { cn } from '@/lib/utils';
+import SmartSearch from '@/components/SmartSearch';
+
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  FRESCA: { bg: 'bg-red-50', text: 'text-procarni-primary', border: 'border-procarni-primary/20' },
+  SECA: { bg: 'bg-amber-50', text: 'text-procarni-alert', border: 'border-procarni-alert/20' },
+  EMPAQUE: { bg: 'bg-blue-50', text: 'text-procarni-blue', border: 'border-procarni-blue/20' },
+  ETIQUETA: { bg: 'bg-slate-100', text: 'text-procarni-dark', border: 'border-procarni-dark/20' },
+};
+
+const fmt = (n: any, dec = 2) => {
+  const num = Number(n);
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: dec });
+};
+
+const translateStatus = (status: string) => {
+  const map: Record<string, string> = {
+    'Draft': 'Borrador',
+    'Pending': 'Pendiente',
+    'Approved': 'Aprobada',
+    'Received': 'Recibido',
+    'Cancelled': 'Cancelada',
+  };
+  return map[status] || status;
+};
+
+const MaterialGeneralProfile = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { addItem, clearCart } = useShoppingCart();
+
+  // Fetch material from materials table
+  const { data: material, isLoading: isLoadingMaterial } = useQuery({
+    queryKey: ['materialDetail', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  // Fetch actual material categories
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['material_categories'],
+    queryFn: getAllMaterialCategories,
+  });
+
+  // Fetch units of measure
+  const { data: units = [] } = useQuery({
+    queryKey: ['units_of_measure'],
+    queryFn: getAllUnits,
+  });
+
+  // Fetch actual suppliers linked to this material
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery({
+    queryKey: ['materialSuppliers', id],
+    queryFn: () => (id ? getSuppliersByMaterial(id) : Promise.resolve([])),
+    enabled: !!id,
+  });
+
+  // Fetch price history to calculate metrics
+  const { data: priceHistory = [] } = useQuery({
+    queryKey: ['priceHistory', id],
+    queryFn: () => (id ? getPriceHistoryByMaterialId(id) : Promise.resolve([])),
+    enabled: !!id,
+  });
+
+  // Fetch all Purchase Orders containing this material
+  const { data: materialPOs = [], isLoading: isLoadingPOs } = useQuery({
+    queryKey: ['materialPOs', id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from('purchase_order_items')
+        .select(`
+          id,
+          quantity,
+          unit_price,
+          purchase_orders (
+            id,
+            sequence_number,
+            status,
+            issue_date,
+            suppliers (
+              name
+            )
+          )
+        `)
+        .eq('material_id', id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  // Local state fields matching the creation modal
+  const [materialName, setMaterialName] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
+  const [isActive, setIsActive] = useState<boolean>(true);
+  const [isExempt, setIsExempt] = useState<boolean>(false);
+  const [selectedParentId, setSelectedParentId] = useState<string>('');
+  const [selectedParentName, setSelectedParentName] = useState<string>('');
+  const [nameProvided, setNameProvided] = useState<string>('');
+  const [color, setColor] = useState<string>('');
+  const [brand, setBrand] = useState<string>('');
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [activeHistoryTab, setActiveHistoryTab] = useState('precios');
+
+  // Sync state with loaded material data
+  useEffect(() => {
+    if (material) {
+      setMaterialName(material.name || '');
+      setSelectedCategory(material.category || '');
+      setIsActive(material.status !== 'archived');
+      setIsExempt(material.is_exempt || false);
+      setSelectedParentId(material.base_material_id || '');
+      setColor(material.color || '');
+      setBrand(material.brand || '');
+      setNameProvided(material.search_aliases ? material.search_aliases.join(', ') : '');
+
+      // Load parent name if base_material_id exists
+      if (material.base_material_id) {
+        supabase
+          .from('materials')
+          .select('name')
+          .eq('id', material.base_material_id)
+          .single()
+          .then(({ data }) => {
+            if (data) setSelectedParentName(data.name);
+          });
+      } else {
+        setSelectedParentName('');
+      }
+
+      // Sync Unit ID
+      if (material.unit_id) {
+        setSelectedUnitId(material.unit_id);
+      } else if (units.length > 0 && material.unit) {
+        const matchingUnit = units.find(u => u.name.toUpperCase() === material.unit.toUpperCase());
+        if (matchingUnit) {
+          setSelectedUnitId(matchingUnit.id);
+        }
+      }
+    }
+  }, [material, units]);
+
+  // Restrict units based on selected category
+  const filteredUnits = useMemo(() => {
+    if (!selectedCategory) return units;
+    const catUpper = selectedCategory.toUpperCase();
+    if (catUpper === 'SECA') {
+      return units.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
+    }
+    if (catUpper === 'FRESCA') {
+      return units.filter(u => ['KG'].includes(u.name.toUpperCase()));
+    }
+    if (catUpper === 'EMPAQUE') {
+      return units.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
+    }
+    return units;
+  }, [selectedCategory, units]);
+
+  // Adjust unit if category changes and the current unit is not allowed
+  useEffect(() => {
+    if (!selectedCategory || units.length === 0 || !selectedUnitId) return;
+    const catUpper = selectedCategory.toUpperCase();
+    const currentUnitObj = units.find(u => u.id === selectedUnitId);
+    if (!currentUnitObj) return;
+
+    const currentUnitName = currentUnitObj.name.toUpperCase();
+    let allowedNames: string[] = [];
+    if (catUpper === 'SECA') allowedNames = ['KG', 'LT', 'GR'];
+    else if (catUpper === 'FRESCA') allowedNames = ['KG'];
+    else if (catUpper === 'EMPAQUE') allowedNames = ['MT', 'UND'];
+
+    if (allowedNames.length > 0 && !allowedNames.includes(currentUnitName)) {
+      let defaultUnitName = allowedNames[0];
+      const found = units.find(u => u.name.toUpperCase() === defaultUnitName);
+      if (found) {
+        setSelectedUnitId(found.id);
+      }
+    }
+  }, [selectedCategory, units]);
+
+  // Enforce is_exempt=true when category is FRESCA
+  useEffect(() => {
+    if (selectedCategory === 'FRESCA') {
+      setIsExempt(true);
+    }
+  }, [selectedCategory]);
+
+  // Calculate purchase history metrics
+  const purchaseStats = useMemo(() => {
+    if (priceHistory.length === 0) {
+      return {
+        timesPurchasedThisMonth: 0,
+        lastCost: 0,
+        trend: 'stable' as const,
+        lastPurchaseDate: null,
+        lastSupplier: 'Ninguno',
+        demand: 'Baja'
+      };
+    }
+
+    const sorted = [...priceHistory].sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const thisMonthPurchases = sorted.filter(p => {
+      const d = new Date(p.recorded_at);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+
+    const last = sorted[0];
+    const lastCost = last.unit_price;
+    const lastPurchaseDate = last.recorded_at;
+    const lastSupplier = last.suppliers?.name || 'Desconocido';
+    const purchase_order_id = last.purchase_order_id;
+
+    let trend: 'up' | 'down' | 'stable' = 'stable';
+    if (sorted.length > 1) {
+      const prev = sorted[1].unit_price;
+      if (lastCost > prev) trend = 'up';
+      else if (lastCost < prev) trend = 'down';
+    }
+
+    const recentPurchasesCount = sorted.filter(p => {
+      const d = new Date(p.recorded_at);
+      const diff = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+      return diff <= 60;
+    }).length;
+
+    let demand = 'Baja';
+    if (recentPurchasesCount > 5) demand = 'Alta';
+    else if (recentPurchasesCount > 2) demand = 'Media';
+
+    return {
+      timesPurchasedThisMonth: thisMonthPurchases.length,
+      lastCost,
+      trend,
+      lastPurchaseDate,
+      lastSupplier,
+      demand,
+      purchase_order_id
+    };
+  }, [priceHistory]);
+
+  const handleSaveChanges = async () => {
+    if (!material) return;
+    const trimmedMaterialName = materialName.trim().toUpperCase();
+    if (!trimmedMaterialName) {
+      toast.error('El nombre del material es requerido.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const targetUnit = units.find(u => u.id === selectedUnitId);
+      const unitName = targetUnit ? targetUnit.name : (material.unit || 'KG');
+
+      const catUpper = selectedCategory.toUpperCase();
+      const unitUpper = unitName.toUpperCase();
+      if (catUpper === 'SECA' && !['KG', 'LT', 'GR'].includes(unitUpper)) {
+        toast.error('Para la categoría SECA, las unidades permitidas son: KG, LT, GR');
+        return;
+      }
+      if (catUpper === 'FRESCA' && unitUpper !== 'KG') {
+        toast.error('Para la categoría FRESCA, la única unidad permitida es: KG');
+        return;
+      }
+      if (catUpper === 'EMPAQUE' && !['MT', 'UND'].includes(unitUpper)) {
+        toast.error('Para la categoría EMPAQUE, las unidades permitidas son: MT (TRIPAS), UND (BOLSAS)');
+        return;
+      }
+
+      if (selectedParentId === material.id) {
+        toast.error('Un material no puede ser su propio patrón de oro.');
+        return;
+      }
+
+      // Update material record in catalog
+      const updates = {
+        name: trimmedMaterialName,
+        category: selectedCategory || null,
+        unit_id: selectedUnitId || null,
+        unit: unitName,
+        is_exempt: selectedCategory === 'FRESCA' ? true : isExempt,
+        status: isActive ? 'active' : 'archived',
+        base_material_id: selectedParentId || null,
+        color: color.trim() || null,
+        brand: brand.trim() || null,
+        search_aliases: nameProvided.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
+      };
+
+      await updateMaterial(material.id, updates);
+
+      toast.success('Cambios guardados correctamente.');
+      queryClient.invalidateQueries({ queryKey: ['materialDetail', id] });
+      queryClient.invalidateQueries({ queryKey: ['materialSuppliers', id] });
+    } catch (error) {
+      console.error('Error saving material changes:', error);
+      toast.error('Ocurrió un error al guardar los cambios.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerarOrdenCompra = () => {
+    if (!material) return;
+    clearCart();
+    addItem({
+      material_id: material.id,
+      material_name: material.name || '',
+      quantity: 1,
+      unit_price: purchaseStats.lastCost || 0,
+      unit: material.unit || 'KG',
+      unit_id: selectedUnitId || null,
+      is_exempt: selectedCategory === 'FRESCA' ? true : isExempt,
+    });
+    navigate('/generate-po');
+    toast.success('Material agregado a la orden de compra.');
+  };
+
+  if (isLoadingMaterial) {
+    return (
+      <div className="container mx-auto p-6 lg:p-8 space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <Skeleton className="h-48 rounded-[2rem]" />
+          <Skeleton className="h-48 rounded-[2rem]" />
+          <Skeleton className="h-48 rounded-[2rem]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!material) {
+    return (
+      <div className="container mx-auto p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <AlertCircle className="h-12 w-12 text-procarni-primary animate-bounce" />
+        <h2 className="text-xl font-bold text-procarni-dark">Ítem no encontrado</h2>
+        <p className="text-sm text-gray-500">El ID especificado no corresponde a ningún material en el catálogo.</p>
+        <Button onClick={() => navigate('/material-management')} className="bg-procarni-blue hover:bg-procarni-blue/90 text-white rounded-xl active:scale-95 transition-all">
+          Volver a Catálogo
+        </Button>
+      </div>
+    );
+  }
+
+  const categoryColor = CATEGORY_COLORS[selectedCategory.toUpperCase()] || { bg: 'bg-slate-100', text: 'text-procarni-dark', border: 'border-slate-200' };
+
+  return (
+    <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+      <div className="container mx-auto space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-300">
+
+        {/* Back navigation */}
+        <button
+          onClick={() => navigate('/material-management')}
+          className="group flex items-center gap-2 text-sm font-bold text-procarni-blue hover:text-procarni-primary transition-all duration-300"
+        >
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+          <span>Volver a Catálogo</span>
+        </button>
+
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/50 pb-6">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                {material.code || 'SIN CÓDIGO'}
+              </span>
+              <Badge variant="outline" className={cn('font-bold text-xs border px-2.5 py-0.5', categoryColor.bg, categoryColor.text, categoryColor.border)}>
+                {selectedCategory || 'Sin Categoría'}
+              </Badge>
+              {material.status === 'archived' && (
+                <Badge variant="outline" className="bg-red-50 text-procarni-primary border-procarni-primary/20 font-bold">
+                  Inactivo / Archivado
+                </Badge>
+              )}
+            </div>
+            <h1 className="text-[34px] font-black text-procarni-blue tracking-tight leading-tight mt-2">
+              {materialName || 'Detalles del Ítem'}
+            </h1>
+            <p className="text-[13px] text-gray-500 font-medium italic">
+              ID de catálogo: {material.id}
+            </p>
+          </div>
+        </div>
+
+        {/* KPI Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Card 1: Proveedores Vinculados */}
+          <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="p-3 rounded-2xl bg-emerald-50 text-procarni-secondary">
+                  <Truck className="h-5 w-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Proveedores Vinculados</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                    {suppliers.length}
+                  </span>
+                  <span className="text-gray-500 font-bold text-sm uppercase">PROV</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Proveedores que suministran este material
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Último Costo */}
+          <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="p-3 rounded-2xl bg-procarni-blue/10 text-procarni-blue">
+                  <DollarSign className="h-5 w-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Último Costo Registrado</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                    ${fmt(purchaseStats.lastCost, 4)}
+                  </span>
+                  <span className="text-gray-500 font-bold text-sm">USD</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Por unidad registrada: {material.unit || 'KG'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Veces Comprado */}
+          <Card
+            onClick={() => {
+              if (purchaseStats.purchase_order_id) {
+                navigate(`/purchase-orders/${purchaseStats.purchase_order_id}`);
+              }
+            }}
+            className={cn(
+              "border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300",
+              purchaseStats.purchase_order_id && "hover:scale-[1.01] cursor-pointer hover:bg-slate-50/50"
+            )}
+          >
+            <CardContent className="p-6 space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="p-3 rounded-2xl bg-amber-50 text-procarni-alert">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Compras este Mes</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                    {String(purchaseStats.timesPurchasedThisMonth).padStart(2, '0')}
+                  </span>
+                  {purchaseStats.trend !== 'stable' && (
+                    <span className={cn(
+                      "flex items-center text-[10px] font-bold gap-0.5 px-1.5 py-0.5 rounded-full",
+                      purchaseStats.trend === 'up' ? "bg-red-50 text-procarni-primary" : "bg-emerald-50 text-emerald-700"
+                    )}>
+                      <TrendingUp className={cn("h-3 w-3", purchaseStats.trend === 'down' && "rotate-180")} />
+                      {purchaseStats.trend === 'up' ? 'Alza' : 'Baja'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100/80 text-[10px] space-y-1 text-gray-500 mt-3">
+                  {purchaseStats.lastPurchaseDate ? (
+                    <>
+                      <p className="truncate">
+                        Proveedor: <span className="font-semibold text-slate-800">{purchaseStats.lastSupplier}</span>
+                      </p>
+                      <p>
+                        Fecha: <span className="font-semibold text-slate-800">{new Date(purchaseStats.lastPurchaseDate).toLocaleDateString()}</span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="italic text-gray-400">Sin compras registradas</p>
+                  )}
+                  <p>
+                    Demanda Reciente: <span className={cn("font-bold", purchaseStats.demand === 'Alta' ? 'text-procarni-primary' : 'text-slate-700')}>{purchaseStats.demand}</span>
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Layout Wrapper */}
+        <div className="grid grid-cols-12 gap-8">
+
+          {/* Central Configuration Section */}
+          <div className="col-span-12 lg:col-span-9 space-y-8">
+            <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-8 rounded-[2rem] shadow-2xl shadow-gray-200/50">
+              <div className="flex items-center gap-3 mb-6 pb-3 border-b border-slate-100">
+                <Settings className="h-5 w-5 text-procarni-primary" />
+                <h3 className="font-extrabold text-lg text-procarni-dark tracking-tight">Ficha y Configuración del Ítem</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                <div className="space-y-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="materialName" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre del Material *</Label>
+                    <Input
+                      id="materialName"
+                      placeholder="Ej: Pollo entero, Carne molida..."
+                      value={materialName}
+                      onChange={(e) => setMaterialName(e.target.value)}
+                      className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="parentMaterial" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro (Opcional)</Label>
+                    <SmartSearch
+                      placeholder="Buscar patrón de oro..."
+                      displayValue={selectedParentName}
+                      selectedId={selectedParentId}
+                      onSelect={(item) => {
+                        setSelectedParentId(item.id);
+                        setSelectedParentName(item.name.split(' - ')[0]);
+                      }}
+                      fetchFunction={async (query) => {
+                        const searchTargetName = materialName.trim() || query.trim();
+
+                        const { data, error } = await supabase.rpc('search_master_materials_suggested', {
+                          p_target_name: searchTargetName,
+                          p_search_query: query.trim(),
+                          p_exclude_id: material.id || null
+                        });
+
+                        if (error) {
+                          console.error('[search_master_materials_suggested Error]:', error);
+                          return [];
+                        }
+
+                        return (data || []).map((m: any) => ({
+                          id: m.id,
+                          name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
+                          group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
+                        }));
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nameProvided" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Variación de nombres (Separados por coma)</Label>
+                    <Input
+                      id="nameProvided"
+                      placeholder="Ej: Pechuga Deshuesada, Pollo entero, Suprema"
+                      value={nameProvided}
+                      onChange={(e) => setNameProvided(e.target.value)}
+                      className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="color" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Color (Opcional)</Label>
+                      <Input
+                        id="color"
+                        placeholder="Ej: Blanco, Rojo..."
+                        value={color}
+                        onChange={(e) => setColor(e.target.value)}
+                        className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="brand" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca (Opcional)</Label>
+                      <Input
+                        id="brand"
+                        placeholder="Ej: Procarni, Polar..."
+                        value={brand}
+                        onChange={(e) => setBrand(e.target.value)}
+                        className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Categoría de Material</Label>
+                    <Select
+                      value={selectedCategory}
+                      onValueChange={setSelectedCategory}
+                      disabled={isLoadingCategories}
+                    >
+                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20">
+                        <SelectValue placeholder="Seleccione Categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(c => (
+                          <SelectItem key={c.id} value={c.name}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad de Medida</Label>
+                    <Select
+                      value={selectedUnitId}
+                      onValueChange={setSelectedUnitId}
+                    >
+                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20">
+                        <SelectValue placeholder="Seleccione Unidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredUnits.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-slate-50/70 rounded-2xl border border-slate-100 mt-2">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-sm text-procarni-dark">Estado Activo</p>
+                      <p className="text-[10px] text-gray-400">Activar o archivar el ítem del catálogo general</p>
+                    </div>
+                    <Switch
+                      checked={isActive}
+                      onCheckedChange={setIsActive}
+                      className="data-[state=checked]:bg-procarni-primary"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-slate-50/70 rounded-2xl border border-slate-100">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-sm text-procarni-dark">Exento de IVA</p>
+                      <p className="text-[10px] text-gray-400">Aplica tasa 0% en cálculos de cotización/compra</p>
+                    </div>
+                    <Switch
+                      checked={isExempt}
+                      onCheckedChange={setIsExempt}
+                      disabled={selectedCategory === 'FRESCA'}
+                      className="data-[state=checked]:bg-procarni-primary"
+                    />
+                  </div>
+                </div>
+
+              </div>
+            </section>
+
+            {/* Bottom Grid: Tables */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Proveedores */}
+              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 rounded-[2rem] shadow-xl shadow-gray-200/50">
+                <div className="flex justify-between items-center mb-6 pb-2 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-procarni-primary" />
+                    <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Proveedores Habilitados</h4>
+                  </div>
+                  <Button
+                    onClick={() => navigate(`/search-suppliers-by-material?materialId=${material.id}`)}
+                    className="w-8 h-8 rounded-full bg-procarni-primary hover:bg-procarni-primary/95 text-white flex items-center justify-center p-0 active:scale-95 transition-all"
+                  >
+                    +
+                  </Button>
+                </div>
+
+                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                  {isLoadingSuppliers ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-12 rounded-xl" />
+                      <Skeleton className="h-12 rounded-xl" />
+                    </div>
+                  ) : suppliers.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-gray-400 italic">
+                      No hay proveedores asociados a este material.
+                    </div>
+                  ) : (
+                    suppliers.map((sup: any) => (
+                      <div
+                        key={sup.id}
+                        onClick={() => navigate(`/suppliers/${sup.id}`)}
+                        className="flex items-center gap-4 p-3 hover:bg-slate-50/50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-200/50"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-procarni-primary font-bold text-xs border border-slate-200">
+                          {sup.name ? sup.name.substring(0, 2).toUpperCase() : 'PV'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-xs text-slate-800 truncate">{sup.name}</p>
+                          <p className="text-[10px] text-gray-400 font-mono">
+                            Especificación: {sup.specification || 'General'}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              {/* Últimos Precios de Compra */}
+              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 rounded-[2rem] shadow-xl shadow-gray-200/50">
+                <div className="flex items-center gap-2 mb-6 pb-2 border-b border-slate-100">
+                  <Info className="h-5 w-5 text-procarni-primary" />
+                  <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Últimos Precios de Compra</h4>
+                </div>
+
+                <div className="space-y-3">
+                  {priceHistory.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-gray-400 italic">
+                      No hay historial de compras registrado.
+                    </div>
+                  ) : (
+                    priceHistory.slice(0, 4).map((ph: any) => (
+                      <div key={ph.id || ph.recorded_at} className="flex items-center justify-between p-3 border-b border-slate-100 text-xs">
+                        <div>
+                          <p className="font-bold text-slate-800 truncate max-w-[180px]">
+                            {ph.suppliers?.name || 'Desconocido'}
+                          </p>
+                          <p className="text-[10px] text-gray-400 font-mono">
+                            Ref: {ph.purchase_orders ? `OC-${new Date(ph.purchase_orders.issue_date).getFullYear()}-${String(ph.purchase_orders.sequence_number).padStart(3, '0')}` : 'Manual'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-procarni-secondary">${fmt(ph.unit_price, 4)}</p>
+                          <p className="text-[9px] text-gray-400">{new Date(ph.recorded_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+          </div>
+
+          {/* Sticky Action Sidebar */}
+          <div className="col-span-12 lg:col-span-3">
+            <div className="sticky top-24 space-y-6">
+              <div className="bg-procarni-dark rounded-[2rem] p-6 shadow-2xl text-white space-y-6">
+                <div className="pb-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Acciones de Compra</p>
+
+                  {/* Historial navigation as Sheet Drawer */}
+                  <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                    <SheetTrigger asChild>
+                      <Button
+                        onClick={() => {
+                          setActiveHistoryTab('precios');
+                          setIsHistoryOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between bg-white/10 hover:bg-white/20 px-4 py-6 rounded-xl transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <History className="h-4 w-4 text-slate-300" />
+                          <span className="font-bold text-xs text-slate-100">Ver Historial</span>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-300" />
+                      </Button>
+                    </SheetTrigger>
+
+                    {/* Shortcuts grid below */}
+                    <div className="grid grid-cols-2 gap-2 px-1 mt-3 pb-2 border-b border-white/10">
+                      <Button
+                        onClick={() => {
+                          setActiveHistoryTab('precios');
+                          setIsHistoryOpen(true);
+                        }}
+                        className="text-[9px] font-bold h-7 bg-white/5 hover:bg-procarni-primary transition-colors text-slate-200"
+                      >
+                        PRECIOS
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setActiveHistoryTab('ocs');
+                          setIsHistoryOpen(true);
+                        }}
+                        className="text-[9px] font-bold h-7 bg-white/5 hover:bg-procarni-primary transition-colors text-slate-200"
+                      >
+                        OCs
+                      </Button>
+                    </div>
+
+                    <SheetContent className="w-full sm:max-w-2xl bg-white/95 backdrop-blur-2xl text-slate-900 border-l border-slate-200/80 p-6 overflow-y-auto shadow-2xl animate-in fade-in">
+                      <SheetHeader className="pb-4 border-b border-slate-100">
+                        <SheetTitle className="text-xl font-black text-procarni-blue tracking-tight">
+                          Historial de Compras del Ítem
+                        </SheetTitle>
+                        <p className="text-xs text-slate-500 font-medium">Nombre: {materialName}</p>
+                      </SheetHeader>
+                      <Tabs value={activeHistoryTab} onValueChange={setActiveHistoryTab} className="w-full mt-6">
+                        <TabsList className="grid w-full grid-cols-2 bg-slate-100 p-1 rounded-xl">
+                          <TabsTrigger
+                            value="precios"
+                            className="text-xs font-bold py-2 rounded-lg text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue transition-all"
+                          >
+                            Precios
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="ocs"
+                            className="text-xs font-bold py-2 rounded-lg text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue transition-all"
+                          >
+                            OCs
+                          </TabsTrigger>
+                        </TabsList>
+
+                        {/* Precios Tab */}
+                        <TabsContent value="precios" className="space-y-4 mt-4">
+                          {priceHistory.length === 0 ? (
+                            <p className="text-xs text-gray-500 italic py-4 text-center">Sin historial de precios registrado.</p>
+                          ) : (
+                            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                              {priceHistory.map((ph: any) => {
+                                const po = ph.purchase_orders;
+                                const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
+                                const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
+                                const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'OC');
+                                return (
+                                  <div key={ph.id || ph.recorded_at} className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                                    <div className="space-y-1.5 min-w-0 flex-1 pr-3">
+                                      <p className="font-bold text-slate-800 text-sm truncate">{ph.suppliers?.name || 'Desconocido'}</p>
+                                      <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                                        <span className="font-mono">{new Date(ph.recorded_at).toLocaleDateString()}</span>
+                                        <span>•</span>
+                                        {po ? (
+                                          <span
+                                            onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                            className="text-procarni-blue hover:underline cursor-pointer font-bold"
+                                          >
+                                            Ref: {displayId}
+                                          </span>
+                                        ) : (
+                                          <span>Ref: {displayId}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right font-mono space-y-0.5">
+                                      <p className="font-extrabold text-procarni-secondary text-sm">${fmt(ph.unit_price, 4)}</p>
+                                      <p className="text-[10px] text-slate-500 font-bold">/ {ph.unit || material.unit || 'KG'}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </TabsContent>
+
+                        {/* OCs Tab */}
+                        <TabsContent value="ocs" className="space-y-4 mt-4">
+                          {isLoadingPOs ? (
+                            <div className="space-y-2">
+                              <Skeleton className="h-12 rounded-xl bg-slate-100" />
+                              <Skeleton className="h-12 rounded-xl bg-slate-100" />
+                            </div>
+                          ) : materialPOs.length === 0 ? (
+                            <p className="text-xs text-gray-500 italic py-4 text-center">Sin órdenes de compra registradas para este ítem.</p>
+                          ) : (
+                            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                              {materialPOs.map((item: any) => {
+                                const po = item.purchase_orders;
+                                if (!po) return null;
+                                const year = po.issue_date ? new Date(po.issue_date).getFullYear() : new Date().getFullYear();
+                                const month = po.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : '01';
+                                const displayId = `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}`;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                    className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs cursor-pointer shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
+                                  >
+                                    <div className="space-y-1.5 min-w-0 flex-1 pr-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-extrabold text-procarni-blue text-sm">{displayId}</span>
+                                        <Badge variant="outline" className="text-[9px] font-extrabold uppercase tracking-wider py-0.5 px-2 border-slate-300 bg-slate-50 text-slate-700 rounded-md">
+                                          {translateStatus(po.status)}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-slate-800 font-bold truncate">{po.suppliers?.name || 'Desconocido'}</p>
+                                      <p className="text-[10px] text-slate-500 font-mono font-semibold">
+                                        F. Emisión: {po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '—'}
+                                      </p>
+                                    </div>
+                                    <div className="text-right font-mono space-y-0.5">
+                                      <p className="font-bold text-slate-800 text-sm">{fmt(item.quantity, 2)} {material.unit || 'KG'}</p>
+                                      <p className="text-[10px] text-slate-500 font-bold">${fmt(item.unit_price, 4)} / {material.unit || 'KG'}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </SheetContent>
+                  </Sheet>
+                </div>
+
+                <div className="pt-2 flex flex-col gap-3">
+                  <Button
+                    disabled={isSaving}
+                    onClick={handleSaveChanges}
+                    className="w-full bg-procarni-primary hover:bg-procarni-primary/95 text-white py-6 rounded-2xl font-bold shadow-lg shadow-procarni-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs"
+                  >
+                    <Save className="h-4 w-4" />
+                    {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                  </Button>
+
+                  <Button
+                    onClick={handleGenerarOrdenCompra}
+                    className="w-full bg-white text-procarni-dark hover:bg-slate-50 py-6 rounded-2xl font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs border border-slate-200"
+                  >
+                    <ShoppingCart className="h-4 w-4 text-procarni-primary" />
+                    Generar Orden Compra
+                  </Button>
+                </div>
+              </div>
+
+              {/* Audit Card */}
+              <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] border border-dashed border-slate-200/80 shadow-md">
+                <div className="flex items-center gap-2 text-gray-400 mb-2">
+                  <AlertCircle className="h-4 w-4 text-gray-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Auditoría</span>
+                </div>
+                <p className="text-[11px] text-gray-500 font-medium italic leading-relaxed">
+                  Creado: {new Date(material.created_at).toLocaleDateString()}<br />
+                  Última actualización: {material.updated_at ? new Date(material.updated_at).toLocaleDateString() : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default MaterialGeneralProfile;

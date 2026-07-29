@@ -49,6 +49,7 @@ import Despachos from "./pages/Despachos";
 import HistorialKardex from "./pages/HistorialKardex";
 import CierresYAjustes from "./pages/CierresYAjustes";
 import MaterialInventoryProfile from "./pages/MaterialInventoryProfile";
+import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -80,6 +81,7 @@ const App = () => (
                   <Route path="/suppliers/:id" element={<SupplierDetails />} />
                   <Route path="/supplier-management" element={<SupplierManagement />} />
                   <Route path="/material-management" element={<MaterialManagement />} />
+                  <Route path="/material/:id" element={<MaterialGeneralProfile />} />
                   <Route path="/bulk-upload" element={<BulkUpload />} />
                   <Route path="/quote-request-management" element={<QuoteRequestManagement />} />
                   <Route path="/quote-requests/:id" element={<QuoteRequestDetails />} />
