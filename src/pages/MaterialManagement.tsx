@@ -515,13 +515,11 @@ const MaterialManagement = () => {
   });
 
   const handleAddMaterial = () => {
-    setEditingMaterial(null);
-    setIsCreateDialogOpen(true);
+    navigate('/material/new');
   };
 
   const handleEditMaterial = (material: Material) => {
-    setEditingMaterial(material);
-    setIsCreateDialogOpen(true);
+    navigate(`/material/${material.id}`);
   };
 
   const confirmDeleteMaterial = (id: string) => {

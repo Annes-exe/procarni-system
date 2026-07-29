@@ -5,7 +5,7 @@ import { m } from 'framer-motion';
 import { 
   ArrowLeft, Package, DollarSign, TrendingUp, Settings, 
   History, Sparkles, Save, ShoppingCart, Truck, ChefHat, 
-  ChevronRight, AlertCircle
+  ChevronRight, AlertCircle, Info, Search
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,11 +14,22 @@ import { updateMaterial } from '@/integrations/supabase/services/materialService
 import { getSuppliersByMaterial, getAllUnits } from '@/integrations/supabase/data';
 import { getPriceHistoryByMaterialId } from '@/integrations/supabase/services/priceHistoryService';
 import { getAllMaterialCategories } from '@/integrations/supabase/services/materialCategoryService';
+import { useSession } from '@/components/SessionContextProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
@@ -61,6 +72,7 @@ const MaterialInventoryProfile = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { addItem, clearCart } = useShoppingCart();
+  const { session } = useSession();
 
   // Fetch materials inventory (including inactive/archived items)
   const { data: inventory = [], isLoading: isLoadingInventory } = useQuery({
@@ -176,6 +188,106 @@ const MaterialInventoryProfile = () => {
   const [isActiveInInventory, setIsActiveInInventory] = useState<boolean>(true);
   const [isExempt, setIsExempt] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Supplier Association Dialog state
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
+  const [allSuppliers, setAllSuppliers] = useState<any[]>([]);
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
+  const [isAssociating, setIsAssociating] = useState(false);
+
+  const handleOpenAddSupplier = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name, city')
+        .eq('status', 'Active')
+        .order('name', { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      setAllSuppliers(data || []);
+      setSelectedSupplierIds(suppliers.map(s => s.id));
+      setSupplierSearchQuery('');
+      setIsAddSupplierOpen(true);
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+      toast.error('No se pudieron cargar los proveedores.');
+    }
+  };
+
+  const handleSaveSupplierAssociations = async () => {
+    if (!material) return;
+    try {
+      setIsAssociating(true);
+      const originalIds = suppliers.map(s => s.id);
+      
+      const idsToAdd = selectedSupplierIds.filter(id => !originalIds.includes(id));
+      const idsToRemove = originalIds.filter(id => !selectedSupplierIds.includes(id));
+
+      // 1. Add new associations
+      if (idsToAdd.length > 0) {
+        const insertPayloads = idsToAdd.map(supplierId => ({
+          supplier_id: supplierId,
+          material_id: material.material_id,
+          unit_id: selectedUnitId || (material.materials as any)?.unit_id || '',
+          user_id: session?.user?.id || ''
+        }));
+        const { error: insertError } = await supabase
+          .from('supplier_materials')
+          .insert(insertPayloads);
+        if (insertError) throw insertError;
+      }
+
+      // 2. Remove old associations
+      if (idsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('supplier_materials')
+          .delete()
+          .eq('material_id', material.material_id)
+          .in('supplier_id', idsToRemove);
+        if (deleteError) throw deleteError;
+      }
+
+      toast.success('Relaciones de proveedores actualizadas.');
+      queryClient.invalidateQueries({ queryKey: ['materialSuppliers', id] });
+      setIsAddSupplierOpen(false);
+    } catch (err) {
+      console.error('Error saving supplier associations:', err);
+      toast.error('Ocurrió un error al guardar las asociaciones.');
+    } finally {
+      setIsAssociating(false);
+    }
+  };
+
+  // Search effect on suppliers with 300ms debounce
+  useEffect(() => {
+    if (!isAddSupplierOpen) return;
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        let queryBuilder = supabase
+          .from('suppliers')
+          .select('id, name, city')
+          .eq('status', 'Active')
+          .order('name', { ascending: true })
+          .limit(50);
+
+        if (supplierSearchQuery.trim()) {
+          queryBuilder = queryBuilder.ilike('name', `%${supplierSearchQuery.trim()}%`);
+        }
+
+        const { data, error } = await queryBuilder;
+        if (error) throw error;
+        setAllSuppliers(data || []);
+      } catch (err) {
+        console.error('Error searching suppliers:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [supplierSearchQuery, isAddSupplierOpen]);
+
+  const filteredSuppliers = allSuppliers;
 
   // Local state for production/supply type (Habilitar Inventario button)
   const [inventoryType, setInventoryType] = useState<string | null>(null);
@@ -677,7 +789,7 @@ const MaterialInventoryProfile = () => {
                     <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Proveedores</h4>
                   </div>
                   <Button 
-                    onClick={() => navigate(`/search-suppliers-by-material?materialId=${material.material_id}`)}
+                    onClick={handleOpenAddSupplier}
                     className="w-8 h-8 rounded-full bg-procarni-primary hover:bg-procarni-primary/95 text-white flex items-center justify-center p-0 active:scale-95 transition-all"
                   >
                     +
@@ -1020,8 +1132,140 @@ const MaterialInventoryProfile = () => {
             </div>
           </div>
 
-        </div>
+      </div>
 
+      <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
+        <DialogContent className="max-w-md bg-white rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-black text-procarni-blue tracking-tight">
+              Asociar Proveedores
+            </DialogTitle>
+            <p className="text-xs text-gray-500 font-medium">
+              Vincule múltiples proveedores a este material para habilitar cotizaciones.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
+            {/* Associated Suppliers (Always visible at top so they can be deselected) */}
+            {suppliers.length > 0 && (
+              <div className="space-y-2 border-b border-slate-100 pb-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Habilitados Actualmente ({suppliers.length})</p>
+                <div className="space-y-1.5">
+                  {suppliers.map((s) => {
+                    const isChecked = selectedSupplierIds.includes(s.id);
+                    return (
+                      <div
+                        key={`assoc-${s.id}`}
+                        onClick={() => {
+                          if (isChecked) {
+                            setSelectedSupplierIds(selectedSupplierIds.filter(id => id !== s.id));
+                          } else {
+                            setSelectedSupplierIds([...selectedSupplierIds, s.id]);
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border",
+                          isChecked 
+                            ? "bg-emerald-50/20 border-emerald-200/50" 
+                            : "bg-slate-50/50 border-slate-200/40 opacity-70"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            id={`assoc-chk-${s.id}`}
+                            checked={isChecked}
+                            onCheckedChange={() => {}}
+                          />
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-bold text-slate-800">{s.name}</p>
+                            <p className="text-[9px] text-gray-400">{s.city || 'Sin ciudad'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 pt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Buscar otros proveedores</p>
+              <div className="relative">
+                <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Escriba nombre del proveedor..."
+                  className="pl-9 bg-slate-50 border-slate-200 rounded-xl h-10 text-xs focus:ring-procarni-primary/20"
+                  value={supplierSearchQuery}
+                  onChange={(e) => setSupplierSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                {filteredSuppliers.filter(s => !suppliers.some(curr => curr.id === s.id)).length === 0 ? (
+                  <p className="text-xs text-gray-400 italic text-center py-4">
+                    {supplierSearchQuery.trim() ? "No se encontraron otros proveedores." : "Escriba para buscar y agregar proveedores."}
+                  </p>
+                ) : (
+                  filteredSuppliers
+                    .filter(s => !suppliers.some(curr => curr.id === s.id))
+                    .map((s) => {
+                      const isChecked = selectedSupplierIds.includes(s.id);
+                      return (
+                        <div
+                          key={`search-${s.id}`}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedSupplierIds(selectedSupplierIds.filter(id => id !== s.id));
+                            } else {
+                              setSelectedSupplierIds([...selectedSupplierIds, s.id]);
+                            }
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border",
+                            isChecked 
+                              ? "bg-blue-50/30 border-blue-200/50" 
+                              : "bg-white border-transparent hover:bg-slate-50"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              id={`sup-${s.id}`}
+                              checked={isChecked}
+                              onCheckedChange={() => {}}
+                            />
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-bold text-slate-800">{s.name}</p>
+                              <p className="text-[10px] text-gray-400">{s.city || 'Sin ciudad'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-slate-100 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddSupplierOpen(false)}
+              className="flex-1 bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-5 rounded-xl border border-slate-200"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={isAssociating}
+              onClick={handleSaveSupplierAssociations}
+              className="flex-1 bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs py-5 rounded-xl shadow-md"
+            >
+              {isAssociating ? 'Guardando...' : 'Guardar Asociaciones'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

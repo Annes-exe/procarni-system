@@ -4,14 +4,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { m } from 'framer-motion';
 import {
   ArrowLeft, Package, DollarSign, TrendingUp, Settings,
-  History, Save, ShoppingCart, Truck, ChevronRight, AlertCircle, Info, Tag, Layers
+  History, Save, ShoppingCart, Truck, ChevronRight, AlertCircle, Info, Tag, Layers, Search
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { updateMaterial } from '@/integrations/supabase/services/materialService';
+import { updateMaterial, createMaterial } from '@/integrations/supabase/services/materialService';
 import { getSuppliersByMaterial, getAllUnits } from '@/integrations/supabase/data';
 import { getPriceHistoryByMaterialId } from '@/integrations/supabase/services/priceHistoryService';
 import { getAllMaterialCategories } from '@/integrations/supabase/services/materialCategoryService';
+import { useSession } from '@/components/SessionContextProvider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,18 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
 } from '@/components/ui/sheet';
@@ -59,12 +72,14 @@ const MaterialGeneralProfile = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { addItem, clearCart } = useShoppingCart();
+  const { session } = useSession();
+  const isNew = id === 'new';
 
   // Fetch material from materials table
   const { data: material, isLoading: isLoadingMaterial } = useQuery({
     queryKey: ['materialDetail', id],
     queryFn: async () => {
-      if (!id) return null;
+      if (!id || id === 'new') return null;
       const { data, error } = await supabase
         .from('materials')
         .select('*')
@@ -73,8 +88,38 @@ const MaterialGeneralProfile = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
+
+  // Fetch from materials_inventory to see if enabled for inventory
+  const { data: inventoryCheck } = useQuery({
+    queryKey: ['materialsInventoryCheck', id],
+    queryFn: async () => {
+      if (!id || id === 'new') return null;
+      console.log('[InventoryCheck] Querying inventory status for material_id:', id);
+      const { data, error } = await supabase
+        .from('materials_inventory')
+        .select('material_id, is_active')
+        .eq('material_id', id)
+        .maybeSingle();
+      if (error) {
+        console.error('[InventoryCheck] Error fetching inventory record:', error);
+        return null;
+      }
+      console.log('[InventoryCheck] Query returned:', data);
+      return data;
+    },
+    enabled: !!id && id !== 'new',
+  });
+
+  // Redirect if enabled for inventory
+  useEffect(() => {
+    console.log('[InventoryCheck] useEffect triggered. inventoryCheck:', inventoryCheck, 'id:', id);
+    if (inventoryCheck && inventoryCheck.is_active && id && id !== 'new') {
+      console.log('[InventoryCheck] Redirecting to /inventory/material/' + id);
+      navigate(`/inventory/material/${id}`, { replace: true });
+    }
+  }, [inventoryCheck, id, navigate]);
 
   // Fetch actual material categories
   const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
@@ -91,22 +136,22 @@ const MaterialGeneralProfile = () => {
   // Fetch actual suppliers linked to this material
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery({
     queryKey: ['materialSuppliers', id],
-    queryFn: () => (id ? getSuppliersByMaterial(id) : Promise.resolve([])),
-    enabled: !!id,
+    queryFn: () => (id && id !== 'new' ? getSuppliersByMaterial(id) : Promise.resolve([])),
+    enabled: !!id && id !== 'new',
   });
 
   // Fetch price history to calculate metrics
   const { data: priceHistory = [] } = useQuery({
     queryKey: ['priceHistory', id],
-    queryFn: () => (id ? getPriceHistoryByMaterialId(id) : Promise.resolve([])),
-    enabled: !!id,
+    queryFn: () => (id && id !== 'new' ? getPriceHistoryByMaterialId(id) : Promise.resolve([])),
+    enabled: !!id && id !== 'new',
   });
 
   // Fetch all Purchase Orders containing this material
   const { data: materialPOs = [], isLoading: isLoadingPOs } = useQuery({
     queryKey: ['materialPOs', id],
     queryFn: async () => {
-      if (!id) return [];
+      if (!id || id === 'new') return [];
       const { data, error } = await supabase
         .from('purchase_order_items')
         .select(`
@@ -127,7 +172,7 @@ const MaterialGeneralProfile = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
 
   // Local state fields matching the creation modal
@@ -138,6 +183,8 @@ const MaterialGeneralProfile = () => {
   const [isExempt, setIsExempt] = useState<boolean>(false);
   const [selectedParentId, setSelectedParentId] = useState<string>('');
   const [selectedParentName, setSelectedParentName] = useState<string>('');
+  const [isMasterLocal, setIsMasterLocal] = useState<boolean>(false);
+  const [showSearch, setShowSearch] = useState<boolean>(false);
   const [nameProvided, setNameProvided] = useState<string>('');
   const [color, setColor] = useState<string>('');
   const [brand, setBrand] = useState<string>('');
@@ -146,14 +193,123 @@ const MaterialGeneralProfile = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = useState('precios');
 
+  // Supplier Association Dialog state
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
+  const [allSuppliers, setAllSuppliers] = useState<any[]>([]);
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
+  const [isAssociating, setIsAssociating] = useState(false);
+
+  const handleOpenAddSupplier = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, name, city')
+        .eq('status', 'Active')
+        .order('name', { ascending: true })
+        .limit(50);
+      if (error) throw error;
+      setAllSuppliers(data || []);
+      setSelectedSupplierIds(suppliers.map(s => s.id));
+      setSupplierSearchQuery('');
+      setIsAddSupplierOpen(true);
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+      toast.error('No se pudieron cargar los proveedores.');
+    }
+  };
+
+  const handleSaveSupplierAssociations = async () => {
+    if (!material) return;
+    try {
+      setIsAssociating(true);
+      const originalIds = suppliers.map(s => s.id);
+      
+      const idsToAdd = selectedSupplierIds.filter(id => !originalIds.includes(id));
+      const idsToRemove = originalIds.filter(id => !selectedSupplierIds.includes(id));
+
+      // 1. Add new associations
+      if (idsToAdd.length > 0) {
+        const insertPayloads = idsToAdd.map(supplierId => ({
+          supplier_id: supplierId,
+          material_id: material.id,
+          unit_id: selectedUnitId || material.unit_id || '',
+          user_id: session?.user?.id || ''
+        }));
+        const { error: insertError } = await supabase
+          .from('supplier_materials')
+          .insert(insertPayloads);
+        if (insertError) throw insertError;
+      }
+
+      // 2. Remove old associations
+      if (idsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('supplier_materials')
+          .delete()
+          .eq('material_id', material.id)
+          .in('supplier_id', idsToRemove);
+        if (deleteError) throw deleteError;
+      }
+
+      toast.success('Relaciones de proveedores actualizadas.');
+      queryClient.invalidateQueries({ queryKey: ['materialSuppliers', id] });
+      setIsAddSupplierOpen(false);
+    } catch (err) {
+      console.error('Error saving supplier associations:', err);
+      toast.error('Ocurrió un error al guardar las asociaciones.');
+    } finally {
+      setIsAssociating(false);
+    }
+  };
+
+  // Search effect on suppliers with 300ms debounce
+  useEffect(() => {
+    if (!isAddSupplierOpen) return;
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        let queryBuilder = supabase
+          .from('suppliers')
+          .select('id, name, city')
+          .eq('status', 'Active')
+          .order('name', { ascending: true })
+          .limit(50);
+
+        if (supplierSearchQuery.trim()) {
+          queryBuilder = queryBuilder.ilike('name', `%${supplierSearchQuery.trim()}%`);
+        }
+
+        const { data, error } = await queryBuilder;
+        if (error) throw error;
+        setAllSuppliers(data || []);
+      } catch (err) {
+        console.error('Error searching suppliers:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [supplierSearchQuery, isAddSupplierOpen]);
+
+  const filteredSuppliers = allSuppliers;
+
   // Sync state with loaded material data
   useEffect(() => {
-    if (material) {
+    if (isNew) {
+      if (categories.length > 0 && !selectedCategory) {
+        setSelectedCategory(categories[0].name);
+      }
+      if (units.length > 0 && !selectedUnitId) {
+        setSelectedUnitId(units[0].id);
+      }
+    } else if (material) {
       setMaterialName(material.name || '');
       setSelectedCategory(material.category || '');
       setIsActive(material.status !== 'archived');
       setIsExempt(material.is_exempt || false);
+      setIsMasterLocal(material.is_master || false);
       setSelectedParentId(material.base_material_id || '');
+      setShowSearch(!!material.base_material_id);
       setColor(material.color || '');
       setBrand(material.brand || '');
       setNameProvided(material.search_aliases ? material.search_aliases.join(', ') : '');
@@ -287,7 +443,7 @@ const MaterialGeneralProfile = () => {
   }, [priceHistory]);
 
   const handleSaveChanges = async () => {
-    if (!material) return;
+    if (!material && !isNew) return;
     const trimmedMaterialName = materialName.trim().toUpperCase();
     if (!trimmedMaterialName) {
       toast.error('El nombre del material es requerido.');
@@ -297,7 +453,7 @@ const MaterialGeneralProfile = () => {
     try {
       setIsSaving(true);
       const targetUnit = units.find(u => u.id === selectedUnitId);
-      const unitName = targetUnit ? targetUnit.name : (material.unit || 'KG');
+      const unitName = targetUnit ? targetUnit.name : 'KG';
 
       const catUpper = selectedCategory.toUpperCase();
       const unitUpper = unitName.toUpperCase();
@@ -314,30 +470,48 @@ const MaterialGeneralProfile = () => {
         return;
       }
 
-      if (selectedParentId === material.id) {
+      if (!isNew && selectedParentId === material.id) {
         toast.error('Un material no puede ser su propio patrón de oro.');
         return;
       }
 
-      // Update material record in catalog
-      const updates = {
+      const payload = {
         name: trimmedMaterialName,
         category: selectedCategory || null,
         unit_id: selectedUnitId || null,
         unit: unitName,
         is_exempt: selectedCategory === 'FRESCA' ? true : isExempt,
         status: isActive ? 'active' : 'archived',
-        base_material_id: selectedParentId || null,
+        is_master: isMasterLocal,
+        base_material_id: isMasterLocal ? null : (selectedParentId || null),
         color: color.trim() || null,
         brand: brand.trim() || null,
         search_aliases: nameProvided.split(',').map(s => s.trim().toUpperCase()).filter(Boolean)
       };
 
-      await updateMaterial(material.id, updates);
+      if (isNew) {
+        // Insert new material
+        const newMaterial = await createMaterial({
+          ...payload,
+          user_id: session?.user?.id || '',
+          code: '', // Will be generated by DB trigger
+          status: 'active'
+        });
 
-      toast.success('Cambios guardados correctamente.');
-      queryClient.invalidateQueries({ queryKey: ['materialDetail', id] });
-      queryClient.invalidateQueries({ queryKey: ['materialSuppliers', id] });
+        if (newMaterial) {
+          toast.success('Material creado correctamente.');
+          queryClient.invalidateQueries({ queryKey: ['materialDetail'] });
+          navigate(`/material/${newMaterial.id}`);
+        } else {
+          throw new Error('No se pudo crear el material.');
+        }
+      } else {
+        // Update existing material
+        await updateMaterial(material.id, payload);
+        toast.success('Cambios guardados correctamente.');
+        queryClient.invalidateQueries({ queryKey: ['materialDetail', id] });
+        queryClient.invalidateQueries({ queryKey: ['materialSuppliers', id] });
+      }
     } catch (error) {
       console.error('Error saving material changes:', error);
       toast.error('Ocurrió un error al guardar los cambios.');
@@ -376,7 +550,7 @@ const MaterialGeneralProfile = () => {
     );
   }
 
-  if (!material) {
+  if (!material && !isNew) {
     return (
       <div className="container mx-auto p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <AlertCircle className="h-12 w-12 text-procarni-primary animate-bounce" />
@@ -408,131 +582,137 @@ const MaterialGeneralProfile = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/50 pb-6">
           <div className="space-y-1">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
-                {material.code || 'SIN CÓDIGO'}
-              </span>
+              {!isNew && (
+                <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                  {material.code || 'SIN CÓDIGO'}
+                </span>
+              )}
               <Badge variant="outline" className={cn('font-bold text-xs border px-2.5 py-0.5', categoryColor.bg, categoryColor.text, categoryColor.border)}>
                 {selectedCategory || 'Sin Categoría'}
               </Badge>
-              {material.status === 'archived' && (
+              {!isNew && material.status === 'archived' && (
                 <Badge variant="outline" className="bg-red-50 text-procarni-primary border-procarni-primary/20 font-bold">
                   Inactivo / Archivado
                 </Badge>
               )}
             </div>
             <h1 className="text-[34px] font-black text-procarni-blue tracking-tight leading-tight mt-2">
-              {materialName || 'Detalles del Ítem'}
+              {isNew ? 'Añadir Nuevo Material' : (materialName || 'Detalles del Ítem')}
             </h1>
-            <p className="text-[13px] text-gray-500 font-medium italic">
-              ID de catálogo: {material.id}
-            </p>
+            {!isNew && (
+              <p className="text-[13px] text-gray-500 font-medium italic">
+                ID de catálogo: {material.id}
+              </p>
+            )}
           </div>
         </div>
 
         {/* KPI Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1: Proveedores Vinculados */}
-          <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <div className="p-3 rounded-2xl bg-emerald-50 text-procarni-secondary">
-                  <Truck className="h-5 w-5" />
+        {!isNew && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Card 1: Proveedores Vinculados */}
+            <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-emerald-50 text-procarni-secondary">
+                    <Truck className="h-5 w-5" />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Proveedores Vinculados</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
-                    {suppliers.length}
-                  </span>
-                  <span className="text-gray-500 font-bold text-sm uppercase">PROV</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Proveedores que suministran este material
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Último Costo */}
-          <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <div className="p-3 rounded-2xl bg-procarni-blue/10 text-procarni-blue">
-                  <DollarSign className="h-5 w-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Último Costo Registrado</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
-                    ${fmt(purchaseStats.lastCost, 4)}
-                  </span>
-                  <span className="text-gray-500 font-bold text-sm">USD</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Por unidad registrada: {material.unit || 'KG'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Veces Comprado */}
-          <Card
-            onClick={() => {
-              if (purchaseStats.purchase_order_id) {
-                navigate(`/purchase-orders/${purchaseStats.purchase_order_id}`);
-              }
-            }}
-            className={cn(
-              "border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300",
-              purchaseStats.purchase_order_id && "hover:scale-[1.01] cursor-pointer hover:bg-slate-50/50"
-            )}
-          >
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <div className="p-3 rounded-2xl bg-amber-50 text-procarni-alert">
-                  <TrendingUp className="h-5 w-5" />
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Compras este Mes</p>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
-                    {String(purchaseStats.timesPurchasedThisMonth).padStart(2, '0')}
-                  </span>
-                  {purchaseStats.trend !== 'stable' && (
-                    <span className={cn(
-                      "flex items-center text-[10px] font-bold gap-0.5 px-1.5 py-0.5 rounded-full",
-                      purchaseStats.trend === 'up' ? "bg-red-50 text-procarni-primary" : "bg-emerald-50 text-emerald-700"
-                    )}>
-                      <TrendingUp className={cn("h-3 w-3", purchaseStats.trend === 'down' && "rotate-180")} />
-                      {purchaseStats.trend === 'up' ? 'Alza' : 'Baja'}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Proveedores Vinculados</p>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                      {suppliers.length}
                     </span>
-                  )}
-                </div>
-
-                <div className="pt-3 border-t border-slate-100/80 text-[10px] space-y-1 text-gray-500 mt-3">
-                  {purchaseStats.lastPurchaseDate ? (
-                    <>
-                      <p className="truncate">
-                        Proveedor: <span className="font-semibold text-slate-800">{purchaseStats.lastSupplier}</span>
-                      </p>
-                      <p>
-                        Fecha: <span className="font-semibold text-slate-800">{new Date(purchaseStats.lastPurchaseDate).toLocaleDateString()}</span>
-                      </p>
-                    </>
-                  ) : (
-                    <p className="italic text-gray-400">Sin compras registradas</p>
-                  )}
-                  <p>
-                    Demanda Reciente: <span className={cn("font-bold", purchaseStats.demand === 'Alta' ? 'text-procarni-primary' : 'text-slate-700')}>{purchaseStats.demand}</span>
+                    <span className="text-gray-500 font-bold text-sm uppercase">PROV</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Proveedores que suministran este material
                   </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: Último Costo */}
+            <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-procarni-blue/10 text-procarni-blue">
+                    <DollarSign className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Último Costo Registrado</p>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                      ${fmt(purchaseStats.lastCost, 4)}
+                    </span>
+                    <span className="text-gray-500 font-bold text-sm">USD</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Por unidad registrada: {material.unit || 'KG'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 3: Veces Comprado */}
+            <Card
+              onClick={() => {
+                if (purchaseStats.purchase_order_id) {
+                  navigate(`/purchase-orders/${purchaseStats.purchase_order_id}`);
+                }
+              }}
+              className={cn(
+                "border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300",
+                purchaseStats.purchase_order_id && "hover:scale-[1.01] cursor-pointer hover:bg-slate-50/50"
+              )}
+            >
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-amber-50 text-procarni-alert">
+                    <TrendingUp className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Compras este Mes</p>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                      {String(purchaseStats.timesPurchasedThisMonth).padStart(2, '0')}
+                    </span>
+                    {purchaseStats.trend !== 'stable' && (
+                      <span className={cn(
+                        "flex items-center text-[10px] font-bold gap-0.5 px-1.5 py-0.5 rounded-full",
+                        purchaseStats.trend === 'up' ? "bg-red-50 text-procarni-primary" : "bg-emerald-50 text-emerald-700"
+                      )}>
+                        <TrendingUp className={cn("h-3 w-3", purchaseStats.trend === 'down' && "rotate-180")} />
+                        {purchaseStats.trend === 'up' ? 'Alza' : 'Baja'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100/80 text-[10px] space-y-1 text-gray-500 mt-3">
+                    {purchaseStats.lastPurchaseDate ? (
+                      <>
+                        <p className="truncate">
+                          Proveedor: <span className="font-semibold text-slate-800">{purchaseStats.lastSupplier}</span>
+                        </p>
+                        <p>
+                          Fecha: <span className="font-semibold text-slate-800">{new Date(purchaseStats.lastPurchaseDate).toLocaleDateString()}</span>
+                        </p>
+                      </>
+                    ) : (
+                      <p className="italic text-gray-400">Sin compras registradas</p>
+                    )}
+                    <p>
+                      Demanda Reciente: <span className={cn("font-bold", purchaseStats.demand === 'Alta' ? 'text-procarni-primary' : 'text-slate-700')}>{purchaseStats.demand}</span>
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Layout Wrapper */}
         <div className="grid grid-cols-12 gap-8">
@@ -559,36 +739,127 @@ const MaterialGeneralProfile = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="parentMaterial" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro (Opcional)</Label>
-                    <SmartSearch
-                      placeholder="Buscar patrón de oro..."
-                      displayValue={selectedParentName}
-                      selectedId={selectedParentId}
-                      onSelect={(item) => {
-                        setSelectedParentId(item.id);
-                        setSelectedParentName(item.name.split(' - ')[0]);
-                      }}
-                      fetchFunction={async (query) => {
-                        const searchTargetName = materialName.trim() || query.trim();
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro</Label>
 
-                        const { data, error } = await supabase.rpc('search_master_materials_suggested', {
-                          p_target_name: searchTargetName,
-                          p_search_query: query.trim(),
-                          p_exclude_id: material.id || null
-                        });
+                    {isMasterLocal ? (
+                      <div className="flex items-center justify-between p-3 bg-amber-50/50 border border-amber-200/50 rounded-xl">
+                        <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                          ⭐ Este ítem es un Patrón de Oro
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-7 text-[10px] uppercase font-bold text-procarni-primary hover:bg-red-50"
+                          onClick={() => {
+                            setIsMasterLocal(false);
+                            setSelectedParentId('');
+                            setSelectedParentName('');
+                            setShowSearch(false);
+                          }}
+                        >
+                          Cambiar
+                        </Button>
+                      </div>
+                    ) : selectedParentId ? (
+                      <div className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-200/50 rounded-xl">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Vinculado al Patrón</span>
+                          <span className="text-xs font-bold text-slate-800 truncate max-w-[200px]">{selectedParentName}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-7 text-[10px] uppercase font-bold text-procarni-primary hover:bg-red-50"
+                          onClick={() => {
+                            setSelectedParentId('');
+                            setSelectedParentName('');
+                            setShowSearch(true);
+                          }}
+                        >
+                          Cambiar
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {!showSearch ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                className="w-full bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-5 rounded-xl border border-slate-200 active:scale-95 transition-all flex items-center justify-between"
+                              >
+                                <span>Configurar Patrón de Oro</span>
+                                <ChevronRight className="h-4 w-4 text-gray-400" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-64 rounded-xl shadow-xl border-slate-100 bg-white">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setIsMasterLocal(true);
+                                  setShowSearch(false);
+                                }}
+                                className="font-bold text-xs py-3 cursor-pointer"
+                              >
+                                Hacer Patrón de Oro (Ítem Oficial)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setIsMasterLocal(false);
+                                  setShowSearch(true);
+                                }}
+                                className="font-bold text-xs py-3 cursor-pointer"
+                              >
+                                Buscar Patrón de Oro Existente
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <div className="space-y-2">
+                            <SmartSearch
+                              placeholder="Buscar patrón de oro..."
+                              displayValue={selectedParentName}
+                              selectedId={selectedParentId}
+                              onSelect={(item) => {
+                                setSelectedParentId(item.id);
+                                setSelectedParentName(item.name.split(' - ')[0]);
+                              }}
+                              fetchFunction={async (query) => {
+                                const searchTargetName = materialName.trim() || query.trim();
 
-                        if (error) {
-                          console.error('[search_master_materials_suggested Error]:', error);
-                          return [];
-                        }
+                                const { data, error } = await supabase.rpc('search_master_materials_suggested', {
+                                  p_target_name: searchTargetName,
+                                  p_search_query: query.trim(),
+                                  p_exclude_id: material.id || null
+                                });
 
-                        return (data || []).map((m: any) => ({
-                          id: m.id,
-                          name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
-                          group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
-                        }));
-                      }}
-                    />
+                                if (error) {
+                                  console.error('[search_master_materials_suggested Error]:', error);
+                                  return [];
+                                }
+
+                                return (data || []).map((m: any) => ({
+                                  id: m.id,
+                                  name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
+                                  group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
+                                }));
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="text-[10px] text-gray-400 font-bold uppercase tracking-wider h-6 p-0 hover:bg-transparent hover:text-procarni-primary"
+                              onClick={() => {
+                                setShowSearch(false);
+                                setSelectedParentId('');
+                                setSelectedParentName('');
+                              }}
+                            >
+                              Cancelar búsqueda
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -691,93 +962,89 @@ const MaterialGeneralProfile = () => {
                     />
                   </div>
                 </div>
-
               </div>
             </section>
 
             {/* Bottom Grid: Tables */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Proveedores */}
-              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 rounded-[2rem] shadow-xl shadow-gray-200/50">
-                <div className="flex justify-between items-center mb-6 pb-2 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-5 w-5 text-procarni-primary" />
-                    <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Proveedores Habilitados</h4>
+            {!isNew && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Proveedores */}
+                <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 rounded-[2rem] shadow-xl shadow-gray-200/50">
+                  <div className="flex justify-between items-center mb-6 pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-5 w-5 text-procarni-primary" />
+                      <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Proveedores Habilitados</h4>
+                    </div>
+                    <Button
+                      onClick={handleOpenAddSupplier}
+                      className="w-8 h-8 rounded-full bg-procarni-primary hover:bg-procarni-primary/95 text-white flex items-center justify-center p-0 active:scale-95 transition-all"
+                    >
+                      +
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => navigate(`/search-suppliers-by-material?materialId=${material.id}`)}
-                    className="w-8 h-8 rounded-full bg-procarni-primary hover:bg-procarni-primary/95 text-white flex items-center justify-center p-0 active:scale-95 transition-all"
-                  >
-                    +
-                  </Button>
-                </div>
 
-                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                  {isLoadingSuppliers ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-12 rounded-xl" />
-                      <Skeleton className="h-12 rounded-xl" />
-                    </div>
-                  ) : suppliers.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-gray-400 italic">
-                      No hay proveedores asociados a este material.
-                    </div>
-                  ) : (
-                    suppliers.map((sup: any) => (
-                      <div
-                        key={sup.id}
-                        onClick={() => navigate(`/suppliers/${sup.id}`)}
-                        className="flex items-center gap-4 p-3 hover:bg-slate-50/50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-200/50"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-procarni-primary font-bold text-xs border border-slate-200">
-                          {sup.name ? sup.name.substring(0, 2).toUpperCase() : 'PV'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-xs text-slate-800 truncate">{sup.name}</p>
-                          <p className="text-[10px] text-gray-400 font-mono">
-                            Especificación: {sup.specification || 'General'}
-                          </p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {isLoadingSuppliers ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-12 rounded-xl" />
+                        <Skeleton className="h-12 rounded-xl" />
                       </div>
-                    ))
-                  )}
-                </div>
-              </section>
-
-              {/* Últimos Precios de Compra */}
-              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 rounded-[2rem] shadow-xl shadow-gray-200/50">
-                <div className="flex items-center gap-2 mb-6 pb-2 border-b border-slate-100">
-                  <Info className="h-5 w-5 text-procarni-primary" />
-                  <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Últimos Precios de Compra</h4>
-                </div>
-
-                <div className="space-y-3">
-                  {priceHistory.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-gray-400 italic">
-                      No hay historial de compras registrado.
-                    </div>
-                  ) : (
-                    priceHistory.slice(0, 4).map((ph: any) => (
-                      <div key={ph.id || ph.recorded_at} className="flex items-center justify-between p-3 border-b border-slate-100 text-xs">
-                        <div>
-                          <p className="font-bold text-slate-800 truncate max-w-[180px]">
-                            {ph.suppliers?.name || 'Desconocido'}
-                          </p>
-                          <p className="text-[10px] text-gray-400 font-mono">
-                            Ref: {ph.purchase_orders ? `OC-${new Date(ph.purchase_orders.issue_date).getFullYear()}-${String(ph.purchase_orders.sequence_number).padStart(3, '0')}` : 'Manual'}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-procarni-secondary">${fmt(ph.unit_price, 4)}</p>
-                          <p className="text-[9px] text-gray-400">{new Date(ph.recorded_at).toLocaleDateString()}</p>
-                        </div>
+                    ) : suppliers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
+                        <Info className="h-5 w-5 text-gray-400 mb-1" />
+                        <p className="text-xs text-gray-400 font-medium">Ningún proveedor habilitado.</p>
                       </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
+                    ) : (
+                      suppliers.map((s: any) => (
+                        <div
+                          key={s.id}
+                          onClick={() => navigate(`/suppliers/${s.id}`)}
+                          className="flex items-center justify-between p-4 bg-white border border-slate-200/80 rounded-2xl hover:border-slate-300 hover:shadow-sm cursor-pointer transition-all"
+                        >
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-xs text-slate-800">{s.name}</p>
+                            <p className="text-[10px] text-gray-400">{s.city || 'Ubicación no registrada'}</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-gray-400" />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                {/* Ultimos precios de compra */}
+                <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 rounded-[2rem] shadow-xl shadow-gray-200/50">
+                  <div className="flex items-center gap-2 mb-6 pb-2 border-b border-slate-100">
+                    <DollarSign className="h-5 w-5 text-procarni-primary" />
+                    <h4 className="font-extrabold text-sm text-procarni-dark tracking-tight">Últimos Precios de Compra</h4>
+                  </div>
+
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {priceHistory.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
+                        <Info className="h-5 w-5 text-gray-400 mb-1" />
+                        <p className="text-xs text-gray-400 font-medium">Sin compras registradas aún.</p>
+                      </div>
+                    ) : (
+                      priceHistory.slice(0, 5).map((ph: any) => (
+                        <div key={ph.id || ph.recorded_at} className="flex justify-between items-center p-4 bg-white border border-slate-200/80 rounded-2xl text-xs">
+                          <div>
+                            <p className="font-bold text-slate-800 truncate max-w-[150px]">{ph.suppliers?.name || 'Desconocido'}</p>
+                            <p className="text-[9px] text-gray-400">
+                              Ref: {ph.purchase_orders ? `OC-${new Date(ph.purchase_orders.issue_date).getFullYear()}-${String(ph.purchase_orders.sequence_number).padStart(3, '0')}` : 'Manual'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-procarni-secondary">${fmt(ph.unit_price, 4)}</p>
+                            <p className="text-[9px] text-gray-400">{new Date(ph.recorded_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+            )}
           </div>
 
           {/* Sticky Action Sidebar */}
@@ -787,158 +1054,163 @@ const MaterialGeneralProfile = () => {
                 <div className="pb-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Acciones de Compra</p>
 
-                  {/* Historial navigation as Sheet Drawer */}
-                  <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-                    <SheetTrigger asChild>
-                      <Button
-                        onClick={() => {
-                          setActiveHistoryTab('precios');
-                          setIsHistoryOpen(true);
-                        }}
-                        className="w-full flex items-center justify-between bg-white/10 hover:bg-white/20 px-4 py-6 rounded-xl transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <History className="h-4 w-4 text-slate-300" />
-                          <span className="font-bold text-xs text-slate-100">Ver Historial</span>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-slate-300" />
-                      </Button>
-                    </SheetTrigger>
+                  {!isNew ? (
+                    <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                      <SheetTrigger asChild>
+                        <Button
+                          onClick={() => {
+                            setActiveHistoryTab('precios');
+                            setIsHistoryOpen(true);
+                          }}
+                          className="w-full flex items-center justify-between bg-white/10 hover:bg-white/20 px-4 py-6 rounded-xl transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <History className="h-4 w-4 text-slate-300" />
+                            <span className="font-bold text-xs text-slate-100">Ver Historial</span>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-slate-300" />
+                        </Button>
+                      </SheetTrigger>
 
-                    {/* Shortcuts grid below */}
-                    <div className="grid grid-cols-2 gap-2 px-1 mt-3 pb-2 border-b border-white/10">
-                      <Button
-                        onClick={() => {
-                          setActiveHistoryTab('precios');
-                          setIsHistoryOpen(true);
-                        }}
-                        className="text-[9px] font-bold h-7 bg-white/5 hover:bg-procarni-primary transition-colors text-slate-200"
-                      >
-                        PRECIOS
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setActiveHistoryTab('ocs');
-                          setIsHistoryOpen(true);
-                        }}
-                        className="text-[9px] font-bold h-7 bg-white/5 hover:bg-procarni-primary transition-colors text-slate-200"
-                      >
-                        OCs
-                      </Button>
+                      {/* Shortcuts grid below */}
+                      <div className="grid grid-cols-2 gap-2 px-1 mt-3 pb-2 border-b border-white/10">
+                        <Button
+                          onClick={() => {
+                            setActiveHistoryTab('precios');
+                            setIsHistoryOpen(true);
+                          }}
+                          className="text-[9px] font-bold h-7 bg-white/5 hover:bg-procarni-primary transition-colors text-slate-200"
+                        >
+                          PRECIOS
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setActiveHistoryTab('ocs');
+                            setIsHistoryOpen(true);
+                          }}
+                          className="text-[9px] font-bold h-7 bg-white/5 hover:bg-procarni-primary transition-colors text-slate-200"
+                        >
+                          OCs
+                        </Button>
+                      </div>
+
+                      <SheetContent className="w-full sm:max-w-2xl bg-white/95 backdrop-blur-2xl text-slate-900 border-l border-slate-200/80 p-6 overflow-y-auto shadow-2xl animate-in fade-in">
+                        <SheetHeader className="pb-4 border-b border-slate-100">
+                          <SheetTitle className="text-xl font-black text-procarni-blue tracking-tight">
+                            Historial de Compras del Ítem
+                          </SheetTitle>
+                          <p className="text-xs text-slate-500 font-medium">Nombre: {materialName}</p>
+                        </SheetHeader>
+                        <Tabs value={activeHistoryTab} onValueChange={setActiveHistoryTab} className="w-full mt-6">
+                          <TabsList className="grid w-full grid-cols-2 bg-slate-100 p-1 rounded-xl">
+                            <TabsTrigger
+                              value="precios"
+                              className="text-xs font-bold py-2 rounded-lg text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue transition-all"
+                            >
+                              Precios
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="ocs"
+                              className="text-xs font-bold py-2 rounded-lg text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue transition-all"
+                            >
+                              OCs
+                            </TabsTrigger>
+                          </TabsList>
+
+                          {/* Precios Tab */}
+                          <TabsContent value="precios" className="space-y-4 mt-4">
+                            {priceHistory.length === 0 ? (
+                              <p className="text-xs text-gray-500 italic py-4 text-center">Sin historial de precios registrado.</p>
+                            ) : (
+                              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                                {priceHistory.map((ph: any) => {
+                                  const po = ph.purchase_orders;
+                                  const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
+                                  const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
+                                  const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'OC');
+                                  return (
+                                    <div key={ph.id || ph.recorded_at} className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+                                      <div className="space-y-1.5 min-w-0 flex-1 pr-3">
+                                        <p className="font-bold text-slate-800 text-sm truncate">{ph.suppliers?.name || 'Desconocido'}</p>
+                                        <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                                          <span className="font-mono">{new Date(ph.recorded_at).toLocaleDateString()}</span>
+                                          <span>•</span>
+                                          {po ? (
+                                            <span
+                                              onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                              className="text-procarni-blue hover:underline cursor-pointer font-bold"
+                                            >
+                                              Ref: {displayId}
+                                            </span>
+                                          ) : (
+                                            <span>Ref: {displayId}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-right font-mono space-y-0.5">
+                                        <p className="font-extrabold text-procarni-secondary text-sm">${fmt(ph.unit_price, 4)}</p>
+                                        <p className="text-[10px] text-slate-500 font-bold">/ {ph.unit || material?.unit || 'KG'}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </TabsContent>
+
+                          {/* OCs Tab */}
+                          <TabsContent value="ocs" className="space-y-4 mt-4">
+                            {isLoadingPOs ? (
+                              <div className="space-y-2">
+                                <Skeleton className="h-12 rounded-xl bg-slate-100" />
+                                <Skeleton className="h-12 rounded-xl bg-slate-100" />
+                              </div>
+                            ) : materialPOs.length === 0 ? (
+                              <p className="text-xs text-gray-500 italic py-4 text-center">Sin órdenes de compra registradas para este ítem.</p>
+                            ) : (
+                              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                                {materialPOs.map((item: any) => {
+                                  const po = item.purchase_orders;
+                                  if (!po) return null;
+                                  const year = po.issue_date ? new Date(po.issue_date).getFullYear() : new Date().getFullYear();
+                                  const month = po.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : '01';
+                                  const displayId = `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}`;
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                      className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs cursor-pointer shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
+                                    >
+                                      <div className="space-y-1.5 min-w-0 flex-1 pr-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-extrabold text-procarni-blue text-sm">{displayId}</span>
+                                          <Badge variant="outline" className="text-[9px] font-extrabold uppercase tracking-wider py-0.5 px-2 border-slate-300 bg-slate-50 text-slate-700 rounded-md">
+                                            {translateStatus(po.status)}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-slate-800 font-bold truncate">{po.suppliers?.name || 'Desconocido'}</p>
+                                        <p className="text-[10px] text-slate-500 font-mono font-semibold">
+                                          F. Emisión: {po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '—'}
+                                        </p>
+                                      </div>
+                                      <div className="text-right font-mono space-y-0.5">
+                                        <p className="font-bold text-slate-800 text-sm">{fmt(item.quantity, 2)} {material?.unit || 'KG'}</p>
+                                        <p className="text-[10px] text-slate-500 font-bold">${fmt(item.unit_price, 4)} / {material?.unit || 'KG'}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </TabsContent>
+                        </Tabs>
+                      </SheetContent>
+                    </Sheet>
+                  ) : (
+                    <div className="p-4 text-center bg-white/5 rounded-xl border border-dashed border-white/10 text-xs text-slate-300 italic">
+                      Guarda el material para ver su historial
                     </div>
-
-                    <SheetContent className="w-full sm:max-w-2xl bg-white/95 backdrop-blur-2xl text-slate-900 border-l border-slate-200/80 p-6 overflow-y-auto shadow-2xl animate-in fade-in">
-                      <SheetHeader className="pb-4 border-b border-slate-100">
-                        <SheetTitle className="text-xl font-black text-procarni-blue tracking-tight">
-                          Historial de Compras del Ítem
-                        </SheetTitle>
-                        <p className="text-xs text-slate-500 font-medium">Nombre: {materialName}</p>
-                      </SheetHeader>
-                      <Tabs value={activeHistoryTab} onValueChange={setActiveHistoryTab} className="w-full mt-6">
-                        <TabsList className="grid w-full grid-cols-2 bg-slate-100 p-1 rounded-xl">
-                          <TabsTrigger
-                            value="precios"
-                            className="text-xs font-bold py-2 rounded-lg text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue transition-all"
-                          >
-                            Precios
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="ocs"
-                            className="text-xs font-bold py-2 rounded-lg text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue transition-all"
-                          >
-                            OCs
-                          </TabsTrigger>
-                        </TabsList>
-
-                        {/* Precios Tab */}
-                        <TabsContent value="precios" className="space-y-4 mt-4">
-                          {priceHistory.length === 0 ? (
-                            <p className="text-xs text-gray-500 italic py-4 text-center">Sin historial de precios registrado.</p>
-                          ) : (
-                            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                              {priceHistory.map((ph: any) => {
-                                const po = ph.purchase_orders;
-                                const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
-                                const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
-                                const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'OC');
-                                return (
-                                  <div key={ph.id || ph.recorded_at} className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
-                                    <div className="space-y-1.5 min-w-0 flex-1 pr-3">
-                                      <p className="font-bold text-slate-800 text-sm truncate">{ph.suppliers?.name || 'Desconocido'}</p>
-                                      <div className="flex items-center gap-2 text-slate-500 font-semibold">
-                                        <span className="font-mono">{new Date(ph.recorded_at).toLocaleDateString()}</span>
-                                        <span>•</span>
-                                        {po ? (
-                                          <span
-                                            onClick={() => navigate(`/purchase-orders/${po.id}`)}
-                                            className="text-procarni-blue hover:underline cursor-pointer font-bold"
-                                          >
-                                            Ref: {displayId}
-                                          </span>
-                                        ) : (
-                                          <span>Ref: {displayId}</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="text-right font-mono space-y-0.5">
-                                      <p className="font-extrabold text-procarni-secondary text-sm">${fmt(ph.unit_price, 4)}</p>
-                                      <p className="text-[10px] text-slate-500 font-bold">/ {ph.unit || material.unit || 'KG'}</p>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </TabsContent>
-
-                        {/* OCs Tab */}
-                        <TabsContent value="ocs" className="space-y-4 mt-4">
-                          {isLoadingPOs ? (
-                            <div className="space-y-2">
-                              <Skeleton className="h-12 rounded-xl bg-slate-100" />
-                              <Skeleton className="h-12 rounded-xl bg-slate-100" />
-                            </div>
-                          ) : materialPOs.length === 0 ? (
-                            <p className="text-xs text-gray-500 italic py-4 text-center">Sin órdenes de compra registradas para este ítem.</p>
-                          ) : (
-                            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                              {materialPOs.map((item: any) => {
-                                const po = item.purchase_orders;
-                                if (!po) return null;
-                                const year = po.issue_date ? new Date(po.issue_date).getFullYear() : new Date().getFullYear();
-                                const month = po.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : '01';
-                                const displayId = `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}`;
-                                return (
-                                  <div
-                                    key={item.id}
-                                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
-                                    className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs cursor-pointer shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
-                                  >
-                                    <div className="space-y-1.5 min-w-0 flex-1 pr-3">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-extrabold text-procarni-blue text-sm">{displayId}</span>
-                                        <Badge variant="outline" className="text-[9px] font-extrabold uppercase tracking-wider py-0.5 px-2 border-slate-300 bg-slate-50 text-slate-700 rounded-md">
-                                          {translateStatus(po.status)}
-                                        </Badge>
-                                      </div>
-                                      <p className="text-slate-800 font-bold truncate">{po.suppliers?.name || 'Desconocido'}</p>
-                                      <p className="text-[10px] text-slate-500 font-mono font-semibold">
-                                        F. Emisión: {po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '—'}
-                                      </p>
-                                    </div>
-                                    <div className="text-right font-mono space-y-0.5">
-                                      <p className="font-bold text-slate-800 text-sm">{fmt(item.quantity, 2)} {material.unit || 'KG'}</p>
-                                      <p className="text-[10px] text-slate-500 font-bold">${fmt(item.unit_price, 4)} / {material.unit || 'KG'}</p>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </TabsContent>
-                      </Tabs>
-                    </SheetContent>
-                  </Sheet>
+                  )}
                 </div>
 
                 <div className="pt-2 flex flex-col gap-3">
@@ -948,35 +1220,170 @@ const MaterialGeneralProfile = () => {
                     className="w-full bg-procarni-primary hover:bg-procarni-primary/95 text-white py-6 rounded-2xl font-bold shadow-lg shadow-procarni-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs"
                   >
                     <Save className="h-4 w-4" />
-                    {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                    {isSaving ? (isNew ? 'Creando...' : 'Guardando...') : (isNew ? 'Crear Material' : 'Guardar Cambios')}
                   </Button>
 
-                  <Button
-                    onClick={handleGenerarOrdenCompra}
-                    className="w-full bg-white text-procarni-dark hover:bg-slate-50 py-6 rounded-2xl font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs border border-slate-200"
-                  >
-                    <ShoppingCart className="h-4 w-4 text-procarni-primary" />
-                    Generar Orden Compra
-                  </Button>
+                  {!isNew && (
+                    <Button
+                      onClick={handleGenerarOrdenCompra}
+                      className="w-full bg-white text-procarni-dark hover:bg-slate-50 py-6 rounded-2xl font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs border border-slate-200"
+                    >
+                      <ShoppingCart className="h-4 w-4 text-procarni-primary" />
+                      Generar Orden Compra
+                    </Button>
+                  )}
                 </div>
               </div>
 
               {/* Audit Card */}
-              <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] border border-dashed border-slate-200/80 shadow-md">
-                <div className="flex items-center gap-2 text-gray-400 mb-2">
-                  <AlertCircle className="h-4 w-4 text-gray-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Auditoría</span>
+              {!isNew && (
+                <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] border border-dashed border-slate-200/80 shadow-md">
+                  <div className="flex items-center gap-2 text-gray-400 mb-2">
+                    <AlertCircle className="h-4 w-4 text-gray-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Auditoría</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium italic leading-relaxed">
+                    Creado: {new Date(material.created_at).toLocaleDateString()}<br />
+                    Última actualización: {material.updated_at ? new Date(material.updated_at).toLocaleDateString() : '—'}
+                  </p>
                 </div>
-                <p className="text-[11px] text-gray-500 font-medium italic leading-relaxed">
-                  Creado: {new Date(material.created_at).toLocaleDateString()}<br />
-                  Última actualización: {material.updated_at ? new Date(material.updated_at).toLocaleDateString() : '—'}
-                </p>
+              )}
+            </div>
+          </div>
+
+      <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
+        <DialogContent className="max-w-md bg-white rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-black text-procarni-blue tracking-tight">
+              Asociar Proveedores
+            </DialogTitle>
+            <p className="text-xs text-gray-500 font-medium">
+              Vincule múltiples proveedores a este material para habilitar cotizaciones.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
+            {/* Associated Suppliers (Always visible at top so they can be deselected) */}
+            {suppliers.length > 0 && (
+              <div className="space-y-2 border-b border-slate-100 pb-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Habilitados Actualmente ({suppliers.length})</p>
+                <div className="space-y-1.5">
+                  {suppliers.map((s) => {
+                    const isChecked = selectedSupplierIds.includes(s.id);
+                    return (
+                      <div
+                        key={`assoc-${s.id}`}
+                        onClick={() => {
+                          if (isChecked) {
+                            setSelectedSupplierIds(selectedSupplierIds.filter(id => id !== s.id));
+                          } else {
+                            setSelectedSupplierIds([...selectedSupplierIds, s.id]);
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border",
+                          isChecked 
+                            ? "bg-emerald-50/20 border-emerald-200/50" 
+                            : "bg-slate-50/50 border-slate-200/40 opacity-70"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            id={`assoc-chk-${s.id}`}
+                            checked={isChecked}
+                            onCheckedChange={() => {}}
+                          />
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-bold text-slate-800">{s.name}</p>
+                            <p className="text-[9px] text-gray-400">{s.city || 'Sin ciudad'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 pt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Buscar otros proveedores</p>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Escriba nombre del proveedor..."
+                  className="pl-9 bg-slate-50 border-slate-200 rounded-xl h-10 text-xs focus:ring-procarni-primary/20"
+                  value={supplierSearchQuery}
+                  onChange={(e) => setSupplierSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                {filteredSuppliers.filter(s => !suppliers.some(curr => curr.id === s.id)).length === 0 ? (
+                  <p className="text-xs text-gray-400 italic text-center py-4">
+                    {supplierSearchQuery.trim() ? "No se encontraron otros proveedores." : "Escriba para buscar y agregar proveedores."}
+                  </p>
+                ) : (
+                  filteredSuppliers
+                    .filter(s => !suppliers.some(curr => curr.id === s.id))
+                    .map((s) => {
+                      const isChecked = selectedSupplierIds.includes(s.id);
+                      return (
+                        <div
+                          key={`search-${s.id}`}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedSupplierIds(selectedSupplierIds.filter(id => id !== s.id));
+                            } else {
+                              setSelectedSupplierIds([...selectedSupplierIds, s.id]);
+                            }
+                          }}
+                          className={cn(
+                            "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border",
+                            isChecked 
+                              ? "bg-blue-50/30 border-blue-200/50" 
+                              : "bg-white border-transparent hover:bg-slate-50"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              id={`sup-${s.id}`}
+                              checked={isChecked}
+                              onCheckedChange={() => {}}
+                            />
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-bold text-slate-800">{s.name}</p>
+                              <p className="text-[10px] text-gray-400">{s.city || 'Sin ciudad'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
               </div>
             </div>
           </div>
 
+          <DialogFooter className="pt-4 border-t border-slate-100 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddSupplierOpen(false)}
+              className="flex-1 bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-5 rounded-xl border border-slate-200"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={isAssociating}
+              onClick={handleSaveSupplierAssociations}
+              className="flex-1 bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs py-5 rounded-xl shadow-md"
+            >
+              {isAssociating ? 'Guardando...' : 'Guardar Asociaciones'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
         </div>
-
       </div>
     </div>
   );
