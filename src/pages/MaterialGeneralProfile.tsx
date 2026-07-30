@@ -292,20 +292,38 @@ const MaterialGeneralProfile = () => {
       setBrand(material.brand || '');
       setNameProvided(material.search_aliases ? material.search_aliases.join(', ') : '');
 
-      // Parse Tripas name if editing an existing TRIPAS material (data directly, with parentheses only on METROS X CAJA)
+      // Parse Tripas name if editing an existing TRIPAS material (data directly, robust parsing to handle omitted fields)
       if (material.name && material.name.toUpperCase().startsWith('TRIPAS')) {
-        const regex = /^TRIPAS\s+(PLASTICA|CELULOSA|FIBROSA|COLAGENO|CERO\s+MERMA|TIMBRADA)\s+([^\s]+)\s+CM\s+(.+?)\s+\(METROS\s+X\s+CAJA:\s*([^\s]+)\s+MT\)\s+(CORRUGADA|LISA|NINGUNA)/i;
-        const match = material.name.match(regex);
-        if (match) {
-          setIsTripa(true);
-          setTripaTipo(match[1].toUpperCase());
-          setTripaMedida(match[2]);
-          setTripaColor(match[3]);
-          setTripaMetros(match[4]);
-          setTripaAcabado(match[5].toUpperCase());
-        } else {
-          setIsTripa(true);
-        }
+        setIsTripa(true);
+        const nameUpper = material.name.toUpperCase();
+        
+        // 1. Parse Tipo
+        const tipos = ['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA', 'TIMBRADA'];
+        const foundTipo = tipos.find(t => nameUpper.includes(t));
+        if (foundTipo) setTripaTipo(foundTipo);
+
+        // 2. Parse Medida
+        const medidaMatch = nameUpper.match(/(\S+)\s+CM/);
+        if (medidaMatch) setTripaMedida(medidaMatch[1]);
+
+        // 3. Parse Metros
+        const metrosMatch = nameUpper.match(/\(METROS\s+X\s+CAJA:\s*([^\s)]+)\s*MT\)/);
+        if (metrosMatch) setTripaMetros(metrosMatch[1]);
+
+        // 4. Parse Acabado
+        const acabados = ['CORRUGADA', 'LISA'];
+        const foundAcabado = acabados.find(a => nameUpper.includes(a));
+        setTripaAcabado(foundAcabado || 'NINGUNA');
+
+        // 5. Parse Color (extract remaining words)
+        let remaining = nameUpper.replace('TRIPAS', '');
+        if (foundTipo) remaining = remaining.replace(foundTipo, '');
+        if (medidaMatch) remaining = remaining.replace(medidaMatch[0], '');
+        if (metrosMatch) remaining = remaining.replace(metrosMatch[0], '');
+        if (foundAcabado) remaining = remaining.replace(foundAcabado, '');
+        
+        const cleanRemaining = remaining.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+        setTripaColor(cleanRemaining);
       } else {
         setIsTripa(false);
       }
@@ -336,16 +354,35 @@ const MaterialGeneralProfile = () => {
     }
   }, [material, units]);
 
-  // Auto-compile TRIPAS name based on structured fields (without parentheses)
+  // Auto-compile TRIPAS name based on structured fields (without parentheses, omitting empty/blank values)
   useEffect(() => {
     if (isTripa && selectedCategory === 'EMPAQUE') {
-      const cleanTipo = tripaTipo.toUpperCase().trim();
-      const cleanMedida = tripaMedida.toUpperCase().replace(/\s/g, '').trim();
-      const cleanColor = tripaColor.toUpperCase().trim();
-      const cleanMetros = tripaMetros.toUpperCase().replace(/\s/g, '').trim();
-      const cleanAcabado = tripaAcabado.toUpperCase().trim();
+      const parts: string[] = ['TRIPAS'];
 
-      const compiledName = `TRIPAS ${cleanTipo} ${cleanMedida || '000X000'} CM ${cleanColor || 'COLOR'} (METROS X CAJA: ${cleanMetros || '000'} MT) ${cleanAcabado}`;
+      if (tripaTipo) {
+        parts.push(tripaTipo.toUpperCase().trim());
+      }
+
+      const cleanMedida = tripaMedida.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMedida) {
+        parts.push(`${cleanMedida} CM`);
+      }
+
+      const cleanColor = tripaColor.toUpperCase().trim();
+      if (cleanColor) {
+        parts.push(cleanColor);
+      }
+
+      const cleanMetros = tripaMetros.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMetros) {
+        parts.push(`(METROS X CAJA: ${cleanMetros} MT)`);
+      }
+
+      if (tripaAcabado && tripaAcabado !== 'NINGUNA') {
+        parts.push(tripaAcabado.toUpperCase().trim());
+      }
+
+      const compiledName = parts.join(' ');
       setMaterialName(compiledName);
     }
   }, [isTripa, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaAcabado, selectedCategory]);
