@@ -159,6 +159,14 @@ const MaterialGeneralProfile = () => {
   const [color, setColor] = useState<string>('');
   const [brand, setBrand] = useState<string>('');
 
+  // TRIPAS structured name states
+  const [isTripa, setIsTripa] = useState<boolean>(false);
+  const [tripaTipo, setTripaTipo] = useState<string>('PLASTICA');
+  const [tripaMedida, setTripaMedida] = useState<string>('');
+  const [tripaColor, setTripaColor] = useState<string>('');
+  const [tripaMetros, setTripaMetros] = useState<string>('');
+  const [tripaAcabado, setTripaAcabado] = useState<string>('NINGUNA');
+
   const [isSaving, setIsSaving] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [activeHistoryTab, setActiveHistoryTab] = useState('precios');
@@ -284,6 +292,24 @@ const MaterialGeneralProfile = () => {
       setBrand(material.brand || '');
       setNameProvided(material.search_aliases ? material.search_aliases.join(', ') : '');
 
+      // Parse Tripas name if editing an existing TRIPAS material (data directly, with parentheses only on METROS X CAJA)
+      if (material.name && material.name.toUpperCase().startsWith('TRIPAS')) {
+        const regex = /^TRIPAS\s+(PLASTICA|CELULOSA|FIBROSA|COLAGENO|CERO\s+MERMA|TIMBRADA)\s+([^\s]+)\s+CM\s+(.+?)\s+\(METROS\s+X\s+CAJA:\s*([^\s]+)\s+MT\)\s+(CORRUGADA|LISA|NINGUNA)/i;
+        const match = material.name.match(regex);
+        if (match) {
+          setIsTripa(true);
+          setTripaTipo(match[1].toUpperCase());
+          setTripaMedida(match[2]);
+          setTripaColor(match[3]);
+          setTripaMetros(match[4]);
+          setTripaAcabado(match[5].toUpperCase());
+        } else {
+          setIsTripa(true);
+        }
+      } else {
+        setIsTripa(false);
+      }
+
       // Load parent name if base_material_id exists
       if (material.base_material_id) {
         supabase
@@ -309,6 +335,31 @@ const MaterialGeneralProfile = () => {
       }
     }
   }, [material, units]);
+
+  // Auto-compile TRIPAS name based on structured fields (without parentheses)
+  useEffect(() => {
+    if (isTripa && selectedCategory === 'EMPAQUE') {
+      const cleanTipo = tripaTipo.toUpperCase().trim();
+      const cleanMedida = tripaMedida.toUpperCase().replace(/\s/g, '').trim();
+      const cleanColor = tripaColor.toUpperCase().trim();
+      const cleanMetros = tripaMetros.toUpperCase().replace(/\s/g, '').trim();
+      const cleanAcabado = tripaAcabado.toUpperCase().trim();
+
+      const compiledName = `TRIPAS ${cleanTipo} ${cleanMedida || '000X000'} CM ${cleanColor || 'COLOR'} (METROS X CAJA: ${cleanMetros || '000'} MT) ${cleanAcabado}`;
+      setMaterialName(compiledName);
+    }
+  }, [isTripa, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaAcabado, selectedCategory]);
+
+  // Automatically enable TRIPAS UI when category is EMPAQUE and item is new or is already a tripa
+  useEffect(() => {
+    if (selectedCategory === 'EMPAQUE') {
+      if (isNew || !materialName || materialName.toUpperCase().startsWith('TRIPAS')) {
+        setIsTripa(true);
+      }
+    } else {
+      setIsTripa(false);
+    }
+  }, [selectedCategory, isNew]);
 
   // Restrict units based on selected category
   const filteredUnits = useMemo(() => {
@@ -697,16 +748,114 @@ const MaterialGeneralProfile = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
                 <div className="space-y-5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="materialName" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre del Material *</Label>
-                    <Input
-                      id="materialName"
-                      placeholder="Ej: Pollo entero, Carne molida..."
-                      value={materialName}
-                      onChange={(e) => setMaterialName(e.target.value)}
-                      className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
-                    />
-                  </div>
+                  {selectedCategory === 'EMPAQUE' && (
+                    <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/50 rounded-xl mb-4">
+                      <span className="text-xs font-bold text-slate-700">Estructurar como Tripa de Empaque</span>
+                      <Switch
+                        checked={isTripa}
+                        onCheckedChange={(checked) => {
+                          setIsTripa(checked);
+                          if (checked) {
+                            if (!tripaTipo) setTripaTipo('PLASTICA');
+                            if (!tripaAcabado) setTripaAcabado('NINGUNA');
+                          }
+                        }}
+                        className="data-[state=checked]:bg-procarni-primary"
+                      />
+                    </div>
+                  )}
+
+                  {isTripa && selectedCategory === 'EMPAQUE' ? (
+                    <div className="space-y-4 p-5 bg-slate-50/40 border border-slate-200/60 rounded-[1.5rem] shadow-inner mb-4">
+                      {/* Old Name Guide */}
+                      {!isNew && material?.name && (
+                        <div className="p-3.5 bg-amber-50/50 border border-amber-200/40 rounded-xl text-xs space-y-1">
+                          <p className="font-bold text-amber-800 uppercase tracking-wider text-[9px]">Nombre Anterior (Referencia/Guía)</p>
+                          <p className="font-mono text-slate-700 bg-white/80 p-2.5 rounded-lg border border-slate-200/40 break-all select-all font-semibold">
+                            {material.name}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Vista Previa del Nombre Consolidado</Label>
+                        <div className="p-3.5 bg-slate-900 text-white rounded-xl font-mono text-xs font-bold break-all select-all tracking-tight leading-relaxed">
+                          {materialName || 'TRIPAS...'}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Tipo de Tripa</Label>
+                          <Select value={tripaTipo} onValueChange={setTripaTipo}>
+                            <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA', 'TIMBRADA'].map(tipo => (
+                                <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Medida (Ej: 90X300)</Label>
+                          <Input
+                            placeholder="Ej: 90X300"
+                            value={tripaMedida}
+                            onChange={(e) => setTripaMedida(e.target.value)}
+                            className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Color</Label>
+                          <Input
+                            placeholder="Ej: ROJO, AMARILLO..."
+                            value={tripaColor}
+                            onChange={(e) => setTripaColor(e.target.value)}
+                            className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Metros por Caja</Label>
+                          <Input
+                            placeholder="Ej: 500"
+                            value={tripaMetros}
+                            onChange={(e) => setTripaMetros(e.target.value)}
+                            className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Presentación/Acabado</Label>
+                          <Select value={tripaAcabado} onValueChange={setTripaAcabado}>
+                            <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['CORRUGADA', 'LISA', 'NINGUNA'].map(acabado => (
+                                <SelectItem key={acabado} value={acabado}>{acabado}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="materialName" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre del Material *</Label>
+                      <Input
+                        id="materialName"
+                        placeholder="Ej: Pollo entero, Carne molida..."
+                        value={materialName}
+                        onChange={(e) => setMaterialName(e.target.value)}
+                        className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro</Label>
@@ -843,17 +992,7 @@ const MaterialGeneralProfile = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="color" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Color (Opcional)</Label>
-                      <Input
-                        id="color"
-                        placeholder="Ej: Blanco, Rojo..."
-                        value={color}
-                        onChange={(e) => setColor(e.target.value)}
-                        className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
-                      />
-                    </div>
+                  {isTripa && selectedCategory === 'EMPAQUE' ? (
                     <div className="space-y-1.5">
                       <Label htmlFor="brand" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca (Opcional)</Label>
                       <Input
@@ -864,7 +1003,30 @@ const MaterialGeneralProfile = () => {
                         className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
                       />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="color" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Color (Opcional)</Label>
+                        <Input
+                          id="color"
+                          placeholder="Ej: Blanco, Rojo..."
+                          value={color}
+                          onChange={(e) => setColor(e.target.value)}
+                          className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="brand" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca (Opcional)</Label>
+                        <Input
+                          id="brand"
+                          placeholder="Ej: Procarni, Polar..."
+                          value={brand}
+                          onChange={(e) => setBrand(e.target.value)}
+                          className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-5">
