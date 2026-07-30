@@ -159,13 +159,25 @@ const MaterialGeneralProfile = () => {
   const [color, setColor] = useState<string>('');
   const [brand, setBrand] = useState<string>('');
 
-  // TRIPAS structured name states
-  const [isTripa, setIsTripa] = useState<boolean>(false);
+  // Special structured name states (TRIPAS, BOLSAS, TERMOFORMADO)
+  const [specialStructure, setSpecialStructure] = useState<'NONE' | 'TRIPAS' | 'BOLSAS_TERMO'>('NONE');
+  
+  // TRIPAS states
   const [tripaTipo, setTripaTipo] = useState<string>('PLASTICA');
   const [tripaMedida, setTripaMedida] = useState<string>('');
   const [tripaColor, setTripaColor] = useState<string>('');
   const [tripaMetros, setTripaMetros] = useState<string>('');
   const [tripaAcabado, setTripaAcabado] = useState<string>('NINGUNA');
+
+  // BOLSAS & TERMOFORMADO states
+  const [btPrefix, setBtPrefix] = useState<string>('BOLSAS');
+  const [btTipo, setBtTipo] = useState<string>('AL VACIO');
+  const [btVariaciones, setBtVariaciones] = useState<string[]>([]);
+  const [btMedidaValor, setBtMedidaValor] = useState<string>('');
+  const [btMedidaUnidad, setBtMedidaUnidad] = useState<string>('CM');
+  const [btColor, setBtColor] = useState<string>('');
+  const [btMicra, setBtMicra] = useState<string>('');
+  const [btUso, setBtUso] = useState<string>('');
 
   const [isSaving, setIsSaving] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -292,9 +304,9 @@ const MaterialGeneralProfile = () => {
       setBrand(material.brand || '');
       setNameProvided(material.search_aliases ? material.search_aliases.join(', ') : '');
 
-      // Parse Tripas name if editing an existing TRIPAS material (data directly, robust parsing to handle omitted fields)
+      // Parse structured name if editing an existing material (TRIPAS, BOLSAS, TERMOFORMADO)
       if (material.name && material.name.toUpperCase().startsWith('TRIPAS')) {
-        setIsTripa(true);
+        setSpecialStructure('TRIPAS');
         const nameUpper = material.name.toUpperCase();
         
         // 1. Parse Tipo
@@ -324,8 +336,53 @@ const MaterialGeneralProfile = () => {
         
         const cleanRemaining = remaining.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
         setTripaColor(cleanRemaining);
+      } else if (material.name && (material.name.toUpperCase().startsWith('BOLSAS') || material.name.toUpperCase().startsWith('TERMOFORMADO'))) {
+        setSpecialStructure('BOLSAS_TERMO');
+        const nameUpper = material.name.toUpperCase();
+        
+        // 1. Parse Prefix
+        const isTermo = nameUpper.startsWith('TERMOFORMADO');
+        setBtPrefix(isTermo ? 'TERMOFORMADO' : 'BOLSAS');
+
+        // 2. Parse Tipo
+        const btTipos = ['AL VACIO', 'TERMOENCOGIBLES', 'PARA BULTOS', 'CON ASAS', 'PARA CESTAS'];
+        const foundBtTipo = btTipos.find(t => nameUpper.includes(t));
+        if (foundBtTipo) setBtTipo(foundBtTipo);
+
+        // 3. Parse Variaciones
+        const btVars = ['ALTA BARRERA', 'GRIP AND TEAR', 'RESPIRABLE S/BARRERA', 'TIMBRADA'];
+        const foundBtVars = btVars.filter(v => nameUpper.includes(v));
+        setBtVariaciones(foundBtVars);
+
+        // 4. Parse Medida
+        const btMedidaMatch = nameUpper.match(/(\S+)\s+(CM|IN|KG)/);
+        if (btMedidaMatch) {
+          setBtMedidaValor(btMedidaMatch[1]);
+          setBtMedidaUnidad(btMedidaMatch[2]);
+        }
+
+        // 5. Parse Micras
+        const micraMatch = nameUpper.match(/\(MICRA:\s*([^\s)]+)\s*UM\)/);
+        if (micraMatch) setBtMicra(micraMatch[1]);
+
+        // 6. Parse Uso
+        const usoMatch = nameUpper.match(/\(USO:\s*([^)]+)\)/);
+        if (usoMatch) setBtUso(usoMatch[1]);
+
+        // 7. Parse Color
+        let remaining = nameUpper.replace('BOLSAS', '').replace('TERMOFORMADO', '');
+        if (foundBtTipo) remaining = remaining.replace(foundBtTipo, '');
+        foundBtVars.forEach(v => {
+          remaining = remaining.replace(v, '');
+        });
+        if (btMedidaMatch) remaining = remaining.replace(btMedidaMatch[0], '');
+        if (micraMatch) remaining = remaining.replace(micraMatch[0], '');
+        if (usoMatch) remaining = remaining.replace(usoMatch[0], '');
+
+        const cleanRemaining = remaining.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+        setBtColor(cleanRemaining);
       } else {
-        setIsTripa(false);
+        setSpecialStructure('NONE');
       }
 
       // Load parent name if base_material_id exists
@@ -356,7 +413,7 @@ const MaterialGeneralProfile = () => {
 
   // Auto-compile TRIPAS name based on structured fields (without parentheses, omitting empty/blank values)
   useEffect(() => {
-    if (isTripa && selectedCategory === 'EMPAQUE') {
+    if (specialStructure === 'TRIPAS' && selectedCategory === 'EMPAQUE') {
       const parts: string[] = ['TRIPAS'];
 
       if (tripaTipo) {
@@ -385,16 +442,61 @@ const MaterialGeneralProfile = () => {
       const compiledName = parts.join(' ');
       setMaterialName(compiledName);
     }
-  }, [isTripa, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaAcabado, selectedCategory]);
+  }, [specialStructure, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaAcabado, selectedCategory]);
 
-  // Automatically enable TRIPAS UI when category is EMPAQUE and item is new or is already a tripa
+  // Auto-compile BOLSAS & TERMOFORMADO name based on structured fields (without parentheses, omitting empty/blank values)
+  useEffect(() => {
+    if (specialStructure === 'BOLSAS_TERMO' && selectedCategory === 'EMPAQUE') {
+      const parts: string[] = [btPrefix];
+
+      if (btTipo) {
+        parts.push(btTipo.toUpperCase().trim());
+      }
+
+      const cleanMedida = btMedidaValor.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMedida) {
+        parts.push(`${cleanMedida} ${btMedidaUnidad}`);
+      }
+
+      const cleanColor = btColor.toUpperCase().trim();
+      if (cleanColor) {
+        parts.push(cleanColor);
+      }
+
+      const cleanMicra = btMicra.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMicra) {
+        parts.push(`(MICRA: ${cleanMicra} UM)`);
+      }
+
+      const cleanUso = btUso.toUpperCase().trim();
+      if (cleanUso) {
+        parts.push(`(USO: ${cleanUso})`);
+      }
+
+      // Move variation to the absolute end of the name
+      if (btVariaciones.length > 0) {
+        parts.push(btVariaciones.map(v => v.toUpperCase().trim()).join(' '));
+      }
+
+      const compiledName = parts.join(' ');
+      setMaterialName(compiledName);
+    }
+  }, [specialStructure, btPrefix, btTipo, btVariaciones, btMedidaValor, btMedidaUnidad, btColor, btMicra, btUso, selectedCategory]);
+
+  // Automatically enable TRIPAS or BOLSAS/TERMO UI when category is EMPAQUE and item is new or is already structured
   useEffect(() => {
     if (selectedCategory === 'EMPAQUE') {
-      if (isNew || !materialName || materialName.toUpperCase().startsWith('TRIPAS')) {
-        setIsTripa(true);
+      if (isNew || !materialName) {
+        setSpecialStructure('TRIPAS');
+      } else if (materialName.toUpperCase().startsWith('TRIPAS')) {
+        setSpecialStructure('TRIPAS');
+      } else if (materialName.toUpperCase().startsWith('BOLSAS') || materialName.toUpperCase().startsWith('TERMOFORMADO')) {
+        setSpecialStructure('BOLSAS_TERMO');
+      } else {
+        setSpecialStructure('NONE');
       }
     } else {
-      setIsTripa(false);
+      setSpecialStructure('NONE');
     }
   }, [selectedCategory, isNew]);
 
@@ -786,23 +888,22 @@ const MaterialGeneralProfile = () => {
 
                 <div className="space-y-5">
                   {selectedCategory === 'EMPAQUE' && (
-                    <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/50 rounded-xl mb-4">
-                      <span className="text-xs font-bold text-slate-700">Estructurar como Tripa de Empaque</span>
-                      <Switch
-                        checked={isTripa}
-                        onCheckedChange={(checked) => {
-                          setIsTripa(checked);
-                          if (checked) {
-                            if (!tripaTipo) setTripaTipo('PLASTICA');
-                            if (!tripaAcabado) setTripaAcabado('NINGUNA');
-                          }
-                        }}
-                        className="data-[state=checked]:bg-procarni-primary"
-                      />
+                    <div className="space-y-1.5 mb-4">
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nomenclatura Estructurada de Empaque</Label>
+                      <Select value={specialStructure} onValueChange={(val: any) => setSpecialStructure(val)}>
+                        <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NONE">Texto Libre (Sin Estructurar)</SelectItem>
+                          <SelectItem value="TRIPAS">Tripas de Empaque</SelectItem>
+                          <SelectItem value="BOLSAS_TERMO">Bolsas / Termoformados</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
 
-                  {isTripa && selectedCategory === 'EMPAQUE' ? (
+                  {specialStructure === 'TRIPAS' && selectedCategory === 'EMPAQUE' ? (
                     <div className="space-y-4 p-5 bg-slate-50/40 border border-slate-200/60 rounded-[1.5rem] shadow-inner mb-4">
                       {/* Old Name Guide */}
                       {!isNew && material?.name && (
@@ -841,7 +942,7 @@ const MaterialGeneralProfile = () => {
                           <Input
                             placeholder="Ej: 90X300"
                             value={tripaMedida}
-                            onChange={(e) => setTripaMedida(e.target.value)}
+                            onChange={(e) => setTripaMedida(e.target.value.toUpperCase().replace(/\*/g, 'X'))}
                             className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
                           />
                         </div>
@@ -878,6 +979,131 @@ const MaterialGeneralProfile = () => {
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      </div>
+                    </div>
+                  ) : specialStructure === 'BOLSAS_TERMO' && selectedCategory === 'EMPAQUE' ? (
+                    <div className="space-y-4 p-5 bg-slate-50/40 border border-slate-200/60 rounded-[1.5rem] shadow-inner mb-4">
+                      {/* Old Name Guide */}
+                      {!isNew && material?.name && (
+                        <div className="p-3.5 bg-amber-50/50 border border-amber-200/40 rounded-xl text-xs space-y-1">
+                          <p className="font-bold text-amber-800 uppercase tracking-wider text-[9px]">Nombre Anterior (Referencia/Guía)</p>
+                          <p className="font-mono text-slate-700 bg-white/80 p-2.5 rounded-lg border border-slate-200/40 break-all select-all font-semibold">
+                            {material.name}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Vista Previa del Nombre Consolidado</Label>
+                        <div className="p-3.5 bg-slate-900 text-white rounded-xl font-mono text-xs font-bold break-all select-all tracking-tight leading-relaxed">
+                          {materialName || 'BOLSAS / TERMOFORMADO...'}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Prefijo</Label>
+                          <Select value={btPrefix} onValueChange={setBtPrefix}>
+                            <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['BOLSAS', 'TERMOFORMADO'].map(prefix => (
+                                <SelectItem key={prefix} value={prefix}>{prefix}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Tipo</Label>
+                          <Select value={btTipo} onValueChange={setBtTipo}>
+                            <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['AL VACIO', 'TERMOENCOGIBLES', 'PARA BULTOS', 'CON ASAS', 'PARA CESTAS'].map(tipo => (
+                                <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Medida</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Ej: 20X30 o 5"
+                              value={btMedidaValor}
+                              onChange={(e) => setBtMedidaValor(e.target.value.toUpperCase().replace(/\*/g, 'X'))}
+                              className="bg-white border-slate-200 rounded-xl h-10 flex-1 focus:ring-procarni-primary/20"
+                            />
+                            <Select value={btMedidaUnidad} onValueChange={setBtMedidaUnidad}>
+                              <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 w-24 focus:ring-procarni-primary/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {['CM', 'IN', 'KG'].map(unidad => (
+                                  <SelectItem key={unidad} value={unidad}>{unidad}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Color / Fondo</Label>
+                          <Input
+                            placeholder="Ej: TRANSPARENTE, BLANCO..."
+                            value={btColor}
+                            onChange={(e) => setBtColor(e.target.value)}
+                            className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Micras (UM)</Label>
+                          <Input
+                            placeholder="Ej: 70"
+                            value={btMicra}
+                            onChange={(e) => setBtMicra(e.target.value)}
+                            className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Uso (Receta/Aplicación)</Label>
+                          <Input
+                            placeholder="Ej: TOCINETA, REBANADOS..."
+                            value={btUso}
+                            onChange={(e) => setBtUso(e.target.value)}
+                            className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Variación (Selección Múltiple)</Label>
+                          <div className="grid grid-cols-2 gap-2.5 p-3.5 bg-white border border-slate-200 rounded-xl">
+                            {['ALTA BARRERA', 'GRIP AND TEAR', 'RESPIRABLE S/BARRERA', 'TIMBRADA'].map(v => {
+                              const checked = btVariaciones.includes(v);
+                              return (
+                                <label key={v} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(isChecked) => {
+                                      if (isChecked) {
+                                        setBtVariaciones([...btVariaciones, v]);
+                                      } else {
+                                        setBtVariaciones(btVariaciones.filter(item => item !== v));
+                                      }
+                                    }}
+                                  />
+                                  {v}
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1029,7 +1255,7 @@ const MaterialGeneralProfile = () => {
                     />
                   </div>
 
-                  {isTripa && selectedCategory === 'EMPAQUE' ? (
+                  {((specialStructure === 'TRIPAS' || specialStructure === 'BOLSAS_TERMO') && selectedCategory === 'EMPAQUE') ? (
                     <div className="space-y-1.5">
                       <Label htmlFor="brand" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca (Opcional)</Label>
                       <Input
