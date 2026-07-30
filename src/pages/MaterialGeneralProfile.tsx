@@ -167,7 +167,7 @@ const MaterialGeneralProfile = () => {
   const [tripaMedida, setTripaMedida] = useState<string>('');
   const [tripaColor, setTripaColor] = useState<string>('');
   const [tripaMetros, setTripaMetros] = useState<string>('');
-  const [tripaAcabado, setTripaAcabado] = useState<string>('NINGUNA');
+  const [tripaVariaciones, setTripaVariaciones] = useState<string[]>([]);
 
   // BOLSAS & TERMOFORMADO states
   const [btPrefix, setBtPrefix] = useState<string>('BOLSAS');
@@ -309,8 +309,8 @@ const MaterialGeneralProfile = () => {
         setSpecialStructure('TRIPAS');
         const nameUpper = material.name.toUpperCase();
         
-        // 1. Parse Tipo
-        const tipos = ['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA', 'TIMBRADA'];
+        // 1. Parse Tipo (without TIMBRADA)
+        const tipos = ['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA'];
         const foundTipo = tipos.find(t => nameUpper.includes(t));
         if (foundTipo) setTripaTipo(foundTipo);
 
@@ -322,17 +322,19 @@ const MaterialGeneralProfile = () => {
         const metrosMatch = nameUpper.match(/\(METROS\s+X\s+CAJA:\s*([^\s)]+)\s*MT\)/);
         if (metrosMatch) setTripaMetros(metrosMatch[1]);
 
-        // 4. Parse Acabado
-        const acabados = ['CORRUGADA', 'LISA'];
-        const foundAcabado = acabados.find(a => nameUpper.includes(a));
-        setTripaAcabado(foundAcabado || 'NINGUNA');
+        // 4. Parse Variaciones (multiple: CORRUGADA, LISA, TIMBRADA)
+        const tripaVars = ['CORRUGADA', 'LISA', 'TIMBRADA'];
+        const foundTripaVars = tripaVars.filter(v => nameUpper.includes(v));
+        setTripaVariaciones(foundTripaVars);
 
         // 5. Parse Color (extract remaining words)
         let remaining = nameUpper.replace('TRIPAS', '');
         if (foundTipo) remaining = remaining.replace(foundTipo, '');
         if (medidaMatch) remaining = remaining.replace(medidaMatch[0], '');
         if (metrosMatch) remaining = remaining.replace(metrosMatch[0], '');
-        if (foundAcabado) remaining = remaining.replace(foundAcabado, '');
+        foundTripaVars.forEach(v => {
+          remaining = remaining.replace(v, '');
+        });
         
         const cleanRemaining = remaining.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
         setTripaColor(cleanRemaining);
@@ -435,14 +437,14 @@ const MaterialGeneralProfile = () => {
         parts.push(`(METROS X CAJA: ${cleanMetros} MT)`);
       }
 
-      if (tripaAcabado && tripaAcabado !== 'NINGUNA') {
-        parts.push(tripaAcabado.toUpperCase().trim());
+      if (tripaVariaciones.length > 0) {
+        parts.push(tripaVariaciones.map(v => v.toUpperCase().trim()).join(' '));
       }
 
       const compiledName = parts.join(' ');
       setMaterialName(compiledName);
     }
-  }, [specialStructure, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaAcabado, selectedCategory]);
+  }, [specialStructure, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaVariaciones, selectedCategory]);
 
   // Auto-compile BOLSAS & TERMOFORMADO name based on structured fields (without parentheses, omitting empty/blank values)
   useEffect(() => {
@@ -930,7 +932,7 @@ const MaterialGeneralProfile = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA', 'TIMBRADA'].map(tipo => (
+                              {['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA'].map(tipo => (
                                 <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
                               ))}
                             </SelectContent>
@@ -957,7 +959,7 @@ const MaterialGeneralProfile = () => {
                           />
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 col-span-2">
                           <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Metros por Caja</Label>
                           <Input
                             placeholder="Ej: 500"
@@ -967,18 +969,28 @@ const MaterialGeneralProfile = () => {
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Presentación/Acabado</Label>
-                          <Select value={tripaAcabado} onValueChange={setTripaAcabado}>
-                            <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {['CORRUGADA', 'LISA', 'NINGUNA'].map(acabado => (
-                                <SelectItem key={acabado} value={acabado}>{acabado}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[9px] uppercase tracking-wider font-semibold text-gray-500">Variación (Selección Múltiple)</Label>
+                          <div className="grid grid-cols-2 gap-2.5 p-3.5 bg-white border border-slate-200 rounded-xl">
+                            {['CORRUGADA', 'LISA', 'TIMBRADA'].map(v => {
+                              const checked = tripaVariaciones.includes(v);
+                              return (
+                                <label key={v} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(isChecked) => {
+                                      if (isChecked) {
+                                        setTripaVariaciones([...tripaVariaciones, v]);
+                                      } else {
+                                        setTripaVariaciones(tripaVariaciones.filter(item => item !== v));
+                                      }
+                                    }}
+                                  />
+                                  {v}
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
