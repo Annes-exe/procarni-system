@@ -384,6 +384,17 @@ CREATE TRIGGER trg_generate_inventory_sku
 --     Gestiona entradas (desde OC o directas) con merma automática.
 --     El frontend llama esta función; nunca hace INSERTs directos.
 -- ------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.registrar_recepcion_inventario(
+  uuid,
+  public.inventory_transaction_type,
+  numeric,
+  numeric,
+  numeric,
+  text,
+  timestamp with time zone,
+  uuid
+);
+
 CREATE OR REPLACE FUNCTION public.registrar_recepcion_inventario(
   p_material_id       UUID,
   p_transaction_type  public.inventory_transaction_type,  -- 'IN_PURCHASE' o 'IN_DIRECT'
@@ -392,7 +403,8 @@ CREATE OR REPLACE FUNCTION public.registrar_recepcion_inventario(
   p_unit_cost         NUMERIC,   -- Precio unitario de compra
   p_reference_doc     TEXT,      -- Ej: 'OC-00123' o número de guía
   p_transaction_date  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  p_created_by        UUID DEFAULT NULL
+  p_created_by        UUID DEFAULT NULL,
+  p_notes             TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -404,6 +416,7 @@ DECLARE
   v_entrada_id     UUID;
   v_merma_id       UUID;
   v_audit_note     TEXT;
+  v_ref_doc        TEXT;
 BEGIN
   -- Validar que el tipo sea de entrada
   IF p_transaction_type NOT IN ('IN_PURCHASE', 'IN_DIRECT') THEN
@@ -417,6 +430,10 @@ BEGIN
 
   -- Calcular merma
   v_merma := p_peso_guia - p_peso_recibido;
+  v_ref_doc := COALESCE(p_reference_doc, '');
+  IF p_notes IS NOT NULL AND p_notes <> '' THEN
+    v_ref_doc := CASE WHEN v_ref_doc <> '' THEN v_ref_doc || ' - ' || p_notes ELSE p_notes END;
+  END IF;
 
   -- Construir nota de auditoría si hay merma
   IF v_merma > 0 THEN
@@ -438,7 +455,7 @@ BEGIN
     p_peso_guia,
     p_peso_recibido,
     p_unit_cost,
-    p_reference_doc,
+    v_ref_doc,
     p_created_by,
     v_audit_note
   )
@@ -458,9 +475,9 @@ BEGIN
       p_peso_guia,
       p_peso_recibido,
       p_unit_cost,     -- Se valoriza al mismo costo de la entrada
-      p_reference_doc, -- Misma referencia para trazabilidad
+      v_ref_doc,       -- Misma referencia para trazabilidad
       p_created_by,
-      FORMAT('Merma de traslado automática asociada a entrada %s. Referencia: %s', v_entrada_id, p_reference_doc)
+      FORMAT('Merma de traslado automática asociada a entrada %s. Referencia: %s', v_entrada_id, v_ref_doc)
     )
     RETURNING id INTO v_merma_id;
   END IF;
@@ -472,9 +489,9 @@ BEGIN
     'merma_id',     v_merma_id,
     'peso_guia',    p_peso_guia,
     'peso_recibido',p_peso_recibido,
-    'merma_kg',     v_merma,
+    'merma_kg',     GREATEST(0, v_merma),
     'unit_cost',    p_unit_cost,
-    'reference_doc',p_reference_doc
+    'reference_doc',v_ref_doc
   );
 
 EXCEPTION WHEN OTHERS THEN
