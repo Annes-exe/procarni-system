@@ -4,9 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { m } from 'framer-motion';
 import {
   ArrowLeft, Package, DollarSign, TrendingUp, Settings,
-  History, Save, ShoppingCart, Truck, ChevronRight, AlertCircle, Info, Tag, Layers, Search
+  History, Save, ShoppingCart, Truck, ChevronRight, AlertCircle, Info, Tag, Layers, Search,
+  Calendar, RefreshCw, FileText, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { updateMaterial, createMaterial } from '@/integrations/supabase/services/materialService';
 import { getSuppliersByMaterial, getAllUnits } from '@/integrations/supabase/data';
@@ -111,11 +115,156 @@ const MaterialGeneralProfile = () => {
   });
 
   // Fetch price history to calculate metrics
-  const { data: priceHistory = [] } = useQuery({
+  const { data: priceHistory = [], refetch: refetchPriceHistory, isFetching: isFetchingPriceHistory } = useQuery({
     queryKey: ['priceHistory', id],
     queryFn: () => (id && id !== 'new' ? getPriceHistoryByMaterialId(id) : Promise.resolve([])),
     enabled: !!id && id !== 'new',
   });
+
+  // States for Price History Report Filters
+  const [filterPeriod, setFilterPeriod] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  // Filter Price History
+  const filteredPriceHistory = useMemo(() => {
+    if (!priceHistory || priceHistory.length === 0) return [];
+    
+    return priceHistory.filter((item: any) => {
+      const recDate = new Date(item.recorded_at);
+      
+      if (filterPeriod === 'week') {
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        return recDate >= oneWeekAgo;
+      }
+      if (filterPeriod === 'month') {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        return recDate >= oneMonthAgo;
+      }
+      if (filterPeriod === 'day') {
+        if (!startDate) return true;
+        const targetDate = new Date(startDate + 'T00:00:00');
+        return recDate.toDateString() === targetDate.toDateString();
+      }
+      if (filterPeriod === 'custom') {
+        let matchStart = true;
+        let matchEnd = true;
+        if (startDate) {
+          const start = new Date(startDate + 'T00:00:00');
+          matchStart = recDate >= start;
+        }
+        if (endDate) {
+          const end = new Date(endDate + 'T23:59:59');
+          matchEnd = recDate <= end;
+        }
+        return matchStart && matchEnd;
+      }
+      return true; // 'all'
+    });
+  }, [priceHistory, filterPeriod, startDate, endDate]);
+
+  // Generate and Download Price History PDF Report (CXP & Recepciones style)
+  const handleDownloadPriceHistoryPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const dateStr = new Date().toLocaleDateString('es-VE');
+
+      // Title & Header setup
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(27, 41, 74); // Procarni blue
+      doc.text('PROCARNI', 14, 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // Primary red
+      doc.text('SYSTEM', 14, 24);
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // Dark slate
+      doc.text('Reporte de Historial de Precios', 200, 18, { align: 'right' });
+
+      // Period and Item Info
+      let periodLabel = 'Todos los registros';
+      if (filterPeriod === 'week') periodLabel = 'Última Semana';
+      else if (filterPeriod === 'month') periodLabel = 'Último Mes';
+      else if (filterPeriod === 'day') {
+        periodLabel = startDate ? `Día: ${format(new Date(startDate + 'T00:00:00'), 'dd/MM/yyyy')}` : 'Todos los registros';
+      }
+      else if (filterPeriod === 'custom') {
+        if (!startDate && !endDate) {
+          periodLabel = 'Todos los registros';
+        } else {
+          const from = startDate ? format(new Date(startDate), 'dd/MM/yyyy') : 'Inicio';
+          const to = endDate ? format(new Date(endDate), 'dd/MM/yyyy') : 'Fin';
+          periodLabel = `Periodo: ${from} - ${to}`;
+        }
+      }
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Ítem: ${materialName || 'Material'} (${material?.code || 'S/C'})`, 14, 32);
+      doc.text(`Periodo: ${periodLabel}`, 200, 23, { align: 'right' });
+      doc.text(`Fecha Emisión: ${dateStr}`, 200, 28, { align: 'right' });
+
+      const tableData = filteredPriceHistory.map((ph: any) => {
+        const po = ph.purchase_orders;
+        const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
+        const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
+        const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'Manual');
+        
+        return [
+          new Date(ph.recorded_at).toLocaleDateString('es-VE'),
+          ph.suppliers?.name || 'Desconocido',
+          displayId,
+          ph.unit || material?.unit || 'KG',
+          `$ ${ph.unit_price.toFixed(4)}`,
+          ph.currency || 'USD',
+          ph.exchange_rate ? ph.exchange_rate.toFixed(2) : '-'
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Fecha', 'Proveedor', 'Referencia', 'Unidad', 'Precio Unitario', 'Moneda', 'Tasa']],
+        body: tableData,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1 },
+          lineColor: [226, 232, 240],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [241, 245, 249],
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250],
+        },
+        margin: { top: 38 },
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY || 40;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde el Perfil de Materiales - Procarni.', 14, finalY + 15);
+
+      const fileDate = new Date().toISOString().split('T')[0];
+      doc.save(`Reporte_Historial_Precios_${(materialName || 'Material').replace(/\s+/g, '_')}_${fileDate}.pdf`);
+      toast.success('Reporte PDF del Historial de Precios descargado exitosamente.');
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      toast.error('Ocurrió un error al generar el PDF del historial de precios.');
+    }
+  };
 
   // Fetch all Purchase Orders containing this material
   const { data: materialPOs = [], isLoading: isLoadingPOs } = useQuery({
@@ -1526,41 +1675,240 @@ const MaterialGeneralProfile = () => {
 
                           {/* Precios Tab */}
                           <TabsContent value="precios" className="space-y-4 mt-4">
-                            {priceHistory.length === 0 ? (
-                              <p className="text-xs text-gray-500 italic py-4 text-center">Sin historial de precios registrado.</p>
-                            ) : (
-                              <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                                {priceHistory.map((ph: any, idx: number) => {
-                                  const po = ph.purchase_orders;
-                                  const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
-                                  const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
-                                  const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'OC');
-                                  return (
-                                    <div key={`history-${ph.id || ph.recorded_at}-${idx}`} className="p-4 border border-slate-200/80 rounded-2xl bg-white flex justify-between items-center text-xs shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
-                                      <div className="space-y-1.5 min-w-0 flex-1 pr-3">
-                                        <p className="font-bold text-slate-800 text-sm truncate">{ph.suppliers?.name || 'Desconocido'}</p>
-                                        <div className="flex items-center gap-2 text-slate-500 font-semibold">
-                                          <span className="font-mono">{new Date(ph.recorded_at).toLocaleDateString()}</span>
-                                          <span>•</span>
-                                          {po ? (
-                                            <span
-                                              onClick={() => navigate(`/purchase-orders/${po.id}`)}
-                                              className="text-procarni-blue hover:underline cursor-pointer font-bold"
-                                            >
-                                              Ref: {displayId}
-                                            </span>
-                                          ) : (
-                                            <span>Ref: {displayId}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="text-right font-mono space-y-0.5">
-                                        <p className="font-extrabold text-procarni-secondary text-sm">${fmt(ph.unit_price, 4)}</p>
-                                        <p className="text-[10px] text-slate-500 font-bold">/ {ph.unit || material?.unit || 'KG'}</p>
+                            {/* Filter Controls */}
+                            <div className="space-y-4 my-2">
+                              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 p-3 rounded-2xl border border-slate-100">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border shadow-sm">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setFilterPeriod('week');
+                                        setStartDate('');
+                                        setEndDate('');
+                                      }}
+                                      className={cn(
+                                        "h-7 text-xs px-2.5 rounded-lg transition-all",
+                                        filterPeriod === 'week' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white font-bold"
+                                      )}
+                                    >
+                                      Semana
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setFilterPeriod('month');
+                                        setStartDate('');
+                                        setEndDate('');
+                                      }}
+                                      className={cn(
+                                        "h-7 text-xs px-2.5 rounded-lg transition-all",
+                                        filterPeriod === 'month' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white font-bold"
+                                      )}
+                                    >
+                                      Mes
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setFilterPeriod('day');
+                                        setStartDate('');
+                                        setEndDate('');
+                                      }}
+                                      className={cn(
+                                        "h-7 text-xs px-2.5 rounded-lg transition-all",
+                                        filterPeriod === 'day' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white font-bold"
+                                      )}
+                                    >
+                                      Día
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setFilterPeriod('custom');
+                                        setStartDate('');
+                                        setEndDate('');
+                                      }}
+                                      className={cn(
+                                        "h-7 text-xs px-2.5 rounded-lg transition-all",
+                                        filterPeriod === 'custom' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white font-bold"
+                                      )}
+                                    >
+                                      Rango
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setFilterPeriod('all');
+                                        setStartDate('');
+                                        setEndDate('');
+                                      }}
+                                      className={cn(
+                                        "h-7 text-xs px-2.5 rounded-lg transition-all",
+                                        filterPeriod === 'all' && "bg-procarni-blue text-white hover:bg-procarni-blue hover:text-white font-bold"
+                                      )}
+                                    >
+                                      Todos
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    onClick={() => refetchPriceHistory()}
+                                    disabled={isFetchingPriceHistory}
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-xl shrink-0 border-slate-200 text-slate-500 hover:text-procarni-primary"
+                                    title="Actualizar datos"
+                                  >
+                                    <RefreshCw className={cn("h-3.5 w-3.5", isFetchingPriceHistory && "animate-spin")} />
+                                  </Button>
+
+                                  <Button
+                                    onClick={handleDownloadPriceHistoryPDF}
+                                    disabled={filteredPriceHistory.length === 0}
+                                    className="h-8 text-xs font-bold bg-procarni-secondary hover:bg-green-700 text-white rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    Descargar PDF ({filteredPriceHistory.length})
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {filterPeriod === 'day' && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                  <div className="grid grid-cols-1 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Seleccionar Día</label>
+                                      <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <input
+                                          type="date"
+                                          value={startDate}
+                                          onChange={(e) => setStartDate(e.target.value)}
+                                          className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
+                                        />
                                       </div>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                  {startDate && (
+                                    <div className="flex justify-end">
+                                      <Button
+                                        variant="ghost"
+                                        onClick={() => setStartDate('')}
+                                        className="h-6 text-[10px] text-slate-400 hover:text-procarni-primary hover:bg-slate-100 rounded-lg px-2"
+                                      >
+                                        Limpiar fecha (Ver todos)
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {filterPeriod === 'custom' && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                  <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Desde</label>
+                                      <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <input
+                                          type="date"
+                                          value={startDate}
+                                          onChange={(e) => setStartDate(e.target.value)}
+                                          className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hasta</label>
+                                      <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <input
+                                          type="date"
+                                          value={endDate}
+                                          onChange={(e) => setEndDate(e.target.value)}
+                                          className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-procarni-primary/20"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {(startDate || endDate) && (
+                                    <div className="flex justify-end">
+                                      <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setStartDate('');
+                                          setEndDate('');
+                                        }}
+                                        className="h-6 text-[10px] text-slate-400 hover:text-procarni-primary hover:bg-slate-100 rounded-lg px-2"
+                                      >
+                                        Limpiar fechas (Ver todos)
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {filteredPriceHistory.length === 0 ? (
+                              <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-3xl flex flex-col items-center justify-center gap-2 text-slate-400">
+                                <FileText className="h-8 w-8 text-slate-300 animate-pulse" />
+                                <p className="text-xs font-bold text-slate-600">No se encontraron registros</p>
+                                <p className="text-[10px] max-w-xs px-4">No hay precios registrados en el periodo seleccionado.</p>
+                              </div>
+                            ) : (
+                              <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white shadow-sm max-h-[50vh] overflow-y-auto">
+                                <table className="w-full text-left border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-100">
+                                      <th className="text-[10px] uppercase font-bold text-slate-500 py-3 px-4">Fecha</th>
+                                      <th className="text-[10px] uppercase font-bold text-slate-500 py-3 px-2">Proveedor</th>
+                                      <th className="text-[10px] uppercase font-bold text-slate-500 py-3 px-2">Referencia</th>
+                                      <th className="text-[10px] uppercase font-bold text-slate-500 py-3 px-4 text-right">Precio</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 text-xs">
+                                    {filteredPriceHistory.map((ph: any, idx: number) => {
+                                      const po = ph.purchase_orders;
+                                      const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
+                                      const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
+                                      const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'Manual');
+                                      return (
+                                        <tr key={`history-${ph.id || ph.recorded_at}-${idx}`} className="hover:bg-slate-50/30 transition-colors">
+                                          <td className="py-3 px-4 text-slate-500 font-mono">
+                                            {new Date(ph.recorded_at).toLocaleDateString()}
+                                          </td>
+                                          <td className="py-3 px-2 font-bold text-slate-800 truncate max-w-[150px]" title={ph.suppliers?.name}>
+                                            {ph.suppliers?.name || 'Desconocido'}
+                                          </td>
+                                          <td className="py-3 px-2">
+                                            {po ? (
+                                              <span
+                                                onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                                className="text-procarni-blue hover:underline cursor-pointer font-bold"
+                                              >
+                                                {displayId}
+                                              </span>
+                                            ) : (
+                                              <span className="text-slate-400 font-medium">{displayId}</span>
+                                            )}
+                                          </td>
+                                          <td className="py-3 px-4 text-right font-mono">
+                                            <span className="font-extrabold text-procarni-secondary">${fmt(ph.unit_price, 4)}</span>
+                                            <span className="text-[9px] text-slate-400 ml-1">/ {ph.unit || material?.unit || 'KG'}</span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
                               </div>
                             )}
                           </TabsContent>
