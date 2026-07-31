@@ -104,6 +104,7 @@ export const enableMaterialForInventory = async (payload: {
   unit: string;
   min_stock_alert?: number;
   last_purchase_price?: number;
+  inventory_type?: 'Producción' | 'Suministro';
   notes?: string;
 }): Promise<MaterialInventory> => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -116,6 +117,7 @@ export const enableMaterialForInventory = async (payload: {
       unit: payload.unit,
       min_stock_alert: payload.min_stock_alert ?? 0,
       last_purchase_price: payload.last_purchase_price ?? 0,
+      inventory_type: payload.inventory_type || 'Producción',
       notes: payload.notes ?? null,
       sku: '', // El trigger lo reemplazará automáticamente
       enabled_by: session?.user.id ?? null,
@@ -324,10 +326,21 @@ export const registrarRecepcion = async (
 ): Promise<{ success: boolean; entrada_id: string; merma_id?: string; merma_kg: number }> => {
   const { data: { session } } = await supabase.auth.getSession();
 
-  const { data, error } = await supabase.rpc('registrar_recepcion_inventario', {
-    ...payload,
+  const refDoc = payload.p_notes 
+    ? (payload.p_reference_doc ? `${payload.p_reference_doc} - ${payload.p_notes}` : payload.p_notes)
+    : payload.p_reference_doc;
+
+  const rpcParams: Record<string, any> = {
+    p_material_id: payload.p_material_id,
+    p_transaction_type: payload.p_transaction_type,
+    p_peso_guia: payload.p_peso_guia,
+    p_peso_recibido: payload.p_peso_recibido,
+    p_unit_cost: payload.p_unit_cost,
+    p_reference_doc: refDoc,
     p_created_by: session?.user.id ?? null,
-  });
+  };
+
+  const { data, error } = await supabase.rpc('registrar_recepcion_inventario', rpcParams);
 
   if (error) throw error;
   return data;

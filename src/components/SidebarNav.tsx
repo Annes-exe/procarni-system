@@ -96,9 +96,6 @@ const SidebarNav = ({ forceExpanded = false }: SidebarNavProps) => {
         }
         return null;
       }
-      if (category.category === 'Inventario') {
-        return null; // Ocultar temporalmente Inventario en dev
-      }
       if (category.category === 'Admin' && role !== 'admin' && role !== 'administrador') {
         return null;
       }

@@ -1,22 +1,34 @@
 import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, FileSpreadsheet, FileText, AlertCircle, Truck, Package, PackageCheck, Check, CheckCircle } from 'lucide-react';
+import { 
+  Loader2, FileSpreadsheet, FileText, AlertCircle, Truck, Package, PackageCheck, 
+  Check, CheckCircle, ChevronDown, ChevronUp, Upload, Paperclip, AlertTriangle, PlusCircle, CheckCircle2 
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
+import { registrarRecepcion, enableMaterialForInventory } from '@/integrations/supabase/services/inventoryService';
+import { uploadToCloudinary } from '@/services/cloudinaryService';
+import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
 
 interface TransitItem {
   id: string;
   order_id: string;
+  material_id?: string | null;
   material_name: string;
   quantity: number;
   unit_price: number;
@@ -25,6 +37,20 @@ interface TransitItem {
   supplier_code: string | null;
   description: string | null;
   received_quantity?: number | null;
+  materials?: {
+    id: string;
+    code: string | null;
+    name: string;
+    category: string | null;
+    unit: string | null;
+    materials_inventory?: {
+      material_id: string;
+      sku: string;
+      inventory_category: string;
+      current_stock: number;
+      average_unit_cost: number;
+    } | null;
+  } | null;
   purchase_orders: {
     sequence_number: number | null;
     delivery_date: string | null;
@@ -58,15 +84,75 @@ const formatCurrencyVal = (amount: number, currency?: string) => {
   return `${symbol}${amount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
+// --- HELPERS PARA REGLAS POR CATEGORÍA ---
+// Regla 1: Ajustes avanzados (Guía vs Real, Merma) solo para SECA (MPS) y FRESCA (MPF)
+const isSecaOrFrescaCategory = (category?: string | null, invCategory?: string | null): boolean => {
+  const cat = (invCategory || category || '').toUpperCase().trim();
+  return ['MPF', 'MPS', 'SECA', 'FRESCA', 'MATERIA PRIMA FRESCA', 'MATERIA PRIMA SECA'].includes(cat);
+};
+
+// Regla 2: Botón de "Habilitar en Inventario" disponible solo para SECA (MPS), FRESCA (MPF) y EMPAQUE (EMP)
+const isHabilitableCategory = (category?: string | null, invCategory?: string | null): boolean => {
+  const cat = (invCategory || category || '').toUpperCase().trim();
+  if (isSecaOrFrescaCategory(category, invCategory)) return true;
+  return ['EMP', 'EMPAQUE', 'EMPAQUES'].includes(cat);
+};
+
+interface DocEntry {
+  id: string;
+  docType: 'Factura' | 'Nota de Entrega' | 'Otro';
+  docNumber: string;
+  selectedOrderIds: string[];
+  evidenceFile: File | null;
+  notes: string;
+}
+
+export const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
   isOpen,
   onClose,
   orderIds,
 }) => {
+  // Wizard Step State (1: Materiales & Mermas, 2: Consolidado de Documentos & OCs)
+  const [step, setStep] = useState<1 | 2>(1);
+
   const [items, setItems] = useState<TransitItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number | string>>({});
+  const [guiaQuantities, setGuiaQuantities] = useState<Record<string, number | string>>({});
+  const [acceptedMermas, setAcceptedMermas] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  // Paso 2: Entradas dinámicas de Guías / Facturas consolidadas por grupos de OCs
+  const queryClient = useQueryClient();
+  const [docEntries, setDocEntries] = useState<DocEntry[]>([]);
+
+  // Estado para el modal rápido de Habilitar Material
+  const [enablingMaterial, setEnablingMaterial] = useState<{ id: string; name: string; unit: string; price: number } | null>(null);
+  const [enableCategory, setEnableCategory] = useState<'MPF' | 'MPS' | 'EMP'>('MPS');
+  const [enableInventoryType, setEnableInventoryType] = useState<'Producción' | 'Suministro'>('Producción');
+  const [enableUnit, setEnableUnit] = useState('KG');
+  const [enableMinStock, setEnableMinStock] = useState('0');
+  const [enableCost, setEnableCost] = useState('0');
+  const [isEnabling, setIsEnabling] = useState(false);
+
+  // Inicializar Paso 2 con una entrada de documento por defecto amparando a todas las OCs
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setAcceptedMermas({});
+      setDocEntries([
+        {
+          id: 'doc-1',
+          docType: 'Nota de Entrega',
+          docNumber: '',
+          selectedOrderIds: [...orderIds],
+          evidenceFile: null,
+          notes: '',
+        }
+      ]);
+    }
+  }, [isOpen, orderIds]);
+
 
   const fetchTransitItems = async () => {
     if (orderIds.length === 0 || !isOpen) return;
@@ -78,6 +164,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
         .select(`
           id,
           order_id,
+          material_id,
           material_name,
           quantity,
           unit_price,
@@ -86,6 +173,20 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           supplier_code,
           description,
           received_quantity,
+          materials (
+            id,
+            code,
+            name,
+            category,
+            unit,
+            materials_inventory (
+              material_id,
+              sku,
+              inventory_category,
+              current_stock,
+              average_unit_cost
+            )
+          ),
           purchase_orders (
             sequence_number,
             delivery_date,
@@ -105,10 +206,16 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       setItems(fetchedItems);
       
       const initialQuantities: Record<string, number | string> = {};
+      const initialGuia: Record<string, number | string> = {};
+
       fetchedItems.forEach(item => {
         initialQuantities[item.id] = '';
+        const pending = Math.max(0, item.quantity - Number(item.received_quantity || 0));
+        initialGuia[item.id] = pending > 0 ? pending : '';
       });
+
       setReceptionQuantities(initialQuantities);
+      setGuiaQuantities(initialGuia);
     } catch (error: any) {
       console.error('[TransitReportDialog] Error fetching items:', error);
       showError('Error al cargar la vista previa de materiales.');
@@ -116,6 +223,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       setIsLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchTransitItems();
@@ -160,6 +268,43 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     }
   };
 
+  const handleEnableSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enablingMaterial) return;
+
+    setIsEnabling(true);
+    try {
+      await enableMaterialForInventory({
+        material_id: enablingMaterial.id,
+        inventory_category: enableCategory,
+        inventory_type: enableInventoryType,
+        unit: enableUnit || enablingMaterial.unit || 'KG',
+        min_stock_alert: parseFloat(enableMinStock) || 0,
+        last_purchase_price: parseFloat(enableCost) || enablingMaterial.price || 0,
+      });
+
+      // Vincular material_id en purchase_order_items para los ítems que tenían material_id nulo
+      const itemsToUpdate = items.filter(i => 
+        !i.material_id && i.material_name.trim().toLowerCase() === enablingMaterial.name.trim().toLowerCase()
+      );
+      if (itemsToUpdate.length > 0) {
+        await supabase
+          .from('purchase_order_items')
+          .update({ material_id: enablingMaterial.id })
+          .in('id', itemsToUpdate.map(i => i.id));
+      }
+
+      showSuccess(`Material "${enablingMaterial.name}" habilitado exitosamente en inventario.`);
+      setEnablingMaterial(null);
+      await fetchTransitItems();
+    } catch (err: any) {
+      console.error(err);
+      showError(err.message || 'Error al habilitar material en inventario.');
+    } finally {
+      setIsEnabling(false);
+    }
+  };
+
   const handleSaveReception = async () => {
     const nonApproved = items.some(item => {
       const status = item.purchase_orders?.status;
@@ -196,55 +341,176 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 
     setIsSaving(true);
     try {
-      const payload = Object.entries(receptionQuantities)
-        .filter(([_, val]) => Number(val || 0) > 0)
-        .map(([id, val]) => {
-          const item = items.find(i => i.id === id);
-          const currentAccumulated = Number(item?.received_quantity || 0);
-          return {
-            id,
-            received_quantity: currentAccumulated + Number(val || 0)
-          };
-        });
+      const isStep1DirectSave = (step === 1);
 
-      if (payload.length === 0) {
-        showError('Por favor ingrese al menos una cantidad a recibir.');
+      const payload = items
+        .map(item => {
+          const rawVal = receptionQuantities[item.id];
+          const pendingQty = Math.max(0, item.quantity - Number(item.received_quantity || 0));
+          
+          let effectiveNewQty = 0;
+          if (rawVal !== '' && rawVal !== undefined) {
+            effectiveNewQty = Number(rawVal || 0);
+          } else if (isStep1DirectSave) {
+            effectiveNewQty = pendingQty;
+          } else {
+            effectiveNewQty = 0;
+          }
+
+          const currentAccumulated = Number(item.received_quantity || 0);
+          const isMermaAccepted = acceptedMermas[item.id];
+
+          if (effectiveNewQty <= 0 && !isMermaAccepted) {
+            return null;
+          }
+
+          // Si la merma fue aceptada para finalizar, la cantidad recibida satisface el total pedido
+          const finalReceived = isMermaAccepted 
+            ? item.quantity 
+            : (currentAccumulated + effectiveNewQty);
+
+          return {
+            id: item.id,
+            effectiveNewQty,
+            received_quantity: finalReceived
+          };
+        })
+        .filter((p): p is { id: string; effectiveNewQty: number; received_quantity: number } => p !== null);
+
+      const hasDocEntries = docEntries.some(d => d.docNumber.trim() !== '' || d.evidenceFile !== null);
+
+      if (payload.length === 0 && !hasDocEntries) {
+        showError('Por favor ingrese al menos una cantidad a recibir, acepte una merma o adjunte un documento de consolidado.');
         setIsSaving(false);
         return;
       }
 
-      const successItems = await purchaseOrderService.updateReceivedQuantities(payload);
-      if (!successItems) throw new Error("Error updating quantities");
+      if (payload.length > 0) {
+        const successItems = await purchaseOrderService.updateReceivedQuantities(payload);
+        if (!successItems) throw new Error("Error updating quantities");
+      }
 
-      // Register audit logs for each received material
-      const auditPromises = payload.map(async p => {
+      // 1. Guardar cada entrada de documento (Factura/Guía) para las OCs seleccionadas en el Paso 2
+      for (const entry of docEntries) {
+        if (!entry.selectedOrderIds || entry.selectedOrderIds.length === 0) continue;
+
+        let fileUrl: string | undefined = undefined;
+        let cloudinaryId: string | undefined = undefined;
+
+        if (entry.evidenceFile) {
+          try {
+            const uploadRes = await uploadToCloudinary(entry.evidenceFile);
+            fileUrl = uploadRes.secure_url;
+            cloudinaryId = uploadRes.public_id;
+          } catch (uploadErr) {
+            console.error('[TransitReportDialog] Error al subir archivo para documento:', entry.docNumber, uploadErr);
+          }
+        }
+
+        if (fileUrl || entry.docNumber.trim()) {
+          const docPromises = entry.selectedOrderIds.map(oId =>
+            OrderDocumentService.saveDocument({
+              purchase_order_id: oId,
+              document_type: entry.docType,
+              document_number: entry.docNumber.trim() || undefined,
+              file_url: fileUrl || '',
+              cloudinary_public_id: cloudinaryId,
+            })
+          );
+          await Promise.all(docPromises);
+        }
+      }
+
+      // 2. Registro de auditoría y sincronización atómica con Kardex de Inventario
+      let totalMermas = 0;
+
+      const syncPromises = payload.map(async p => {
         const item = items.find(i => i.id === p.id);
-        const orderNum = formatSequenceNumber(item?.purchase_orders?.sequence_number, item?.purchase_orders?.created_at);
-        const addedQty = p.received_quantity - Number(item?.received_quantity || 0);
+        if (!item) return;
+
+        const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+        const addedQty = p.effectiveNewQty;
+        const cat = item.materials?.materials_inventory?.inventory_category || item.materials?.category;
+        const isSecaFresca = isSecaOrFrescaCategory(cat, item.materials?.materials_inventory?.inventory_category);
+        const isMermaAccepted = acceptedMermas[item.id];
 
         try {
           await logAudit('update_received_quantity', {
             table: 'purchase_order_items',
             record_id: p.id,
-            description: `Recibió ${addedQty} unidades del material '${item?.material_name}' en la orden de compra ${orderNum}.`,
+            description: `Recibió ${addedQty} unidades del material '${item.material_name}' en la orden de compra ${orderNum}.${isMermaAccepted ? ' (Merma Aceptada y Finalizada)' : ''}`,
             new_data: { received_quantity: p.received_quantity },
-            old_data: { received_quantity: item?.received_quantity || 0 },
-            material_name: item?.material_name,
+            old_data: { received_quantity: item.received_quantity || 0 },
+            material_name: item.material_name,
             order_number: orderNum,
             quantity_received: addedQty
           });
         } catch (e) {
           console.error('[TransitReportDialog] Audit logging error:', e);
         }
+
+        // Si el material está asociado a inventario (o se resuelve por catálogo) y hay cantidad a procesar
+        let targetMatId = item.material_id;
+
+        if (!targetMatId) {
+          try {
+            const { data: catMat } = await supabase
+              .from('materials')
+              .select('id')
+              .ilike('name', item.material_name.trim())
+              .maybeSingle();
+
+            if (catMat?.id) {
+              targetMatId = catMat.id;
+              await supabase
+                .from('purchase_order_items')
+                .update({ material_id: targetMatId })
+                .eq('id', item.id);
+            }
+          } catch (e) {
+            console.error('[TransitReportDialog] Error resolving material_id:', e);
+          }
+        }
+
+        if (targetMatId && (addedQty > 0 || isMermaAccepted)) {
+          const guiaInput = Number(guiaQuantities[item.id] || addedQty);
+          const pesoGuia = isSecaFresca ? guiaInput : addedQty;
+          const pesoRecibido = addedQty;
+          const merma = Math.max(0, pesoGuia - pesoRecibido);
+          if (merma > 0) totalMermas += merma;
+
+          const docRefStr = docEntries.map(d => d.docNumber.trim()).filter(Boolean).join(', ');
+
+          try {
+            await registrarRecepcion({
+              p_material_id: targetMatId,
+              p_transaction_type: 'IN_PURCHASE',
+              p_peso_guia: pesoGuia,
+              p_peso_recibido: pesoRecibido,
+              p_unit_cost: item.unit_price,
+              p_reference_doc: docRefStr ? `${orderNum} / Guía: ${docRefStr}` : orderNum,
+              p_notes: isMermaAccepted ? `Merma aceptada y finalizada: ${merma.toFixed(2)} ${item.unit || 'KG'}` : undefined,
+            });
+          } catch (invErr) {
+            console.error('[TransitReportDialog] Inventory Kardex sync error:', invErr);
+          }
+        }
       });
-      await Promise.all(auditPromises);
+      await Promise.all(syncPromises);
 
       const updateOrderPromises = orderIds.map(orderId =>
         purchaseOrderService.updateOrderReceptionState(orderId)
       );
       await Promise.all(updateOrderPromises);
 
-      showSuccess('Recepción registrada exitosamente.');
+      // Refrescar caché global de TanStack Query para que los detalles de la OC y el Kardex se actualicen de inmediato
+      await queryClient.invalidateQueries();
+
+      const mermaNotice = totalMermas > 0 ? ` (Mermas registradas: ${totalMermas.toFixed(2)})` : '';
+      showSuccess(`Recepción registrada exitosamente${mermaNotice}.`);
+
+      setStep(1);
+      setAcceptedMermas({});
       onClose();
     } catch (err) {
       console.error(err);
@@ -504,13 +770,48 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="max-w-5xl max-h-[92vh] md:max-h-[85vh] flex flex-col bg-white rounded-[2rem] border-none shadow-2xl p-4 md:p-6 ring-1 ring-black/5 overflow-y-auto md:overflow-visible">
         <DialogHeader className="pb-2">
-          <DialogTitle className="text-xl font-extrabold text-procarni-dark flex items-center gap-2">
-            <Package className="h-5 w-5 text-procarni-primary" />
-            Consolidador de Materiales y Recepción
-          </DialogTitle>
-          <DialogDescription className="text-xs italic text-gray-500 font-medium">
-            Gestiona la recepción y visualiza los materiales en tránsito de las {orderIds.length} órdenes seleccionadas.
-          </DialogDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <DialogTitle className="text-xl font-extrabold text-procarni-dark flex items-center gap-2">
+                <Package className="h-5 w-5 text-procarni-primary" />
+                Consolidador de Materiales y Recepción
+              </DialogTitle>
+              <DialogDescription className="text-xs italic text-gray-500 font-medium">
+                Gestiona la recepción y visualiza los materiales en tránsito de las {orderIds.length} órdenes seleccionadas.
+              </DialogDescription>
+            </div>
+
+            {/* Stepper Control Badges */}
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className={cn(
+                  "px-3 py-1 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5",
+                  step === 1 
+                    ? "bg-procarni-dark text-white shadow-xs" 
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                )}
+              >
+                <span className="w-4 h-4 rounded-full bg-white/20 text-center text-[10px] leading-4">1</span>
+                <span>Materiales</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className={cn(
+                  "px-3 py-1 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5",
+                  step === 2 
+                    ? "bg-procarni-dark text-white shadow-xs" 
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                )}
+              >
+                <span className="w-4 h-4 rounded-full bg-white/20 text-center text-[10px] leading-4">2</span>
+                <span>Consolidado OCs ({docEntries.length})</span>
+              </button>
+            </div>
+          </div>
         </DialogHeader>
 
         {isLoading ? (
@@ -525,402 +826,593 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 min-h-[150px] md:min-h-[300px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
-              <ScrollArea className="h-[55vh] md:h-[45vh] w-full">
-                {(() => {
-                  const pendingItems = items.filter(item => Number(item.received_quantity || 0) < item.quantity);
-                  const completedItems = items.filter(item => Number(item.received_quantity || 0) >= item.quantity);
+            <div className="flex-1 border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50 min-h-0">
+              <ScrollArea className="h-[55vh] md:h-[48vh] w-full">
+                {step === 1 ? (
+                  /* ========================================================================= */
+                  /* PASO 1: RECEPCIÓN FÍSICA DE MATERIALES & MERMAS                           */
+                  /* ========================================================================= */
+                  (() => {
+                    const pendingItems = items.filter(item => Number(item.received_quantity || 0) < item.quantity);
+                    const completedItems = items.filter(item => Number(item.received_quantity || 0) >= item.quantity);
 
-                  return (
-                    <>
-                      {/* ========================================================================= */}
-                      {/* 1. PENDING ITEMS SECTION (Desktop & Mobile)                               */}
-                      {/* ========================================================================= */}
-                      
-                      {/* Subtitle / Header for Pending Items */}
-                      {pendingItems.length > 0 && (
-                        <div className="px-4 py-2 bg-amber-50/80 border-b border-amber-100/50 text-[11px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                          <Truck className="h-3.5 w-3.5" />
-                          <span>Materiales Pendientes de Recepción ({pendingItems.length})</span>
-                        </div>
-                      )}
-
-                      {/* Desktop Table View - Pending */}
-                      <div className="hidden md:block">
-                        {pendingItems.length > 0 ? (
-                          <Table>
-                            <TableHeader className="bg-slate-100/80">
-                              <TableRow>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {pendingItems.map((item) => {
-                                const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                                const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                                const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
-                                const accumulatedQty = Number(item.received_quantity || 0);
-                                const newQty = Number(receptionQuantities[item.id] || 0);
-                                const totalProjected = accumulatedQty + newQty;
-                                const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
-                                const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
-                                const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
-
-                                return (
-                                  <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
-                                    <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
-                                    <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
-                                    <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono">
-                                      {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
-                                      {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      <Input
-                                        type="text"
-                                        inputMode="decimal"
-                                        disabled={!isEditable}
-                                        placeholder={isEditable ? "0" : "Bloqueado"}
-                                        value={receptionQuantities[item.id] ?? ''}
-                                        onWheel={(e) => e.currentTarget.blur()}
-                                        onChange={(e) => {
-                                          const rawVal = e.target.value;
-                                          if (rawVal === '') {
-                                            setReceptionQuantities(prev => ({ ...prev, [item.id]: '' }));
-                                            return;
-                                          }
-                                          if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
-                                            const parsed = Number(rawVal);
-                                            if (parsed > maxAllowed) {
-                                              setReceptionQuantities(prev => ({ ...prev, [item.id]: maxAllowed }));
-                                            } else {
-                                              setReceptionQuantities(prev => ({ ...prev, [item.id]: rawVal }));
-                                            }
-                                          }
-                                        }}
-                                        className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
-                                      />
-                                    </TableCell>
-                                    <TableCell className="text-xs text-center">
-                                      <div className="flex flex-col items-center gap-1 min-w-[110px]">
-                                        <span className="font-bold font-mono text-xs">
-                                          {totalProjected} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
-                                        </span>
-                                        <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
-                                          <div className={cn("h-full rounded-full transition-all duration-300", progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary")} style={{ width: `${progressPercent}%` }} />
-                                        </div>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right font-mono font-semibold">
-                                      {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <div className="p-6 text-center text-xs text-slate-400 font-medium">No hay materiales pendientes en este lote.</div>
+                    return (
+                      <>
+                        {/* Subtitle / Header for Pending Items */}
+                        {pendingItems.length > 0 && (
+                          <div className="px-4 py-2 bg-amber-50/80 border-b border-amber-100/50 text-[11px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                            <Truck className="h-3.5 w-3.5" />
+                            <span>Materiales Pendientes de Recepción ({pendingItems.length})</span>
+                          </div>
                         )}
+
+                        {/* Desktop Table View - Pending */}
+                        <div className="hidden md:block">
+                          {pendingItems.length > 0 ? (
+                            <Table>
+                              <TableHeader className="bg-slate-100/80">
+                                <TableRow>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
+                                  <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {pendingItems.map((item) => {
+                                  const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+                                  const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                                  const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
+                                  const accumulatedQty = Number(item.received_quantity || 0);
+                                  const newQty = Number(receptionQuantities[item.id] || 0);
+                                  const totalProjected = accumulatedQty + newQty;
+                                  const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
+                                  const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
+
+                                  const cat = item.materials?.materials_inventory?.inventory_category || item.materials?.category;
+                                  const isEnabledInInv = !!item.materials?.materials_inventory;
+                                  const isSecaFresca = isSecaOrFrescaCategory(item.materials?.category, item.materials?.materials_inventory?.inventory_category);
+                                  const canEnable = !isEnabledInInv && isHabilitableCategory(item.materials?.category, item.materials?.materials_inventory?.inventory_category);
+
+                                  const pesoGuiaVal = Number(guiaQuantities[item.id] ?? (maxAllowed > 0 ? maxAllowed : item.quantity));
+                                  const mermaVal = isSecaFresca && newQty > 0 ? Math.max(0, pesoGuiaVal - newQty) : 0;
+
+                                  return (
+                                    <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
+                                      <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
+                                      <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
+                                      <TableCell className="text-xs">
+                                        <div className="flex flex-col gap-1">
+                                          <span className="font-semibold text-slate-800">{item.material_name}</span>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            {isEnabledInInv && item.materials?.materials_inventory?.sku && (
+                                              <Badge variant="outline" className="text-[9px] font-mono font-bold text-emerald-700 bg-emerald-50 border-emerald-200">
+                                                SKU: {item.materials.materials_inventory.sku}
+                                              </Badge>
+                                            )}
+                                            {canEnable && item.material_id && (
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => {
+                                                  setEnablingMaterial({
+                                                    id: item.material_id!,
+                                                    name: item.material_name,
+                                                    unit: item.unit || 'KG',
+                                                    price: item.unit_price,
+                                                  });
+                                                  setEnableUnit(item.unit || 'KG');
+                                                  setEnableCost(String(item.unit_price || 0));
+                                                }}
+                                                className="h-5 px-1.5 text-[9px] font-bold border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md flex items-center gap-1 shadow-2xs"
+                                              >
+                                                <PlusCircle className="h-3 w-3" /> Habilitar en Almacén
+                                              </Button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-xs text-center font-bold font-mono">
+                                        {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                                      </TableCell>
+                                      <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
+                                        {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        <div className="flex flex-col items-center gap-1.5 min-w-[120px]">
+                                          <Input
+                                            type="text"
+                                            inputMode="decimal"
+                                            disabled={!isEditable}
+                                            placeholder={isEditable ? "0" : "Bloqueado"}
+                                            value={receptionQuantities[item.id] ?? ''}
+                                            onWheel={(e) => e.currentTarget.blur()}
+                                            onChange={(e) => {
+                                              const rawVal = e.target.value;
+                                              if (rawVal === '') {
+                                                setReceptionQuantities(prev => ({ ...prev, [item.id]: '' }));
+                                                return;
+                                              }
+                                              if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
+                                                const parsed = Number(rawVal);
+                                                if (parsed > maxAllowed) {
+                                                  setReceptionQuantities(prev => ({ ...prev, [item.id]: maxAllowed }));
+                                                } else {
+                                                  setReceptionQuantities(prev => ({ ...prev, [item.id]: rawVal }));
+                                                }
+                                              }
+                                            }}
+                                            className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                                          />
+                                          {isSecaFresca && mermaVal > 0 && (
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded-full">
+                                                <AlertTriangle className="h-2.5 w-2.5" /> Merma: {mermaVal.toFixed(2)} {item.unit || 'KG'}
+                                              </span>
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant={acceptedMermas[item.id] ? "default" : "outline"}
+                                                onClick={() => {
+                                                  setAcceptedMermas(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+                                                }}
+                                                className={cn(
+                                                  "h-6 px-2 text-[9px] font-bold rounded-lg transition-all flex items-center gap-1",
+                                                  acceptedMermas[item.id] 
+                                                    ? "bg-amber-500 hover:bg-amber-600 text-white shadow-xs" 
+                                                    : "border-amber-300 text-amber-800 hover:bg-amber-50"
+                                                )}
+                                              >
+                                                <CheckCircle2 className="h-3 w-3" />
+                                                {acceptedMermas[item.id] ? "Merma Aceptada ✓" : "Aceptar Merma & Finalizar"}
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-xs text-center">
+                                        {(() => {
+                                          const isMermaAccepted = acceptedMermas[item.id];
+                                          const recPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
+                                          const mermaPercent = isMermaAccepted && mermaVal > 0 
+                                            ? Math.min(100 - recPercent, Math.round((mermaVal / item.quantity) * 100)) 
+                                            : 0;
+
+                                          return (
+                                            <div className="flex flex-col items-center gap-1 min-w-[125px]">
+                                              <span className="font-bold font-mono text-xs">
+                                                {isMermaAccepted ? (
+                                                  <span className="text-amber-700">{totalProjected} + {mermaVal.toFixed(1)}m / {item.quantity}</span>
+                                                ) : (
+                                                  <span>{totalProjected} / {item.quantity}</span>
+                                                )}
+                                                <span className="text-[9px] text-gray-400 font-normal"> ({recPercent + mermaPercent}%)</span>
+                                              </span>
+                                              
+                                              {/* Barra de Progreso Bicolor (Verde: Recibido + Amarillo: Merma Aceptada) */}
+                                              <div className="w-28 bg-gray-200/70 rounded-full h-2 overflow-hidden flex shadow-2xs">
+                                                <div className="bg-green-600 h-full transition-all duration-300" style={{ width: `${recPercent}%` }} title={`Recibido real: ${recPercent}%`} />
+                                                {mermaPercent > 0 && (
+                                                  <div className="bg-amber-400 h-full transition-all duration-300" style={{ width: `${mermaPercent}%` }} title={`Merma aceptada: ${mermaPercent}%`} />
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })()}
+                                      </TableCell>
+                                      <TableCell className="text-xs text-right font-mono font-semibold">
+                                        {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
+                                      </TableCell>
+                                      <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <div className="p-6 text-center text-xs text-slate-400 font-medium">No hay materiales pendientes en este lote.</div>
+                          )}
+                        </div>
+
+                        {/* Completed Items Section */}
+                        {completedItems.length > 0 && (
+                          <div className="px-4 py-2 bg-green-50 border-y border-green-100 text-[11px] font-black uppercase tracking-wider text-green-800 flex items-center gap-1.5 mt-6">
+                            <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                            <span>Materiales Completamente Recibidos ({completedItems.length})</span>
+                          </div>
+                        )}
+                        <div className="hidden md:block">
+                          {completedItems.length > 0 && (
+                            <Table>
+                              <TableBody>
+                                {completedItems.map((item) => {
+                                  const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+                                  const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                                  const accumulatedQty = Number(item.received_quantity || 0);
+
+                                  return (
+                                    <TableRow key={item.id} className="bg-green-50/20 hover:bg-green-50/30 transition-colors">
+                                      <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
+                                      <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate">{supplierName}</TableCell>
+                                      <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
+                                      <TableCell className="text-xs text-center font-bold font-mono">{item.quantity} <span className="text-[10px] text-gray-400">{item.unit || 'UND'}</span></TableCell>
+                                      <TableCell className="text-xs text-center font-bold font-mono bg-emerald-100/10 border-x border-gray-100">{accumulatedQty} <span className="text-[10px] text-gray-400">{item.unit || 'UND'}</span></TableCell>
+                                      <TableCell className="text-center">
+                                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
+                                          <Check className="h-3 w-3 shrink-0" /> Recibido
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="text-xs text-right font-mono font-semibold">{formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}</TableCell>
+                                      <TableCell className="text-xs text-right text-muted-foreground pr-4"></TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()
+                ) : (
+                  /* ========================================================================= */
+                  /* PASO 2: CONSOLIDADOR DE FACTURAS, NOTAS DE ENTREGA Y OCs                   */
+                  /* ========================================================================= */
+                  <div className="p-4 space-y-4">
+                    <div className="flex items-center justify-between bg-blue-50/80 p-3 rounded-2xl border border-blue-100">
+                      <div>
+                        <h4 className="text-xs font-extrabold text-blue-900 flex items-center gap-1.5">
+                          <Paperclip className="h-4 w-4 text-blue-700" />
+                          Consolidador de Documentos y Evidencias
+                        </h4>
+                        <p className="text-[11px] text-blue-700 font-medium">
+                          Ingresa las notas de entrega / facturas y selecciona qué Órdenes de Compra ampara cada documento.
+                        </p>
                       </div>
 
-                      {/* Mobile Cards View - Pending */}
-                      <div className="block md:hidden p-3 space-y-3">
-                        {pendingItems.map((item) => {
-                          const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                          const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                          const accumulatedQty = Number(item.received_quantity || 0);
-                          const newQty = Number(receptionQuantities[item.id] || 0);
-                          const totalProjected = accumulatedQty + newQty;
-                          const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
-                          const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
-                          const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setDocEntries(prev => [
+                            ...prev,
+                            {
+                              id: `doc-${Date.now()}`,
+                              docType: 'Nota de Entrega',
+                              docNumber: '',
+                              selectedOrderIds: [...orderIds],
+                              evidenceFile: null,
+                              notes: '',
+                            }
+                          ]);
+                        }}
+                        className="h-8 border-blue-300 text-blue-800 hover:bg-blue-100 text-xs font-bold rounded-xl flex items-center gap-1"
+                      >
+                        <PlusCircle className="h-3.5 w-3.5" /> + Agregar otra Guía/Factura
+                      </Button>
+                    </div>
 
-                          return (
-                            <div key={item.id} className="bg-white p-4 border border-gray-150 rounded-2xl shadow-sm space-y-3">
-                              <div className="flex justify-between items-start border-b border-gray-100 pb-2">
-                                <div>
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
-                                  <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
-                                  <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
-                                <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
-                                <div className="text-center">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Pedida</span>
-                                  <span className="text-xs font-bold font-mono text-slate-700">{item.quantity}</span>
-                                </div>
-                                <div className="text-center border-x border-gray-200">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Recibido</span>
-                                  <span className="text-xs font-bold font-mono text-slate-700">{accumulatedQty}</span>
-                                </div>
-                                <div className="text-center">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">P. Unitario</span>
-                                  <span className="text-xs font-bold font-mono text-slate-700">{item.purchase_orders?.currency} {item.unit_price.toFixed(2)}</span>
-                                </div>
-                              </div>
-                              <div className="flex flex-col gap-3 pt-1">
-                                <div className="flex flex-col gap-1 w-full">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Nueva Recepción</span>
-                                  <Input
-                                    type="text"
-                                    inputMode="decimal"
-                                    disabled={!isEditable}
-                                    placeholder={isEditable ? "0" : "Bloqueado"}
-                                    value={receptionQuantities[item.id] ?? ''}
-                                    onWheel={(e) => e.currentTarget.blur()}
+                    <div className="space-y-3">
+                      {docEntries.map((entry, idx) => (
+                        <div key={entry.id} className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <span className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
+                              <Badge className="bg-slate-800 text-white text-[10px]">#{idx + 1}</Badge>
+                              Comprobante / Documento
+                            </span>
+
+                            {docEntries.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDocEntries(prev => prev.filter(d => d.id !== entry.id))}
+                                className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-bold"
+                              >
+                                Eliminar
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Tipo Documento</Label>
+                              <Select
+                                value={entry.docType}
+                                onValueChange={(val: any) => {
+                                  setDocEntries(prev => prev.map(d => d.id === entry.id ? { ...d, docType: val } : d));
+                                }}
+                              >
+                                <SelectTrigger className="h-9 bg-slate-50 text-xs font-medium rounded-xl border-slate-200">
+                                  <SelectValue placeholder="Tipo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Nota de Entrega">Nota de Entrega</SelectItem>
+                                  <SelectItem value="Factura">Factura</SelectItem>
+                                  <SelectItem value="Otro">Otro Comprobante</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block"># Guía / Factura</Label>
+                              <Input
+                                type="text"
+                                placeholder="Ej. NE-9482 / FAC-1049"
+                                value={entry.docNumber}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setDocEntries(prev => prev.map(d => d.id === entry.id ? { ...d, docNumber: val } : d));
+                                }}
+                                className="h-9 bg-slate-50 text-xs font-semibold rounded-xl border-slate-200"
+                              />
+                            </div>
+
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Comprobante Foto/PDF</Label>
+                              <div className="flex items-center gap-2">
+                                <label className="flex-1 cursor-pointer flex items-center justify-center gap-2 h-9 px-3 bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 rounded-xl text-xs font-medium text-slate-600 transition-all truncate">
+                                  <Upload className="h-3.5 w-3.5 text-procarni-primary shrink-0" />
+                                  <span className="truncate">{entry.evidenceFile ? entry.evidenceFile.name : "Subir archivo..."}</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
                                     onChange={(e) => {
-                                      const rawVal = e.target.value;
-                                      if (rawVal === '') {
-                                        setReceptionQuantities(prev => ({ ...prev, [item.id]: '' }));
-                                        return;
-                                      }
-                                      if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
-                                        const parsed = Number(rawVal);
-                                        if (parsed > maxAllowed) {
-                                          setReceptionQuantities(prev => ({ ...prev, [item.id]: maxAllowed }));
-                                        } else {
-                                          setReceptionQuantities(prev => ({ ...prev, [item.id]: rawVal }));
-                                        }
+                                      if (e.target.files && e.target.files[0]) {
+                                        const file = e.target.files[0];
+                                        setDocEntries(prev => prev.map(d => d.id === entry.id ? { ...d, evidenceFile: file } : d));
                                       }
                                     }}
-                                    className="h-9 w-full text-center text-xs font-bold bg-slate-50 border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
                                   />
-                                </div>
-                                <div className="flex justify-between items-center text-xs mt-1">
-                                  <span className="text-gray-500 font-medium">Proyectado:</span>
-                                  <span className="font-bold font-mono">
-                                    {totalProjected} / {item.quantity} <span className="text-[10px] text-gray-400 font-normal">({progressPercent}%)</span>
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
-                                  <div className={cn("h-full rounded-full transition-all duration-300", progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary")} style={{ width: `${progressPercent}%` }} />
-                                </div>
+                                </label>
+                                {entry.evidenceFile && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setDocEntries(prev => prev.map(d => d.id === entry.id ? { ...d, evidenceFile: null } : d));
+                                    }}
+                                    className="h-9 px-2 text-red-500 hover:bg-red-50 rounded-xl text-xs"
+                                  >
+                                    ✕
+                                  </Button>
+                                )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
 
-                      {/* ========================================================================= */}
-                      {/* 2. COMPLETED ITEMS SECTION (Desktop & Mobile)                             */}
-                      {/* ========================================================================= */}
-
-                      {/* Subtitle / Header for Completed Items */}
-                      {completedItems.length > 0 && (
-                        <div className="px-4 py-2 bg-green-50 border-y border-green-100 text-[11px] font-black uppercase tracking-wider text-green-800 flex items-center gap-1.5 mt-6">
-                          <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                          <span>Materiales Completamente Recibidos ({completedItems.length})</span>
-                        </div>
-                      )}
-
-                      {/* Desktop Table View - Completed */}
-                      <div className="hidden md:block">
-                        {completedItems.length > 0 ? (
-                          <Table>
-                            <TableHeader className="bg-emerald-50/60">
-                              <TableRow>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Total</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Estado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {completedItems.map((item) => {
-                                const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                                const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                                const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
-                                const accumulatedQty = Number(item.received_quantity || 0);
+                          {/* Chips de Selección de OCs Amparadas por este documento */}
+                          <div>
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+                              Órdenes de Compra amparadas por esta {entry.docType}:
+                            </Label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {orderIds.map(oId => {
+                                const isSelected = entry.selectedOrderIds.includes(oId);
+                                const orderItem = items.find(i => i.order_id === oId);
+                                const seqNum = formatSequenceNumber(orderItem?.purchase_orders?.sequence_number, orderItem?.purchase_orders?.created_at);
 
                                 return (
-                                  <TableRow key={item.id} className="bg-green-50/20 hover:bg-green-50/30 transition-colors">
-                                    <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
-                                    <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
-                                    <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono">{item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span></TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono bg-emerald-100/10 border-x border-gray-100">{accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span></TableCell>
-                                    <TableCell className="text-center">
-                                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                                        <Check className="h-3 w-3 shrink-0" /> Recibido
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right font-mono font-semibold">
-                                      {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
-                                  </TableRow>
+                                  <button
+                                    key={oId}
+                                    type="button"
+                                    onClick={() => {
+                                      const newSelected = isSelected
+                                        ? entry.selectedOrderIds.filter(id => id !== oId)
+                                        : [...entry.selectedOrderIds, oId];
+                                      setDocEntries(prev => prev.map(d => d.id === entry.id ? { ...d, selectedOrderIds: newSelected } : d));
+                                    }}
+                                    className={cn(
+                                      "px-3 py-1 rounded-xl text-xs font-mono font-bold transition-all border flex items-center gap-1.5 cursor-pointer select-none",
+                                      isSelected
+                                        ? "bg-procarni-dark text-white border-procarni-dark shadow-xs"
+                                        : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                                    )}
+                                  >
+                                    {isSelected ? <Check className="h-3 w-3 text-emerald-400" /> : <PlusCircle className="h-3 w-3 text-slate-400" />}
+                                    <span>{seqNum}</span>
+                                  </button>
                                 );
                               })}
-                            </TableBody>
-                          </Table>
-                        ) : null}
-                      </div>
-
-                      {/* Mobile Cards View - Completed */}
-                      <div className="block md:hidden p-3 space-y-3 pb-24">
-                        {completedItems.map((item) => {
-                          const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                          const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                          const accumulatedQty = Number(item.received_quantity || 0);
-
-                          return (
-                            <div key={item.id} className="bg-green-50/10 p-4 border border-green-150 rounded-2xl shadow-sm space-y-3 opacity-90">
-                              <div className="flex justify-between items-start border-b border-green-100/30 pb-2">
-                                <div>
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
-                                  <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
-                                  <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
-                                </div>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
-                                  <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
-                                </div>
-                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                                  <Check className="h-3 w-3 shrink-0" /> Recibido
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 bg-green-100/10 p-2 rounded-xl border border-green-100/20">
-                                <div className="text-center">
-                                  <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Pedida</span>
-                                  <span className="text-xs font-bold font-mono text-green-800">{item.quantity}</span>
-                                </div>
-                                <div className="text-center border-l border-green-100/20">
-                                  <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Recibido Total</span>
-                                  <span className="text-xs font-bold font-mono text-green-800">{accumulatedQty}</span>
-                                </div>
-                              </div>
                             </div>
-                          );
-                        })}
-                        {/* Spacer to guarantee scroll clearance over fixed footer */}
-                        <div className="h-16 w-full" />
-                      </div>
-                    </>
-                  );
-                })()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </ScrollArea>
             </div>
 
-            <DialogFooter className="pt-2 border-t border-gray-100 mt-2 w-full">
-              {/* Mobile Compact Footer Row */}
-              <div className="grid grid-cols-3 gap-2 w-full md:hidden">
-                <Button 
-                  variant="ghost" 
-                  onClick={onClose} 
-                  className="h-9 px-2 rounded-xl text-slate-500 text-xs font-bold w-full"
-                >
-                  Cerrar
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSetInTransit}
-                  disabled={isSaving || items.length === 0 || !canSetInTransit}
-                  className="h-9 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-1 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold transition-all w-full truncate"
-                  title="Establecer en Tránsito"
-                >
-                  <Truck className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Tránsito</span>
-                </Button>
-                <Button
-                  onClick={handleSaveReception}
-                  disabled={isSaving || items.length === 0}
-                  className="h-9 bg-green-700 hover:bg-green-800 text-white px-1 rounded-xl flex items-center justify-center gap-1 text-[11px] font-bold transition-all w-full truncate"
-                  title="Guardar Recepción"
-                >
-                  <PackageCheck className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Recibir</span>
-                </Button>
-              </div>
+            {/* ========================================================================= */}
+            {/* WIZARD DIALOG FOOTER                                                      */}
+            {/* ========================================================================= */}
+            <DialogFooter className="pt-3 border-t border-gray-100 mt-2 w-full">
+              <div className="flex flex-col sm:flex-row gap-2 items-center justify-between w-full">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500 text-xs font-bold">
+                    Cerrar
+                  </Button>
 
-              {/* Desktop Standard Footer Layout */}
-              <div className="hidden md:flex md:flex-row gap-2 items-end justify-between w-full">
-                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-end">
-                  <div className="flex flex-col sm:w-auto w-full">
-                    <Button variant="ghost" onClick={onClose} className="h-10 px-4 rounded-xl text-slate-500 w-full sm:w-auto">
-                      Cerrar
-                    </Button>
-                  </div>
-                  
-                  <div className="flex flex-col gap-1.5 sm:w-auto w-full">
-                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 1: En Tránsito</span>
+                  {step === 2 && (
                     <Button
+                      type="button"
                       variant="outline"
-                      onClick={handleSetInTransit}
-                      disabled={isSaving || items.length === 0 || !canSetInTransit}
-                      className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all w-full sm:w-auto"
+                      onClick={() => setStep(1)}
+                      className="h-10 border-slate-300 text-slate-700 hover:bg-slate-100 px-4 rounded-xl text-xs font-bold"
                     >
-                      <Truck className="h-4 w-4 text-procarni-primary" />
-                      Establecer En Tránsito
+                      ← Volver a Materiales (Paso 1)
                     </Button>
-                  </div>
+                  )}
+                </div>
 
-                  <div className="flex flex-col gap-1.5 sm:w-auto w-full">
-                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-slate-400 select-none pl-1 text-center sm:text-left">Paso 2: Registrar Recepción</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto ml-auto">
+                  {step === 1 ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={handleSetInTransit}
+                        disabled={isSaving || items.length === 0 || !canSetInTransit}
+                        className="h-10 border-procarni-primary/30 text-procarni-primary hover:bg-procarni-primary/10 px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-xs transition-all text-xs"
+                      >
+                        <Truck className="h-4 w-4" />
+                        Establecer En Tránsito
+                      </Button>
+
+                      <Button
+                        onClick={handleSaveReception}
+                        disabled={isSaving || items.length === 0}
+                        className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md transition-all text-xs"
+                      >
+                        <PackageCheck className="h-4 w-4" />
+                        Guardar Directo (1 Clic)
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={() => setStep(2)}
+                        disabled={items.length === 0}
+                        className="h-10 bg-procarni-dark hover:bg-slate-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md transition-all text-xs"
+                      >
+                        Consolidar Facturas / Evidencias →
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       onClick={handleSaveReception}
                       disabled={isSaving || items.length === 0}
-                      className="h-10 bg-green-700 hover:bg-green-800 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
+                      className="h-10 bg-green-700 hover:bg-green-800 text-white px-5 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all text-xs"
                     >
-                      <PackageCheck className="h-4 w-4" />
-                      Guardar Recepción
+                      <CheckCircle2 className="h-4 w-4" />
+                      Finalizar Recepción & Guardar Todo
                     </Button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto ml-auto">
-                  <Button
-                    variant="outline"
-                    onClick={handleExportXLSX}
-                    disabled={items.length === 0}
-                    className="h-10 border-procarni-secondary/30 text-procarni-secondary hover:bg-procarni-secondary/10 hover:text-procarni-secondary px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-sm transition-all"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Exportar Excel
-                  </Button>
-                  <Button
-                    onClick={handleExportPDF}
-                    disabled={items.length === 0}
-                    className="h-10 bg-procarni-primary hover:bg-red-750 text-white px-4 rounded-xl flex items-center justify-center gap-2 font-bold shadow-md hover:shadow-lg transition-all"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Exportar PDF
-                  </Button>
+                  )}
                 </div>
               </div>
             </DialogFooter>
           </>
         )}
       </DialogContent>
+
+      {/* ========================================================================= */}
+      {/* OPCIÓN A: MODAL RÁPIDO PARA HABILITAR MATERIAL EN ALMACÉN                */}
+      {/* ========================================================================= */}
+      <Dialog open={!!enablingMaterial} onOpenChange={(val) => !val && setEnablingMaterial(null)}>
+        <DialogContent className="max-w-md bg-white rounded-2xl p-6 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-extrabold text-procarni-dark flex items-center gap-2">
+              <PlusCircle className="h-5 w-5 text-blue-600" />
+              Habilitar Material para Almacén
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Registra <strong>{enablingMaterial?.name}</strong> en el inventario para controlar su stock y kardex.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEnableSubmit} className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Categoría Almacén *</Label>
+                <Select value={enableCategory} onValueChange={(val: any) => setEnableCategory(val)}>
+                  <SelectTrigger className="h-9 bg-slate-50 text-xs font-bold rounded-xl border-slate-200">
+                    <SelectValue placeholder="Categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MPS">
+                      <span className="font-bold text-amber-700">MPS</span> - Seca
+                    </SelectItem>
+                    <SelectItem value="MPF">
+                      <span className="font-bold text-red-700">MPF</span> - Fresca
+                    </SelectItem>
+                    <SelectItem value="EMP">
+                      <span className="font-bold text-blue-700">EMP</span> - Empaques
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Tipo de Inventario *</Label>
+                <Select value={enableInventoryType} onValueChange={(val: any) => setEnableInventoryType(val)}>
+                  <SelectTrigger className="h-9 bg-slate-50 text-xs font-bold rounded-xl border-slate-200">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Producción">
+                      <span className="font-bold text-procarni-dark">Producción</span>
+                    </SelectItem>
+                    <SelectItem value="Suministro">
+                      <span className="font-bold text-slate-700">Suministro</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Unidad *</Label>
+                <Input
+                  type="text"
+                  value={enableUnit}
+                  onChange={(e) => setEnableUnit(e.target.value)}
+                  className="h-9 bg-slate-50 text-xs font-semibold rounded-xl border-slate-200"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Alerta Stock Mín.</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={enableMinStock}
+                  onChange={(e) => setEnableMinStock(e.target.value)}
+                  className="h-9 bg-slate-50 text-xs font-semibold rounded-xl border-slate-200"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 block">Costo Inicial / Referencia ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.0001"
+                value={enableCost}
+                onChange={(e) => setEnableCost(e.target.value)}
+                className="h-9 bg-slate-50 text-xs font-semibold rounded-xl border-slate-200"
+              />
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setEnablingMaterial(null)} className="h-9 rounded-xl text-xs">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isEnabling}
+                className="h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5"
+              >
+                {isEnabling ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Habilitar y Guardar
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };
 
 export default TransitReportDialog;
+

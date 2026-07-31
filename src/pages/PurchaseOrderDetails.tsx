@@ -186,19 +186,104 @@ const PurchaseOrderDetails = () => {
   const totals = calculateTotals(itemsForCalculation);
   const amountInWords = order ? numberToWords(totals.total, order.currency) : '';
 
+  // Consultar transacciones de Kardex para obtener mermas registradas de la OC
+  const { data: kardexTx } = useQuery({
+    queryKey: ['kardexTransactionsForPO', order?.id, order?.sequence_number],
+    queryFn: async () => {
+      if (!order || !order.purchase_order_items || order.purchase_order_items.length === 0) return [];
+
+      const materialIds = order.purchase_order_items
+        .map(i => i.material_id)
+        .filter((id): id is string => !!id);
+
+      const orderSeq = formatSequenceNumber(order.sequence_number, order.created_at);
+      const rawSeq = order.sequence_number ? String(order.sequence_number) : '';
+
+      let query = supabase
+        .from('inventory_transactions')
+        .select('material_id, transaction_type, quantity, expected_quantity, actual_quantity, reference_doc, audit_note');
+
+      if (materialIds.length > 0) {
+        query = query.in('material_id', materialIds);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('[PurchaseOrderDetails] kardexTx query error:', error);
+        return [];
+      }
+
+      const filtered = (data || []).filter(tx => {
+        const ref = (tx.reference_doc || '').toLowerCase();
+        const audit = (tx.audit_note || '').toLowerCase();
+        const targetSeq = orderSeq.toLowerCase();
+        
+        return ref.includes(targetSeq) || 
+               ref.includes(order.id.toLowerCase()) ||
+               (rawSeq && (ref.includes(`oc-${rawSeq}`) || ref.includes(`oc${rawSeq}`) || ref.includes(rawSeq))) ||
+               audit.includes(targetSeq);
+      });
+
+      return filtered;
+    },
+    enabled: !!order,
+  });
+
   const receptionStats = useMemo(() => {
     if (!order?.purchase_order_items || order.purchase_order_items.length === 0) {
-      return { requested: 0, received: 0, percent: 0 };
+      return { requested: 0, received: 0, receivedReal: 0, merma: 0, percent: 0, realPercent: 0, mermaPercent: 0 };
     }
     let requested = 0;
     let received = 0;
+    let receivedReal = 0;
+    let merma = 0;
+
     order.purchase_order_items.forEach(item => {
       requested += Number(item.quantity || 0);
       received += Number(item.received_quantity || 0);
     });
-    const percent = requested > 0 ? Math.min(100, Math.max(0, Math.round((received / requested) * 100))) : 0;
-    return { requested, received, percent };
-  }, [order?.purchase_order_items]);
+
+    if (kardexTx && kardexTx.length > 0) {
+      const purchaseTx = kardexTx.filter(tx => tx.transaction_type === 'IN_PURCHASE');
+      const lossTx = kardexTx.filter(tx => tx.transaction_type === 'ADJUSTMENT_LOSS' || tx.transaction_type === 'OUT_WASTE');
+
+      if (purchaseTx.length > 0) {
+        purchaseTx.forEach(tx => {
+          const act = Number(tx.actual_quantity ?? tx.quantity ?? 0);
+          const exp = Number(tx.expected_quantity ?? tx.quantity ?? 0);
+          if (exp > act && act > 0) {
+            merma += (exp - act);
+          }
+        });
+      }
+
+      if (lossTx.length > 0) {
+        let lossSum = 0;
+        lossTx.forEach(tx => {
+          lossSum += Math.abs(Number(tx.quantity || 0));
+        });
+        if (lossSum > 0) {
+          merma = lossSum;
+        }
+      }
+    }
+
+    // Si hay mermas registradas, el recibido real es el acumulado menos la merma
+    if (merma > 0) {
+      receivedReal = Math.max(0, received - merma);
+    } else {
+      receivedReal = received;
+    }
+
+    const realPercent = requested > 0 ? Math.min(100, Math.max(0, Math.round((receivedReal / requested) * 100))) : 0;
+    const mermaPercent = (requested > 0 && merma > 0)
+      ? Math.min(100 - realPercent, Math.max(1, Math.round((merma / requested) * 100)))
+      : 0;
+
+    const totalPercent = Math.min(100, realPercent + mermaPercent);
+
+    return { requested, received, receivedReal, merma, percent: totalPercent, realPercent, mermaPercent };
+  }, [order?.purchase_order_items, kardexTx]);
 
   const totalInUSD = useMemo(() => {
     if (order?.currency === 'VES' && order.exchange_rate && order.exchange_rate > 0) {
@@ -1085,20 +1170,38 @@ const PurchaseOrderDetails = () => {
           {['Approved', 'Credit', 'Paid', 'ToPay', 'Received'].includes(order.status) && receptionStats.requested > 0 && (
             <div className="mt-3 p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
               <div className="flex justify-between text-xs font-bold text-gray-500">
-                <span>Materiales Recibidos: {receptionStats.received} / {receptionStats.requested}</span>
+                <span>
+                  Materiales Recibidos: {receptionStats.receivedReal.toFixed(1)} / {receptionStats.requested.toFixed(1)}
+                  {receptionStats.merma > 0 && (
+                    <span className="text-amber-700 font-semibold ml-1.5">(+ {receptionStats.merma.toFixed(1)} Merma)</span>
+                  )}
+                </span>
                 <span className="text-procarni-secondary font-mono">{receptionStats.percent}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+
+              {/* Barra de Progreso Bicolor (Verde: Recibido + Amarillo: Merma Aceptada) */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden flex shadow-2xs">
                 <div 
-                  className={cn(
-                    "h-full rounded-full transition-all duration-500",
-                    receptionStats.percent === 100 ? "bg-green-600" : "bg-procarni-primary"
-                  )}
-                  style={{ width: `${receptionStats.percent}%` }}
+                  className="bg-green-600 h-full transition-all duration-500"
+                  style={{ width: `${receptionStats.realPercent}%` }}
+                  title={`Recibido real: ${receptionStats.realPercent}%`}
                 />
+                {receptionStats.mermaPercent > 0 && (
+                  <div 
+                    className="bg-amber-400 h-full transition-all duration-500"
+                    style={{ width: `${receptionStats.mermaPercent}%` }}
+                    title={`Merma aceptada: ${receptionStats.mermaPercent}%`}
+                  />
+                )}
               </div>
-              <div className="text-[10px] text-right text-gray-400 font-medium italic">
-                Pendiente de entrega: {receptionStats.requested - receptionStats.received} unidades
+
+              <div className="flex justify-between text-[10px] text-gray-400 font-medium italic">
+                <span>Estado: {order.reception_status || 'Ninguno'}</span>
+                <span>
+                  {receptionStats.requested - receptionStats.received > 0 
+                    ? `Pendiente de entrega: ${(receptionStats.requested - receptionStats.received).toFixed(1)} unidades` 
+                    : 'Recepción 100% Finalizada'}
+                </span>
               </div>
             </div>
           )}

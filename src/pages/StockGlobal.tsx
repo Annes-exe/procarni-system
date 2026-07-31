@@ -6,7 +6,7 @@ import { useDebounce } from 'use-debounce';
 import {
   Warehouse, Plus, Search, AlertTriangle, TrendingUp,
   DollarSign, Package, ChevronRight, X, Loader2,
-  BadgeCheck, Eye, MoreVertical, Edit, History, Archive, Download, FileSpreadsheet, FileText, CheckCircle
+  BadgeCheck, Eye, MoreVertical, Edit, History, Archive, Download, FileSpreadsheet, FileText, CheckCircle, PackagePlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -129,6 +129,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
   const [debouncedSearch] = useDebounce(search, 300);
   const [selectedMaterial, setSelectedMaterial] = useState<{ id: string; name: string; code: string | null; category: string | null; unit: string | null } | null>(null);
   const [category, setCategory] = useState<InventoryCategory | ''>('');
+  const [inventoryType, setInventoryType] = useState<'Producción' | 'Suministro'>('Producción');
   const [unit, setUnit] = useState('KG');
   const [minStock, setMinStock] = useState('0');
   const [initialCost, setInitialCost] = useState('0');
@@ -191,6 +192,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
     setSearch('');
     setSelectedMaterial(null);
     setCategory('');
+    setInventoryType('Producción');
     setUnit('KG');
     setMinStock('0');
     setInitialCost('0');
@@ -217,6 +219,7 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
     enable({
       material_id: selectedMaterial.id,
       inventory_category: category,
+      inventory_type: inventoryType,
       unit: unit.trim() || 'kg',
       min_stock_alert: parsedMinStock,
       last_purchase_price: parsedInitialCost,
@@ -226,20 +229,20 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-procarni-dark">
-            <BadgeCheck className="h-5 w-5 text-procarni-secondary" />
-            Habilitar Material para Inventario
+          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-800">
+            <PackagePlus className="h-5 w-5 text-emerald-600" />
+            Habilitar para Almacén
           </DialogTitle>
           <DialogDescription>
-            Solo los materiales habilitados pueden recibir transacciones en el almacén.
+            Configura los parámetros del material para poder recibirlo en inventario.
           </DialogDescription>
         </DialogHeader>
 
         {/* Step 1: Select material */}
         {!selectedMaterial ? (
-          <div className="space-y-3">
+          <div className="space-y-3 pt-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -290,47 +293,64 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
           </div>
         ) : (
           /* Step 2: Configure */
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Selected material pill */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-              <Package className="h-4 w-4 text-slate-500 flex-shrink-0" />
-              <span className="text-sm font-bold text-slate-800 flex-1">{selectedMaterial.name}</span>
-              <button type="button" onClick={() => setSelectedMaterial(null)}>
-                <X className="h-4 w-4 text-slate-400 hover:text-procarni-primary transition-colors" />
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            {/* Selected material info */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-500 uppercase tracking-wider block font-semibold mb-0.5">Material</span>
+                <span className="text-sm font-bold text-slate-800">{selectedMaterial.name}</span>
+              </div>
+              <button type="button" onClick={() => setSelectedMaterial(null)} className="text-slate-400 hover:text-red-600 transition-colors p-1">
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Category */}
-            <div className="space-y-1.5">
-              <Label htmlFor="inv-category">Categoría de Inventario *</Label>
-              <Select value={category} onValueChange={v => setCategory(v as InventoryCategory)}>
-                <SelectTrigger id="inv-category">
-                  <SelectValue placeholder="Selecciona una categoría..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(CATEGORY_LABELS) as InventoryCategory[]).map(c => (
-                    <SelectItem key={c} value={c}>
-                      <span className="font-mono font-bold mr-2">{c}</span>
-                      <span className="text-gray-600">{CATEGORY_LABELS[c]}</span>
+            {/* Category and Inventory Type */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="inv-category">Categoría de Almacén *</Label>
+                <Select value={category} onValueChange={v => setCategory(v as InventoryCategory)}>
+                  <SelectTrigger id="inv-category">
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(CATEGORY_LABELS) as InventoryCategory[]).map(c => (
+                      <SelectItem key={c} value={c}>
+                        <span className="font-mono font-bold mr-2">{c}</span>
+                        <span className="text-gray-600">{CATEGORY_LABELS[c]}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="inv-type">Tipo de Inventario *</Label>
+                <Select value={inventoryType} onValueChange={v => setInventoryType(v as typeof inventoryType)}>
+                  <SelectTrigger id="inv-type">
+                    <SelectValue placeholder="Tipo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Producción">
+                      <span className="font-bold text-procarni-dark">Producción</span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    <SelectItem value="Suministro">
+                      <span className="font-bold text-slate-700">Suministro</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* SKU Preview */}
             {category && (
-              <m.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-procarni-dark rounded-lg px-4 py-3 flex items-center justify-between"
-              >
-                <span className="text-xs text-gray-400 uppercase tracking-wider">SKU que se asignará</span>
-                <span className="font-mono font-black text-xl text-procarni-secondary">{nextSku}</span>
-              </m.div>
+              <div className="bg-procarni-dark rounded-lg px-4 py-2.5 flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">SKU Asignado</span>
+                <span className="font-mono font-black text-lg text-procarni-secondary">{nextSku}</span>
+              </div>
             )}
 
-            {/* Unit and stocks in two columns */}
+            {/* Unit and stocks in three columns */}
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="inv-unit">Unidad *</Label>
@@ -348,27 +368,27 @@ const HabilitarMaterialModal = ({ open, onClose }: HabilitarModalProps) => {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="inv-min-stock">Alerta mínima</Label>
+                <Label htmlFor="inv-min-stock">Alerta mín.</Label>
                 <Input id="inv-min-stock" type="number" min="0" value={minStock} onChange={e => setMinStock(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="inv-cost">Costo inicial</Label>
-                <Input id="inv-cost" type="number" min="0" step="0.000001" value={initialCost} onChange={e => setInitialCost(e.target.value)} />
+                <Label htmlFor="inv-cost">Costo *</Label>
+                <Input id="inv-cost" type="number" min="0" step="0.000001" value={initialCost} onChange={e => setInitialCost(e.target.value)} required />
               </div>
             </div>
 
             {/* Notes */}
             <div className="space-y-1.5">
               <Label htmlFor="inv-notes">Notas (opcional)</Label>
-              <Textarea id="inv-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Condiciones de almacenamiento, proveedor habitual..." />
+              <Textarea id="inv-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Detalles sobre almacenamiento o proveedor..." />
             </div>
 
             <Button
               type="submit"
               disabled={!category || isPending}
-              className="w-full bg-procarni-secondary hover:bg-procarni-secondary/90 text-white h-11 font-bold text-sm"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11 font-bold text-sm rounded-xl flex items-center justify-center gap-2"
             >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BadgeCheck className="h-4 w-4 mr-2" />}
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
               {isPending ? 'Habilitando...' : `Habilitar con SKU ${nextSku}`}
             </Button>
           </form>

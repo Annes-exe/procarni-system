@@ -95,6 +95,22 @@ const MaterialGeneralProfile = () => {
     enabled: !!id && id !== 'new',
   });
 
+  // Fetch inventory record status for this material
+  const { data: inventoryData } = useQuery({
+    queryKey: ['materialInventoryRecord', id],
+    queryFn: async () => {
+      if (!id || id === 'new') return null;
+      const { data, error } = await supabase
+        .from('materials_inventory')
+        .select('*')
+        .eq('material_id', id)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') console.error('Error fetching materials_inventory:', error);
+      return data || null;
+    },
+    enabled: !!id && id !== 'new',
+  });
+
   // Fetch actual material categories
   const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
     queryKey: ['material_categories'],
@@ -899,6 +915,12 @@ const MaterialGeneralProfile = () => {
               <Badge variant="outline" className={cn('font-bold text-xs border px-2.5 py-0.5', categoryColor.bg, categoryColor.text, categoryColor.border)}>
                 {selectedCategory || 'Sin Categoría'}
               </Badge>
+              {!isNew && inventoryData && (
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 font-bold flex items-center gap-1.5 px-3 py-0.5 text-xs">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Almacén: {inventoryData.sku} (Tipo: {inventoryData.inventory_type || 'Producción'})</span>
+                </Badge>
+              )}
               {!isNew && material.status === 'archived' && (
                 <Badge variant="outline" className="bg-red-50 text-procarni-primary border-procarni-primary/20 font-bold">
                   Inactivo / Archivado

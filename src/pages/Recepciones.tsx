@@ -186,6 +186,7 @@ interface LocalHabilitarModalProps {
 const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarModalProps) => {
   const queryClient = useQueryClient();
   const [category, setCategory] = useState<'MPF' | 'MPS' | 'EMP' | 'ETQ' | ''>('');
+  const [inventoryType, setInventoryType] = useState<'Producción' | 'Suministro'>('Producción');
   const [unit, setUnit] = useState(material?.unit ?? 'kg');
   const [minStock, setMinStock] = useState('0');
   const [initialCost, setInitialCost] = useState(String(material?.unit_price ?? 0));
@@ -245,6 +246,7 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
       await enableMaterialForInventory({
         material_id: material.id,
         inventory_category: category,
+        inventory_type: inventoryType,
         unit: unit.trim() || 'kg',
         min_stock_alert: parsedMinStock,
         last_purchase_price: parsedInitialCost,
@@ -282,32 +284,51 @@ const LocalHabilitarModal = ({ material, onClose, onSuccess }: LocalHabilitarMod
             <span className="text-sm font-bold text-slate-800">{material?.name}</span>
           </div>
 
-          {/* Category selection */}
-          <div className="space-y-1.5">
-            <Label htmlFor="local-inv-category">Categoría de Inventario *</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as typeof category)}>
-              <SelectTrigger id="local-inv-category">
-                <SelectValue placeholder="Selecciona una categoría..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MPF">
-                  <span className="font-mono font-bold mr-2 text-red-600">MPF</span>
-                  <span className="text-slate-600">Materia Prima Fresca</span>
-                </SelectItem>
-                <SelectItem value="MPS">
-                  <span className="font-mono font-bold mr-2 text-amber-600">MPS</span>
-                  <span className="text-slate-600">Materia Prima Seca</span>
-                </SelectItem>
-                <SelectItem value="EMP">
-                  <span className="font-mono font-bold mr-2 text-blue-600">EMP</span>
-                  <span className="text-slate-600">Empaques</span>
-                </SelectItem>
-                <SelectItem value="ETQ">
-                  <span className="font-mono font-bold mr-2 text-violet-600">ETQ</span>
-                  <span className="text-slate-600">Etiquetas</span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Category selection & Inventory Type */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="local-inv-category">Categoría de Almacén *</Label>
+              <Select value={category} onValueChange={(v) => setCategory(v as typeof category)}>
+                <SelectTrigger id="local-inv-category">
+                  <SelectValue placeholder="Seleccionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MPF">
+                    <span className="font-mono font-bold mr-2 text-red-600">MPF</span>
+                    <span className="text-slate-600">Fresca</span>
+                  </SelectItem>
+                  <SelectItem value="MPS">
+                    <span className="font-mono font-bold mr-2 text-amber-600">MPS</span>
+                    <span className="text-slate-600">Seca</span>
+                  </SelectItem>
+                  <SelectItem value="EMP">
+                    <span className="font-mono font-bold mr-2 text-blue-600">EMP</span>
+                    <span className="text-slate-600">Empaques</span>
+                  </SelectItem>
+                  <SelectItem value="ETQ">
+                    <span className="font-mono font-bold mr-2 text-violet-600">ETQ</span>
+                    <span className="text-slate-600">Etiquetas</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="local-inv-type">Tipo de Inventario *</Label>
+              <Select value={inventoryType} onValueChange={(v) => setInventoryType(v as typeof inventoryType)}>
+                <SelectTrigger id="local-inv-type">
+                  <SelectValue placeholder="Tipo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Producción">
+                    <span className="font-bold text-procarni-dark">Producción</span>
+                  </SelectItem>
+                  <SelectItem value="Suministro">
+                    <span className="font-bold text-slate-700">Suministro</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* SKU preview if category selected */}
