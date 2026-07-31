@@ -719,6 +719,15 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         </DialogHeader>
 
         <div className="grid gap-5 py-2 max-h-[65vh] overflow-y-auto pr-1">
+          {/* Nombre Anterior (Referencia/Guía) visible al editar */}
+          {editingMaterial && editingMaterial.name && (
+            <div className="space-y-1 bg-amber-50/50 p-3.5 rounded-2xl border border-amber-100/50">
+              <p className="font-bold text-amber-800 uppercase tracking-wider text-[9px]">Nombre Anterior (Referencia/Guía)</p>
+              <p className="font-mono text-slate-700 bg-white/80 p-2.5 rounded-lg border border-slate-200/40 break-all select-all font-semibold text-xs">
+                {editingMaterial.name}
+              </p>
+            </div>
+          )}
           {/* 1. Patrón de Oro (SmartSearch) */}
           {(!editingMaterial || !editingMaterial.is_master) && (
             <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
