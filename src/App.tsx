@@ -50,7 +50,6 @@ import Despachos from "./pages/Despachos";
 import HistorialKardex from "./pages/HistorialKardex";
 import CierresYAjustes from "./pages/CierresYAjustes";
 import MaterialInventoryProfile from "./pages/MaterialInventoryProfile";
-import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 

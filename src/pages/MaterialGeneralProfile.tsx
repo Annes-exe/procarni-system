@@ -1549,15 +1549,9 @@ const MaterialGeneralProfile = () => {
                         <p className="text-xs text-gray-400 font-medium">Ningún proveedor habilitado.</p>
                       </div>
                     ) : (
-<<<<<<< HEAD
-                      suppliers.map((s: any) => (
-                        <div
-                          key={s.id}
-=======
                       suppliers.map((s: any, idx: number) => (
                         <div
                           key={`${s.id}-${idx}`}
->>>>>>> main
                           onClick={() => navigate(`/suppliers/${s.id}`)}
                           className="flex items-center justify-between p-4 bg-white border border-slate-200/80 rounded-2xl hover:border-slate-300 hover:shadow-sm cursor-pointer transition-all"
                         >
