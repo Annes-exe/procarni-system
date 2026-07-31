@@ -35,7 +35,8 @@ import {
   Filter,
   FileSpreadsheet,
   FileDown,
-  Pin
+  Pin,
+  Sparkles
 } from 'lucide-react';
 import { Supplier, Material } from '@/integrations/supabase/types';
 
@@ -156,6 +157,37 @@ export default function PriceComparisonMatrix() {
       const materials = await getAllMaterialsWithoutFilters();
       return materials.filter(m => m.status === 'active');
     }
+  });
+
+  // Query supplier-material relationships based on active material search term
+  const { data: searchMaterialSupplierRels = [] } = useQuery({
+    queryKey: ['matrix-search-material-suppliers', materialSearch],
+    queryFn: async () => {
+      if (!materialSearch.trim()) return [];
+      
+      const matchingIds = allMaterials
+        .filter(m => {
+          const name = m.name || '';
+          const code = m.code || '';
+          return name.toLowerCase().includes(materialSearch.toLowerCase()) ||
+                 code.toLowerCase().includes(materialSearch.toLowerCase());
+        })
+        .map(m => m.id);
+
+      if (matchingIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from('supplier_materials')
+        .select('supplier_id, material_id')
+        .in('material_id', matchingIds);
+
+      if (error) {
+        console.error('[searchMaterialSupplierRels] Error:', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: allMaterials.length > 0 && !!materialSearch.trim()
   });
 
   // Get categories from materials (restricted to raw materials)
@@ -302,11 +334,11 @@ export default function PriceComparisonMatrix() {
     }
   });
 
-  // Filter suppliers in left sidebar
+  // Filter suppliers in left sidebar / top bar
   const filteredSuppliersList = useMemo(() => {
     if (!allSuppliers) return [];
 
-    const list = allSuppliers.filter(s => {
+    let list = allSuppliers.filter(s => {
       if (!s) return false;
       const name = s.name || '';
       const rif = s.rif || '';
@@ -318,9 +350,15 @@ export default function PriceComparisonMatrix() {
       return matchSearch && notSelected;
     });
 
+    // If there is an active material search, filter suppliers to only those who sell the searched material(s)
+    if (materialSearch.trim()) {
+      const validSupplierIds = new Set(searchMaterialSupplierRels.map(r => r.supplier_id));
+      list = list.filter(s => validSupplierIds.has(s.id));
+    }
+
     // If search is empty, sort by frequency (highest first)
     if (!supplierSearch.trim() && supplierFrequencies) {
-      return [...list].sort((a, b) => {
+      list = [...list].sort((a, b) => {
         const freqA = supplierFrequencies[a.id] ?? 0;
         const freqB = supplierFrequencies[b.id] ?? 0;
         return freqB - freqA;
@@ -328,7 +366,7 @@ export default function PriceComparisonMatrix() {
     }
 
     return list;
-  }, [allSuppliers, supplierSearch, selectedSuppliers, supplierFrequencies]);
+  }, [allSuppliers, supplierSearch, selectedSuppliers, supplierFrequencies, materialSearch, searchMaterialSupplierRels]);
 
   // Handle Drag & Drop
   const handleDragStart = (e: React.DragEvent, supplier: Supplier) => {
@@ -815,7 +853,28 @@ export default function PriceComparisonMatrix() {
           
           {/* Horizontal scrollable row of available suppliers */}
           <ScrollArea className="w-full whitespace-nowrap border border-gray-100 rounded-2xl bg-gray-50/30 p-3">
-            <div className="flex space-x-3 pb-2 overflow-x-auto">
+            <div className="flex space-x-3 pb-2 overflow-x-auto items-center">
+              {materialSearch.trim() && filteredSuppliersList.length > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-procarni-secondary hover:bg-green-700 text-white rounded-2xl h-11 px-4 flex items-center gap-2 font-bold shadow-md transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shrink-0"
+                  onClick={() => {
+                    setSelectedSuppliers(prev => {
+                      const newSuppliers = [...prev];
+                      filteredSuppliersList.forEach(sup => {
+                        if (!newSuppliers.some(s => s.id === sup.id)) {
+                          newSuppliers.push(sup);
+                        }
+                      });
+                      return newSuppliers;
+                    });
+                    toast.success(`Se añadieron ${filteredSuppliersList.length} proveedores asociados a "${materialSearch}".`);
+                  }}
+                >
+                  <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                  <span>Autocompletar ({filteredSuppliersList.length})</span>
+                </Button>
+              )}
               {loadingSuppliers ? (
                 <div className="text-center text-xs text-gray-500 py-2 w-full">Cargando proveedores...</div>
               ) : filteredSuppliersList.length === 0 ? (

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { showError, showSuccess } from '@/utils/toast';
 import { createMaterial, createSupplierMaterialRelation, searchMaterials, getMaterialByName, getAllUnits, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
@@ -66,6 +67,26 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
   const [color, setColor] = useState<string>('');
   const [brand, setBrand] = useState<string>('');
 
+  // Special structured name states (TRIPAS, BOLSAS, TERMOFORMADO)
+  const [specialStructure, setSpecialStructure] = useState<'NONE' | 'TRIPAS' | 'BOLSAS_TERMO'>('NONE');
+  
+  // TRIPAS states
+  const [tripaTipo, setTripaTipo] = useState<string>('PLASTICA');
+  const [tripaMedida, setTripaMedida] = useState<string>('');
+  const [tripaColor, setTripaColor] = useState<string>('');
+  const [tripaMetros, setTripaMetros] = useState<string>('');
+  const [tripaVariaciones, setTripaVariaciones] = useState<string[]>([]);
+
+  // BOLSAS & TERMOFORMADO states
+  const [btPrefix, setBtPrefix] = useState<string>('BOLSAS');
+  const [btTipo, setBtTipo] = useState<string>('AL VACIO');
+  const [btVariaciones, setBtVariaciones] = useState<string[]>([]);
+  const [btMedidaValor, setBtMedidaValor] = useState<string>('');
+  const [btMedidaUnidad, setBtMedidaUnidad] = useState<string>('CM');
+  const [btColor, setBtColor] = useState<string>('');
+  const [btMicra, setBtMicra] = useState<string>('');
+  const [btUso, setBtUso] = useState<string>('');
+
   const [suggestedMaterial, setSuggestedMaterial] = useState<Material | null>(null); // Best match suggestion
   const [isCheckingExistence, setIsCheckingExistence] = useState(false);
   const debounceTimeoutRef = useRef<number | null>(null);
@@ -84,6 +105,20 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
     setNameProvided('');
     setColor('');
     setBrand('');
+    setSpecialStructure('NONE');
+    setTripaTipo('PLASTICA');
+    setTripaMedida('');
+    setTripaColor('');
+    setTripaMetros('');
+    setTripaVariaciones([]);
+    setBtPrefix('BOLSAS');
+    setBtTipo('AL VACIO');
+    setBtVariaciones([]);
+    setBtMedidaValor('');
+    setBtMedidaUnidad('CM');
+    setBtColor('');
+    setBtMicra('');
+    setBtUso('');
   };
 
   const handleClose = () => {
@@ -121,6 +156,89 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         setColor(editingMaterial.color || '');
         setBrand(editingMaterial.brand || '');
         setNameProvided(editingMaterial.search_aliases && editingMaterial.search_aliases.length > 0 ? editingMaterial.search_aliases[0] : '');
+
+        // Parse structured name if editing an existing material (TRIPAS, BOLSAS, TERMOFORMADO)
+        if (editingMaterial.name && editingMaterial.name.toUpperCase().startsWith('TRIPAS')) {
+          setSpecialStructure('TRIPAS');
+          const nameUpper = editingMaterial.name.toUpperCase();
+          
+          // 1. Parse Tipo (without TIMBRADA)
+          const tipos = ['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA'];
+          const foundTipo = tipos.find(t => nameUpper.includes(t));
+          if (foundTipo) setTripaTipo(foundTipo);
+
+          // 2. Parse Medida
+          const medidaMatch = nameUpper.match(/(\S+)\s+CM/);
+          if (medidaMatch) setTripaMedida(medidaMatch[1]);
+
+          // 3. Parse Metros
+          const metrosMatch = nameUpper.match(/\(METROS\s+X\s+CAJA:\s*([^\s)]+)\s*MT\)/);
+          if (metrosMatch) setTripaMetros(metrosMatch[1]);
+
+          // 4. Parse Variaciones (multiple: CORRUGADA, LISA, TIMBRADA)
+          const tripaVars = ['CORRUGADA', 'LISA', 'TIMBRADA'];
+          const foundTripaVars = tripaVars.filter(v => nameUpper.includes(v));
+          setTripaVariaciones(foundTripaVars);
+
+          // 5. Parse Color (extract remaining words)
+          let remaining = nameUpper.replace('TRIPAS', '');
+          if (foundTipo) remaining = remaining.replace(foundTipo, '');
+          if (medidaMatch) remaining = remaining.replace(medidaMatch[0], '');
+          if (metrosMatch) remaining = remaining.replace(metrosMatch[0], '');
+          foundTripaVars.forEach(v => {
+            remaining = remaining.replace(v, '');
+          });
+          
+          const cleanRemaining = remaining.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+          setTripaColor(cleanRemaining);
+        } else if (editingMaterial.name && (editingMaterial.name.toUpperCase().startsWith('BOLSAS') || editingMaterial.name.toUpperCase().startsWith('TERMOFORMADO'))) {
+          setSpecialStructure('BOLSAS_TERMO');
+          const nameUpper = editingMaterial.name.toUpperCase();
+          
+          // 1. Parse Prefix
+          const isTermo = nameUpper.startsWith('TERMOFORMADO');
+          setBtPrefix(isTermo ? 'TERMOFORMADO' : 'BOLSAS');
+
+          // 2. Parse Tipo
+          const btTipos = ['AL VACIO', 'TERMOENCOGIBLES', 'PARA BULTOS', 'CON ASAS', 'PARA CESTAS'];
+          const foundBtTipo = btTipos.find(t => nameUpper.includes(t));
+          if (foundBtTipo) setBtTipo(foundBtTipo);
+
+          // 3. Parse Variaciones
+          const btVars = ['ALTA BARRERA', 'GRIP AND TEAR', 'RESPIRABLE S/BARRERA', 'TIMBRADA'];
+          const foundBtVars = btVars.filter(v => nameUpper.includes(v));
+          setBtVariaciones(foundBtVars);
+
+          // 4. Parse Medida
+          const btMedidaMatch = nameUpper.match(/(\S+)\s+(CM|IN|KG)/);
+          if (btMedidaMatch) {
+            setBtMedidaValor(btMedidaMatch[1]);
+            setBtMedidaUnidad(btMedidaMatch[2]);
+          }
+
+          // 5. Parse Micras
+          const micraMatch = nameUpper.match(/\(MICRA:\s*([^\s)]+)\s*UM\)/);
+          if (micraMatch) setBtMicra(micraMatch[1]);
+
+          // 6. Parse Uso
+          const usoMatch = nameUpper.match(/\(USO:\s*([^)]+)\)/);
+          if (usoMatch) setBtUso(usoMatch[1]);
+
+          // 7. Parse Color
+          let remaining = nameUpper.replace('BOLSAS', '').replace('TERMOFORMADO', '');
+          if (foundBtTipo) remaining = remaining.replace(foundBtTipo, '');
+          foundBtVars.forEach(v => {
+            remaining = remaining.replace(v, '');
+          });
+          if (btMedidaMatch) remaining = remaining.replace(btMedidaMatch[0], '');
+          if (micraMatch) remaining = remaining.replace(micraMatch[0], '');
+          if (usoMatch) remaining = remaining.replace(usoMatch[0], '');
+
+          const cleanRemaining = remaining.replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+          setBtColor(cleanRemaining);
+        } else {
+          setSpecialStructure('NONE');
+        }
       } else {
         resetForm();
         if (initialName) {
@@ -141,6 +259,97 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       }
     }
   }, [category, suggestedMaterial, units]);
+
+  // Auto-compile TRIPAS name based on structured fields (without parentheses, omitting empty/blank values)
+  useEffect(() => {
+    if (specialStructure === 'TRIPAS' && category === 'EMPAQUE') {
+      const parts: string[] = ['TRIPAS'];
+
+      if (tripaTipo) {
+        parts.push(tripaTipo.toUpperCase().trim());
+      }
+
+      const cleanMedida = tripaMedida.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMedida) {
+        parts.push(`${cleanMedida} CM`);
+      }
+
+      const cleanColor = tripaColor.toUpperCase().trim();
+      if (cleanColor) {
+        parts.push(cleanColor);
+      }
+
+      const cleanMetros = tripaMetros.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMetros) {
+        parts.push(`(METROS X CAJA: ${cleanMetros} MT)`);
+      }
+
+      if (tripaVariaciones.length > 0) {
+        parts.push(tripaVariaciones.map(v => v.toUpperCase().trim()).join(' '));
+      }
+
+      const compiledName = parts.join(' ');
+      setMaterialName(compiledName);
+    }
+  }, [specialStructure, tripaTipo, tripaMedida, tripaColor, tripaMetros, tripaVariaciones, category]);
+
+  // Auto-compile BOLSAS & TERMOFORMADO name based on structured fields (without parentheses, omitting empty/blank values)
+  useEffect(() => {
+    if (specialStructure === 'BOLSAS_TERMO' && category === 'EMPAQUE') {
+      const parts: string[] = [btPrefix];
+
+      if (btTipo) {
+        parts.push(btTipo.toUpperCase().trim());
+      }
+
+      const cleanMedida = btMedidaValor.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMedida) {
+        parts.push(`${cleanMedida} ${btMedidaUnidad}`);
+      }
+
+      const cleanColor = btColor.toUpperCase().trim();
+      if (cleanColor) {
+        parts.push(cleanColor);
+      }
+
+      const cleanMicra = btMicra.toUpperCase().replace(/\s/g, '').trim();
+      if (cleanMicra) {
+        parts.push(`(MICRA: ${cleanMicra} UM)`);
+      }
+
+      const cleanUso = btUso.toUpperCase().trim();
+      if (cleanUso) {
+        parts.push(`(USO: ${cleanUso})`);
+      }
+
+      // Move variation to the absolute end of the name
+      if (btVariaciones.length > 0) {
+        parts.push(btVariaciones.map(v => v.toUpperCase().trim()).join(' '));
+      }
+
+      const compiledName = parts.join(' ');
+      setMaterialName(compiledName);
+    }
+  }, [specialStructure, btPrefix, btTipo, btVariaciones, btMedidaValor, btMedidaUnidad, btColor, btMicra, btUso, category]);
+
+  // Automatically enable TRIPAS or BOLSAS/TERMO UI when category is EMPAQUE and item is new or is already structured
+  useEffect(() => {
+    if (category === 'EMPAQUE') {
+      if (editingMaterial) {
+        if (editingMaterial.name?.toUpperCase().startsWith('TRIPAS')) {
+          setSpecialStructure('TRIPAS');
+        } else if (editingMaterial.name?.toUpperCase().startsWith('BOLSAS') || editingMaterial.name?.toUpperCase().startsWith('TERMOFORMADO')) {
+          setSpecialStructure('BOLSAS_TERMO');
+        }
+      } else {
+        if (specialStructure === 'NONE') {
+          setSpecialStructure('TRIPAS');
+        }
+      }
+    } else {
+      setSpecialStructure('NONE');
+    }
+  }, [category, editingMaterial]);
 
   // Effect to automatically pre-select unit and category based on category and materialName
   useEffect(() => {
@@ -501,19 +710,28 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{editingMaterial ? 'Editar Material' : 'Añadir Nuevo Material'}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-[600px] bg-slate-50/95 backdrop-blur-xl border-none shadow-2xl rounded-[2rem] ring-1 ring-white p-6 animate-in fade-in slide-in-from-bottom-4">
+        <DialogHeader className="mb-4">
+          <DialogTitle className="text-xl font-extrabold tracking-tight text-procarni-blue">{editingMaterial ? 'Editar Material' : 'Añadir Nuevo Material'}</DialogTitle>
+          <DialogDescription className="text-gray-500 font-medium italic text-sm">
             {dialogDescription}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
+        <div className="grid gap-5 py-2 max-h-[65vh] overflow-y-auto pr-1">
+          {/* Nombre Anterior (Referencia/Guía) visible al editar */}
+          {editingMaterial && editingMaterial.name && (
+            <div className="space-y-1 bg-amber-50/50 p-3.5 rounded-2xl border border-amber-100/50">
+              <p className="font-bold text-amber-800 uppercase tracking-wider text-[9px]">Nombre Anterior (Referencia/Guía)</p>
+              <p className="font-mono text-slate-700 bg-white/80 p-2.5 rounded-lg border border-slate-200/40 break-all select-all font-semibold text-xs">
+                {editingMaterial.name}
+              </p>
+            </div>
+          )}
           {/* 1. Patrón de Oro (SmartSearch) */}
           {(!editingMaterial || !editingMaterial.is_master) && (
-            <div className="grid gap-2">
-              <Label htmlFor="parentMaterial">Patrón de Oro (Material Oficial) [Opcional]</Label>
+            <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+              <Label htmlFor="parentMaterial" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro (Material Oficial) [Opcional]</Label>
               <SmartSearch 
                 placeholder="Buscar patrón de oro..."
                 displayValue={selectedParentName}
@@ -547,69 +765,12 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             </div>
           )}
 
-          {/* 2. Nombre del Material */}
-          <div className="grid gap-2">
-            <Label htmlFor="materialName">Nombre del Material *</Label>
-            <Input
-              id="materialName"
-              placeholder="Ej: Pollo entero, Carne molida..."
-              value={materialName}
-              onChange={(e) => setMaterialName(e.target.value)}
-              disabled={isSubmitting}
-            />
-
-            {isCheckingExistence && (
-              <p className="text-sm text-muted-foreground flex items-center">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Buscando sugerencias...
-              </p>
-            )}
-
-            {suggestedMaterial && !isCheckingExistence && (
-              <div className="flex items-center justify-between p-2 border rounded-md bg-blue-50 dark:bg-blue-900/20">
-                <p className="text-sm text-blue-600 dark:text-blue-300">
-                  {isExactMatch ? 'Material existente:' : 'Material sugerido:'} <strong>{suggestedMaterial.name}</strong>
-                </p>
-                {!isExactMatch && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleAcceptSuggestion}
-                    className="h-8"
-                  >
-                    <Check className="mr-1 h-4 w-4" /> Usar
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {!editingMaterial && !isExactMatch && isMaterialNameValid && !isCheckingExistence && !suggestedMaterial && (
-              <p className="text-sm text-yellow-600">
-                Material nuevo: <strong>{materialName.toUpperCase()}</strong>. Se creará al guardar.
-              </p>
-            )}
-          </div>
-
-          {/* 3. Nombre según Proveedor */}
-          {!hideNameProvided && (
-            <div className="grid gap-2">
-              <Label htmlFor="nameProvided">Nombre según Proveedor (Opcional)</Label>
-              <Input
-                id="nameProvided"
-                placeholder="Ej: Pechuga Deshuesada Premium"
-                value={nameProvided}
-                onChange={(e) => setNameProvided(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-          )}
-
-          {/* 4. Categoría y Unidad de Medida */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="category">Categoría</Label>
+          {/* 2. Categoría y Unidad de Medida */}
+          <div className="grid grid-cols-2 gap-4 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+            <div className="grid gap-1.5">
+              <Label htmlFor="category" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Categoría</Label>
               <Select value={category} onValueChange={setCategory} disabled={isSubmitting || (!editingMaterial && isExactMatch) || isLoadingCategories}>
-                <SelectTrigger id="category">
+                <SelectTrigger id="category" className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
                   <SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Selecciona categoría"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
@@ -620,8 +781,8 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="unit">Unidad</Label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="unit" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</Label>
               <Select 
                 value={unit} 
                 onValueChange={(val) => {
@@ -629,7 +790,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
                 }} 
                 disabled={isSubmitting || (!editingMaterial && isExactMatch) || isLoadingUnits}
               >
-                <SelectTrigger id="unit">
+                <SelectTrigger id="unit" className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
                   <SelectValue placeholder={isLoadingUnits ? "Cargando..." : "Selecciona unidad"} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
@@ -641,46 +802,346 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
             </div>
           </div>
 
+          {/* Nomenclatura Estructurada Select (visible when category is EMPAQUE) */}
+          {category === 'EMPAQUE' && (
+            <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+              <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nomenclatura Estructurada de Empaque</Label>
+              <Select value={specialStructure} onValueChange={(val: any) => setSpecialStructure(val)} disabled={isSubmitting}>
+                <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">Texto Libre (Sin Estructura)</SelectItem>
+                  <SelectItem value="TRIPAS">Tripas (Tipo, Medida, Metros, Acabado)</SelectItem>
+                  <SelectItem value="BOLSAS_TERMO">Bolsas / Termoformado (Tipo, Medida, Micra, Uso, Variación)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* 3. Nombre del Material (Estructurado o Libre) */}
+          <div className="grid gap-2">
+            {specialStructure === 'TRIPAS' ? (
+              <div className="space-y-4 p-5 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+                <div className="space-y-1">
+                  <Label className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Vista Previa del Nombre Consolidado</Label>
+                  <div className="p-3 bg-slate-900 text-white rounded-xl font-mono text-xs font-bold break-all select-all tracking-tight leading-relaxed">
+                    {materialName || 'TRIPAS...'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Tipo de Tripa</Label>
+                    <Select value={tripaTipo} onValueChange={setTripaTipo} disabled={isSubmitting}>
+                      <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['PLASTICA', 'CELULOSA', 'FIBROSA', 'COLAGENO', 'CERO MERMA'].map(tipo => (
+                          <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Medida (Ej: 90X300)</Label>
+                    <Input
+                      placeholder="Ej: 90X300"
+                      value={tripaMedida}
+                      onChange={(e) => setTripaMedida(e.target.value.toUpperCase().replace(/\*/g, 'X'))}
+                      disabled={isSubmitting}
+                      className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Color</Label>
+                    <Input
+                      placeholder="Ej: ROJO, AMARILLO..."
+                      value={tripaColor}
+                      onChange={(e) => setTripaColor(e.target.value)}
+                      disabled={isSubmitting}
+                      className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Metros por Caja</Label>
+                    <Input
+                      placeholder="Ej: 500"
+                      value={tripaMetros}
+                      onChange={(e) => setTripaMetros(e.target.value)}
+                      disabled={isSubmitting}
+                      className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Variación (Selección Múltiple)</Label>
+                    <div className="grid grid-cols-2 gap-2.5 p-3.5 bg-white border border-slate-200 rounded-xl">
+                      {['CORRUGADA', 'LISA', 'TIMBRADA'].map(v => {
+                        const checked = tripaVariaciones.includes(v);
+                        return (
+                          <label key={v} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(isChecked) => {
+                                if (isChecked) {
+                                  setTripaVariaciones([...tripaVariaciones, v]);
+                                } else {
+                                  setTripaVariaciones(tripaVariaciones.filter(item => item !== v));
+                                }
+                              }}
+                            />
+                            {v}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : specialStructure === 'BOLSAS_TERMO' ? (
+              <div className="space-y-4 p-5 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+                <div className="space-y-1">
+                  <Label className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Vista Previa del Nombre Consolidado</Label>
+                  <div className="p-3 bg-slate-900 text-white rounded-xl font-mono text-xs font-bold break-all select-all tracking-tight leading-relaxed">
+                    {materialName || 'BOLSAS / TERMOFORMADO...'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Prefijo</Label>
+                    <Select value={btPrefix} onValueChange={setBtPrefix} disabled={isSubmitting}>
+                      <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['BOLSAS', 'TERMOFORMADO'].map(prefix => (
+                          <SelectItem key={prefix} value={prefix}>{prefix}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Tipo</Label>
+                    <Select value={btTipo} onValueChange={setBtTipo} disabled={isSubmitting}>
+                      <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['AL VACIO', 'TERMOENCOGIBLES', 'PARA BULTOS', 'CON ASAS', 'PARA CESTAS'].map(tipo => (
+                          <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Medida</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Ej: 20X30 o 5"
+                        value={btMedidaValor}
+                        onChange={(e) => setBtMedidaValor(e.target.value.toUpperCase().replace(/\*/g, 'X'))}
+                        disabled={isSubmitting}
+                        className="bg-white border-slate-200 rounded-xl h-10 flex-1 focus:ring-procarni-primary/20"
+                      />
+                      <Select value={btMedidaUnidad} onValueChange={setBtMedidaUnidad} disabled={isSubmitting}>
+                        <SelectTrigger className="bg-white border-slate-200 rounded-xl h-10 w-24 focus:ring-procarni-primary/20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {['CM', 'IN', 'KG'].map(unidad => (
+                            <SelectItem key={unidad} value={unidad}>{unidad}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Color / Fondo</Label>
+                    <Input
+                      placeholder="Ej: TRANSPARENTE, BLANCO..."
+                      value={btColor}
+                      onChange={(e) => setBtColor(e.target.value)}
+                      disabled={isSubmitting}
+                      className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Micras (UM)</Label>
+                    <Input
+                      placeholder="Ej: 70"
+                      value={btMicra}
+                      onChange={(e) => setBtMicra(e.target.value)}
+                      disabled={isSubmitting}
+                      className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Uso (Receta/Aplicación)</Label>
+                    <Input
+                      placeholder="Ej: TOCINETA, REBANADOS..."
+                      value={btUso}
+                      onChange={(e) => setBtUso(e.target.value)}
+                      disabled={isSubmitting}
+                      className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Variación (Selección Múltiple)</Label>
+                    <div className="grid grid-cols-2 gap-2.5 p-3.5 bg-white border border-slate-200 rounded-xl">
+                      {['ALTA BARRERA', 'GRIP AND TEAR', 'RESPIRABLE S/BARRERA', 'TIMBRADA'].map(v => {
+                        const checked = btVariaciones.includes(v);
+                        return (
+                          <label key={v} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(isChecked) => {
+                                        if (isChecked) {
+                                          setBtVariaciones([...btVariaciones, v]);
+                                        } else {
+                                          setBtVariaciones(btVariaciones.filter(item => item !== v));
+                                        }
+                              }}
+                            />
+                            {v}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+                <Label htmlFor="materialName" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre del Material *</Label>
+                <Input
+                  id="materialName"
+                  placeholder="Ej: Pollo entero, Carne molida..."
+                  value={materialName}
+                  onChange={(e) => setMaterialName(e.target.value)}
+                  disabled={isSubmitting}
+                  className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                />
+              </div>
+            )}
+
+            {isCheckingExistence && (
+              <p className="text-xs text-muted-foreground flex items-center px-4">
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Buscando sugerencias...
+              </p>
+            )}
+
+            {suggestedMaterial && !isCheckingExistence && (
+              <div className="flex items-center justify-between p-3.5 mx-4 border border-blue-100 rounded-xl bg-blue-50/50">
+                <p className="text-xs text-blue-800 font-medium">
+                  {isExactMatch ? 'Material existente:' : 'Material sugerido:'} <strong>{suggestedMaterial.name}</strong>
+                </p>
+                {!isExactMatch && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAcceptSuggestion}
+                    className="h-8 shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all"
+                  >
+                    <Check className="mr-1 h-3.5 w-3.5" /> Usar
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {!editingMaterial && !isExactMatch && isMaterialNameValid && !isCheckingExistence && !suggestedMaterial && (
+              <p className="text-xs text-amber-700 font-semibold px-4 italic">
+                Material nuevo: <strong>{materialName.toUpperCase()}</strong>. Se creará al guardar.
+              </p>
+            )}
+          </div>
+
+          {/* 4. Nombre según Proveedor */}
+          {!hideNameProvided && (
+            <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+              <Label htmlFor="nameProvided" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre según Proveedor (Opcional)</Label>
+              <Input
+                id="nameProvided"
+                placeholder="Ej: Pechuga Deshuesada Premium"
+                value={nameProvided}
+                onChange={(e) => setNameProvided(e.target.value)}
+                disabled={isSubmitting}
+                className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+              />
+            </div>
+          )}
+
           {/* 5. Color y Marca */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="color">Color (Opcional)</Label>
-              <Input
-                id="color"
-                placeholder="Ej: Blanco, Rojo..."
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="brand">Marca (Opcional)</Label>
-              <Input
-                id="brand"
-                placeholder="Ej: Procarni, Polar..."
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
+          <div className="p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+            {specialStructure === 'NONE' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="color" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Color (Opcional)</Label>
+                  <Input
+                    id="color"
+                    placeholder="Ej: Blanco, Rojo..."
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    disabled={isSubmitting}
+                    className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="brand" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca (Opcional)</Label>
+                  <Input
+                    id="brand"
+                    placeholder="Ej: Procarni, Polar..."
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    disabled={isSubmitting}
+                    className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-1.5">
+                <Label htmlFor="brand" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca (Opcional)</Label>
+                <Input
+                  id="brand"
+                  placeholder="Ej: Procarni, Polar..."
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  disabled={isSubmitting}
+                  className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
+                />
+              </div>
+            )}
           </div>
 
           {/* 6. Especificación y Opción de Exento */}
-          <div className="grid gap-2">
-            <Label htmlFor="specification">Especificación (Opcional)</Label>
+          <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+            <Label htmlFor="specification" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Especificación (Opcional)</Label>
             <Input
               id="specification"
               placeholder="Ej: Presentación de 10kg, Marca X..."
               value={specification}
               onChange={(e) => setSpecification(e.target.value)}
               disabled={isSubmitting}
+              className="bg-white border-slate-200 rounded-xl h-10 focus:ring-procarni-primary/20"
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-3">
+          <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm">
             <div className="space-y-0.5">
-              <Label>Exento de IVA</Label>
-              <p className="text-sm text-muted-foreground">
+              <Label className="text-[11px] uppercase tracking-wider font-bold text-slate-700">Exento de IVA</Label>
+              <p className="text-xs text-muted-foreground">
                 Marcar si este material no debe incluir IVA.
               </p>
             </div>
@@ -692,11 +1153,11 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+        <DialogFooter className="mt-6 flex gap-2">
+          <Button variant="outline" onClick={handleClose} disabled={isSubmitting} className="rounded-xl h-10 shadow-sm">
             Cancelar
           </Button>
-          <Button onClick={handleAddMaterial} disabled={isSubmitting || !isMaterialNameValid || isCheckingExistence}>
+          <Button onClick={handleAddMaterial} disabled={isSubmitting || !isMaterialNameValid || isCheckingExistence} className="bg-procarni-primary hover:bg-procarni-primary/95 text-white rounded-xl h-10 shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all">
             {isSubmitting ? 'Guardando...' : submitButtonText}
           </Button>
         </DialogFooter>

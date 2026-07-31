@@ -206,6 +206,7 @@ const MobileChildMaterialsList = ({
   confirmDeleteMaterial: (id: string) => void;
   updateMutation: any;
 }) => {
+  const navigate = useNavigate();
   const { data: children = [], isLoading } = useQuery({
     queryKey: ['material_children', parentId],
     queryFn: () => getMaterialChildren(parentId),
@@ -235,16 +236,15 @@ const MobileChildMaterialsList = ({
         Materiales Agrupados ({children.length})
       </div>
       {children.map(child => (
-        <div key={child.id} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm space-y-2">
-          <div className="flex justify-between items-start">
+        <div 
+          key={child.id} 
+          className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm space-y-2 cursor-pointer hover:bg-slate-50/50 transition-colors"
+          onClick={() => navigate(`/material/${child.id}`)}
+        >
+          <div className="flex justify-between items-start" onClick={(e) => e.stopPropagation()}>
             <div>
               <p className="font-mono text-[10px] text-gray-500">{child.code}</p>
-              <InlineEditableCell
-                value={child.name}
-                onSave={(v) => onInlineSave(child, 'name', v)}
-                displayClassName="font-semibold text-sm text-slate-700"
-                placeholder="Nombre"
-              />
+              <p className="font-semibold text-sm text-slate-700">{child.name}</p>
             </div>
             {role === 'admin' && (
               <Button
@@ -261,29 +261,15 @@ const MobileChildMaterialsList = ({
           <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-50">
             <div>
               <p className="text-[9px] uppercase tracking-wider font-semibold text-gray-400">Categoría</p>
-              <InlineEditableCell
-                value={child.category || ''}
-                onSave={(v) => onInlineSave(child, 'category', v)}
-                type="select"
-                options={categories.map((c: any) => ({ value: c.name, label: c.name }))}
-                displayClassName="text-xs text-gray-600"
-                placeholder="Sin categoría"
-              />
+              <p className="text-xs text-gray-600 font-medium">{child.category || 'Sin categoría'}</p>
             </div>
             <div>
               <p className="text-[9px] uppercase tracking-wider font-semibold text-gray-400">Unidad</p>
-              <InlineEditableCell
-                value={child.unit || ''}
-                onSave={(v) => onInlineSave(child, 'unit', v)}
-                type="select"
-                options={getAllowedUnitsForCategory(child.category, units).map((u: any) => ({ value: u.name, label: u.name }))}
-                displayClassName="text-xs text-slate-600"
-                placeholder="Sin unidad"
-              />
+              <p className="text-xs text-slate-600 font-medium">{child.unit || 'Sin unidad'}</p>
             </div>
           </div>
           
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-50" onClick={(e) => e.stopPropagation()}>
             <Button
               variant="outline"
               size="sm"
@@ -759,7 +745,11 @@ const MaterialManagement = () => {
             isMobile ? (
               <div className="grid gap-4">
                 {materialsList.map((material) => (
-                  <Card key={material.id} className={cn("p-4 shadow-md transition-all duration-200", selectedMaterialIds.includes(material.id) && "ring-2 ring-procarni-primary bg-procarni-primary/5")}>
+                  <Card 
+                    key={material.id} 
+                    className={cn("p-4 shadow-md transition-all duration-200 cursor-pointer hover:bg-slate-50/50", selectedMaterialIds.includes(material.id) && "ring-2 ring-procarni-primary bg-procarni-primary/5")}
+                    onClick={() => navigate(`/material/${material.id}`)}
+                  >
                     <div className="flex items-start gap-3 mb-2">
                       <Checkbox 
                         checked={selectedMaterialIds.includes(material.id)}
@@ -767,37 +757,28 @@ const MaterialManagement = () => {
                         onClick={(e) => e.stopPropagation()}
                         className="mt-1"
                       />
-                      <div className="flex-1">
+                      <div className="flex-1" onClick={(e) => e.stopPropagation()}>
                         <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
-                        <InlineEditableCell
-                          value={material.name}
-                          onSave={(v) => handleInlineSave(material, 'name', v)}
-                          alwaysShowIcon
-                          displayClassName="font-semibold text-base text-procarni-dark"
-                          placeholder="Nombre del material"
-                          renderDisplay={(v) => (
-                            <span className="flex items-center gap-1.5 flex-wrap">
-                              {String(v)}
-                              {material.is_exempt && (
-                                <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
-                              )}
-                              {material.base_material_id && (
-                                <Badge variant="secondary" className="text-[10px]" title="Forma parte de un grupo de materiales">Grupo</Badge>
-                              )}
-                              {role === 'admin' && material.is_master && (
-                                <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
-                              )}
-                              {role !== 'admin' && material.is_master && (
-                                <Badge className="bg-slate-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-slate-600">★ Principal</Badge>
-                              )}
-                              {material.search_aliases && material.search_aliases.length > 0 && (
-                                <Badge variant="outline" className="text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
-                                  {material.search_aliases.length} Alias
-                                </Badge>
-                              )}
-                            </span>
+                        <span className="flex items-center gap-1.5 flex-wrap font-semibold text-base text-procarni-dark">
+                          {material.name}
+                          {material.is_exempt && (
+                            <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
                           )}
-                        />
+                          {material.base_material_id && (
+                            <Badge variant="secondary" className="text-[10px]" title="Forma parte de un grupo de materiales">Grupo</Badge>
+                          )}
+                          {role === 'admin' && material.is_master && (
+                            <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
+                          )}
+                          {role !== 'admin' && material.is_master && (
+                            <Badge className="bg-slate-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-slate-600">★ Principal</Badge>
+                          )}
+                          {material.search_aliases && material.search_aliases.length > 0 && (
+                            <Badge variant="outline" className="text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
+                              {material.search_aliases.length} Alias
+                            </Badge>
+                          )}
+                        </span>
                       </div>
                     </div>
                     <div className="mb-1 ml-7">
@@ -806,27 +787,11 @@ const MaterialManagement = () => {
                     </div>
                     <div className="mb-1 ml-7">
                       <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Categoría</p>
-                      <InlineEditableCell
-                        value={material.category || ''}
-                        onSave={(v) => handleInlineSave(material, 'category', v)}
-                        type="select"
-                        options={categories.map(c => ({ value: c.name, label: c.name }))}
-                        alwaysShowIcon
-                        displayClassName="text-gray-600"
-                        placeholder="Sin categoría"
-                      />
+                      <span className="text-sm text-gray-600 font-medium">{material.category || 'Sin categoría'}</span>
                     </div>
                     <div className="mb-3 ml-7">
                       <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Unidad</p>
-                      <InlineEditableCell
-                        value={material.unit || ''}
-                        onSave={(v) => handleInlineSave(material, 'unit', v)}
-                        type="select"
-                        options={getAllowedUnitsForCategory(material.category, units).map(u => ({ value: u.name, label: u.name }))}
-                        alwaysShowIcon
-                        displayClassName="text-gray-600"
-                        placeholder="Sin unidad"
-                      />
+                      <span className="text-sm text-gray-600 font-medium">{material.unit || 'Sin unidad'}</span>
                     </div>
                     {role === 'admin' && (
                       <div className="mb-3 ml-7">
@@ -945,16 +910,16 @@ const MaterialManagement = () => {
                             "hover:bg-gray-50/50 transition-colors cursor-pointer group",
                             selectedMaterialIds.includes(material.id) && "bg-procarni-primary/5 hover:bg-procarni-primary/10"
                           )}
-                          onClick={() => toggleMaterialSelection(material.id)}
+                          onClick={() => navigate(`/material/${material.id}`)}
                         >
-                          <TableCell className="pl-4 py-2">
+                          <TableCell className="pl-4 py-2" onClick={(e) => e.stopPropagation()}>
                              <Checkbox 
                                 checked={selectedMaterialIds.includes(material.id)}
                                 onCheckedChange={() => toggleMaterialSelection(material.id)}
                                 onClick={(e) => e.stopPropagation()}
                              />
                           </TableCell>
-                          <TableCell className="py-2">
+                          <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                             {material.is_master && (
                               <Button
                                 variant="ghost"
@@ -974,58 +939,36 @@ const MaterialManagement = () => {
                             <span className="font-mono text-xs text-gray-600">{material.code}</span>
                           </TableCell>
                           <TableCell className="py-2 max-w-[220px]">
-                            <InlineEditableCell
-                              value={material.name}
-                              onSave={(v) => handleInlineSave(material, 'name', v)}
-                              displayClassName="font-medium text-procarni-dark whitespace-normal break-words"
-                              placeholder="Nombre"
-                              renderDisplay={(v) => (
-                                <div className="flex flex-col">
-                                  <span className="flex items-center gap-1.5 flex-wrap">
-                                    {String(v)}
-                                    {material.is_exempt && (
-                                      <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
-                                    )}
-                                    {material.base_material_id && (
-                                      <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
-                                    )}
-                                    {role === 'admin' && material.is_master && (
-                                      <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
-                                    )}
-                                    {role !== 'admin' && material.is_master && (
-                                      <Badge className="bg-slate-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-slate-600">★ Principal</Badge>
-                                    )}
-                                  </span>
-                                  {material.search_aliases && material.search_aliases.length > 0 && (
-                                    <div className="flex gap-2 mt-1">
-                                      <Badge variant="outline" className="text-[9px] h-4 py-0 px-1.5 font-normal border-procarni-primary/40 text-procarni-primary" title={material.search_aliases.join(', ')}>
-                                        {material.search_aliases.length} Alias
-                                      </Badge>
-                                    </div>
-                                  )}
+                            <div className="flex flex-col">
+                              <span className="flex items-center gap-1.5 flex-wrap font-medium text-procarni-dark whitespace-normal break-words text-sm">
+                                {material.name}
+                                {material.is_exempt && (
+                                  <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
+                                )}
+                                {material.base_material_id && (
+                                  <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
+                                )}
+                                {role === 'admin' && material.is_master && (
+                                  <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
+                                )}
+                                {role !== 'admin' && material.is_master && (
+                                  <Badge className="bg-slate-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-slate-600">★ Principal</Badge>
+                                )}
+                              </span>
+                              {material.search_aliases && material.search_aliases.length > 0 && (
+                                <div className="flex gap-2 mt-1">
+                                  <Badge variant="outline" className="text-[9px] h-4 py-0 px-1.5 font-normal border-procarni-primary/40 text-procarni-primary" title={material.search_aliases.join(', ')}>
+                                    {material.search_aliases.length} Alias
+                                  </Badge>
                                 </div>
                               )}
-                            />
+                            </div>
                           </TableCell>
-                          <TableCell className="py-2">
-                            <InlineEditableCell
-                              value={material.category || ''}
-                              onSave={(v) => handleInlineSave(material, 'category', v)}
-                              type="select"
-                              options={categories.map(c => ({ value: c.name, label: c.name }))}
-                              displayClassName="text-gray-600"
-                              placeholder="Sin categoría"
-                            />
+                          <TableCell className="py-2 text-gray-600 text-sm">
+                            {material.category || 'Sin categoría'}
                           </TableCell>
-                          <TableCell className="py-2">
-                            <InlineEditableCell
-                              value={material.unit || ''}
-                              onSave={(v) => handleInlineSave(material, 'unit', v)}
-                              type="select"
-                              options={getAllowedUnitsForCategory(material.category, units).map(u => ({ value: u.name, label: u.name }))}
-                              displayClassName="text-gray-600"
-                              placeholder="Sin unidad"
-                            />
+                          <TableCell className="py-2 text-gray-600 text-sm">
+                            {material.unit || 'Sin unidad'}
                           </TableCell>
                           <TableCell className="py-2 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
                           {role === 'admin' && (

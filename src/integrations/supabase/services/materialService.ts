@@ -73,7 +73,10 @@ const MaterialService = {
   },
 
   update: async (id: string, updates: Partial<Omit<Material, 'id' | 'created_at' | 'updated_at'>>): Promise<Material | null> => {
-    const payload = { ...updates };
+    const payload = { 
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
     if (payload.name) {
       payload.name = payload.name.toUpperCase(); // Convert name to uppercase
     }

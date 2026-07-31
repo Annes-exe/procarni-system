@@ -41,6 +41,7 @@ import GroupManagement from "./pages/GroupManagement";
 import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 import MaterialApproval from "./pages/MaterialApproval";
 import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
+import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
 
 // Inventory Module Pages
 import StockGlobal from "./pages/StockGlobal";
