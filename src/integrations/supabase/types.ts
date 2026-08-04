@@ -30,6 +30,7 @@ export type Supplier = {
   alert_comment: string | null;
   website: string | null;
   is_raw_material?: boolean | null;
+  rubros?: string | null;
 };
 
 export type Material = {

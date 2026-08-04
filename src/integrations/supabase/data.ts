@@ -123,7 +123,8 @@ export const searchSuppliersByMaterial = async (materialId: string, query: strin
         instagram,
         payment_terms,
         credit_days,
-        status
+        status,
+        rubros
       ),
       specification
     `)
@@ -179,7 +180,8 @@ export const searchSuppliersByCategory = async (categoryName: string, query: str
         instagram,
         payment_terms,
         credit_days,
-        status
+        status,
+        rubros
       ),
       materials!inner (
         category

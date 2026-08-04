@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface Material {
   id: string;
@@ -40,6 +41,7 @@ interface SupplierResult {
   status: string;
   specification: string;
   city?: string | null;
+  rubros?: string | null;
 }
 
 const SearchSuppliersByMaterial = () => {
@@ -53,6 +55,7 @@ const SearchSuppliersByMaterial = () => {
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
   const [initialQuery, setInitialQuery] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string>('all');
+  const [rubroFilter, setRubroFilter] = useState<string>('');
 
   const formatPhoneNumberForWhatsApp = (phone: string) => {
     const digitsOnly = phone.replace(/\D/g, '');
@@ -66,6 +69,7 @@ const SearchSuppliersByMaterial = () => {
     setIsLoadingSuppliers(true);
     setSuppliers([]);
     setSelectedCity('all');
+    setRubroFilter('');
     try {
       const fetchedSuppliers = await searchSuppliersByMaterial(materialId, '');
       setSuppliers(fetchedSuppliers);
@@ -81,6 +85,7 @@ const SearchSuppliersByMaterial = () => {
     setIsLoadingSuppliers(true);
     setSuppliers([]);
     setSelectedCity('all');
+    setRubroFilter('');
     try {
       const fetchedSuppliers = await searchSuppliersByCategory(categoryName, '');
       setSuppliers(fetchedSuppliers);
@@ -215,13 +220,13 @@ const SearchSuppliersByMaterial = () => {
           supplier.city || 'No especificado',
           contactInfo,
           paymentInfo,
-          supplier.specification || 'Sin especificación'
+          [supplier.rubros, supplier.specification].filter(Boolean).join(' / ') || 'Sin rubros'
         ];
       });
 
       autoTable(doc, {
         startY: 38,
-        head: [['Proveedor', 'RIF', 'Ciudad', 'Contacto', 'Condiciones de Pago', 'Especificación']],
+        head: [['Proveedor', 'RIF', 'Ciudad', 'Contacto', 'Condiciones de Pago', 'Rubros']],
         body: tableData,
         theme: 'plain',
         headStyles: {
@@ -244,7 +249,7 @@ const SearchSuppliersByMaterial = () => {
         margin: { top: 38 },
         columnStyles: {
           3: { cellWidth: 45 }, // Contact column
-          5: { cellWidth: 50 }  // Specification column
+          5: { cellWidth: 50 }  // Rubros column
         }
       });
 
@@ -267,7 +272,13 @@ const SearchSuppliersByMaterial = () => {
   const valueClass = "text-procarni-dark font-medium text-sm";
 
   const availableCities = Array.from(new Set(suppliers.map(s => s.city).filter(Boolean))).sort() as string[];
-  const filteredSuppliers = suppliers.filter(s => selectedCity === 'all' || s.city === selectedCity);
+  const filteredSuppliers = suppliers.filter(s => {
+    const matchesCity = selectedCity === 'all' || s.city === selectedCity;
+    const matchesRubro = !rubroFilter.trim() || 
+      (s.specification && s.specification.toLowerCase().includes(rubroFilter.toLowerCase())) ||
+      (s.rubros && s.rubros.toLowerCase().includes(rubroFilter.toLowerCase()));
+    return matchesCity && matchesRubro;
+  });
 
   return (
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
@@ -375,18 +386,25 @@ const SearchSuppliersByMaterial = () => {
               </h3>
 
               <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <Input
+                  placeholder="Filtrar por rubro o palabra clave..."
+                  value={rubroFilter}
+                  onChange={(e) => setRubroFilter(e.target.value)}
+                  className="h-9 w-full sm:w-56 text-xs border-gray-200"
+                />
+
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleExportPDF}
-                  className="h-9 border-gray-200 text-gray-700 hover:text-procarni-primary hover:bg-slate-50 transition-all flex items-center gap-2 w-full sm:w-auto"
+                  className="h-9 border-gray-200 text-gray-700 hover:text-procarni-primary hover:bg-slate-50 transition-all flex items-center gap-2 w-full sm:w-auto shrink-0"
                 >
                   <FileText className="h-4 w-4 text-procarni-primary" />
                   <span>Exportar PDF</span>
                 </Button>
 
                 {availableCities.length > 0 && (
-                  <div className="w-full sm:w-48">
+                  <div className="w-full sm:w-48 shrink-0">
                     <Select value={selectedCity} onValueChange={setSelectedCity}>
                       <SelectTrigger className="h-9">
                         <div className="flex items-center gap-2 text-gray-600">
@@ -488,9 +506,9 @@ const SearchSuppliersByMaterial = () => {
                         </div>
 
                         <div className="space-y-1">
-                          <span className={microLabelClass}>Especificación</span>
+                          <span className={microLabelClass}>Rubros</span>
                           <p className="text-[13px] text-gray-500 italic line-clamp-2 leading-relaxed">
-                            {supplier.specification || 'Sin especificación detallada'}
+                            {[supplier.rubros, supplier.specification].filter(Boolean).join(' / ') || 'Sin rubros definidos'}
                           </p>
                         </div>
                       </div>
