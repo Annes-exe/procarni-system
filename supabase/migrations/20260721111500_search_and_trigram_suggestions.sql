@@ -21,7 +21,7 @@ BEGIN
            )
        )
     ORDER BY name ASC
-    LIMIT 20;
+    LIMIT 150;
 END;
 $function$;
 

@@ -27,7 +27,8 @@ const GroupManagement = () => {
       const { data, error } = await supabase
         .from('materials')
         .select('base_material_id')
-        .not('base_material_id', 'is', null);
+        .not('base_material_id', 'is', null)
+        .limit(10000);
       if (error) throw error;
       const countMap: Record<string, number> = {};
       (data || []).forEach(r => {

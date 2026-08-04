@@ -263,9 +263,19 @@ const MaterialService = {
 
     // Aplicar filtro de búsqueda
     if (searchTerm) {
-      const searchPattern = `%${searchTerm}%`;
-      const cleanTerm = searchTerm.toUpperCase().trim().replace(/"/g, '\\"');
-      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"}`);
+      const normalizedSearchTerm = searchTerm.replace(/\*/g, 'x');
+      const searchPattern = `%${normalizedSearchTerm}%`;
+      const cleanTerm = normalizedSearchTerm.toUpperCase().trim().replace(/"/g, '\\"');
+      
+      let altPattern = searchPattern;
+      let altCleanTerm = cleanTerm;
+      if (normalizedSearchTerm.toLowerCase().includes('x')) {
+        const altSearchTerm = normalizedSearchTerm.replace(/x/gi, '*');
+        altPattern = `%${altSearchTerm}%`;
+        altCleanTerm = altSearchTerm.toUpperCase().trim().replace(/"/g, '\\"');
+      }
+
+      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"},name.ilike.${altPattern},code.ilike.${altPattern},search_aliases.cs.{"${altCleanTerm}"}`);
     } else {
       // Ocultar hijos (base_material_id no nulo) del nivel raíz si no hay búsqueda activa y no se filtra por "no maestros".
       // Si se filtra por "non-master", debemos mostrarlos porque no hay padres mostrándose que los agrupen.

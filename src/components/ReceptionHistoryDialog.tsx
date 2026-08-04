@@ -72,7 +72,8 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, name, category');
+        .select('id, name, category')
+        .limit(10000);
       if (error) throw error;
       
       const map: Record<string, string> = {};
