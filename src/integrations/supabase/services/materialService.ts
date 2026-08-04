@@ -189,16 +189,51 @@ const MaterialService = {
       isCategory: true
     }));
 
-    // 2. Fetch matching materials using RPC
+    // 2. Fetch matching supplier rubros
+    let rubroResults: any[] = [];
+    try {
+      const { data: suppliersWithRubros } = await supabase
+        .from('suppliers')
+        .select('rubros')
+        .not('rubros', 'is', null)
+        .ilike('rubros', `%${cleanQuery}%`)
+        .limit(50);
+
+      if (suppliersWithRubros) {
+        const uniqueRubros = new Set<string>();
+        suppliersWithRubros.forEach(s => {
+          if (s.rubros) {
+            s.rubros.split(',').forEach(tag => {
+              const trimmed = tag.trim();
+              if (trimmed.toLowerCase().includes(cleanQuery.toLowerCase())) {
+                uniqueRubros.add(trimmed);
+              }
+            });
+          }
+        });
+        
+        rubroResults = Array.from(uniqueRubros).slice(0, 5).map(rubro => ({
+          id: `rubro:${rubro}`,
+          name: `Rubro: ${rubro}`,
+          code: 'Rubro General',
+          rubro: rubro,
+          isRubro: true
+        }));
+      }
+    } catch (e) {
+      console.error('Error fetching rubros suggestions:', e);
+    }
+
+    // 3. Fetch matching materials using RPC
     const { data, error } = await supabase.rpc('search_materials_by_substring', { search_query: cleanQuery });
 
     if (error) {
       console.error('[MaterialService.searchWithCategories] Error calling search RPC:', error);
-      return categoryResults;
+      return [...categoryResults, ...rubroResults];
     }
 
     const materialResults = (data as Material[]) || [];
-    return [...categoryResults, ...materialResults];
+    return [...categoryResults, ...rubroResults, ...materialResults];
   },
 
   mergeMaterials: async (targetId: string, sourceIds: string[]): Promise<boolean> => {

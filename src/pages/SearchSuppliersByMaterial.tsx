@@ -5,7 +5,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterialsAndCategories, searchSuppliersByMaterial, searchSuppliersByCategory } from '@/integrations/supabase/data';
+import { searchMaterialsAndCategories, searchSuppliersByMaterial, searchSuppliersByCategory, searchSuppliersByRubro } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -51,6 +51,7 @@ const SearchSuppliersByMaterial = () => {
 
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedRubro, setSelectedRubro] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<SupplierResult[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
   const [initialQuery, setInitialQuery] = useState<string | null>(null);
@@ -97,14 +98,37 @@ const SearchSuppliersByMaterial = () => {
     }
   };
 
+  const fetchSuppliersByRubroName = async (rubroName: string) => {
+    setIsLoadingSuppliers(true);
+    setSuppliers([]);
+    setSelectedCity('all');
+    setRubroFilter('');
+    try {
+      const fetchedSuppliers = await searchSuppliersByRubro(rubroName);
+      setSuppliers(fetchedSuppliers);
+    } catch (error) {
+      console.error('Error fetching suppliers by rubro:', error);
+      showError('Error al cargar los proveedores para este rubro.');
+    } finally {
+      setIsLoadingSuppliers(false);
+    }
+  };
+
   const handleMaterialSelect = async (item: any) => {
     setInitialQuery(null);
     if (item?.isCategory) {
       setSelectedMaterial(null);
       setSelectedCategory(item.category);
+      setSelectedRubro(null);
       await fetchSuppliersByCategoryName(item.category);
+    } else if (item?.isRubro) {
+      setSelectedMaterial(null);
+      setSelectedCategory(null);
+      setSelectedRubro(item.rubro);
+      await fetchSuppliersByRubroName(item.rubro);
     } else {
       setSelectedCategory(null);
+      setSelectedRubro(null);
       setSelectedMaterial(item);
       if (item?.id) {
         await fetchSuppliers(item.id);
@@ -122,33 +146,49 @@ const SearchSuppliersByMaterial = () => {
         try {
           const results = await searchMaterialsAndCategories(queryFromUrl);
           if (results.length > 0) {
-            const cleanQuery = queryFromUrl.replace(/^Categoría:\s*/i, '').trim();
+            const cleanQuery = queryFromUrl.replace(/^(Categoría|Rubro):\s*/i, '').trim();
+            const exactRubroMatch = results.find(
+              r => r.isRubro && r.rubro.toLowerCase() === cleanQuery.toLowerCase()
+            );
             const exactCategoryMatch = results.find(
               r => r.isCategory && r.category.toLowerCase() === cleanQuery.toLowerCase()
             );
 
-            if (exactCategoryMatch) {
+            if (exactRubroMatch) {
+              setSelectedMaterial(null);
+              setSelectedCategory(null);
+              setSelectedRubro(exactRubroMatch.rubro);
+              await fetchSuppliersByRubroName(exactRubroMatch.rubro);
+            } else if (exactCategoryMatch) {
               setSelectedMaterial(null);
               setSelectedCategory(exactCategoryMatch.category);
+              setSelectedRubro(null);
               await fetchSuppliersByCategoryName(exactCategoryMatch.category);
             } else {
               const match = results[0];
-              if (match.isCategory) {
+              if (match.isRubro) {
+                setSelectedMaterial(null);
+                setSelectedCategory(null);
+                setSelectedRubro(match.rubro);
+                await fetchSuppliersByRubroName(match.rubro);
+              } else if (match.isCategory) {
                 setSelectedMaterial(null);
                 setSelectedCategory(match.category);
+                setSelectedRubro(null);
                 await fetchSuppliersByCategoryName(match.category);
               } else {
                 setSelectedCategory(null);
+                setSelectedRubro(null);
                 setSelectedMaterial(match);
                 await fetchSuppliers(match.id);
               }
             }
           } else {
-            showError(`No se encontró un material o categoría que coincida con "${queryFromUrl}".`);
+            showError(`No se encontró un material, rubro o categoría que coincida con "${queryFromUrl}".`);
           }
         } catch (error) {
-          console.error('Error searching material/category on initial load:', error);
-          showError('Error al buscar el material o categoría inicial.');
+          console.error('Error searching material/category/rubro on initial load:', error);
+          showError('Error al buscar el material o rubro inicial.');
         }
       };
       searchAndLoad();
@@ -194,7 +234,9 @@ const SearchSuppliersByMaterial = () => {
       
       const searchCriteria = selectedMaterial 
         ? `Material: ${selectedMaterial.name} (${selectedMaterial.code})` 
-        : `Categoría: ${selectedCategory}`;
+        : selectedCategory
+          ? `Categoría: ${selectedCategory}`
+          : `Rubro: ${selectedRubro}`;
       
       doc.text(searchCriteria, 14, 32);
       
@@ -259,7 +301,7 @@ const SearchSuppliersByMaterial = () => {
       doc.text('Reporte generado automáticamente desde la Búsqueda de Proveedores por Material - Procarni.', 14, finalY + 15);
 
       const fileDate = new Date().toISOString().split('T')[0];
-      const searchName = selectedMaterial ? selectedMaterial.name : (selectedCategory || 'material');
+      const searchName = selectedMaterial ? selectedMaterial.name : (selectedCategory || selectedRubro || 'material');
       doc.save(`Proveedores_${searchName.replace(/\s+/g, '_')}_${fileDate}.pdf`);
       showSuccess('Reporte PDF descargado exitosamente.');
     } catch (error) {
@@ -303,13 +345,13 @@ const SearchSuppliersByMaterial = () => {
               placeholder="¿Qué material o categoría buscas?"
               onSelect={handleMaterialSelect}
               fetchFunction={searchMaterialsAndCategories}
-              displayValue={selectedMaterial?.name || (selectedCategory ? `Categoría: ${selectedCategory}` : '') || initialQuery || ''}
-              selectedId={selectedMaterial?.id || (selectedCategory ? `category:${selectedCategory}` : undefined)}
+              displayValue={selectedMaterial?.name || (selectedCategory ? `Categoría: ${selectedCategory}` : '') || (selectedRubro ? `Rubro: ${selectedRubro}` : '') || initialQuery || ''}
+              selectedId={selectedMaterial?.id || (selectedCategory ? `category:${selectedCategory}` : undefined) || (selectedRubro ? `rubro:${selectedRubro}` : undefined)}
             />
-            {!selectedMaterial && !selectedCategory && !initialQuery && (
+            {!selectedMaterial && !selectedCategory && !selectedRubro && !initialQuery && (
               <Search className="absolute right-3 top-2.5 h-4 w-4 text-gray-300 pointer-events-none group-focus-within:text-procarni-secondary" />
             )}
-            {(selectedMaterial || selectedCategory) && (
+            {(selectedMaterial || selectedCategory || selectedRubro) && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -317,6 +359,7 @@ const SearchSuppliersByMaterial = () => {
                 onClick={() => {
                   setSelectedMaterial(null);
                   setSelectedCategory(null);
+                  setSelectedRubro(null);
                   setSuppliers([]);
                 }}
               >
@@ -365,6 +408,22 @@ const SearchSuppliersByMaterial = () => {
               <span className={microLabelClass}>Categoría Seleccionada</span>
               <div className="flex items-baseline gap-2">
                 <h2 className="text-lg font-bold text-procarni-dark">{selectedCategory}</h2>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedRubro && (
+        <div className="mb-10 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 p-4 rounded-xl">
+            <div className="bg-amber-100 p-2 rounded-lg">
+              <Tag className="h-5 w-5 text-amber-700" />
+            </div>
+            <div className="flex-1">
+              <span className={microLabelClass}>Rubro General Seleccionado</span>
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-lg font-bold text-procarni-dark">{selectedRubro}</h2>
               </div>
             </div>
           </div>
@@ -552,7 +611,7 @@ const SearchSuppliersByMaterial = () => {
             <div className="text-center space-y-1">
               <h3 className="text-gray-800 font-bold">Sin proveedores vinculados</h3>
               <p className="text-sm text-gray-400 max-w-[280px]">
-                No hemos encontrado proveedores que ofrezcan {selectedMaterial ? `"${selectedMaterial.name}"` : `artículos de la categoría "${selectedCategory}"`} actualmente.
+                No hemos encontrado proveedores que ofrezcan {selectedMaterial ? `"${selectedMaterial.name}"` : selectedCategory ? `artículos de la categoría "${selectedCategory}"` : `el rubro "${selectedRubro}"`} actualmente.
               </p>
             </div>
             <Button 
@@ -561,10 +620,11 @@ const SearchSuppliersByMaterial = () => {
               onClick={() => {
                 setSelectedMaterial(null);
                 setSelectedCategory(null);
+                setSelectedRubro(null);
                 setSuppliers([]);
               }}
             >
-              Probar con otro material o categoría
+              Probar con otro material, categoría o rubro
             </Button>
           </div>
         )
