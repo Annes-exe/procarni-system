@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterialsAndCategories, searchSuppliersByMaterial, searchSuppliersByCategory } from '@/integrations/supabase/data';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Phone, Instagram, PlusCircle, Eye, ArrowLeft, Tag, MapPin, Clock, DollarSign,
-  X, Search, Building2, CreditCard, Mail, Globe, Info, Package, Loader2, AlertTriangle
+  X, Search, Building2, CreditCard, Mail, Globe, Info, Package, Loader2, AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -160,6 +163,106 @@ const SearchSuppliersByMaterial = () => {
     navigate(`/suppliers/${supplier.id}`);
   };
 
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const dateStr = new Date().toLocaleDateString('es-VE');
+
+      // Title & Header setup
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(27, 41, 74); // Procarni blue (#1B294A)
+      doc.text('PROCARNI', 14, 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // Primary red (#880a0a)
+      doc.text('SYSTEM', 14, 24);
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // Dark slate (#0f172a)
+      doc.text('Reporte de Proveedores por Material', 200, 18, { align: 'right' });
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      
+      const searchCriteria = selectedMaterial 
+        ? `Material: ${selectedMaterial.name} (${selectedMaterial.code})` 
+        : `Categoría: ${selectedCategory}`;
+      
+      doc.text(searchCriteria, 14, 32);
+      
+      const cityFilterText = selectedCity === 'all' ? 'Todas las ciudades' : `Ciudad: ${selectedCity}`;
+      doc.text(`Filtro: ${cityFilterText}`, 200, 23, { align: 'right' });
+      doc.text(`Fecha Emisión: ${dateStr}`, 200, 28, { align: 'right' });
+
+      const tableData = filteredSuppliers.map((supplier) => {
+        const contactInfo = [
+          supplier.phone ? `Telf: ${supplier.phone}` : '',
+          supplier.email ? `Email: ${supplier.email}` : '',
+          supplier.instagram ? `IG: ${supplier.instagram}` : ''
+        ].filter(Boolean).join('\n');
+
+        const paymentInfo = [
+          supplier.payment_terms || 'No especificado',
+          supplier.credit_days !== undefined && supplier.credit_days !== null ? `${supplier.credit_days} días` : ''
+        ].filter(Boolean).join(' - ');
+
+        return [
+          supplier.name,
+          supplier.rif || 'S/R',
+          supplier.city || 'No especificado',
+          contactInfo,
+          paymentInfo,
+          supplier.specification || 'Sin especificación'
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Proveedor', 'RIF', 'Ciudad', 'Contacto', 'Condiciones de Pago', 'Especificación']],
+        body: tableData,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1 },
+          lineColor: [226, 232, 240],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [241, 245, 249],
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250],
+        },
+        margin: { top: 38 },
+        columnStyles: {
+          3: { cellWidth: 45 }, // Contact column
+          5: { cellWidth: 50 }  // Specification column
+        }
+      });
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 40;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde la Búsqueda de Proveedores por Material - Procarni.', 14, finalY + 15);
+
+      const fileDate = new Date().toISOString().split('T')[0];
+      const searchName = selectedMaterial ? selectedMaterial.name : (selectedCategory || 'material');
+      doc.save(`Proveedores_${searchName.replace(/\s+/g, '_')}_${fileDate}.pdf`);
+      showSuccess('Reporte PDF descargado exitosamente.');
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      showError('Ocurrió un error al generar el PDF de proveedores.');
+    }
+  };
+
   const microLabelClass = "text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1 block";
   const valueClass = "text-procarni-dark font-medium text-sm";
 
@@ -271,24 +374,36 @@ const SearchSuppliersByMaterial = () => {
                 Proveedores Disponibles ({filteredSuppliers.length})
               </h3>
 
-              {availableCities.length > 0 && (
-                <div className="w-full sm:w-64">
-                  <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="h-9">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="h-4 w-4" />
-                        <SelectValue placeholder="Filtrar por ciudad" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las ciudades</SelectItem>
-                      {availableCities.map(city => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportPDF}
+                  className="h-9 border-gray-200 text-gray-700 hover:text-procarni-primary hover:bg-slate-50 transition-all flex items-center gap-2 w-full sm:w-auto"
+                >
+                  <FileText className="h-4 w-4 text-procarni-primary" />
+                  <span>Exportar PDF</span>
+                </Button>
+
+                {availableCities.length > 0 && (
+                  <div className="w-full sm:w-48">
+                    <Select value={selectedCity} onValueChange={setSelectedCity}>
+                      <SelectTrigger className="h-9">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MapPin className="h-4 w-4" />
+                          <SelectValue placeholder="Filtrar por ciudad" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas las ciudades</SelectItem>
+                        {availableCities.map(city => (
+                          <SelectItem key={city} value={city}>{city}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
