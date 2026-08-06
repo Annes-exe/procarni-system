@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://esm.sh/pdf-lib@1.17.1';
+import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage, degrees } from 'https://esm.sh/pdf-lib@1.17.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -424,6 +424,52 @@ serve(async (req: Request) => {
       return state;
     };
 
+    const drawApprovedStamp = (state: PDFState, x: number, y: number) => {
+      const greenColor = rgb(0.055, 0.341, 0.031); // success green (#0e5708)
+      const width = 110;
+      const height = 30;
+
+      // Draw stamp double borders
+      state.page.drawRectangle({
+        x,
+        y,
+        width,
+        height,
+        borderColor: greenColor,
+        borderWidth: 2,
+        color: rgb(1, 1, 1),
+        opacity: 0.9,
+        rotate: degrees(-10),
+      });
+
+      state.page.drawRectangle({
+        x: x + 2,
+        y: y + 2,
+        width: width - 4,
+        height: height - 4,
+        borderColor: greenColor,
+        borderWidth: 0.5,
+        rotate: degrees(-10),
+      });
+
+      // Stamp text APROBADO
+      const text = "APROBADO";
+      const fontSize = 12;
+      const textWidth = boldFont.widthOfTextAtSize(text, fontSize);
+      
+      const textX = x + (width - textWidth) / 2;
+      const textY = y + (height - fontSize) / 2;
+
+      state.page.drawText(text, {
+        x: textX,
+        y: textY,
+        size: fontSize,
+        font: boldFont,
+        color: greenColor,
+        rotate: degrees(-10),
+      });
+    };
+
     // --- Modular Drawing Functions ---
 
     const drawHeader = async (state: PDFState, order: any): Promise<PDFState> => {
@@ -475,6 +521,8 @@ serve(async (req: Request) => {
       drawText(state, 'ORDEN DE COMPRA', titleX, state.y, { font: boldFont, size: 16, color: PROC_RED });
 
       drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
+
+      drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       
       const docDate = order.issue_date || order.created_at;
       let docDateFormatted = '';
@@ -511,6 +559,11 @@ serve(async (req: Request) => {
     };
 
     const drawSupplierDetails = (state: PDFState, order: any): PDFState => {
+      // Draw APROBADO stamp if approved on the right side of the details
+      if (['Approved', 'ToPay', 'Paid', 'Transit', 'Received'].includes(order.status)) {
+        drawApprovedStamp(state, width - MARGIN - 130, state.y - 70);
+      }
+
       // Draw title
       drawText(state, 'DATOS DEL PROVEEDOR:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
 
