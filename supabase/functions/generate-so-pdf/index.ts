@@ -563,11 +563,6 @@ serve(async (req: Request) => {
         };
 
         const drawSupplierDetails = (state: PDFState, order: any): PDFState => {
-            // Draw APROBADO stamp if approved on the right side of the details
-            if (['Approved', 'ToPay', 'Paid', 'Transit', 'Received'].includes(order.status)) {
-                drawApprovedStamp(state, width - MARGIN - 130, state.y - 70);
-            }
-
             // Draw title
             drawText(state, 'DATOS DEL PROVEEDOR:', MARGIN, state.y, { font: boldFont, size: 12, color: PROC_RED });
 
@@ -1112,8 +1107,14 @@ serve(async (req: Request) => {
 
         // --- Execution Flow ---
         state = await drawHeader(state, order);
+        const stampY = state.y - 70;
         state = drawSupplierDetails(state, order);
         state = drawOrderDetails(state, order);
+
+        if (['Approved', 'ToPay', 'Paid', 'Transit', 'Received'].includes(order.status)) {
+            drawApprovedStamp(state, width - MARGIN - 130, stampY);
+        }
+
         state = drawObservations(state, order);
         state = drawItemsTable(state, items);
         state = drawMaterialsSection(state, materials || []);
