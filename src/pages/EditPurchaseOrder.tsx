@@ -221,12 +221,23 @@ const EditPurchaseOrder = () => {
 
   const totals = calculateTotals(items);
 
-  const totalInBaseCurrency = React.useMemo(() => {
-    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
-      return (totals.total / exchangeRate).toFixed(2);
+  const totalReference = React.useMemo(() => {
+    if (!exchangeRate || exchangeRate <= 0) return null;
+
+    if (currency === 'VES') {
+      const value = (totals.total / exchangeRate).toFixed(2);
+      return {
+        label: `Ref. ${baseCurrency}`,
+        value
+      };
+    } else {
+      const value = (totals.total * exchangeRate).toFixed(2);
+      return {
+        label: 'Equivalente VES',
+        value
+      };
     }
-    return null;
-  }, [currency, exchangeRate, totals.total]);
+  }, [currency, baseCurrency, exchangeRate, totals.total]);
 
   const handleSubmit = async () => {
     if (!userId) {
@@ -480,10 +491,10 @@ const EditPurchaseOrder = () => {
                 <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
               </div>
 
-              {totalInBaseCurrency && currency === 'VES' && (
+              {totalReference && (
                 <div className="flex justify-end pt-1">
                   <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                    Ref. {baseCurrency}: {totalInBaseCurrency}
+                    {totalReference.label}: {Number(totalReference.value).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}

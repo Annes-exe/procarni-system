@@ -151,9 +151,15 @@ function convertirGrupo(num: number): string {
     return texto.trim();
 }
 
-const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
+const numberToWords = (amount: number, currency: 'VES' | 'USD' | 'EUR'): string => {
+    const getCurrencyName = (curr: 'VES' | 'USD' | 'EUR', plural: boolean) => {
+        if (curr === 'VES') return plural ? 'BOLIVARES' : 'BOLIVAR';
+        if (curr === 'USD') return plural ? 'DOLARES' : 'DOLAR';
+        return plural ? 'EUROS' : 'EURO';
+    };
+
     if (amount === 0) {
-        return `CERO ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'} CON 00/100`;
+        return `CERO ${getCurrencyName(currency, true)} CON 00/100`;
     }
 
     const [entero, decimal] = amount.toFixed(2).split('.').map(Number);
@@ -162,7 +168,7 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
     let tempEntero = entero;
 
     if (tempEntero === 1) {
-        texto = `UN ${currency === 'VES' ? 'BOLIVAR' : 'DOLAR'}`;
+        texto = `UN ${getCurrencyName(currency, false)}`;
     } else if (tempEntero > 1) {
         let millones = Math.floor(tempEntero / 1000000);
         let resto = tempEntero % 1000000;
@@ -188,9 +194,9 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
         texto += convertirGrupo(unidades);
 
         if (millones > 0 && resto === 0) {
-            texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+            texto = texto.trim() + ` DE ${getCurrencyName(currency, true)}`;
         } else {
-            texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+            texto = texto.trim() + ` ${getCurrencyName(currency, true)}`;
         }
     }
 
@@ -877,12 +883,16 @@ serve(async (req: Request) => {
                 discount_percentage: item.discount_percentage ?? 0,
             })));
 
-            // Helper to calculate converted totals
-            const calculateConvertedTotals = (totals: any, rate: number, toCurrency: 'USD' | 'VES') => {
-                if (!rate || rate <= 0) return totals; // Should not happen with validation
+            // Detect base currency (USD or EUR)
+            const baseCurrency = order.base_currency === 'EUR' || order.currency === 'EUR' ? 'EUR' : 'USD';
+            const baseSymbol = baseCurrency === 'EUR' ? '€' : '$';
 
-                // If converting FROM VES TO USD: Divide by rate
-                if (order.currency === 'VES' && toCurrency === 'USD') {
+            // Helper to calculate converted totals
+            const calculateConvertedTotals = (totals: any, rate: number, fromCurrency: string, toCurrency: string) => {
+                if (!rate || rate <= 0) return totals;
+
+                // If converting FROM VES TO EUR/USD: Divide by rate
+                if (fromCurrency === 'VES' && (toCurrency === 'USD' || toCurrency === 'EUR')) {
                     return {
                         baseImponible: totals.baseImponible / rate,
                         montoIVA: totals.montoIVA / rate,
@@ -892,8 +902,8 @@ serve(async (req: Request) => {
                     };
                 }
 
-                // If converting FROM USD TO VES: Multiply by rate
-                if (order.currency === 'USD' && toCurrency === 'VES') {
+                // If converting FROM EUR/USD TO VES: Multiply by rate
+                if ((fromCurrency === 'USD' || fromCurrency === 'EUR') && toCurrency === 'VES') {
                     return {
                         baseImponible: totals.baseImponible * rate,
                         montoIVA: totals.montoIVA * rate,
@@ -903,11 +913,11 @@ serve(async (req: Request) => {
                     };
                 }
 
-                return totals; // Same currency
+                return totals; // Same currency or unhandled
             };
 
-            const usdTotals = order.currency === 'USD' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'USD');
-            const vesTotals = order.currency === 'VES' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'VES');
+            const divisaTotals = order.currency === baseCurrency ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, order.currency, baseCurrency);
+            const vesTotals = order.currency === 'VES' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, order.currency, 'VES');
 
             // Layout for side-by-side tables
             const boxWidth = 200;
@@ -953,12 +963,12 @@ serve(async (req: Request) => {
                 drawRow('TOTAL:', `${currencySymbol} ${totals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, true, PROC_RED, FONT_SIZE + 2);
 
                 if (isVes) {
-                    drawRow('Tasa de Cambio:', `${effectiveExchangeRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/USD`, false, DARK_GRAY, 8);
+                    drawRow('Tasa de Cambio:', `${effectiveExchangeRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/${baseCurrency}`, false, DARK_GRAY, 8);
                 }
             };
 
-            // Draw USD Box (Left)
-            drawBox(usdBoxX, state.y - totalSectionHeight, 'TOTALES EN USD', usdTotals, '$', false);
+            // Draw Divisa Box (Left)
+            drawBox(usdBoxX, state.y - totalSectionHeight, `TOTALES EN ${baseCurrency}`, divisaTotals, baseSymbol, false);
 
             // Draw VES Box (Right)
             drawBox(vesBoxX, state.y - totalSectionHeight, 'TOTALES EN VES', vesTotals, 'Bs.', true);
@@ -967,7 +977,7 @@ serve(async (req: Request) => {
             state.y = state.y - totalSectionHeight - LINE_HEIGHT;
 
             // Amount in words
-            const amountInWords = numberToWords(calculatedTotals.total, order.currency as 'VES' | 'USD');
+            const amountInWords = numberToWords(calculatedTotals.total, order.currency as 'VES' | 'USD' | 'EUR');
             drawText(state, `Monto en Letras (${order.currency}): ${amountInWords}`, MARGIN, state.y, { font: italicFont });
             state.y -= LINE_HEIGHT * 3;
 
