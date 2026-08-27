@@ -275,7 +275,8 @@ serve(async (req: Request) => {
             .select(`
         *,
         suppliers (name, rif, email, phone, payment_terms),
-        companies (name, logo_url, fiscal_data, rif, address, phone, email)
+        companies (name, logo_url, fiscal_data, rif, address, phone, email),
+        profiles:user_id (first_name, last_name, email)
       `)
             .eq('id', orderId)
             .single();
@@ -1043,14 +1044,8 @@ serve(async (req: Request) => {
                 thickness: 1,
                 color: DARK_GRAY,
             });
-            const generatedBy = order.created_by || user.email;
             const textWidthLeft = font.widthOfTextAtSize('Elaborado por', 9);
             drawText(state, 'Elaborado por', leftSignatureXCenter - textWidthLeft / 2, footerY, { font: font, size: 9 });
-
-            // Draw User Email below line - REMOVED as per user request
-            // const userEmailWidth = font.widthOfTextAtSize(generatedBy, 8);
-            // drawText(state, generatedBy, leftSignatureXCenter - userEmailWidth / 2, footerY + 12, { font: font, size: 8 });
-
 
             // Right Signature: Revisado por
             const rightSignatureXCenter = (width / 4) * 3;
@@ -1062,6 +1057,15 @@ serve(async (req: Request) => {
             });
             const textWidthRight = font.widthOfTextAtSize('Revisado por', 9);
             drawText(state, 'Revisado por', rightSignatureXCenter - textWidthRight / 2, footerY, { font: font, size: 9 });
+
+            // Elaborado por (composed of first_name and last_name, or fallback to email)
+            let creatorName = '';
+            if (order.profiles && (order.profiles.first_name || order.profiles.last_name)) {
+                creatorName = `${order.profiles.first_name || ''} ${order.profiles.last_name || ''}`.trim();
+            } else {
+                creatorName = order.updated_by || user.email; // Fallback to updated_by/user.email if created_by is missing in service_orders
+            }
+            drawText(state, `Elaborado por: ${creatorName}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
 
             return state;
         };

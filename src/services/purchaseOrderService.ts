@@ -52,15 +52,15 @@ export const purchaseOrderService = {
 
         return data as unknown as PurchaseOrderWithRelations[];
     },
-
-    getPaginated: async (
+    getPaginated: async (
       page: number,
       pageSize: number,
       searchTerm: string = '',
       statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active',
       onlyRawMaterials: boolean = false,
       startDate?: string,
-      endDate?: string
+      endDate?: string,
+      creatorUserId?: string
     ): Promise<{ data: PurchaseOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -72,6 +72,10 @@ export const purchaseOrderService = {
         .from('purchase_orders')
         .select(selectQuery, { count: 'exact' });
 
+      if (creatorUserId && creatorUserId !== 'all') {
+        query = query.eq('user_id', creatorUserId);
+      }
+  
       if (startDate) {
         query = query.gte('issue_date', startDate);
       }

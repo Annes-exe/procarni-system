@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
+import { useSession } from '@/components/SessionContextProvider';
 
 interface TransitItem {
   id: string;
@@ -63,10 +64,28 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
   onClose,
   orderIds,
 }) => {
+  const { session } = useSession();
   const [items, setItems] = useState<TransitItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number | string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<{ first_name: string | null; last_name: string | null } | null>(null);
+
+  useEffect(() => {
+    const fetchCurrentProfile = async () => {
+      if (session?.user?.id && isOpen) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
+          .single();
+        if (data) {
+          setCurrentProfile(data);
+        }
+      }
+    };
+    fetchCurrentProfile();
+  }, [session, isOpen]);
 
   const fetchTransitItems = async () => {
     if (orderIds.length === 0 || !isOpen) return;
@@ -482,10 +501,17 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
         currentTotalY += 8;
       });
 
+      let printedByName = '';
+      if (currentProfile?.first_name || currentProfile?.last_name) {
+        printedByName = `${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim();
+      } else {
+        printedByName = session?.user?.email || 'Usuario';
+      }
+
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text('Reporte generado electrónicamente desde el panel administrativo de Procarni System.', 105, finalY + totalsBoxHeight + 20, { align: 'center' });
+      doc.text(`Reporte generado por: ${printedByName} desde el panel administrativo de Procarni System.`, 105, finalY + totalsBoxHeight + 20, { align: 'center' });
 
       doc.save(`Reporte_Materiales_${allFullyReceived ? 'Recibidos' : 'Transito'}_${new Date().toISOString().split('T')[0]}.pdf`);
       showSuccess('Reporte PDF descargado exitosamente.');

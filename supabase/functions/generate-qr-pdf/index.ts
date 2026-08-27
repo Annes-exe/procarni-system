@@ -56,7 +56,8 @@ serve(async (req: Request) => {
       .select(`
         *,
         suppliers (name, rif, email, phone, phone_2, instagram, address),
-        companies (name, logo_url, fiscal_data, rif, address, phone, email)
+        companies (name, logo_url, fiscal_data, rif, address, phone, email),
+        profiles:user_id (first_name, last_name, email)
       `)
       .eq('id', requestId)
       .single();
@@ -311,12 +312,29 @@ serve(async (req: Request) => {
 
     y -= lineHeight * 2;
 
-    // Add page numbers
+    // Add Elaborado por and page numbers
+    let creatorName = '';
+    if (request.profiles && (request.profiles.first_name || request.profiles.last_name)) {
+      creatorName = `${request.profiles.first_name || ''} ${request.profiles.last_name || ''}`.trim();
+    } else {
+      creatorName = request.created_by || user.email;
+    }
+
     const pages = pdfDoc.getPages();
     for (let i = 0; i < pages.length; i++) {
       const { width } = pages[i].getSize();
+      // Draw page numbers
       pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
         x: width - margin - 70,
+        y: margin / 2,
+        size: 8,
+        font: font,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+
+      // Draw Elaborado por on each page
+      pages[i].drawText(`Elaborado por: ${creatorName}`, {
+        x: margin,
         y: margin / 2,
         size: 8,
         font: font,

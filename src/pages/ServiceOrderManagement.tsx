@@ -1,6 +1,6 @@
 // src/pages/ServiceOrderManagement.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { calculateTotals } from '@/utils/calculations';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -105,10 +106,26 @@ const ServiceOrderManagement = () => {
     }
   };
 
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [usersList, setUsersList] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string | null }[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+      if (!error && data) {
+        setUsersList(data);
+      }
+    };
+    fetchUsers();
+  }, [supabase]);
+
   // Centralized query for all tabs with pagination
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['serviceOrders_paginated', page, pageSize, debouncedSearch, activeTab],
-    queryFn: () => serviceOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any),
+    queryKey: ['serviceOrders_paginated', page, pageSize, debouncedSearch, activeTab, selectedUserId],
+    queryFn: () => serviceOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, selectedUserId),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -548,15 +565,42 @@ const ServiceOrderManagement = () => {
                 )}
               </TabsList>
 
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar orden..."
-                  className="w-full appearance-none bg-background pl-8 h-9 text-sm"
-                  value={searchInput}
-                  onChange={handleSearchChange}
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Filtro Por Usuario */}
+                <div className="w-full sm:w-48">
+                  <Select
+                    value={selectedUserId}
+                    onValueChange={setSelectedUserId}
+                  >
+                    <SelectTrigger className="h-9 w-full bg-slate-50 border-gray-250 rounded-xl text-[10px] font-semibold text-gray-500 uppercase tracking-wider focus:ring-procarni-primary/20">
+                      <SelectValue placeholder="POR USUARIO" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">TODOS LOS USUARIOS</SelectItem>
+                      {usersList.map((u) => {
+                        const name = u.first_name || u.last_name 
+                          ? `${u.first_name || ''} ${u.last_name || ''}`.trim() 
+                          : u.email || 'Usuario';
+                        return (
+                          <SelectItem key={u.id} value={u.id}>
+                            {name.toUpperCase()}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar orden..."
+                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    value={searchInput}
+                    onChange={handleSearchChange}
+                  />
+                </div>
               </div>
             </div>
 

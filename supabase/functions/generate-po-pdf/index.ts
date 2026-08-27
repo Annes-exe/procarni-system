@@ -281,7 +281,8 @@ serve(async (req: Request) => {
       .select(`
         *,
         suppliers (name, rif, email, phone, payment_terms),
-        companies (name, logo_url, fiscal_data, rif, address, phone, email)
+        companies (name, logo_url, fiscal_data, rif, address, phone, email),
+        profiles:user_id (first_name, last_name, email)
       `)
       .eq('id', orderId)
       .single();
@@ -899,8 +900,14 @@ serve(async (req: Request) => {
       const text2Width = font.widthOfTextAtSize(text2, 9);
       drawText(state, text2, col2Center - (text2Width / 2), footerY, { font: font, size: 9 });
 
-      // Generado por (Moved up slightly to clear signatures)
-      drawText(state, `Generado por: ${order.created_by || user.email}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
+      // Elaborado por (composed of first_name and last_name, or fallback to email)
+      let creatorName = '';
+      if (order.profiles && (order.profiles.first_name || order.profiles.last_name)) {
+        creatorName = `${order.profiles.first_name || ''} ${order.profiles.last_name || ''}`.trim();
+      } else {
+        creatorName = order.created_by || user.email;
+      }
+      drawText(state, `Elaborado por: ${creatorName}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
 
       return state;
     };

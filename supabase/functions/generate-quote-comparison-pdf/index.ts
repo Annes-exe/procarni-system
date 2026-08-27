@@ -98,6 +98,12 @@ serve(async (req) => {
       return new Response('Unauthorized', { status: 401, headers: corsHeaders });
     }
 
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', user.id)
+      .single();
+
     const { comparisonResults, baseCurrency, globalExchangeRate, isSingleMaterial } = await req.json();
     console.log(`[generate-quote-comparison-pdf] Generating PDF for ${comparisonResults.length} materials by user: ${user.email}`);
 
@@ -333,12 +339,30 @@ serve(async (req) => {
       state.y -= LINE_HEIGHT * 2; // Extra space between materials
     }
 
-    // Add page numbers
+    // Add Elaborado por and page numbers
+    let printedByName = '';
+    if (profile && (profile.first_name || profile.last_name)) {
+      printedByName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    } else {
+      printedByName = user.email || '';
+    }
+
     const pages = pdfDoc.getPages();
     for (let i = 0; i < pages.length; i++) {
       const { width } = pages[i].getSize();
+      
+      // Page number
       pages[i].drawText(`Página ${i + 1} de ${pages.length}`, {
         x: width - MARGIN - 70,
+        y: MARGIN / 2,
+        size: 8,
+        font: font,
+        color: DARK_GRAY,
+      });
+
+      // Elaborado por
+      pages[i].drawText(`Elaborado por: ${printedByName}`, {
+        x: MARGIN,
         y: MARGIN / 2,
         size: 8,
         font: font,

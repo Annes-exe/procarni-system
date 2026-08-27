@@ -50,7 +50,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     timeoutId = setTimeout(() => {
       console.warn("Auth initialization timeout - forcing app load.");
       finishLoading();
-    }, 1500);
+    }, 12000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       if (!mounted) return;
