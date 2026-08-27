@@ -21,8 +21,9 @@ const routeMap: Record<string, { label: string; parent?: string }> = {
     '/audit-log': { label: 'Auditoría' },
     '/price-history': { label: 'Historial de Precios' },
     '/purchase-history': { label: 'Historial de Compras' },
-    '/quote-comparison': { label: 'Comparación de Precios' },
+    '/quote-comparison': { label: 'Comparación de Precios', parent: '/quote-comparison-management' },
     '/quote-comparison-management': { label: 'Gestión de Comparaciones' },
+    '/price-matrix': { label: 'Matriz de Proveedores', parent: '/quote-comparison-management' },
     '/search-suppliers-by-material': { label: 'Búsqueda de Proveedores' },
     '/group-management': { label: 'Gestión de Grupos', parent: '/settings' },
 };

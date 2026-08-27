@@ -232,6 +232,7 @@ export type QuoteComparison = {
   base_currency: 'USD' | 'VES' | 'EUR';
   global_exchange_rate: number | null;
   created_at: string;
+  type?: 'quote_comparison' | 'price_matrix' | null;
   items?: QuoteComparisonItem[]; // Joined items
 };
 
@@ -265,7 +266,7 @@ export interface ComparisonResult {
 export type QuoteComparisonItem = {
   id: string;
   comparison_id: string;
-  material_id: string;
+  material_id: string | null;
   material_name: string;
   quotes: QuoteEntry[];
   unit_id?: string | null;

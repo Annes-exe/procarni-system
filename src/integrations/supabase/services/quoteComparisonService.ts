@@ -10,21 +10,27 @@ interface QuoteComparisonPayload {
   base_currency: 'USD' | 'VES' | 'EUR';
   global_exchange_rate?: number | null;
   user_id: string;
+  type?: 'quote_comparison' | 'price_matrix';
 }
 
 interface QuoteComparisonItemPayload {
-  material_id: string;
+  material_id?: string | null; // NULLABLE for Price Matrix items that might not map to catalog materials
   material_name: string;
   unit_id?: string | null; // OPTIONAL
   quotes: QuoteComparisonItem['quotes'];
 }
 
 const QuoteComparisonService = {
-  getAll: async (): Promise<QuoteComparison[]> => {
-    const { data, error } = await supabase
+  getAll: async (typeFilter?: 'quote_comparison' | 'price_matrix'): Promise<QuoteComparison[]> => {
+    let query = supabase
       .from('quote_comparisons')
-      .select('*, quote_comparison_items(*)')
-      .order('created_at', { ascending: false });
+      .select('*, quote_comparison_items(*)');
+
+    if (typeFilter) {
+      query = query.eq('type', typeFilter);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.error('[QuoteComparisonService.getAll] Error:', error);

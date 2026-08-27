@@ -30,6 +30,7 @@ import PriceHistory from "./pages/PriceHistory";
 import AuditLog from "./pages/AuditLog";
 import QuoteComparison from "./pages/QuoteComparison";
 import QuoteComparisonManagement from "./pages/QuoteComparisonManagement";
+import PriceMatrixPage from "./pages/PriceMatrixPage"; // Trigger recompile
 import GenerateServiceOrder from "./pages/GenerateServiceOrder";
 import ServiceOrderManagement from "./pages/ServiceOrderManagement";
 import ServiceOrderDetails from "./pages/ServiceOrderDetails"; // NEW IMPORT
@@ -93,6 +94,7 @@ const App = () => (
                   <Route path="/audit-log" element={<AuditLog />} />
                   <Route path="/quote-comparison" element={<QuoteComparison />} />
                   <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
+                  <Route path="/price-matrix" element={<PriceMatrixPage />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/group-management" element={<GroupManagement />} />
                   <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />

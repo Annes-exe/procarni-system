@@ -16,6 +16,7 @@ import MaterialQuoteComparisonRow from '@/components/MaterialQuoteComparisonRow'
 import QuoteComparisonPDFButton from '@/components/QuoteComparisonPDFButton';
 import { Separator } from '@/components/ui/separator';
 import SaveComparisonDialog from '@/components/SaveComparisonDialog';
+import { DynamicBreadcrumbs } from '@/components/DynamicBreadcrumbs';
 import { useSession } from '@/components/SessionContextProvider';
 import { QuoteRequest, QuoteComparison as QuoteComparisonType, QuoteRequestItem, QuoteEntry, ComparisonResult, QuoteComparisonItem } from '@/integrations/supabase/types';
 import ImportQuoteRequestDialog from '@/components/ImportQuoteRequestDialog';
@@ -490,12 +491,23 @@ const QuoteComparison = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-[1600px] pb-24">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+      <div className="mb-4">
+        <DynamicBreadcrumbs />
+      </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 mt-2">
         <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">
+          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-gray-500 hover:text-procarni-primary"
+              onClick={() => navigate('/quote-comparison-management')}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             {comparisonId ? `Edición: ${comparisonName}` : 'Comparación de Cotizaciones'}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
+          <p className="text-muted-foreground text-sm mt-1 max-w-2xl pl-10">
             {comparisonId ? 'Modifica y guarda los cambios en esta comparación existente.' : 'Crea una nueva comparación de precios añadiendo materiales y registrando ofertas de proveedores.'}
           </p>
         </div>

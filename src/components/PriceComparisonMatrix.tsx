@@ -15,6 +15,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSession } from '@/components/SessionContextProvider';
+import { useSearchParams } from 'react-router-dom';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -36,7 +38,8 @@ import {
   FileSpreadsheet,
   FileDown,
   Pin,
-  Sparkles
+  Sparkles,
+  Save
 } from 'lucide-react';
 import { Supplier, Material } from '@/integrations/supabase/types';
 
@@ -50,7 +53,15 @@ interface PriceSource {
 }
 
 export default function PriceComparisonMatrix() {
-  const { role } = useSession();
+  const { role, session } = useSession();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const loadId = searchParams.get('loadId');
+
+  const [comparisonId, setComparisonId] = useState<string | null>(null);
+  const [comparisonName, setComparisonName] = useState<string>('');
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveName, setSaveName] = useState('');
+
   const [selectedSuppliers, setSelectedSuppliers] = useState<Supplier[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
   const [materialSearch, setMaterialSearch] = useState('');
@@ -114,6 +125,167 @@ export default function PriceComparisonMatrix() {
     }
     loadExchangeRate();
   }, []);
+
+  // Load Saved Price Matrix from Database if loadId is present
+  useEffect(() => {
+    if (loadId) {
+      async function loadSavedMatrix() {
+        try {
+          const { data: comparison, error: compError } = await supabase
+            .from('quote_comparisons')
+            .select('*')
+            .eq('id', loadId)
+            .single();
+          if (compError || !comparison) throw new Error('No se encontró la comparación');
+
+          setComparisonId(comparison.id);
+          setComparisonName(comparison.name);
+          setSaveName(comparison.name);
+          if (comparison.base_currency) {
+            setCurrency(comparison.base_currency as any);
+          }
+          if (comparison.global_exchange_rate) {
+            setUsdRate(Number(comparison.global_exchange_rate));
+          }
+
+          const { data: items, error: itemsError } = await supabase
+            .from('quote_comparison_items')
+            .select('*')
+            .eq('comparison_id', loadId);
+
+          if (!itemsError && items) {
+            // Find metadata row
+            const metaRow = items.find(it => it.material_name === '__matrix_metadata__');
+            if (metaRow && metaRow.quotes) {
+              // @ts-ignore
+              const meta = metaRow.quotes;
+              if (meta.selectedSuppliers) {
+                setSelectedSuppliers(meta.selectedSuppliers);
+              }
+              if (meta.pinnedMaterials) {
+                setPinnedMaterials(meta.pinnedMaterials);
+              }
+            }
+
+            // Load custom prices
+            const customPricesMap: Record<string, Record<string, number>> = {};
+            items.forEach(it => {
+              if (it.material_id && it.material_name !== '__matrix_metadata__' && it.quotes) {
+                // @ts-ignore
+                if (it.quotes.customPrices) {
+                  // @ts-ignore
+                  customPricesMap[it.material_id] = it.quotes.customPrices;
+                }
+              }
+            });
+            setCustomPrices(customPricesMap);
+          }
+        } catch (err: any) {
+          toast.error(err.message || 'Error al cargar la matriz guardada.');
+        }
+      }
+      loadSavedMatrix();
+    }
+  }, [loadId]);
+
+  const handleSaveMatrix = async (nameToSave: string) => {
+    if (!session?.user?.id) {
+      toast.error('Debes iniciar sesión para guardar comparaciones.');
+      return;
+    }
+
+    if (!nameToSave.trim()) {
+      toast.error('El nombre de la comparación es obligatorio.');
+      return;
+    }
+
+    try {
+      const isUpdate = !!comparisonId && nameToSave === comparisonName;
+
+      // 1. Prepare Header
+      const headerData = {
+        name: nameToSave,
+        base_currency: currency as any,
+        global_exchange_rate: usdRate,
+        user_id: session.user.id,
+        type: 'price_matrix',
+      };
+
+      let activeId = comparisonId;
+
+      if (isUpdate && activeId) {
+        // Update header
+        const { error: headerErr } = await supabase
+          .from('quote_comparisons')
+          .update(headerData)
+          .eq('id', activeId);
+        if (headerErr) throw headerErr;
+
+        // Delete old items
+        const { error: delErr } = await supabase
+          .from('quote_comparison_items')
+          .delete()
+          .eq('comparison_id', activeId);
+        if (delErr) throw delErr;
+      } else {
+        // Insert new header
+        const { data: newComp, error: headerErr } = await supabase
+          .from('quote_comparisons')
+          .insert(headerData)
+          .select()
+          .single();
+        if (headerErr || !newComp) throw headerErr || new Error('Error al guardar cabecera');
+        activeId = newComp.id;
+        setComparisonId(newComp.id);
+        setComparisonName(nameToSave);
+      }
+
+      // 2. Prepare items payload
+      const itemsPayload: any[] = [];
+
+      // Add metadata item
+      itemsPayload.push({
+        comparison_id: activeId,
+        material_id: null,
+        material_name: '__matrix_metadata__',
+        quotes: {
+          selectedSuppliers: selectedSuppliers,
+          pinnedMaterials: pinnedMaterials,
+        } as any,
+      });
+
+      // Add items with custom prices
+      Object.keys(customPrices).forEach(matId => {
+        const mat = allMaterials.find(m => m.id === matId);
+        const name = mat?.name || 'Material';
+        itemsPayload.push({
+          comparison_id: activeId,
+          material_id: matId,
+          material_name: name,
+          quotes: {
+            customPrices: customPrices[matId]
+          } as any,
+        });
+      });
+
+      // Insert items
+      const { error: itemsErr } = await supabase
+        .from('quote_comparison_items')
+        .insert(itemsPayload);
+      if (itemsErr) throw itemsErr;
+
+      toast.success(`Matriz "${nameToSave}" guardada exitosamente.`);
+      setIsSaveModalOpen(false);
+      
+      // Update URL if it was a new save
+      if (!loadId) {
+        setSearchParams({ loadId: activeId });
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Error al guardar la matriz.');
+    }
+  };
 
   // Query Suppliers
   const { data: allSuppliers = [], isLoading: loadingSuppliers } = useQuery({
@@ -960,6 +1132,36 @@ export default function PriceComparisonMatrix() {
               </span>
             </div>
 
+            {/* Guardar Comparación */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (comparisonId) {
+                  handleSaveMatrix(comparisonName);
+                } else {
+                  setIsSaveModalOpen(true);
+                }
+              }}
+              className="h-9 px-3 rounded-2xl text-xs font-bold bg-procarni-primary/10 text-procarni-primary hover:bg-procarni-primary/20 transition-colors shadow-sm flex items-center"
+            >
+              <Save className="w-3.5 h-3.5 mr-1" />
+              {comparisonId ? 'Actualizar' : 'Guardar'}
+            </Button>
+            {comparisonId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSaveName(`${comparisonName} (Copia)`);
+                  setIsSaveModalOpen(true);
+                }}
+                className="h-9 px-3 rounded-2xl text-xs font-bold text-gray-500 hover:text-procarni-primary border-gray-200 shadow-sm bg-white"
+              >
+                Guardar Como
+              </Button>
+            )}
+
             {/* Restablecer Simulación */}
             {Object.keys(customPrices).length > 0 && (
               <Button
@@ -1296,6 +1498,43 @@ export default function PriceComparisonMatrix() {
           )}
         </div>
       </Card>
+
+      <Dialog open={isSaveModalOpen} onOpenChange={setIsSaveModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Guardar Matriz de Precios</DialogTitle>
+            <DialogDescription>
+              Introduce un nombre para guardar esta matriz comparativa y sus simulaciones de precio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right text-xs font-bold uppercase tracking-wider text-gray-400">
+                Nombre
+              </Label>
+              <Input
+                id="name"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                className="col-span-3 h-10 border-gray-200 focus:ring-procarni-primary/20"
+                placeholder="Ej. Matriz de Empaques Agosto"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSaveModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              onClick={() => handleSaveMatrix(saveName)}
+              className="bg-procarni-primary hover:bg-red-800 text-white"
+            >
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -51,7 +51,6 @@ import PriceHistoryDownloadButton from '@/components/PriceHistoryDownloadButton'
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
 import { normalizeString } from '@/utils/normalization';
 import SmartSearch from '@/components/SmartSearch';
-import PriceComparisonMatrix from '@/components/PriceComparisonMatrix';
 import {
     getPurchaseHistoryReport,
     getAllSuppliers,
@@ -1193,24 +1192,19 @@ const ReportsAnalytics = () => {
                         <TabsTrigger value="top-suppliers" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
                             Proveedores
                         </TabsTrigger>
-                        <TabsTrigger value="price-matrix" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
-                            Matriz de Precios
-                        </TabsTrigger>
                     </TabsList>
 
                     {/* Buscador Global (Debajo de la franja de pestañas) */}
-                    {activeTab !== 'price-matrix' && (
-                        <div className="relative w-full sm:w-[380px] mx-auto">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                            <Input
-                                type="text"
-                                placeholder="Buscar material o proveedor..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 bg-white w-full h-9 rounded-xl border border-gray-200 shadow-sm"
-                            />
-                        </div>
-                    )}
+                    <div className="relative w-full sm:w-[380px] mx-auto">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <Input
+                            type="text"
+                            placeholder="Buscar material o proveedor..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 bg-white w-full h-9 rounded-xl border border-gray-200 shadow-sm"
+                        />
+                    </div>
 
                     {/* Tab: Buscador de Compras */}
                     <TabsContent value="search" className="space-y-6 animate-in fade-in-50">
@@ -1789,10 +1783,6 @@ const ReportsAnalytics = () => {
                                 )}
                             </div>
                         </Card>
-                    </TabsContent>
-
-                    <TabsContent value="price-matrix" className="space-y-6 animate-in fade-in-50">
-                        <PriceComparisonMatrix />
                     </TabsContent>
                 </Tabs>
             </div>
