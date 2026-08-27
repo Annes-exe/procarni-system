@@ -19,21 +19,49 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PriceComparisonMatrix from '@/components/PriceComparisonMatrix';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useSession } from '@/components/SessionContextProvider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useEffect } from 'react';
 
 const QuoteComparisonManagement = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const { session, supabase } = useSession();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') === 'matrix' ? 'matrix' : 'saved';
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [usersList, setUsersList] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string | null }[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [comparisonToDeleteId, setComparisonToDeleteId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+
+  // Set default selectedUserId to session user
+  useEffect(() => {
+    if (session?.user?.id && !selectedUserId) {
+      setSelectedUserId(session.user.id);
+    }
+  }, [session?.user?.id]);
+
+  // Fetch users list
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+      if (!error && data) {
+        setUsersList(data);
+      }
+    };
+    fetchUsers();
+  }, [supabase]);
 
   const { data: comparisons, isLoading, error } = useQuery<QuoteComparison[]>({
     queryKey: ['quoteComparisons'],
@@ -52,14 +80,20 @@ const QuoteComparisonManagement = () => {
       }
     });
 
-    if (!searchTerm) return tabFiltered;
+    // Filter by user
+    const userFiltered = tabFiltered.filter(comp => {
+      if (!selectedUserId || selectedUserId === 'all') return true;
+      return comp.user_id === selectedUserId;
+    });
+
+    if (!searchTerm) return userFiltered;
 
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return tabFiltered.filter(comp =>
+    return userFiltered.filter(comp =>
       comp.name.toLowerCase().includes(lowerCaseSearchTerm) ||
       comp.id.toLowerCase().includes(lowerCaseSearchTerm)
     );
-  }, [comparisons, activeTab, searchTerm]);
+  }, [comparisons, activeTab, selectedUserId, searchTerm]);
 
   const deleteMutation = useMutation({
     mutationFn: deleteQuoteComparison,
@@ -311,15 +345,34 @@ const QuoteComparisonManagement = () => {
 
         <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
           <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
-            <div className="relative mb-4">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Buscar por nombre o ID..."
-                className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nombre o ID..."
+                  className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="w-full sm:w-[220px]">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="h-9 bg-background border-gray-200 focus:ring-procarni-primary/20">
+                    <SelectValue placeholder="Filtrar por usuario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los usuarios</SelectItem>
+                    {usersList.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.first_name || user.last_name 
+                          ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                          : user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {filteredComparisons.length > 0 ? (
