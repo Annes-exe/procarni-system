@@ -39,6 +39,7 @@ interface ServiceOrderDetailsFormProps {
   paymentTerms: 'Contado' | 'Crédito' | 'Otro';
   customPaymentTerms: string;
   creditDays: number;
+  requisitionNumber?: string | null;
 
   onCompanySelect: (company: Company) => void;
   onBaseCurrencyChange: (value: 'USD' | 'EUR') => void;
@@ -54,6 +55,7 @@ interface ServiceOrderDetailsFormProps {
   onPaymentTermsChange: (value: 'Contado' | 'Crédito' | 'Otro') => void;
   onCustomPaymentTermsChange: (value: string) => void;
   onCreditDaysChange: (value: number) => void;
+  onRequisitionNumberChange: (value: string) => void;
   supplierId?: string;
   supplierName?: string;
   onSupplierSelect?: (supplier: any) => void;
@@ -85,6 +87,7 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   paymentTerms,
   customPaymentTerms,
   creditDays,
+  requisitionNumber,
   onCompanySelect,
   onBaseCurrencyChange,
   onCurrencyChange,
@@ -99,6 +102,7 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
   onPaymentTermsChange,
   onCustomPaymentTermsChange,
   onCreditDaysChange,
+  onRequisitionNumberChange,
   supplierId,
   supplierName,
   onSupplierSelect,
@@ -172,6 +176,21 @@ const ServiceOrderDetailsForm: React.FC<ServiceOrderDetailsFormProps> = ({
               displayValue={companyName}
               className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
               icon={<Building2 className="h-4 w-4 text-gray-400" />}
+            />
+          </div>
+
+          {/* Requisición Relacionada */}
+          <div>
+            <Label htmlFor="requisitionNumber" className="block text-sm font-semibold text-gray-700 mb-2">
+              N° Requisición Relacionada
+            </Label>
+            <Input
+              id="requisitionNumber"
+              type="text"
+              value={requisitionNumber || ''}
+              onChange={(e) => onRequisitionNumberChange(e.target.value)}
+              placeholder="Ej: RS-001"
+              className="w-full py-2 h-10 rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm bg-white pl-3 text-sm"
             />
           </div>
 

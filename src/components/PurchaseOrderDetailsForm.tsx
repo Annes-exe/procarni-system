@@ -35,6 +35,7 @@ interface PurchaseOrderDetailsFormProps {
   customPaymentTerms: string;
   creditDays: number;
   observations: string;
+  requisitionNumber?: string | null;
   onCompanySelect: (company: Company) => void;
   onBaseCurrencyChange: (value: 'USD' | 'EUR') => void;
   onCurrencyChange: (value: 'USD' | 'VES' | 'EUR') => void;
@@ -45,6 +46,7 @@ interface PurchaseOrderDetailsFormProps {
   onCustomPaymentTermsChange: (value: string) => void;
   onCreditDaysChange: (value: number) => void;
   onObservationsChange: (value: string) => void;
+  onRequisitionNumberChange: (value: string) => void;
   onSupplierSelect?: (supplier: any) => void;
   onAddNewSupplier?: () => void;
   disableAutoFetch?: boolean;
@@ -64,6 +66,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   customPaymentTerms,
   creditDays,
   observations,
+  requisitionNumber,
   onCompanySelect,
   onBaseCurrencyChange,
   onCurrencyChange,
@@ -74,6 +77,7 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
   onCustomPaymentTermsChange,
   onCreditDaysChange,
   onObservationsChange,
+  onRequisitionNumberChange,
   onSupplierSelect,
   onAddNewSupplier,
   disableAutoFetch = false,
@@ -146,6 +150,21 @@ const PurchaseOrderDetailsForm: React.FC<PurchaseOrderDetailsFormProps> = ({
               displayValue={companyName}
               className="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm appearance-none pl-3"
               icon={<Building2 className="h-4 w-4 text-gray-400" />}
+            />
+          </div>
+
+          {/* Requisición Relacionada */}
+          <div>
+            <Label htmlFor="requisitionNumber" className="block text-sm font-semibold text-gray-700 mb-2">
+              N° Requisición Relacionada
+            </Label>
+            <Input
+              id="requisitionNumber"
+              type="text"
+              value={requisitionNumber || ''}
+              onChange={(e) => onRequisitionNumberChange(e.target.value)}
+              placeholder="Ej: RC-001"
+              className="w-full py-2 h-10 rounded-lg border-gray-300 focus:ring-2 focus:ring-procarni-primary focus:border-procarni-primary transition shadow-sm bg-white pl-3 text-sm"
             />
           </div>
 

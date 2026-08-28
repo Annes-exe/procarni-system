@@ -108,6 +108,7 @@ export type PurchaseOrder = {
   company: Company; // Assuming we might join this
   reception_status?: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido' | null;
   is_raw_material?: boolean | null;
+  requisition_number?: string | null; // Added
 };
 
 export type PurchaseOrderItem = {
@@ -308,6 +309,7 @@ export type ServiceOrder = {
   company?: Company;
   service_order_items?: ServiceOrderItem[];
   service_order_materials?: ServiceOrderMaterial[];
+  requisition_number?: string | null; // Added
 };
 
 export type ServiceOrderItem = {
@@ -413,4 +415,14 @@ export type PaymentTransaction = {
   new_paid: number;
   notes: string | null;
   created_at: string;
+};
+
+// --- NEW TYPES FOR REQUISITIONS ---
+export type Requisition = {
+  id: string;
+  type: 'purchase' | 'service';
+  sequence_number: number;
+  created_at: string;
+  user_id: string;
+  profiles?: { first_name: string | null; last_name: string | null } | null;
 };

@@ -25,6 +25,7 @@ const navItems = [
       { to: '/purchase-order-management', icon: <ShoppingCart className="h-5 w-5" />, label: 'Órdenes de Compra' },
       { to: '/service-order-management', icon: <Wrench className="h-5 w-5" />, label: 'Órdenes de Servicio' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
+      { to: '/requisitions', icon: <FileSpreadsheet className="h-5 w-5" />, label: 'Requisiciones' },
     ]
   },
   {

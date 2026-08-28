@@ -43,6 +43,8 @@ import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 import MaterialApproval from "./pages/MaterialApproval";
 import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
 import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
+import RequisitionsManagement from "./pages/RequisitionsManagement";
+import PrintRequisition from "./pages/PrintRequisition";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -100,7 +102,9 @@ const App = () => (
                   <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
                   <Route path="/material-approval" element={<MaterialApproval />} />
                   <Route path="/payment-reminders" element={<PaymentRemindersDashboard />} />
+                  <Route path="/requisitions" element={<RequisitionsManagement />} />
                 </Route>
+                <Route path="/requisitions/print/:id" element={<PrintRequisition />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ShoppingCartProvider>

@@ -58,6 +58,7 @@ const GeneratePurchaseOrder = () => {
   const [customPaymentTerms, setCustomPaymentTerms] = React.useState<string>('');
   const [creditDays, setCreditDays] = React.useState<number>(0);
   const [observations, setObservations] = React.useState<string>('');
+  const [requisitionNumber, setRequisitionNumber] = React.useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isReminderDialogOpen, setIsReminderDialogOpen] = React.useState(false);
@@ -505,6 +506,7 @@ const GeneratePurchaseOrder = () => {
       custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
       credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
       observations: observations || null,
+      requisition_number: requisitionNumber || null,
       quote_request_id: quoteRequest?.id || null,
       service_order_id: serviceOrderId || null,
     };
@@ -537,6 +539,7 @@ const GeneratePurchaseOrder = () => {
       setCustomPaymentTerms('');
       setCreditDays(0);
       setObservations('');
+      setRequisitionNumber('');
 
       // Redirect to details after success - Corrected path
       navigate(`/purchase-orders/${createdOrder.id}`);
@@ -601,6 +604,7 @@ const GeneratePurchaseOrder = () => {
             customPaymentTerms={customPaymentTerms}
             creditDays={creditDays}
             observations={observations}
+            requisitionNumber={requisitionNumber}
             onCompanySelect={handleCompanySelect}
             onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
@@ -611,6 +615,7 @@ const GeneratePurchaseOrder = () => {
             onCustomPaymentTermsChange={setCustomPaymentTerms}
             onCreditDaysChange={setCreditDays}
             onObservationsChange={setObservations}
+            onRequisitionNumberChange={setRequisitionNumber}
             onSupplierSelect={handleSupplierSelect}
             onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
             disableAutoFetch={!!quoteRequest?.exchange_rate}

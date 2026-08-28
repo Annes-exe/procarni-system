@@ -122,6 +122,7 @@ const EditServiceOrder = () => {
     const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
     const [creditDays, setCreditDays] = useState<number>(0);
     const [sequenceNumber, setSequenceNumber] = useState<number>(0);
+    const [requisitionNumber, setRequisitionNumber] = useState<string>('');
 
     const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
 
@@ -170,6 +171,7 @@ const EditServiceOrder = () => {
                 setCustomPaymentTerms(order.custom_payment_terms || '');
                 setCreditDays(order.credit_days || 0);
                 setSequenceNumber(order.sequence_number || 0);
+                setRequisitionNumber(order.requisition_number || '');
 
                 // Map items
                 // Map items
@@ -467,6 +469,7 @@ const EditServiceOrder = () => {
                 payment_terms: paymentTerms,
                 custom_payment_terms: customPaymentTerms || null,
                 credit_days: creditDays,
+                requisition_number: requisitionNumber || null,
             };
 
             const itemsForUpdate = items.map(({ id, ...rest }) => rest);
@@ -572,6 +575,7 @@ const EditServiceOrder = () => {
                             paymentTerms={paymentTerms}
                             customPaymentTerms={customPaymentTerms}
                             creditDays={creditDays}
+                            requisitionNumber={requisitionNumber}
                             onCompanySelect={handleCompanySelect}
                             onBaseCurrencyChange={setBaseCurrency}
                             onCurrencyChange={setCurrency}
@@ -586,6 +590,7 @@ const EditServiceOrder = () => {
                             onPaymentTermsChange={setPaymentTerms}
                             onCustomPaymentTermsChange={setCustomPaymentTerms}
                             onCreditDaysChange={setCreditDays}
+                            onRequisitionNumberChange={setRequisitionNumber}
                             supplierId={supplierId}
                             supplierName={supplierName}
                             disableAutoFetch={true}

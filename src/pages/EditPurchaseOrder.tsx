@@ -87,6 +87,7 @@ const EditPurchaseOrder = () => {
   const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
   const [creditDays, setCreditDays] = useState<number>(0);
   const [observations, setObservations] = useState<string>('');
+  const [requisitionNumber, setRequisitionNumber] = useState<string>('');
 
   const [items, setItems] = useState<PurchaseOrderItemForm[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,6 +140,7 @@ const EditPurchaseOrder = () => {
       setCustomPaymentTerms(initialOrder.custom_payment_terms || '');
       setCreditDays(initialOrder.credit_days || 0);
       setObservations(initialOrder.observations || '');
+      setRequisitionNumber(initialOrder.requisition_number || '');
 
       setItems(initialOrder.purchase_order_items.map(item => ({
         id: item.id,
@@ -340,6 +342,7 @@ const EditPurchaseOrder = () => {
       custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
       credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
       observations: observations || null,
+      requisition_number: requisitionNumber || null,
     };
 
     const updatedOrder = await purchaseOrderService.update(id!, orderData, items as any);
@@ -422,6 +425,7 @@ const EditPurchaseOrder = () => {
             customPaymentTerms={customPaymentTerms}
             creditDays={creditDays}
             observations={observations}
+            requisitionNumber={requisitionNumber}
             onCompanySelect={handleCompanySelect}
             onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
@@ -432,6 +436,7 @@ const EditPurchaseOrder = () => {
             onCustomPaymentTermsChange={setCustomPaymentTerms}
             onCreditDaysChange={setCreditDays}
             onObservationsChange={setObservations}
+            onRequisitionNumberChange={setRequisitionNumber}
             onSupplierSelect={handleSupplierSelect}
             onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
             disableAutoFetch={true}
