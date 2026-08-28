@@ -420,7 +420,7 @@ export type PaymentTransaction = {
 // --- NEW TYPES FOR REQUISITIONS ---
 export type Requisition = {
   id: string;
-  type: 'purchase' | 'service';
+  type: 'purchase' | 'service' | 'warehouse';
   sequence_number: number;
   created_at: string;
   user_id: string;

@@ -1,11 +1,12 @@
 -- Create sequences for requisitions
 CREATE SEQUENCE IF NOT EXISTS public.purchase_requisition_sequence START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS public.service_requisition_sequence START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS public.warehouse_requisition_sequence START WITH 1;
 
 -- Create requisitions table
 CREATE TABLE IF NOT EXISTS public.requisitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL CHECK (type IN ('purchase', 'service')),
+    type TEXT NOT NULL CHECK (type IN ('purchase', 'service', 'warehouse')),
     sequence_number INTEGER,
     created_at TIMESTAMPTZ DEFAULT now(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL DEFAULT auth.uid()
@@ -19,6 +20,8 @@ BEGIN
         NEW.sequence_number := nextval('public.purchase_requisition_sequence');
     ELSIF NEW.type = 'service' THEN
         NEW.sequence_number := nextval('public.service_requisition_sequence');
+    ELSIF NEW.type = 'warehouse' THEN
+        NEW.sequence_number := nextval('public.warehouse_requisition_sequence');
     END IF;
     RETURN NEW;
 END;
@@ -48,7 +51,7 @@ ALTER TABLE public.service_orders ADD COLUMN IF NOT EXISTS requisition_number TE
 
 -- Add comments for documentation
 COMMENT ON TABLE public.requisitions IS 'Control de formatos de requisiciones impresas generadas por el sistema.';
-COMMENT ON COLUMN public.requisitions.type IS 'Tipo de requisición: purchase (compra) o service (servicio).';
+COMMENT ON COLUMN public.requisitions.type IS 'Tipo de requisición: purchase (compra), service (servicio) o warehouse (almacén).';
 COMMENT ON COLUMN public.requisitions.sequence_number IS 'Número correlativo único por tipo de requisición.';
 COMMENT ON COLUMN public.purchase_orders.requisition_number IS 'Número de correlativo de requisición de compra asociado.';
 COMMENT ON COLUMN public.service_orders.requisition_number IS 'Número de correlativo de requisición de servicio asociado.';
