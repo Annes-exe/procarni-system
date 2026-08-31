@@ -3,16 +3,12 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, ListOrdered } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PriceComparisonMatrix from '@/components/PriceComparisonMatrix';
-import { DynamicBreadcrumbs } from '@/components/DynamicBreadcrumbs';
 
 export default function PriceMatrixPage() {
   const navigate = useNavigate();
 
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-[1600px] pb-24">
-      <div className="mb-4">
-        <DynamicBreadcrumbs />
-      </div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 mt-2">
         <div>
           <h1 className="text-2xl font-bold text-procarni-dark tracking-tight flex items-center gap-2">

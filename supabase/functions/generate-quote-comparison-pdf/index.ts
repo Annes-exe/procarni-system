@@ -129,7 +129,7 @@ serve(async (req) => {
 
     let state: PDFState = { page, y: height - MARGIN, width, height, font, boldFont };
 
-    // --- Header (Minimalist Clean Style) ---
+    // --- Header (Clean Modern Style) ---
     drawText(state, 'REPORTE DE COMPARACIÓN DE COTIZACIONES', MARGIN, state.y, { font: boldFont, size: 14, color: PROC_RED });
     state.y -= LINE_HEIGHT * 1.5;
 
@@ -140,7 +140,16 @@ serve(async (req) => {
       drawText(state, `Tasa Global (USD/VES): ${globalExchangeRate.toFixed(2)}`, MARGIN, state.y, { size: 9, color: DARK_GRAY });
       state.y -= LINE_HEIGHT;
     }
-    state.y -= LINE_HEIGHT * 1.5;
+    state.y -= 5;
+
+    // Separator line (Red, 2pt)
+    state.page.drawLine({
+      start: { x: MARGIN, y: state.y },
+      end: { x: width - MARGIN, y: state.y },
+      thickness: 2,
+      color: PROC_RED,
+    });
+    state.y -= LINE_HEIGHT * 2;
 
     // --- Table Column Configuration ---
     const tableWidth = width - 2 * MARGIN;
@@ -170,10 +179,18 @@ serve(async (req) => {
       });
 
       // Draw Material Title (Clean Style)
-      state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 3);
+      state = checkPageBreak(pdfDoc, state, LINE_HEIGHT * 4);
       state.y -= LINE_HEIGHT;
-      drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 11, color: rgb(0.2, 0.2, 0.2) });
-      state.y -= LINE_HEIGHT * 1.5;
+      drawText(state, `MATERIAL: ${materialName}`, MARGIN, state.y, { font: boldFont, size: 11, color: PROC_RED });
+      
+      // Draw separator line immediately below the title text area
+      state.page.drawLine({
+        start: { x: MARGIN, y: state.y - FONT_SIZE - 2 },
+        end: { x: width - MARGIN, y: state.y - FONT_SIZE - 2 },
+        thickness: 0.5,
+        color: LIGHT_GRAY,
+      });
+      state.y -= LINE_HEIGHT * 1.8;
 
       // Draw Table Header
       let currentX = MARGIN;
@@ -191,7 +208,7 @@ serve(async (req) => {
         drawText(state, colHeaders[i], currentX + 5, headerY - LINE_HEIGHT + (LINE_HEIGHT - FONT_SIZE) / 2, {
           font: boldFont,
           size: 9,
-          color: DARK_GRAY
+          color: PROC_RED
         });
         currentX += colWidths[i];
       }
