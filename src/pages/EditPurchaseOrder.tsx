@@ -50,6 +50,7 @@ interface PurchaseOrderItemForm {
   sales_percentage?: number;
   discount_percentage?: number;
   was_recalculated?: boolean;
+  category?: string | null;
 }
 
 interface MaterialSearchResult {
