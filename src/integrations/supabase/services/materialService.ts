@@ -189,16 +189,51 @@ const MaterialService = {
       isCategory: true
     }));
 
-    // 2. Fetch matching materials using RPC
+    // 2. Fetch matching supplier rubros
+    let rubroResults: any[] = [];
+    try {
+      const { data: suppliersWithRubros } = await supabase
+        .from('suppliers')
+        .select('rubros')
+        .not('rubros', 'is', null)
+        .ilike('rubros', `%${cleanQuery}%`)
+        .limit(50);
+
+      if (suppliersWithRubros) {
+        const uniqueRubros = new Set<string>();
+        suppliersWithRubros.forEach(s => {
+          if (s.rubros) {
+            s.rubros.split(',').forEach(tag => {
+              const trimmed = tag.trim();
+              if (trimmed.toLowerCase().includes(cleanQuery.toLowerCase())) {
+                uniqueRubros.add(trimmed);
+              }
+            });
+          }
+        });
+        
+        rubroResults = Array.from(uniqueRubros).slice(0, 5).map(rubro => ({
+          id: `rubro:${rubro}`,
+          name: `Rubro: ${rubro}`,
+          code: 'Rubro General',
+          rubro: rubro,
+          isRubro: true
+        }));
+      }
+    } catch (e) {
+      console.error('Error fetching rubros suggestions:', e);
+    }
+
+    // 3. Fetch matching materials using RPC
     const { data, error } = await supabase.rpc('search_materials_by_substring', { search_query: cleanQuery });
 
     if (error) {
       console.error('[MaterialService.searchWithCategories] Error calling search RPC:', error);
-      return categoryResults;
+      return [...categoryResults, ...rubroResults];
     }
 
     const materialResults = (data as Material[]) || [];
-    return [...categoryResults, ...materialResults];
+    return [...categoryResults, ...rubroResults, ...materialResults];
   },
 
   mergeMaterials: async (targetId: string, sourceIds: string[]): Promise<boolean> => {
@@ -263,9 +298,19 @@ const MaterialService = {
 
     // Aplicar filtro de búsqueda
     if (searchTerm) {
-      const searchPattern = `%${searchTerm}%`;
-      const cleanTerm = searchTerm.toUpperCase().trim().replace(/"/g, '\\"');
-      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"}`);
+      const normalizedSearchTerm = searchTerm.replace(/\*/g, 'x');
+      const searchPattern = `%${normalizedSearchTerm}%`;
+      const cleanTerm = normalizedSearchTerm.toUpperCase().trim().replace(/"/g, '\\"');
+      
+      let altPattern = searchPattern;
+      let altCleanTerm = cleanTerm;
+      if (normalizedSearchTerm.toLowerCase().includes('x')) {
+        const altSearchTerm = normalizedSearchTerm.replace(/x/gi, '*');
+        altPattern = `%${altSearchTerm}%`;
+        altCleanTerm = altSearchTerm.toUpperCase().trim().replace(/"/g, '\\"');
+      }
+
+      query = query.or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"},name.ilike.${altPattern},code.ilike.${altPattern},search_aliases.cs.{"${altCleanTerm}"}`);
     } else {
       // Ocultar hijos (base_material_id no nulo) del nivel raíz si no hay búsqueda activa y no se filtra por "no maestros".
       // Si se filtra por "non-master", debemos mostrarlos porque no hay padres mostrándose que los agrupen.

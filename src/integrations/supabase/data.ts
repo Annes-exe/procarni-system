@@ -123,7 +123,8 @@ export const searchSuppliersByMaterial = async (materialId: string, query: strin
         instagram,
         payment_terms,
         credit_days,
-        status
+        status,
+        rubros
       ),
       specification
     `)
@@ -179,7 +180,8 @@ export const searchSuppliersByCategory = async (categoryName: string, query: str
         instagram,
         payment_terms,
         credit_days,
-        status
+        status,
+        rubros
       ),
       materials!inner (
         category
@@ -222,6 +224,43 @@ export const searchSuppliersByCategory = async (categoryName: string, query: str
   }
 
   return suppliers;
+};
+
+// NEW FUNCTION: Search suppliers associated with a specific general Rubro
+export const searchSuppliersByRubro = async (rubroName: string): Promise<any[]> => {
+  if (!rubroName) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select(`
+      id,
+      name,
+      rif,
+      code,
+      city,
+      email,
+      phone,
+      phone_2,
+      instagram,
+      payment_terms,
+      credit_days,
+      status,
+      rubros
+    `)
+    .ilike('rubros', `%${rubroName}%`)
+    .limit(10000);
+
+  if (error) {
+    console.error('[searchSuppliersByRubro] Error:', error);
+    return [];
+  }
+
+  return data.map(s => ({
+    ...s,
+    specification: '' // General Rubro search has no specific material association/specification
+  }));
 };
 
 // NEW FUNCTION: Search materials associated with a specific supplier

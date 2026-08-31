@@ -365,7 +365,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-4 bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-3xl ring-1 ring-black/5 mt-2 z-50">
+      <PopoverContent className="w-[28rem] p-4 bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-3xl ring-1 ring-black/5 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-1">
             <div className="min-w-0">
@@ -423,8 +423,9 @@ export const PendingReceiptsIndicator: React.FC = () => {
               </div>
 
               {/* Individual orders scroll list */}
-              <ScrollArea className="h-44 pr-1">
+              <ScrollArea className="h-72 pr-1">
                 <div className="space-y-2">
+
                   {ordersProgress.map((op) => (
                     <div 
                       key={op.orderId} 
@@ -444,7 +445,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
                           <span>{op.progress}%</span>
                         </div>
                         <div className="flex justify-between text-[9px] text-slate-400 truncate">
-                          <span className="truncate max-w-[120px]" title={op.supplier}>{op.supplier}</span>
+                          <span className="truncate max-w-[220px]" title={op.supplier}>{op.supplier}</span>
                           <span className="font-medium text-amber-600">{op.pendingCount} faltantes</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">

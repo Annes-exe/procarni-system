@@ -24,6 +24,7 @@ import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { registrarRecepcion, enableMaterialForInventory } from '@/integrations/supabase/services/inventoryService';
 import { uploadToCloudinary } from '@/services/cloudinaryService';
 import { OrderDocumentService } from '@/integrations/supabase/services/orderDocumentService';
+import { useSession } from '@/components/SessionContextProvider';
 
 interface TransitItem {
   id: string;
@@ -114,13 +115,30 @@ export const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
 }) => {
   // Wizard Step State (1: Materiales & Mermas, 2: Consolidado de Documentos & OCs)
   const [step, setStep] = useState<1 | 2>(1);
-
+  const { session } = useSession();
   const [items, setItems] = useState<TransitItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number | string>>({});
   const [guiaQuantities, setGuiaQuantities] = useState<Record<string, number | string>>({});
   const [acceptedMermas, setAcceptedMermas] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<{ first_name: string | null; last_name: string | null } | null>(null);
+
+  useEffect(() => {
+    const fetchCurrentProfile = async () => {
+      if (session?.user?.id && isOpen) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', session.user.id)
+          .single();
+        if (data) {
+          setCurrentProfile(data);
+        }
+      }
+    };
+    fetchCurrentProfile();
+  }, [session, isOpen]);
 
   // Paso 2: Entradas dinámicas de Guías / Facturas consolidadas por grupos de OCs
   const queryClient = useQueryClient();
@@ -748,10 +766,17 @@ export const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
         currentTotalY += 8;
       });
 
+      let printedByName = '';
+      if (currentProfile?.first_name || currentProfile?.last_name) {
+        printedByName = `${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim();
+      } else {
+        printedByName = session?.user?.email || 'Usuario';
+      }
+
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
-      doc.text('Reporte generado electrónicamente desde el panel administrativo de Procarni System.', 105, finalY + totalsBoxHeight + 20, { align: 'center' });
+      doc.text(`Reporte generado por: ${printedByName} desde el panel administrativo de Procarni System.`, 105, finalY + totalsBoxHeight + 20, { align: 'center' });
 
       doc.save(`Reporte_Materiales_${allFullyReceived ? 'Recibidos' : 'Transito'}_${new Date().toISOString().split('T')[0]}.pdf`);
       showSuccess('Reporte PDF descargado exitosamente.');

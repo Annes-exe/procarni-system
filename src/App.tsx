@@ -30,6 +30,7 @@ import PriceHistory from "./pages/PriceHistory";
 import AuditLog from "./pages/AuditLog";
 import QuoteComparison from "./pages/QuoteComparison";
 import QuoteComparisonManagement from "./pages/QuoteComparisonManagement";
+import PriceMatrixPage from "./pages/PriceMatrixPage"; // Trigger recompile
 import GenerateServiceOrder from "./pages/GenerateServiceOrder";
 import ServiceOrderManagement from "./pages/ServiceOrderManagement";
 import ServiceOrderDetails from "./pages/ServiceOrderDetails"; // NEW IMPORT
@@ -42,6 +43,8 @@ import MaterialCleanupDashboard from "./pages/MaterialCleanupDashboard";
 import MaterialApproval from "./pages/MaterialApproval";
 import PaymentRemindersDashboard from "./pages/PaymentRemindersDashboard";
 import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
+import RequisitionsManagement from "./pages/RequisitionsManagement";
+import PrintRequisition from "./pages/PrintRequisition";
 
 // Inventory Module Pages
 import StockGlobal from "./pages/StockGlobal";
@@ -101,6 +104,7 @@ const App = () => (
                   <Route path="/audit-log" element={<AuditLog />} />
                   <Route path="/quote-comparison" element={<QuoteComparison />} />
                   <Route path="/quote-comparison-management" element={<QuoteComparisonManagement />} />
+                  <Route path="/price-matrix" element={<PriceMatrixPage />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/group-management" element={<GroupManagement />} />
                   <Route path="/material-cleanup" element={<MaterialCleanupDashboard />} />
@@ -113,7 +117,9 @@ const App = () => (
                   <Route path="/inventory/kardex" element={<HistorialKardex />} />
                   <Route path="/inventory/closings" element={<CierresYAjustes />} />
                   <Route path="/inventory/material/:id" element={<MaterialInventoryProfile />} />
+                  <Route path="/requisitions" element={<RequisitionsManagement />} />
                 </Route>
+                <Route path="/requisitions/print/:id" element={<PrintRequisition />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ShoppingCartProvider>

@@ -172,7 +172,7 @@ const DraggableMaterialItem = ({
           <Input
             value={specification || ''}
             onChange={(e) => onSpecificationChange(e.target.value)}
-            placeholder="Especificación..."
+            placeholder="Rubro / Especificación..."
             className="h-7 text-[10px] bg-gray-50/30"
             onKeyDown={(e) => e.stopPropagation()}
           />
@@ -303,7 +303,7 @@ const DraggableGroupedMaterialItem = ({
                   <Input
                     value={u.specification || ''}
                     onChange={(e) => onSpecificationChange(key, e.target.value)}
-                    placeholder="Especificación para esta unidad..."
+                    placeholder="Rubro / Especificación para esta unidad..."
                     className="h-7 text-[10px] bg-white border-gray-100 focus:border-procarni-secondary/30"
                     onKeyDown={(e) => e.stopPropagation()}
                   />
@@ -348,6 +348,7 @@ const supplierFormSchema = z.object({
     })
   ).optional(),
   alert_comment: z.string().optional().nullable(),
+  rubros: z.string().optional().nullable(),
 });
 
 type SupplierFormValues = z.infer<typeof supplierFormSchema>;
@@ -371,6 +372,7 @@ interface SupplierFormProps {
     credit_days: number;
     status: string;
     alert_comment?: string | null;
+    rubros?: string | null;
     materials?: Array<{
       id?: string;
       material_id: string;
@@ -436,6 +438,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
       status: 'Active', // Changed to English to match database constraint
       materials: [],
       alert_comment: '',
+      rubros: '',
     },
   });
 
@@ -504,6 +507,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         status: initialData.status || 'Active', // Changed to English
         materials: formattedMaterials,
         alert_comment: initialData.alert_comment || '',
+        rubros: initialData.rubros || '',
       });
     } else {
       form.reset({
@@ -523,6 +527,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         status: 'Active', // Changed to English
         materials: [],
         alert_comment: '',
+        rubros: '',
       });
     }
   }, [initialData, form]);
@@ -1004,6 +1009,19 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                     <FormLabel className="text-xs">Nombre / Razón Social</FormLabel>
                     <FormControl>
                       <Input placeholder="Nombre del proveedor" {...field} className="h-9" />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="rubros"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Rubros Generales (Etiquetas separadas por comas)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: Empaques, Papelería, Alimentos" {...field} value={field.value || ''} className="h-9" />
                     </FormControl>
                     <FormMessage className="text-[10px]" />
                   </FormItem>

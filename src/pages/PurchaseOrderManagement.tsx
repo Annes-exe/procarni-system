@@ -158,10 +158,26 @@ const PurchaseOrderManagement = () => {
     }
   };
 
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [usersList, setUsersList] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string | null }[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+      if (!error && data) {
+        setUsersList(data);
+      }
+    };
+    fetchUsers();
+  }, [supabase]);
+
   // Centralized query for all tabs with pagination
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab, onlyRawMaterials, effectiveStartDate, effectiveEndDate],
-    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, onlyRawMaterials, effectiveStartDate, effectiveEndDate),
+    queryKey: ['purchaseOrders_paginated', page, pageSize, debouncedSearch, activeTab, onlyRawMaterials, effectiveStartDate, effectiveEndDate, selectedUserId],
+    queryFn: () => purchaseOrderService.getPaginated(page, pageSize, debouncedSearch, translateTabToStatus(activeTab) as any, onlyRawMaterials, effectiveStartDate, effectiveEndDate, selectedUserId),
     enabled: !!session,
     placeholderData: keepPreviousData,
   });
@@ -848,6 +864,31 @@ const PurchaseOrderManagement = () => {
               </TabsList>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Filtro Por Usuario */}
+                <div className="w-full sm:w-48">
+                  <Select
+                    value={selectedUserId}
+                    onValueChange={setSelectedUserId}
+                  >
+                    <SelectTrigger className="h-9 w-full bg-slate-50 border-gray-250 rounded-xl text-[10px] font-semibold text-gray-500 uppercase tracking-wider focus:ring-procarni-primary/20">
+                      <SelectValue placeholder="POR USUARIO" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">TODOS LOS USUARIOS</SelectItem>
+                      {usersList.map((u) => {
+                        const name = u.first_name || u.last_name 
+                          ? `${u.first_name || ''} ${u.last_name || ''}`.trim() 
+                          : u.email || 'Usuario';
+                        return (
+                          <SelectItem key={u.id} value={u.id}>
+                            {name.toUpperCase()}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Switch Materia Prima */}
                 <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
                   <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">

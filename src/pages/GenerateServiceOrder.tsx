@@ -106,6 +106,7 @@ const GenerateServiceOrder = () => {
   const [paymentTerms, setPaymentTerms] = useState<'Contado' | 'Crédito' | 'Otro'>('Contado');
   const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('');
   const [creditDays, setCreditDays] = useState<number>(0);
+  const [requisitionNumber, setRequisitionNumber] = useState<string>('');
 
   const [items, setItems] = useState<ServiceOrderItemForm[]>([]);
 
@@ -400,6 +401,7 @@ const GenerateServiceOrder = () => {
       payment_date: null,
       paid_amount: 0,
       user_id: userId,
+      requisition_number: requisitionNumber || null,
     };
 
     const serviceItems: CreateServiceOrderItemInput[] = items.map(item => ({
@@ -448,6 +450,7 @@ const GenerateServiceOrder = () => {
       setDetailedServiceDescription('');
       setDestinationAddress(DESTINATION_ADDRESSES[0]);
       setObservations('');
+      setRequisitionNumber('');
       setItems([]);
       setSparePartsGroups([]);
       setSparePartsSupplierId('');
@@ -509,6 +512,7 @@ const GenerateServiceOrder = () => {
               paymentTerms={paymentTerms}
               customPaymentTerms={customPaymentTerms}
               creditDays={creditDays}
+              requisitionNumber={requisitionNumber}
               onCompanySelect={handleCompanySelect}
               onBaseCurrencyChange={setBaseCurrency}
               onCurrencyChange={setCurrency}
@@ -523,6 +527,7 @@ const GenerateServiceOrder = () => {
               onPaymentTermsChange={setPaymentTerms}
               onCustomPaymentTermsChange={setCustomPaymentTerms}
               onCreditDaysChange={setCreditDays}
+              onRequisitionNumberChange={setRequisitionNumber}
               supplierId={supplierId}
               supplierName={supplierName}
               onSupplierSelect={handleSupplierSelect}

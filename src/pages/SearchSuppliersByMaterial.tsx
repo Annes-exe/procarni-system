@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import SmartSearch from '@/components/SmartSearch';
-import { searchMaterialsAndCategories, searchSuppliersByMaterial, searchSuppliersByCategory } from '@/integrations/supabase/data';
-import { showError } from '@/utils/toast';
+import { searchMaterialsAndCategories, searchSuppliersByMaterial, searchSuppliersByCategory, searchSuppliersByRubro } from '@/integrations/supabase/data';
+import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif } from '@/utils/validators';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Phone, Instagram, PlusCircle, Eye, ArrowLeft, Tag, MapPin, Clock, DollarSign,
-  X, Search, Building2, CreditCard, Mail, Globe, Info, Package, Loader2, AlertTriangle
+  X, Search, Building2, CreditCard, Mail, Globe, Info, Package, Loader2, AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface Material {
   id: string;
@@ -37,6 +41,7 @@ interface SupplierResult {
   status: string;
   specification: string;
   city?: string | null;
+  rubros?: string | null;
 }
 
 const SearchSuppliersByMaterial = () => {
@@ -46,10 +51,12 @@ const SearchSuppliersByMaterial = () => {
 
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedRubro, setSelectedRubro] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<SupplierResult[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
   const [initialQuery, setInitialQuery] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string>('all');
+  const [rubroFilter, setRubroFilter] = useState<string>('');
 
   const formatPhoneNumberForWhatsApp = (phone: string) => {
     const digitsOnly = phone.replace(/\D/g, '');
@@ -63,6 +70,7 @@ const SearchSuppliersByMaterial = () => {
     setIsLoadingSuppliers(true);
     setSuppliers([]);
     setSelectedCity('all');
+    setRubroFilter('');
     try {
       const fetchedSuppliers = await searchSuppliersByMaterial(materialId, '');
       setSuppliers(fetchedSuppliers);
@@ -78,6 +86,7 @@ const SearchSuppliersByMaterial = () => {
     setIsLoadingSuppliers(true);
     setSuppliers([]);
     setSelectedCity('all');
+    setRubroFilter('');
     try {
       const fetchedSuppliers = await searchSuppliersByCategory(categoryName, '');
       setSuppliers(fetchedSuppliers);
@@ -89,14 +98,37 @@ const SearchSuppliersByMaterial = () => {
     }
   };
 
+  const fetchSuppliersByRubroName = async (rubroName: string) => {
+    setIsLoadingSuppliers(true);
+    setSuppliers([]);
+    setSelectedCity('all');
+    setRubroFilter('');
+    try {
+      const fetchedSuppliers = await searchSuppliersByRubro(rubroName);
+      setSuppliers(fetchedSuppliers);
+    } catch (error) {
+      console.error('Error fetching suppliers by rubro:', error);
+      showError('Error al cargar los proveedores para este rubro.');
+    } finally {
+      setIsLoadingSuppliers(false);
+    }
+  };
+
   const handleMaterialSelect = async (item: any) => {
     setInitialQuery(null);
     if (item?.isCategory) {
       setSelectedMaterial(null);
       setSelectedCategory(item.category);
+      setSelectedRubro(null);
       await fetchSuppliersByCategoryName(item.category);
+    } else if (item?.isRubro) {
+      setSelectedMaterial(null);
+      setSelectedCategory(null);
+      setSelectedRubro(item.rubro);
+      await fetchSuppliersByRubroName(item.rubro);
     } else {
       setSelectedCategory(null);
+      setSelectedRubro(null);
       setSelectedMaterial(item);
       if (item?.id) {
         await fetchSuppliers(item.id);
@@ -114,33 +146,49 @@ const SearchSuppliersByMaterial = () => {
         try {
           const results = await searchMaterialsAndCategories(queryFromUrl);
           if (results.length > 0) {
-            const cleanQuery = queryFromUrl.replace(/^Categoría:\s*/i, '').trim();
+            const cleanQuery = queryFromUrl.replace(/^(Categoría|Rubro):\s*/i, '').trim();
+            const exactRubroMatch = results.find(
+              r => r.isRubro && r.rubro.toLowerCase() === cleanQuery.toLowerCase()
+            );
             const exactCategoryMatch = results.find(
               r => r.isCategory && r.category.toLowerCase() === cleanQuery.toLowerCase()
             );
 
-            if (exactCategoryMatch) {
+            if (exactRubroMatch) {
+              setSelectedMaterial(null);
+              setSelectedCategory(null);
+              setSelectedRubro(exactRubroMatch.rubro);
+              await fetchSuppliersByRubroName(exactRubroMatch.rubro);
+            } else if (exactCategoryMatch) {
               setSelectedMaterial(null);
               setSelectedCategory(exactCategoryMatch.category);
+              setSelectedRubro(null);
               await fetchSuppliersByCategoryName(exactCategoryMatch.category);
             } else {
               const match = results[0];
-              if (match.isCategory) {
+              if (match.isRubro) {
+                setSelectedMaterial(null);
+                setSelectedCategory(null);
+                setSelectedRubro(match.rubro);
+                await fetchSuppliersByRubroName(match.rubro);
+              } else if (match.isCategory) {
                 setSelectedMaterial(null);
                 setSelectedCategory(match.category);
+                setSelectedRubro(null);
                 await fetchSuppliersByCategoryName(match.category);
               } else {
                 setSelectedCategory(null);
+                setSelectedRubro(null);
                 setSelectedMaterial(match);
                 await fetchSuppliers(match.id);
               }
             }
           } else {
-            showError(`No se encontró un material o categoría que coincida con "${queryFromUrl}".`);
+            showError(`No se encontró un material, rubro o categoría que coincida con "${queryFromUrl}".`);
           }
         } catch (error) {
-          console.error('Error searching material/category on initial load:', error);
-          showError('Error al buscar el material o categoría inicial.');
+          console.error('Error searching material/category/rubro on initial load:', error);
+          showError('Error al buscar el material o rubro inicial.');
         }
       };
       searchAndLoad();
@@ -160,11 +208,119 @@ const SearchSuppliersByMaterial = () => {
     navigate(`/suppliers/${supplier.id}`);
   };
 
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      const dateStr = new Date().toLocaleDateString('es-VE');
+
+      // Title & Header setup
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(27, 41, 74); // Procarni blue (#1B294A)
+      doc.text('PROCARNI', 14, 20);
+
+      doc.setFontSize(8);
+      doc.setTextColor(136, 10, 10); // Primary red (#880a0a)
+      doc.text('SYSTEM', 14, 24);
+
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // Dark slate (#0f172a)
+      doc.text('Reporte de Proveedores por Material', 200, 18, { align: 'right' });
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      
+      const searchCriteria = selectedMaterial 
+        ? `Material: ${selectedMaterial.name} (${selectedMaterial.code})` 
+        : selectedCategory
+          ? `Categoría: ${selectedCategory}`
+          : `Rubro: ${selectedRubro}`;
+      
+      doc.text(searchCriteria, 14, 32);
+      
+      const cityFilterText = selectedCity === 'all' ? 'Todas las ciudades' : `Ciudad: ${selectedCity}`;
+      doc.text(`Filtro: ${cityFilterText}`, 200, 23, { align: 'right' });
+      doc.text(`Fecha Emisión: ${dateStr}`, 200, 28, { align: 'right' });
+
+      const tableData = filteredSuppliers.map((supplier) => {
+        const contactInfo = [
+          supplier.phone ? `Telf: ${supplier.phone}` : '',
+          supplier.email ? `Email: ${supplier.email}` : '',
+          supplier.instagram ? `IG: ${supplier.instagram}` : ''
+        ].filter(Boolean).join('\n');
+
+        const paymentInfo = [
+          supplier.payment_terms || 'No especificado',
+          supplier.credit_days !== undefined && supplier.credit_days !== null ? `${supplier.credit_days} días` : ''
+        ].filter(Boolean).join(' - ');
+
+        return [
+          supplier.name,
+          supplier.rif || 'S/R',
+          supplier.city || 'No especificado',
+          contactInfo,
+          paymentInfo,
+          [supplier.rubros, supplier.specification].filter(Boolean).join(' / ') || 'Sin rubros'
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 38,
+        head: [['Proveedor', 'RIF', 'Ciudad', 'Contacto', 'Condiciones de Pago', 'Rubros']],
+        body: tableData,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [71, 85, 105],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          lineWidth: { bottom: 1 },
+          lineColor: [226, 232, 240],
+        },
+        bodyStyles: {
+          textColor: [15, 23, 42],
+          fontSize: 8,
+          lineWidth: { bottom: 0.5 },
+          lineColor: [241, 245, 249],
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250],
+        },
+        margin: { top: 38 },
+        columnStyles: {
+          3: { cellWidth: 45 }, // Contact column
+          5: { cellWidth: 50 }  // Rubros column
+        }
+      });
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 40;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Reporte generado automáticamente desde la Búsqueda de Proveedores por Material - Procarni.', 14, finalY + 15);
+
+      const fileDate = new Date().toISOString().split('T')[0];
+      const searchName = selectedMaterial ? selectedMaterial.name : (selectedCategory || selectedRubro || 'material');
+      doc.save(`Proveedores_${searchName.replace(/\s+/g, '_')}_${fileDate}.pdf`);
+      showSuccess('Reporte PDF descargado exitosamente.');
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      showError('Ocurrió un error al generar el PDF de proveedores.');
+    }
+  };
+
   const microLabelClass = "text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1 block";
   const valueClass = "text-procarni-dark font-medium text-sm";
 
   const availableCities = Array.from(new Set(suppliers.map(s => s.city).filter(Boolean))).sort() as string[];
-  const filteredSuppliers = suppliers.filter(s => selectedCity === 'all' || s.city === selectedCity);
+  const filteredSuppliers = suppliers.filter(s => {
+    const matchesCity = selectedCity === 'all' || s.city === selectedCity;
+    const matchesRubro = !rubroFilter.trim() || 
+      (s.specification && s.specification.toLowerCase().includes(rubroFilter.toLowerCase())) ||
+      (s.rubros && s.rubros.toLowerCase().includes(rubroFilter.toLowerCase()));
+    return matchesCity && matchesRubro;
+  });
 
   return (
     <div className="container mx-auto p-4 pb-24 relative min-h-screen">
@@ -189,13 +345,13 @@ const SearchSuppliersByMaterial = () => {
               placeholder="¿Qué material o categoría buscas?"
               onSelect={handleMaterialSelect}
               fetchFunction={searchMaterialsAndCategories}
-              displayValue={selectedMaterial?.name || (selectedCategory ? `Categoría: ${selectedCategory}` : '') || initialQuery || ''}
-              selectedId={selectedMaterial?.id || (selectedCategory ? `category:${selectedCategory}` : undefined)}
+              displayValue={selectedMaterial?.name || (selectedCategory ? `Categoría: ${selectedCategory}` : '') || (selectedRubro ? `Rubro: ${selectedRubro}` : '') || initialQuery || ''}
+              selectedId={selectedMaterial?.id || (selectedCategory ? `category:${selectedCategory}` : undefined) || (selectedRubro ? `rubro:${selectedRubro}` : undefined)}
             />
-            {!selectedMaterial && !selectedCategory && !initialQuery && (
+            {!selectedMaterial && !selectedCategory && !selectedRubro && !initialQuery && (
               <Search className="absolute right-3 top-2.5 h-4 w-4 text-gray-300 pointer-events-none group-focus-within:text-procarni-secondary" />
             )}
-            {(selectedMaterial || selectedCategory) && (
+            {(selectedMaterial || selectedCategory || selectedRubro) && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -203,6 +359,7 @@ const SearchSuppliersByMaterial = () => {
                 onClick={() => {
                   setSelectedMaterial(null);
                   setSelectedCategory(null);
+                  setSelectedRubro(null);
                   setSuppliers([]);
                 }}
               >
@@ -257,6 +414,22 @@ const SearchSuppliersByMaterial = () => {
         </div>
       )}
 
+      {selectedRubro && (
+        <div className="mb-10 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 p-4 rounded-xl">
+            <div className="bg-amber-100 p-2 rounded-lg">
+              <Tag className="h-5 w-5 text-amber-700" />
+            </div>
+            <div className="flex-1">
+              <span className={microLabelClass}>Rubro General Seleccionado</span>
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-lg font-bold text-procarni-dark">{selectedRubro}</h2>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PHASE 3: RESULTS SECTION */}
       {isLoadingSuppliers ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -271,24 +444,43 @@ const SearchSuppliersByMaterial = () => {
                 Proveedores Disponibles ({filteredSuppliers.length})
               </h3>
 
-              {availableCities.length > 0 && (
-                <div className="w-full sm:w-64">
-                  <Select value={selectedCity} onValueChange={setSelectedCity}>
-                    <SelectTrigger className="h-9">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="h-4 w-4" />
-                        <SelectValue placeholder="Filtrar por ciudad" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las ciudades</SelectItem>
-                      {availableCities.map(city => (
-                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <Input
+                  placeholder="Filtrar por rubro o palabra clave..."
+                  value={rubroFilter}
+                  onChange={(e) => setRubroFilter(e.target.value)}
+                  className="h-9 w-full sm:w-56 text-xs border-gray-200"
+                />
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportPDF}
+                  className="h-9 border-gray-200 text-gray-700 hover:text-procarni-primary hover:bg-slate-50 transition-all flex items-center gap-2 w-full sm:w-auto shrink-0"
+                >
+                  <FileText className="h-4 w-4 text-procarni-primary" />
+                  <span>Exportar PDF</span>
+                </Button>
+
+                {availableCities.length > 0 && (
+                  <div className="w-full sm:w-48 shrink-0">
+                    <Select value={selectedCity} onValueChange={setSelectedCity}>
+                      <SelectTrigger className="h-9">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MapPin className="h-4 w-4" />
+                          <SelectValue placeholder="Filtrar por ciudad" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas las ciudades</SelectItem>
+                        {availableCities.map(city => (
+                          <SelectItem key={city} value={city}>{city}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
@@ -373,9 +565,9 @@ const SearchSuppliersByMaterial = () => {
                         </div>
 
                         <div className="space-y-1">
-                          <span className={microLabelClass}>Especificación</span>
+                          <span className={microLabelClass}>Rubros</span>
                           <p className="text-[13px] text-gray-500 italic line-clamp-2 leading-relaxed">
-                            {supplier.specification || 'Sin especificación detallada'}
+                            {[supplier.rubros, supplier.specification].filter(Boolean).join(' / ') || 'Sin rubros definidos'}
                           </p>
                         </div>
                       </div>
@@ -419,7 +611,7 @@ const SearchSuppliersByMaterial = () => {
             <div className="text-center space-y-1">
               <h3 className="text-gray-800 font-bold">Sin proveedores vinculados</h3>
               <p className="text-sm text-gray-400 max-w-[280px]">
-                No hemos encontrado proveedores que ofrezcan {selectedMaterial ? `"${selectedMaterial.name}"` : `artículos de la categoría "${selectedCategory}"`} actualmente.
+                No hemos encontrado proveedores que ofrezcan {selectedMaterial ? `"${selectedMaterial.name}"` : selectedCategory ? `artículos de la categoría "${selectedCategory}"` : `el rubro "${selectedRubro}"`} actualmente.
               </p>
             </div>
             <Button 
@@ -428,10 +620,11 @@ const SearchSuppliersByMaterial = () => {
               onClick={() => {
                 setSelectedMaterial(null);
                 setSelectedCategory(null);
+                setSelectedRubro(null);
                 setSuppliers([]);
               }}
             >
-              Probar con otro material o categoría
+              Probar con otro material, categoría o rubro
             </Button>
           </div>
         )

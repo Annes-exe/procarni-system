@@ -752,6 +752,17 @@ const SupplierDetails = () => {
                 <span className={microLabelClass}>Término de Relación</span>
                 <span className="text-xs font-semibold text-gray-500 uppercase">Institucional</span>
               </div>
+
+              <div className="sm:col-span-2 bg-white/40 border border-white/60 p-3 rounded-2xl">
+                <span className={microLabelClass}>Rubros Generales</span>
+                <InlineEditableCell
+                  value={supplier.rubros || ''}
+                  onSave={handleInlineSave('rubros')}
+                  alwaysShowIcon={isMobile}
+                  displayClassName="text-xs font-semibold text-procarni-dark"
+                  placeholder="Sin rubros generales definidos (ej. Empaques, Papelería)"
+                />
+              </div>
             </div>
           </div>
 
@@ -1143,7 +1154,7 @@ const SupplierDetails = () => {
                                 <TableHeader className="bg-white">
                                   <TableRow className="border-b-0 hover:bg-transparent">
                                     <TableHead className={cn(tableHeaderClass, "w-[150px] pl-10 h-8 py-0")}>Unidad</TableHead>
-                                    <TableHead className={cn(tableHeaderClass, "h-8 py-0")}>Especificación</TableHead>
+                                    <TableHead className={cn(tableHeaderClass, "h-8 py-0")}>Rubro / Especificación</TableHead>
                                     <TableHead className={cn(tableHeaderClass, "w-[120px] text-center pr-6 h-8 py-0")}>Ficha Técnica</TableHead>
                                   </TableRow>
                                 </TableHeader>

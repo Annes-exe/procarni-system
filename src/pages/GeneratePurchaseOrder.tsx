@@ -58,6 +58,7 @@ const GeneratePurchaseOrder = () => {
   const [customPaymentTerms, setCustomPaymentTerms] = React.useState<string>('');
   const [creditDays, setCreditDays] = React.useState<number>(0);
   const [observations, setObservations] = React.useState<string>('');
+  const [requisitionNumber, setRequisitionNumber] = React.useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isReminderDialogOpen, setIsReminderDialogOpen] = React.useState(false);
@@ -385,12 +386,23 @@ const GeneratePurchaseOrder = () => {
 
   const totals = calculateTotals(items);
 
-  const totalInBaseCurrency = React.useMemo(() => {
-    if (currency === 'VES' && exchangeRate && exchangeRate > 0) {
-      return (totals.total / exchangeRate).toFixed(2);
+  const totalReference = React.useMemo(() => {
+    if (!exchangeRate || exchangeRate <= 0) return null;
+
+    if (currency === 'VES') {
+      const value = (totals.total / exchangeRate).toFixed(2);
+      return {
+        label: `Ref. ${baseCurrency}`,
+        value
+      };
+    } else {
+      const value = (totals.total * exchangeRate).toFixed(2);
+      return {
+        label: 'Equivalente VES',
+        value
+      };
     }
-    return null;
-  }, [currency, exchangeRate, totals.total]);
+  }, [currency, baseCurrency, exchangeRate, totals.total]);
 
   const handleSubmit = async () => {
     if (!userId) {
@@ -494,6 +506,7 @@ const GeneratePurchaseOrder = () => {
       custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms : null,
       credit_days: paymentTerms === 'Crédito' ? creditDays : 0,
       observations: observations || null,
+      requisition_number: requisitionNumber || null,
       quote_request_id: quoteRequest?.id || null,
       service_order_id: serviceOrderId || null,
     };
@@ -526,6 +539,7 @@ const GeneratePurchaseOrder = () => {
       setCustomPaymentTerms('');
       setCreditDays(0);
       setObservations('');
+      setRequisitionNumber('');
 
       // Redirect to details after success - Corrected path
       navigate(`/purchase-orders/${createdOrder.id}`);
@@ -590,6 +604,7 @@ const GeneratePurchaseOrder = () => {
             customPaymentTerms={customPaymentTerms}
             creditDays={creditDays}
             observations={observations}
+            requisitionNumber={requisitionNumber}
             onCompanySelect={handleCompanySelect}
             onBaseCurrencyChange={setBaseCurrency}
             onCurrencyChange={setCurrency}
@@ -600,6 +615,7 @@ const GeneratePurchaseOrder = () => {
             onCustomPaymentTermsChange={setCustomPaymentTerms}
             onCreditDaysChange={setCreditDays}
             onObservationsChange={setObservations}
+            onRequisitionNumberChange={setRequisitionNumber}
             onSupplierSelect={handleSupplierSelect}
             onAddNewSupplier={() => setIsAddSupplierDialogOpen(true)}
             disableAutoFetch={!!quoteRequest?.exchange_rate}
@@ -682,10 +698,10 @@ const GeneratePurchaseOrder = () => {
                 <span className="font-mono font-bold text-procarni-secondary text-xl">{currency} {totals.total.toFixed(2)}</span>
               </div>
 
-              {totalInBaseCurrency && currency === 'VES' && (
+              {totalReference && (
                 <div className="flex justify-end pt-1">
                   <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                    Ref. {baseCurrency} {totalInBaseCurrency}
+                    {totalReference.label} {Number(totalReference.value).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}

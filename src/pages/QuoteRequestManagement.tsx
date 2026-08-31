@@ -1,6 +1,6 @@
 // src/pages/QuoteRequestManagement.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const STATUS_TRANSLATIONS: Record<string, string> = {
   'Draft': 'Borrador',
@@ -34,7 +35,7 @@ const STATUS_TRANSLATIONS: Record<string, string> = {
 
 const QuoteRequestManagement = () => {
   const queryClient = useQueryClient();
-  const { session, role } = useSession();
+  const { session, role, supabase } = useSession();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -43,6 +44,21 @@ const QuoteRequestManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isHistoryMode, setIsHistoryMode] = useState(false);
   const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [usersList, setUsersList] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string | null }[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+      if (!error && data) {
+        setUsersList(data);
+      }
+    };
+    fetchUsers();
+  }, [supabase]);
 
   // Expanded row state for accordion (only 1 row open at a time)
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -91,6 +107,11 @@ const QuoteRequestManagement = () => {
 
     let filtered = quoteRequests;
 
+    // Filter by Creator User
+    if (selectedUserId && selectedUserId !== 'all') {
+      filtered = filtered.filter(q => q.user_id === selectedUserId);
+    }
+
     // Filter by Tab
     if (activeTab !== 'all') {
       filtered = filtered.filter(q => q.status === activeTab);
@@ -111,7 +132,7 @@ const QuoteRequestManagement = () => {
     }
 
     return filtered;
-  }, [quoteRequests, searchTerm, activeTab]);
+  }, [quoteRequests, searchTerm, activeTab, selectedUserId]);
 
   const archiveMutation = useMutation({
     mutationFn: (id: string) => quoteRequestService.updateStatus(id, 'Archived'),
@@ -558,6 +579,31 @@ const QuoteRequestManagement = () => {
               </TabsList>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Filtro Por Usuario */}
+                <div className="w-full sm:w-48">
+                  <Select
+                    value={selectedUserId}
+                    onValueChange={setSelectedUserId}
+                  >
+                    <SelectTrigger className="h-9 w-full bg-slate-50 border-gray-250 rounded-xl text-[10px] font-semibold text-gray-500 uppercase tracking-wider focus:ring-procarni-primary/20">
+                      <SelectValue placeholder="POR USUARIO" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">TODOS LOS USUARIOS</SelectItem>
+                      {usersList.map((u) => {
+                        const name = u.first_name || u.last_name 
+                          ? `${u.first_name || ''} ${u.last_name || ''}`.trim() 
+                          : u.email || 'Usuario';
+                        return (
+                          <SelectItem key={u.id} value={u.id}>
+                            {name.toUpperCase()}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Switch Materia Prima */}
                 <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
                   <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">

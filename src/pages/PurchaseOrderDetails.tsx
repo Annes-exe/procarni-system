@@ -285,11 +285,25 @@ const PurchaseOrderDetails = () => {
     return { requested, received, receivedReal, merma, percent: totalPercent, realPercent, mermaPercent };
   }, [order?.purchase_order_items, kardexTx]);
 
-  const totalInUSD = useMemo(() => {
-    if (order?.currency === 'VES' && order.exchange_rate && order.exchange_rate > 0) {
-      return (totals.total / order.exchange_rate).toFixed(2);
+  const totalReference = useMemo(() => {
+    if (!order || !order.exchange_rate || order.exchange_rate <= 0) return null;
+    
+    if (order.currency === 'VES') {
+      const baseCurr = order.base_currency || 'USD';
+      const value = (totals.total / order.exchange_rate).toFixed(2);
+      return {
+        label: `Ref. ${baseCurr}`,
+        value,
+        rateText: `@ ${order.exchange_rate.toFixed(2)}`
+      };
+    } else {
+      const value = (totals.total * order.exchange_rate).toFixed(2);
+      return {
+        label: 'Equivalente VES',
+        value,
+        rateText: `@ ${order.exchange_rate.toFixed(2)}`
+      };
     }
-    return null;
   }, [order, totals.total]);
 
   const displayPaymentTerms = () => {
@@ -1135,11 +1149,11 @@ const PurchaseOrderDetails = () => {
             <span className="font-mono font-black text-procarni-primary text-xl">{order.currency} {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
 
-          {/* USD Reference for VES orders */}
-          {totalInUSD && order.currency === 'VES' && (
+          {/* Reference Currency Conversion */}
+          {totalReference && (
             <div className="flex justify-end pt-1">
               <span className="text-xs font-medium text-slate-500 bg-slate-100/80 px-2.5 py-1 rounded-full border border-slate-200/50">
-                Ref. USD {totalInUSD} (@ {order.exchange_rate?.toFixed(2)})
+                {totalReference.label} {Number(totalReference.value).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({totalReference.rateText})
               </span>
             </div>
           )}

@@ -10,40 +10,90 @@ import { getAllQuoteComparisons, deleteQuoteComparison } from '@/integrations/su
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { showError, showSuccess } from '@/utils/toast';
 import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { QuoteComparison } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PriceComparisonMatrix from '@/components/PriceComparisonMatrix';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useSession } from '@/components/SessionContextProvider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useEffect } from 'react';
 
 const QuoteComparisonManagement = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const { session, supabase } = useSession();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'matrix' ? 'matrix' : 'saved';
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [usersList, setUsersList] = useState<{ id: string; first_name: string | null; last_name: string | null; email: string | null }[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [comparisonToDeleteId, setComparisonToDeleteId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
+  // Set default selectedUserId to session user
+  useEffect(() => {
+    if (session?.user?.id && !selectedUserId) {
+      setSelectedUserId(session.user.id);
+    }
+  }, [session?.user?.id]);
+
+  // Fetch users list
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name', { ascending: true });
+      if (!error && data) {
+        setUsersList(data);
+      }
+    };
+    fetchUsers();
+  }, [supabase]);
+
   const { data: comparisons, isLoading, error } = useQuery<QuoteComparison[]>({
     queryKey: ['quoteComparisons'],
-    queryFn: getAllQuoteComparisons,
+    queryFn: () => getAllQuoteComparisons(), // Fetch all so we can client-side filter and select
   });
 
   const filteredComparisons = useMemo(() => {
     if (!comparisons) return [];
-    if (!searchTerm) return comparisons;
+    
+    // Filter by type based on active tab
+    const tabFiltered = comparisons.filter(comp => {
+      if (activeTab === 'matrix') {
+        return comp.type === 'price_matrix';
+      } else {
+        return !comp.type || comp.type === 'quote_comparison';
+      }
+    });
+
+    // Filter by user
+    const userFiltered = tabFiltered.filter(comp => {
+      if (!selectedUserId || selectedUserId === 'all') return true;
+      return comp.user_id === selectedUserId;
+    });
+
+    if (!searchTerm) return userFiltered;
 
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return comparisons.filter(comp =>
+    return userFiltered.filter(comp =>
       comp.name.toLowerCase().includes(lowerCaseSearchTerm) ||
       comp.id.toLowerCase().includes(lowerCaseSearchTerm)
     );
-  }, [comparisons, searchTerm]);
+  }, [comparisons, activeTab, selectedUserId, searchTerm]);
 
   const deleteMutation = useMutation({
     mutationFn: deleteQuoteComparison,
@@ -60,8 +110,12 @@ const QuoteComparisonManagement = () => {
     },
   });
 
-  const handleLoadComparison = (id: string) => {
-    navigate(`/quote-comparison?loadId=${id}`);
+  const handleLoadComparison = (comparison: QuoteComparison) => {
+    if (comparison.type === 'price_matrix') {
+      navigate(`/price-matrix?loadId=${comparison.id}`);
+    } else {
+      navigate(`/quote-comparison?loadId=${comparison.id}`);
+    }
   };
 
   const confirmDeleteComparison = (id: string) => {
@@ -158,7 +212,7 @@ const QuoteComparisonManagement = () => {
                       variant="outline"
                       size="icon"
                       className="h-9 w-9"
-                      onClick={() => handleLoadComparison(comparison.id)}
+                      onClick={() => handleLoadComparison(comparison)}
                       disabled={deleteMutation.isPending}
                     >
                       <Eye className="h-4 w-4" />
@@ -210,7 +264,7 @@ const QuoteComparisonManagement = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleLoadComparison(comparison.id)}
+                    onClick={() => handleLoadComparison(comparison)}
                     disabled={deleteMutation.isPending}
                     className="h-8 w-8"
                   >
@@ -241,77 +295,125 @@ const QuoteComparisonManagement = () => {
     );
   };
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setSearchParams({ tab: value });
+    setSelectedIds(new Set()); // Reset selections on tab change
+  };
+
   return (
     <div className="container mx-auto p-4 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Comparaciones</h1>
           <p className="text-muted-foreground text-sm flex items-center gap-2">
-            Carga, edita o elimina comparaciones guardadas.
+            Compara precios de proveedores e ítems o gestiona tus análisis guardados.
           </p>
         </div>
-        <Button
-          onClick={() => navigate('/quote-comparison')}
-          className={cn(
-            "bg-procarni-secondary hover:bg-green-700 w-full md:w-auto",
-          )}
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Nueva Comparación
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              className={cn(
+                "bg-procarni-secondary hover:bg-green-700 w-full md:w-auto",
+              )}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nueva Comparación
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[200px]">
+            <DropdownMenuItem onClick={() => navigate('/quote-comparison')}>
+              Comparación de Cotizaciones
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/price-matrix')}>
+              Matriz de Proveedores
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
-          <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Buscar por nombre o ID..."
-              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="bg-gray-100/50 border border-gray-200 p-1 h-auto flex flex-nowrap overflow-x-auto scrollbar-hide justify-start mb-6">
+          <TabsTrigger value="saved" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+            Comparación de Cotizaciones
+          </TabsTrigger>
+          <TabsTrigger value="matrix" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+            Matrices de Proveedores
+          </TabsTrigger>
+        </TabsList>
 
-          {filteredComparisons.length > 0 ? (
-            isMobile ? (
-              <div className="grid gap-4">
-                {filteredComparisons.map(renderComparisonRow)}
+        <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
+          <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nombre o ID..."
+                  className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-            ) : (
-              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
-                <Table>
-                  <TableHeader className="bg-gray-50/50">
-                    <TableRow>
-                      <TableHead className="w-[50px] pl-4 py-3">
-                        <Checkbox
-                          checked={filteredComparisons.length > 0 && selectedIds.size === filteredComparisons.length}
-                          onCheckedChange={toggleAll}
-                        />
-                      </TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">ID</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Moneda Base</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Tasa Global</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Materiales</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Fecha Guardado</TableHead>
-                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredComparisons.map(renderComparisonRow)}
-                  </TableBody>
-                </Table>
+              <div className="w-full sm:w-[220px]">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="h-9 bg-background border-gray-200 focus:ring-procarni-primary/20">
+                    <SelectValue placeholder="Filtrar por usuario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los usuarios</SelectItem>
+                    {usersList.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.first_name || user.last_name 
+                          ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                          : user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )
-          ) : (
-            <div className="text-center text-muted-foreground p-8">
-              No hay comparaciones guardadas o no se encontraron resultados.
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {filteredComparisons.length > 0 ? (
+              isMobile ? (
+                <div className="grid gap-4">
+                  {filteredComparisons.map(renderComparisonRow)}
+                </div>
+              ) : (
+                <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader className="bg-gray-50/50">
+                      <TableRow>
+                        <TableHead className="w-[50px] pl-4 py-3">
+                          <Checkbox
+                            checked={filteredComparisons.length > 0 && selectedIds.size === filteredComparisons.length}
+                            onCheckedChange={toggleAll}
+                          />
+                        </TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">ID</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Moneda Base</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Tasa Global</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Materiales</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Fecha Guardado</TableHead>
+                        <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredComparisons.map(renderComparisonRow)}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+            ) : (
+              <div className="text-center text-muted-foreground p-8">
+                No hay comparaciones guardadas o no se encontraron resultados.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </Tabs>
 
 
       {/* Bulk Actions Bar */}

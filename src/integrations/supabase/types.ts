@@ -30,6 +30,7 @@ export type Supplier = {
   alert_comment: string | null;
   website: string | null;
   is_raw_material?: boolean | null;
+  rubros?: string | null;
 };
 
 export type Material = {
@@ -107,6 +108,7 @@ export type PurchaseOrder = {
   company: Company; // Assuming we might join this
   reception_status?: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido' | null;
   is_raw_material?: boolean | null;
+  requisition_number?: string | null; // Added
 };
 
 export type PurchaseOrderItem = {
@@ -231,6 +233,7 @@ export type QuoteComparison = {
   base_currency: 'USD' | 'VES' | 'EUR';
   global_exchange_rate: number | null;
   created_at: string;
+  type?: 'quote_comparison' | 'price_matrix' | null;
   items?: QuoteComparisonItem[]; // Joined items
 };
 
@@ -264,7 +267,7 @@ export interface ComparisonResult {
 export type QuoteComparisonItem = {
   id: string;
   comparison_id: string;
-  material_id: string;
+  material_id: string | null;
   material_name: string;
   quotes: QuoteEntry[];
   unit_id?: string | null;
@@ -306,6 +309,7 @@ export type ServiceOrder = {
   company?: Company;
   service_order_items?: ServiceOrderItem[];
   service_order_materials?: ServiceOrderMaterial[];
+  requisition_number?: string | null; // Added
 };
 
 export type ServiceOrderItem = {
@@ -412,8 +416,7 @@ export type PaymentTransaction = {
   notes: string | null;
   created_at: string;
 };
-
-// --- TYPES FOR INVENTORY ---
+// --- TYPES FOR INVENTORY ---
 
 export interface MaterialInventory {
   id: string;
@@ -518,4 +521,13 @@ export interface AjusteInventarioPayload {
   p_reference_doc?: string;
   p_notes?: string;
 }
-
+
+// --- NEW TYPES FOR REQUISITIONS ---
+export type Requisition = {
+  id: string;
+  type: 'purchase' | 'service' | 'warehouse' | 'logbook';
+  sequence_number: number;
+  created_at: string;
+  user_id: string;
+  profiles?: { first_name: string | null; last_name: string | null } | null;
+};

@@ -55,7 +55,8 @@ export const serviceOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active'
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active',
+      creatorUserId?: string
     ): Promise<{ data: ServiceOrderWithRelations[], count: number }> => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -66,6 +67,10 @@ export const serviceOrderService = {
       let query = supabase
         .from('service_orders')
         .select(selectQuery, { count: 'exact' });
+
+      if (creatorUserId && creatorUserId !== 'all') {
+        query = query.eq('user_id', creatorUserId);
+      }
   
       if (statusFilter === 'Active') {
         query = query.in('status', ['Draft', 'Sent']);

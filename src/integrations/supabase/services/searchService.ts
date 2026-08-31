@@ -21,18 +21,19 @@ export const searchService = {
             // 1. Search Suppliers
             const { data: suppliers } = await supabase
                 .from('suppliers')
-                .select('id, name, rif')
-                .or(`name.ilike.${searchTerm},rif.ilike.${searchTerm}`)
+                .select('id, name, rif, rubros')
+                .or(`name.ilike.${searchTerm},rif.ilike.${searchTerm},rubros.ilike.${searchTerm}`)
                 .limit(5);
 
             const foundSupplierIds: string[] = [];
             if (suppliers) {
                 suppliers.forEach(s => {
                     foundSupplierIds.push(s.id);
+                    const rubrosSuffix = s.rubros ? ` | Rubros: ${s.rubros}` : '';
                     results.push({
                         id: s.id,
                         title: s.name,
-                        subtitle: `Proveedor - RIF: ${s.rif}`,
+                        subtitle: `Proveedor - RIF: ${s.rif}${rubrosSuffix}`,
                         type: 'supplier',
                         url: `/suppliers/${s.id}`
                     });

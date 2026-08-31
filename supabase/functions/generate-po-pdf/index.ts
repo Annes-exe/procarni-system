@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://esm.sh/pdf-lib@1.17.1';
+import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage, degrees } from 'https://esm.sh/pdf-lib@1.17.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -151,9 +151,15 @@ function convertirGrupo(num: number): string {
   return texto.trim();
 }
 
-const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
+const numberToWords = (amount: number, currency: 'VES' | 'USD' | 'EUR'): string => {
+  const getCurrencyName = (curr: 'VES' | 'USD' | 'EUR', plural: boolean) => {
+    if (curr === 'VES') return plural ? 'BOLIVARES' : 'BOLIVAR';
+    if (curr === 'USD') return plural ? 'DOLARES' : 'DOLAR';
+    return plural ? 'EUROS' : 'EURO';
+  };
+
   if (amount === 0) {
-    return `CERO ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'} CON 00/100`;
+    return `CERO ${getCurrencyName(currency, true)} CON 00/100`;
   }
 
   const [entero, decimal] = amount.toFixed(2).split('.').map(Number);
@@ -162,7 +168,7 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
   let tempEntero = entero;
 
   if (tempEntero === 1) {
-    texto = `UN ${currency === 'VES' ? 'BOLIVAR' : 'DOLAR'}`;
+    texto = `UN ${getCurrencyName(currency, false)}`;
   } else if (tempEntero > 1) {
     let millones = Math.floor(tempEntero / 1000000);
     let resto = tempEntero % 1000000;
@@ -188,9 +194,9 @@ const numberToWords = (amount: number, currency: 'VES' | 'USD'): string => {
     texto += convertirGrupo(unidades);
 
     if (millones > 0 && resto === 0) {
-      texto = texto.trim() + ` DE ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+      texto = texto.trim() + ` DE ${getCurrencyName(currency, true)}`;
     } else {
-      texto = texto.trim() + ` ${currency === 'VES' ? 'BOLIVARES' : 'DOLARES'}`;
+      texto = texto.trim() + ` ${getCurrencyName(currency, true)}`;
     }
   }
 
@@ -275,7 +281,8 @@ serve(async (req: Request) => {
       .select(`
         *,
         suppliers (name, rif, email, phone, payment_terms),
-        companies (name, logo_url, fiscal_data, rif, address, phone, email)
+        companies (name, logo_url, fiscal_data, rif, address, phone, email),
+        profiles:user_id (first_name, last_name, email)
       `)
       .eq('id', orderId)
       .single();
@@ -418,6 +425,52 @@ serve(async (req: Request) => {
       return state;
     };
 
+    const drawApprovedStamp = (state: PDFState, x: number, y: number) => {
+      const greenColor = rgb(0.055, 0.341, 0.031); // success green (#0e5708)
+      const width = 110;
+      const height = 30;
+
+      // Draw stamp double borders
+      state.page.drawRectangle({
+        x,
+        y,
+        width,
+        height,
+        borderColor: greenColor,
+        borderWidth: 2,
+        color: rgb(1, 1, 1),
+        opacity: 0.9,
+        rotate: degrees(-10),
+      });
+
+      state.page.drawRectangle({
+        x: x + 2,
+        y: y + 2,
+        width: width - 4,
+        height: height - 4,
+        borderColor: greenColor,
+        borderWidth: 0.5,
+        rotate: degrees(-10),
+      });
+
+      // Stamp text APROBADO
+      const text = "APROBADO";
+      const fontSize = 12;
+      const textWidth = boldFont.widthOfTextAtSize(text, fontSize);
+      
+      const textX = x + (width - textWidth) / 2;
+      const textY = y + (height - fontSize) / 2;
+
+      state.page.drawText(text, {
+        x: textX,
+        y: textY,
+        size: fontSize,
+        font: boldFont,
+        color: greenColor,
+        rotate: degrees(-10),
+      });
+    };
+
     // --- Modular Drawing Functions ---
 
     const drawHeader = async (state: PDFState, order: any): Promise<PDFState> => {
@@ -467,6 +520,8 @@ serve(async (req: Request) => {
       // 2. Draw Document Title and Number (Top Right)
       const titleX = width - MARGIN - 150;
       drawText(state, 'ORDEN DE COMPRA', titleX, state.y, { font: boldFont, size: 16, color: PROC_RED });
+
+      drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
 
       drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
       
@@ -715,12 +770,16 @@ serve(async (req: Request) => {
         discount_percentage: item.discount_percentage ?? 0,
       })));
 
-      // Helper to calculate converted totals
-      const calculateConvertedTotals = (totals: any, rate: number, toCurrency: 'USD' | 'VES') => {
-        if (!rate || rate <= 0) return totals; // Should not happen with validation
+      // Detect base currency (USD or EUR)
+      const baseCurrency = order.base_currency === 'EUR' || order.currency === 'EUR' ? 'EUR' : 'USD';
+      const baseSymbol = baseCurrency === 'EUR' ? '€' : '$';
 
-        // If converting FROM VES TO USD: Divide by rate
-        if (order.currency === 'VES' && toCurrency === 'USD') {
+      // Helper to calculate converted totals
+      const calculateConvertedTotals = (totals: any, rate: number, fromCurrency: string, toCurrency: string) => {
+        if (!rate || rate <= 0) return totals;
+
+        // If converting FROM VES TO EUR/USD: Divide by rate
+        if (fromCurrency === 'VES' && (toCurrency === 'USD' || toCurrency === 'EUR')) {
           return {
             baseImponible: totals.baseImponible / rate,
             montoIVA: totals.montoIVA / rate,
@@ -730,8 +789,8 @@ serve(async (req: Request) => {
           };
         }
 
-        // If converting FROM USD TO VES: Multiply by rate
-        if (order.currency === 'USD' && toCurrency === 'VES') {
+        // If converting FROM EUR/USD TO VES: Multiply by rate
+        if ((fromCurrency === 'USD' || fromCurrency === 'EUR') && toCurrency === 'VES') {
           return {
             baseImponible: totals.baseImponible * rate,
             montoIVA: totals.montoIVA * rate,
@@ -741,20 +800,17 @@ serve(async (req: Request) => {
           };
         }
 
-        return totals; // Same currency
+        return totals; // Same currency or unhandled
       };
 
-      const usdTotals = order.currency === 'USD' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'USD');
-      const vesTotals = order.currency === 'VES' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, 'VES');
+      const divisaTotals = order.currency === baseCurrency ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, order.currency, baseCurrency);
+      const vesTotals = order.currency === 'VES' ? calculatedTotals : calculateConvertedTotals(calculatedTotals, effectiveExchangeRate, order.currency, 'VES');
 
       // Layout for side-by-side tables
       const boxWidth = 200;
       const spacing = 20;
       const rightMargin = MARGIN;
-      // Position: [VES Table] [Spacing] [USD Table] (Aligned to right)
-      // Actually, usually currency of record (Order Currency) might go last or first. 
-      // Let's put USD on the left and VES on the right, or simply side-by-side right-aligned.
-      // Let's align the pair to the right side of the page.
+      // Position: [VES Table] [Spacing] [USD/EUR Table] (Aligned to right)
 
       const vesBoxX = width - MARGIN - boxWidth;
       const usdBoxX = vesBoxX - spacing - boxWidth;
@@ -795,12 +851,12 @@ serve(async (req: Request) => {
         drawRow('TOTAL:', `${currencySymbol} ${totals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, true, PROC_RED, FONT_SIZE + 2);
 
         if (isVes) {
-          drawRow('Tasa de Cambio:', `${effectiveExchangeRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/USD`, false, DARK_GRAY, 8);
+          drawRow('Tasa de Cambio:', `${effectiveExchangeRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/${baseCurrency}`, false, DARK_GRAY, 8);
         }
       };
 
-      // Draw USD Box (Left)
-      drawBox(usdBoxX, state.y - totalSectionHeight, 'TOTALES EN USD', usdTotals, '$', false);
+      // Draw Divisa Box (Left)
+      drawBox(usdBoxX, state.y - totalSectionHeight, `TOTALES EN ${baseCurrency}`, divisaTotals, baseSymbol, false);
 
       // Draw VES Box (Right)
       drawBox(vesBoxX, state.y - totalSectionHeight, 'TOTALES EN VES', vesTotals, 'Bs.', true);
@@ -809,7 +865,7 @@ serve(async (req: Request) => {
       state.y = state.y - totalSectionHeight - LINE_HEIGHT;
 
       // Amount in words (use the order's original currency amount for the words)
-      const amountInWords = numberToWords(calculatedTotals.total, order.currency as 'VES' | 'USD');
+      const amountInWords = numberToWords(calculatedTotals.total, order.currency as 'VES' | 'USD' | 'EUR');
       drawText(state, `Monto en Letras (${order.currency}): ${amountInWords}`, MARGIN, state.y, { font: italicFont });
       state.y -= LINE_HEIGHT * 3;
 
@@ -844,8 +900,14 @@ serve(async (req: Request) => {
       const text2Width = font.widthOfTextAtSize(text2, 9);
       drawText(state, text2, col2Center - (text2Width / 2), footerY, { font: font, size: 9 });
 
-      // Generado por (Moved up slightly to clear signatures)
-      drawText(state, `Generado por: ${order.created_by || user.email}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
+      // Elaborado por (composed of first_name and last_name, or fallback to email)
+      let creatorName = '';
+      if (order.profiles && (order.profiles.first_name || order.profiles.last_name)) {
+        creatorName = `${order.profiles.first_name || ''} ${order.profiles.last_name || ''}`.trim();
+      } else {
+        creatorName = order.created_by || user.email;
+      }
+      drawText(state, `Elaborado por: ${creatorName}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
 
       return state;
     };
@@ -893,8 +955,14 @@ serve(async (req: Request) => {
 
     // --- Execution Flow ---
     state = await drawHeader(state, order);
+    const stampY = state.y - 70;
     state = drawSupplierDetails(state, order);
     state = drawOrderDetails(state, order);
+
+    if (['Approved', 'ToPay', 'Paid', 'Transit', 'Received'].includes(order.status)) {
+      drawApprovedStamp(state, width - MARGIN - 130, stampY);
+    }
+
     state = drawObservations(state, order);
     state = drawItemsTable(state, items);
     state = await drawTotalsAndSummary(state, order, items, effectiveExchangeRate);

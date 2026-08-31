@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, FileText, Calendar, Clock, RefreshCw } from 'lucide-react';
+import { Loader2, FileText, Calendar, Clock, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -14,6 +14,9 @@ import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { es } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
+import { showSuccess, showError } from '@/utils/toast';
+
 
 interface ReceptionHistoryDialogProps {
   isOpen: boolean;
@@ -72,7 +75,8 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, name, category');
+        .select('id, name, category')
+        .limit(10000);
       if (error) throw error;
       
       const map: Record<string, string> = {};
@@ -425,10 +429,69 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
       // Save document
       const fileDate = new Date().toISOString().split('T')[0];
       doc.save(`Reporte_Historico_Recepciones_${fileDate}.pdf`);
+      showSuccess('Reporte PDF descargado.');
     } catch (e) {
       console.error('Error generating PDF:', e);
+      showError('Error al exportar reporte PDF.');
     }
   };
+
+  const handleDownloadXLSX = () => {
+    try {
+      if (filteredRecords.length === 0) {
+        showError('No hay registros de recepción para exportar.');
+        return;
+      }
+
+      // 1. Resumen Consolidado sheet
+      const consolidatedData = consolidatedSummary.map((sum) => ({
+        'Material / Ítem': sum.materialName,
+        'Total Recibido': sum.totalQuantity,
+        'Número de Recepciones': sum.count
+      }));
+      const wsConsolidated = XLSX.utils.json_to_sheet(consolidatedData);
+
+      // 2. Detalle Cronológico sheet
+      const chronologicalData = filteredRecords.map((rec) => ({
+        'Fecha y Hora': format(new Date(rec.timestamp), 'dd/MM/yyyy HH:mm', { locale: es }),
+        'Material / Ítem': rec.materialName,
+        'Cantidad Recibida': rec.quantity,
+        'Orden de Compra': rec.orderNumber,
+        'Usuario': rec.user_email
+      }));
+      const wsChronological = XLSX.utils.json_to_sheet(chronologicalData);
+
+      // Autofit columns for both sheets
+      const autofitColumns = (ws: any, data: any[]) => {
+        if (!data || data.length === 0) return;
+        const maxColWidth = data.reduce((acc, row) => {
+          Object.keys(row).forEach((key, colIndex) => {
+            const val = String(row[key as keyof typeof row] || '');
+            acc[colIndex] = Math.max(acc[colIndex] || 10, val.length + 2, key.length + 2);
+          });
+          return acc;
+        }, [] as number[]);
+        ws['!cols'] = maxColWidth.map((w: number) => ({ wch: w }));
+      };
+
+      autofitColumns(wsConsolidated, consolidatedData);
+      autofitColumns(wsChronological, chronologicalData);
+
+      // Create Workbook and append sheets
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, wsConsolidated, 'Resumen Consolidado');
+      XLSX.utils.book_append_sheet(workbook, wsChronological, 'Detalle Cronológico');
+
+      // Save file
+      const fileDate = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(workbook, `Reporte_Historico_Recepciones_${fileDate}.xlsx`);
+      showSuccess('Reporte Excel (.xlsx) descargado.');
+    } catch (e) {
+      console.error('Error generating XLSX:', e);
+      showError('Error al exportar reporte Excel.');
+    }
+  };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -541,9 +604,19 @@ export const ReceptionHistoryDialog: React.FC<ReceptionHistoryDialogProps> = ({ 
                 className="h-8 text-xs font-bold bg-procarni-primary hover:bg-red-800 text-white rounded-xl shadow-md transition-all flex items-center gap-1.5"
               >
                 <FileText className="h-3.5 w-3.5" />
-                Descargar PDF ({filteredRecords.length})
+                PDF ({filteredRecords.length})
+              </Button>
+
+              <Button
+                onClick={handleDownloadXLSX}
+                disabled={filteredRecords.length === 0}
+                className="h-8 text-xs font-bold bg-green-700 hover:bg-green-800 text-white rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Excel ({filteredRecords.length})
               </Button>
             </div>
+
           </div>
 
           {filterPeriod === 'day' && (
