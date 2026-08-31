@@ -50,6 +50,7 @@ const QuoteComparison = () => {
 
   const [comparisonId, setComparisonId] = useState<string | null>(null);
   const [comparisonName, setComparisonName] = useState<string>('Nueva Comparación');
+  const [creatorName, setCreatorName] = useState<string>('');
   const [materialsToCompare, setMaterialsToCompare] = useState<MaterialComparison[]>([]);
   const [globalInputCurrency, setGlobalInputCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
@@ -98,17 +99,18 @@ const QuoteComparison = () => {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Automatically assign official rates for new comparisons or when rates are not set
+  // Automatically update rates if not manually customized
   useEffect(() => {
-    if (!comparisonIdFromUrl) {
-      if (currentUsdRate && exchangeRate === undefined) {
-        setExchangeRate(currentUsdRate);
-      }
-      if (currentEurRate && eurExchangeRate === undefined) {
-        setEurExchangeRate(currentEurRate);
-      }
+    if (currentUsdRate && !exchangeRate) {
+      setExchangeRate(currentUsdRate);
     }
-  }, [currentUsdRate, currentEurRate, exchangeRate, eurExchangeRate, comparisonIdFromUrl]);
+  }, [currentUsdRate, exchangeRate]);
+
+  useEffect(() => {
+    if (currentEurRate && !eurExchangeRate) {
+      setExchangeRate(currentEurRate);
+    }
+  }, [currentEurRate, eurExchangeRate]);
 
   const handleMaterialCreated = (material: Material & { specification?: string }) => {
     // Check if it's already added
@@ -143,6 +145,10 @@ const QuoteComparison = () => {
     if (loadedComparison) {
       setComparisonId(loadedComparison.id);
       setComparisonName(loadedComparison.name);
+      const loadedCreator = loadedComparison.profiles
+        ? ([loadedComparison.profiles.first_name, loadedComparison.profiles.last_name].filter(Boolean).join(' ').trim() || loadedComparison.profiles.username || '')
+        : '';
+      setCreatorName(loadedCreator);
       setGlobalInputCurrency(loadedComparison.base_currency as 'USD' | 'VES' | 'EUR');
       setExchangeRate(loadedComparison.global_exchange_rate || undefined);
 
@@ -518,6 +524,7 @@ const QuoteComparison = () => {
                 baseCurrency={comparisonBaseCurrency}
                 globalExchangeRate={exchangeRate}
                 comparisonName={comparisonName}
+                creatorName={creatorName}
                 label={`Descargar PDF de ${materialComp.material.code}`}
                 variant="outline"
                 isSingleMaterial={true}
@@ -692,6 +699,7 @@ const QuoteComparison = () => {
                     baseCurrency={comparisonBaseCurrency}
                     globalExchangeRate={exchangeRate}
                     comparisonName={comparisonName}
+                    creatorName={creatorName}
                     label="Reporte General"
                     variant="outline"
                     className="w-full bg-white hover:bg-gray-50 mb-0"

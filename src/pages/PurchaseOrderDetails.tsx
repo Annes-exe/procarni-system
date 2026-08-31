@@ -867,6 +867,14 @@ const PurchaseOrderDetails = () => {
             <span className={microLabelClass}>Condición de Pago</span>
             <p className={valueClass}>{displayPaymentTerms()}</p>
           </div>
+
+          {/* Created By */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Elaborado Por</span>
+            <p className={valueClass}>
+              {[order.profiles?.first_name, order.profiles?.last_name].filter(Boolean).join(' ').trim() || order.profiles?.username || order.created_by || '---'}
+            </p>
+          </div>
         </div>
 
         {/* Observations */}

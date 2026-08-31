@@ -442,7 +442,7 @@ const ServiceOrderService = {
   getById: async (id: string): Promise<ServiceOrder | null> => {
     const { data: order, error } = await supabase
       .from('service_orders')
-      .select('*, suppliers(*), companies(*)')
+      .select('*, suppliers(*), companies(*), profiles:user_id(id, first_name, last_name, username, email)')
       .eq('id', id)
       .single();
 

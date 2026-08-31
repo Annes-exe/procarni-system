@@ -37,6 +37,24 @@ const QuoteComparisonService = {
       showError('Error al cargar las comparaciones guardadas.');
       return [];
     }
+
+    if (!data || data.length === 0) return [];
+
+    // Fetch user profiles for all unique user_ids to avoid PostgREST relationship errors
+    const userIds = Array.from(new Set(data.map((c: any) => c.user_id).filter(Boolean)));
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, username, email')
+        .in('id', userIds);
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      return data.map((item: any) => ({
+        ...item,
+        profiles: profileMap.get(item.user_id) || null
+      })) as QuoteComparison[];
+    }
+
     return data as QuoteComparison[];
   },
 
@@ -47,29 +65,34 @@ const QuoteComparisonService = {
       .eq('id', id)
       .single();
 
-    if (comparisonError) {
+    if (comparisonError || !comparison) {
       console.error('[QuoteComparisonService.getById] Error fetching comparison:', comparisonError);
       return null;
     }
 
-    const { data: items, error: itemsError } = await supabase
-      .from('quote_comparison_items')
-      .select(`
-        *,
-        materials (code, name, unit_id)
-      `)
-      .eq('comparison_id', id)
-      .order('created_at', { ascending: true });
-
-    if (itemsError) {
-      console.error('[QuoteComparisonService.getById] Error fetching comparison items:', itemsError);
-      // Return comparison header even if items fail
-      return comparison as QuoteComparison;
-    }
+    // Fetch items and creator profile in parallel
+    const [itemsRes, profileRes] = await Promise.all([
+      supabase
+        .from('quote_comparison_items')
+        .select(`
+          *,
+          materials (code, name, unit_id)
+        `)
+        .eq('comparison_id', id)
+        .order('created_at', { ascending: true }),
+      comparison.user_id
+        ? supabase
+            .from('profiles')
+            .select('id, first_name, last_name, username, email')
+            .eq('id', comparison.user_id)
+            .single()
+        : Promise.resolve({ data: null, error: null })
+    ]);
 
     return {
       ...comparison,
-      items: items as QuoteComparisonItem[],
+      profiles: profileRes.data || null,
+      items: (itemsRes.data || []) as QuoteComparisonItem[],
     } as QuoteComparison;
   },
 

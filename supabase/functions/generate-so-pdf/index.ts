@@ -276,7 +276,7 @@ serve(async (req: Request) => {
         *,
         suppliers (name, rif, email, phone, payment_terms),
         companies (name, logo_url, fiscal_data, rif, address, phone, email),
-        profiles:user_id (first_name, last_name, email)
+        profiles:user_id (first_name, last_name, username, email)
       `)
             .eq('id', orderId)
             .single();
@@ -1058,12 +1058,14 @@ serve(async (req: Request) => {
             const textWidthRight = font.widthOfTextAtSize('Revisado por', 9);
             drawText(state, 'Revisado por', rightSignatureXCenter - textWidthRight / 2, footerY, { font: font, size: 9 });
 
-            // Elaborado por (composed of first_name and last_name, or fallback to email)
+            // Elaborado por (composed of first_name and last_name, or fallback to creator's username / email)
             let creatorName = '';
             if (order.profiles && (order.profiles.first_name || order.profiles.last_name)) {
                 creatorName = `${order.profiles.first_name || ''} ${order.profiles.last_name || ''}`.trim();
+            } else if (order.profiles?.username) {
+                creatorName = order.profiles.username;
             } else {
-                creatorName = order.updated_by || user.email; // Fallback to updated_by/user.email if created_by is missing in service_orders
+                creatorName = order.created_by || order.profiles?.email || 'Sistema';
             }
             drawText(state, `Elaborado por: ${creatorName}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
 

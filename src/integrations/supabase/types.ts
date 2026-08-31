@@ -106,6 +106,13 @@ export type PurchaseOrder = {
   service_order_id?: string | null; // Added
   supplier: Supplier; // Assuming we might join this
   company: Company; // Assuming we might join this
+  profiles?: {
+    id?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
   reception_status?: 'Ninguno' | 'En tránsito' | 'Parcial' | 'Recibido' | null;
   is_raw_material?: boolean | null;
   requisition_number?: string | null; // Added
@@ -146,6 +153,15 @@ export type QuoteRequest = {
   deadline_date: string | null;
   print_date: string | null; // Added
   is_raw_material?: boolean | null;
+  suppliers?: Supplier;
+  companies?: Company;
+  profiles?: {
+    id?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 export type QuoteRequestItem = {
@@ -235,6 +251,13 @@ export type QuoteComparison = {
   created_at: string;
   type?: 'quote_comparison' | 'price_matrix' | null;
   items?: QuoteComparisonItem[]; // Joined items
+  profiles?: {
+    id?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 export type QuoteEntry = {
@@ -305,8 +328,18 @@ export type ServiceOrder = {
   paid_amount: number | null;
   user_id: string;
   created_at: string | null;
+  created_by?: string | null;
   supplier?: Supplier;
   company?: Company;
+  suppliers?: Supplier;
+  companies?: Company;
+  profiles?: {
+    id?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
   service_order_items?: ServiceOrderItem[];
   service_order_materials?: ServiceOrderMaterial[];
   requisition_number?: string | null; // Added

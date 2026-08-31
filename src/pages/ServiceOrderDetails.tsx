@@ -818,6 +818,14 @@ const ServiceOrderDetails = () => {
             <span className={microLabelClass}>Condición de Pago</span>
             <p className={valueClass}>{displayPaymentTerms()}</p>
           </div>
+
+          {/* Elaborado Por */}
+          <div className="space-y-1">
+            <span className={microLabelClass}>Elaborado Por</span>
+            <p className={valueClass}>
+              {[order.profiles?.first_name, order.profiles?.last_name].filter(Boolean).join(' ').trim() || order.profiles?.username || order.created_by || '---'}
+            </p>
+          </div>
         </div>
 
         {/* Details & Observations */}

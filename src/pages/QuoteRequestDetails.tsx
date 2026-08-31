@@ -522,8 +522,9 @@ const QuoteRequestDetails = () => {
           {/* Created By */}
           <div className="space-y-1">
             <span className={microLabelClass}>Elaborado Por</span>
-            {/* @ts-ignore */}
-            <p className={valueClass}>{request.created_by || '---'}</p>
+            <p className={valueClass}>
+              {[request.profiles?.first_name, request.profiles?.last_name].filter(Boolean).join(' ').trim() || request.profiles?.username || request.created_by || '---'}
+            </p>
           </div>
         </div>
       </Card>

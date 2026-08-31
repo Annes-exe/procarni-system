@@ -57,7 +57,7 @@ serve(async (req: Request) => {
         *,
         suppliers (name, rif, email, phone, phone_2, instagram, address),
         companies (name, logo_url, fiscal_data, rif, address, phone, email),
-        profiles:user_id (first_name, last_name, email)
+        profiles:user_id (first_name, last_name, username, email)
       `)
       .eq('id', requestId)
       .single();
@@ -316,8 +316,10 @@ serve(async (req: Request) => {
     let creatorName = '';
     if (request.profiles && (request.profiles.first_name || request.profiles.last_name)) {
       creatorName = `${request.profiles.first_name || ''} ${request.profiles.last_name || ''}`.trim();
+    } else if (request.profiles?.username) {
+      creatorName = request.profiles.username;
     } else {
-      creatorName = request.created_by || user.email;
+      creatorName = request.created_by || request.profiles?.email || 'Sistema';
     }
 
     const pages = pdfDoc.getPages();

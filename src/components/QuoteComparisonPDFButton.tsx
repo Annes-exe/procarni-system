@@ -19,6 +19,7 @@ interface QuoteComparisonPDFButtonProps {
   baseCurrency: 'USD' | 'VES' | 'EUR';
   globalExchangeRate?: number;
   comparisonName?: string;
+  creatorName?: string;
   label?: string;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | null | undefined;
   className?: string;
@@ -30,6 +31,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
   baseCurrency,
   globalExchangeRate,
   comparisonName,
+  creatorName,
   label = 'Descargar Comparación PDF',
   variant = 'default',
   isSingleMaterial = false,
@@ -149,8 +151,13 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
             ? `${baseCurrency} ${quote.convertedPrice.toFixed(2)}`
             : `Inválido`;
 
+          const supplierName = quote.supplierName || 'Sin Proveedor';
+          const supplierCell = quote.comment?.trim()
+            ? `${supplierName}\nNota: ${quote.comment.trim()}`
+            : supplierName;
+
           const rowData = [
-            quote.supplierName || 'Sin Proveedor',
+            supplierCell,
             uomLabel,
             `${quote.currency === 'USD' ? '$' : quote.currency === 'EUR' ? '€' : 'Bs.'} ${quote.unitPrice.toFixed(2)}`,
             quote.currency,
@@ -184,12 +191,12 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
             fillColor: [255, 255, 255],
           },
           columnStyles: {
-            0: { fontStyle: 'bold', textColor: [27, 41, 74], cellWidth: 50 },
-            1: { cellWidth: 30 },
-            2: { halign: 'right', cellWidth: 28 },
-            3: { halign: 'center', cellWidth: 20 },
+            0: { fontStyle: 'bold', textColor: [27, 41, 74], cellWidth: 54 },
+            1: { cellWidth: 28 },
+            2: { halign: 'right', cellWidth: 26 },
+            3: { halign: 'center', cellWidth: 18 },
             4: { halign: 'right', cellWidth: 24 },
-            5: { halign: 'right', fontStyle: 'bold', cellWidth: 30 },
+            5: { halign: 'right', fontStyle: 'bold', cellWidth: 32 },
           },
           didParseCell: (data) => {
             if (data.section === 'body') {
@@ -214,7 +221,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
 
       // 4. Page numbering & footer on all pages
       const pageCount = doc.getNumberOfPages();
-      const printedByName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || 'Usuario';
+      const printedByName = creatorName || userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || 'Usuario';
 
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
