@@ -8,3 +8,4 @@ TRUNCATE TABLE public.requisitions CASCADE;
 ALTER SEQUENCE IF EXISTS public.purchase_requisition_sequence RESTART WITH 1;
 ALTER SEQUENCE IF EXISTS public.service_requisition_sequence RESTART WITH 1;
 ALTER SEQUENCE IF EXISTS public.warehouse_requisition_sequence RESTART WITH 1;
+ALTER SEQUENCE IF EXISTS public.logbook_requisition_sequence RESTART WITH 1;

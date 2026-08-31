@@ -8,6 +8,7 @@ import { showError } from '@/utils/toast';
 import { PurchaseRequisitionFormat } from '@/components/PurchaseRequisitionFormat';
 import { ServiceRequisitionFormat } from '@/components/ServiceRequisitionFormat';
 import { WarehouseExitFormat } from '@/components/WarehouseExitFormat';
+import { LogbookControlFormat } from '@/components/LogbookControlFormat';
 
 const PrintRequisition = () => {
   const { id } = useParams<{ id: string }>();
@@ -132,20 +133,37 @@ const PrintRequisition = () => {
           size: A4 portrait;
           margin: 8mm 6mm;
         }
+        @page landscapePage {
+          size: A4 landscape;
+          margin-top: 16mm;
+          margin-bottom: 5mm;
+          margin-left: 6mm;
+          margin-right: 6mm;
+        }
+        .landscape-page-style {
+          page: landscapePage;
+        }
         .custom-table th, .custom-table td {
           border: 1px solid #1e293b;
         }
       `}} />
 
       {requisitions.map((requisition) => {
-        const prefix = requisition.type === 'purchase' ? 'RC' : requisition.type === 'service' ? 'RS' : 'VS';
+        const prefix = requisition.type === 'purchase' ? 'RC' : requisition.type === 'service' ? 'RS' : requisition.type === 'warehouse' ? 'VS' : 'BC';
         const correlative = `${prefix}-${String(requisition.sequence_number).padStart(3, '0')}`;
+        const isLandscape = requisition.type === 'logbook';
+        const sizeClasses = isLandscape 
+          ? "max-w-[297mm] min-h-[210mm]" 
+          : "max-w-[210mm] min-h-[297mm]";
+        const paddingClasses = isLandscape 
+          ? "pt-[16mm] pb-[5mm] px-[8mm]" 
+          : "p-[8mm]";
 
         return (
           <div 
             key={requisition.id}
             id="requisition-sheet" 
-            className="requisition-sheet-page max-w-[210mm] min-h-[297mm] mx-auto bg-white p-[8mm] print:p-0 shadow-lg print:shadow-none border border-gray-200 print:border-none flex flex-col gap-2 mb-8 print:mb-0"
+            className={`requisition-sheet-page ${sizeClasses} ${paddingClasses} mx-auto bg-white print:p-0 shadow-lg print:shadow-none border border-gray-200 print:border-none flex flex-col gap-2 mb-8 print:mb-0`}
           >
             {requisition.type === 'purchase' ? (
               <PurchaseRequisitionFormat
@@ -159,8 +177,14 @@ const PrintRequisition = () => {
                 correlative={correlative}
                 emptyRows={emptyRows}
               />
-            ) : (
+            ) : requisition.type === 'warehouse' ? (
               <WarehouseExitFormat
+                requisition={requisition}
+                correlative={correlative}
+                emptyRows={emptyRows}
+              />
+            ) : (
+              <LogbookControlFormat
                 requisition={requisition}
                 correlative={correlative}
                 emptyRows={emptyRows}

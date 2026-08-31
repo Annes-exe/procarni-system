@@ -46,11 +46,11 @@ import { showSuccess, showError } from '@/utils/toast';
 const RequisitionsManagement = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'service' | 'warehouse'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'service' | 'warehouse' | 'logbook'>('all');
   
   // States for the Row Customization Dialog
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<'purchase' | 'service' | 'warehouse'>('purchase');
+  const [selectedType, setSelectedType] = useState<'purchase' | 'service' | 'warehouse' | 'logbook'>('purchase');
   const [rowCount, setRowCount] = useState<number>(15);
   const [formatCount, setFormatCount] = useState<number>(1);
   const [activeRequisitionId, setActiveRequisitionId] = useState<string | null>(null);
@@ -64,13 +64,13 @@ const RequisitionsManagement = () => {
 
   // Create requisition mutation
   const createMutation = useMutation({
-    mutationFn: ({ type, quantity }: { type: 'purchase' | 'service' | 'warehouse'; quantity: number }) => 
+    mutationFn: ({ type, quantity }: { type: 'purchase' | 'service' | 'warehouse' | 'logbook'; quantity: number }) => 
       requisitionService.create(type, quantity),
     onSuccess: (newReqs) => {
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
       if (newReqs && newReqs.length > 0) {
         const codes = newReqs.map(r => {
-          const prefix = r.type === 'purchase' ? 'RC' : r.type === 'service' ? 'RS' : 'VS';
+          const prefix = r.type === 'purchase' ? 'RC' : r.type === 'service' ? 'RS' : r.type === 'warehouse' ? 'VS' : 'BC';
           return `${prefix}-${String(r.sequence_number).padStart(3, '0')}`;
         }).join(', ');
         showSuccess(`Requisiciones creadas con éxito: ${codes}`);
@@ -86,19 +86,19 @@ const RequisitionsManagement = () => {
     }
   });
 
-  const handleOpenCreateConfig = (type: 'purchase' | 'service' | 'warehouse') => {
+  const handleOpenCreateConfig = (type: 'purchase' | 'service' | 'warehouse' | 'logbook') => {
     setDialogMode('create');
     setSelectedType(type);
-    setRowCount(type === 'service' ? 12 : 15); // Default count: 15 for purchase/warehouse, 12 for service
+    setRowCount(type === 'service' ? 12 : type === 'logbook' ? 18 : 15); // Default count: 18 for logbook, 15 for others, 12 for service
     setFormatCount(1);
     setIsConfigOpen(true);
   };
 
-  const handleOpenPrintConfig = (id: string, type: 'purchase' | 'service' | 'warehouse') => {
+  const handleOpenPrintConfig = (id: string, type: 'purchase' | 'service' | 'warehouse' | 'logbook') => {
     setDialogMode('print_existing');
     setActiveRequisitionId(id);
     setSelectedType(type);
-    setRowCount(type === 'service' ? 12 : 15);
+    setRowCount(type === 'service' ? 12 : type === 'logbook' ? 18 : 15);
     setIsConfigOpen(true);
   };
 
@@ -114,7 +114,7 @@ const RequisitionsManagement = () => {
   // Filtered list
   const filteredRequisitions = requisitions.filter((req) => {
     const sequenceStr = String(req.sequence_number);
-    const prefix = req.type === 'purchase' ? 'RC' : req.type === 'service' ? 'RS' : 'VS';
+    const prefix = req.type === 'purchase' ? 'RC' : req.type === 'service' ? 'RS' : req.type === 'warehouse' ? 'VS' : 'BC';
     const formattedCode = `${prefix}-${sequenceStr.padStart(3, '0')}`.toLowerCase();
     const search = searchTerm.toLowerCase();
 
@@ -144,7 +144,7 @@ const RequisitionsManagement = () => {
       </div>
 
       {/* Primary Generation Buttons - Bento Style cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
           <CardContent className="p-8 flex flex-col justify-between h-52">
             <div className="flex justify-between items-start">
@@ -216,6 +216,30 @@ const RequisitionsManagement = () => {
             </Button>
           </CardContent>
         </Card>
+
+        <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+          <CardContent className="p-8 flex flex-col justify-between h-52">
+            <div className="flex justify-between items-start">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform duration-300">
+                <FileText className="w-6 h-6" />
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-600 bg-amber-500/5 px-3 py-1 rounded-full">
+                BC - Bitácora
+              </span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-procarni-dark">Bitácora Control (Cuartico)</h2>
+              <p className="text-gray-400 text-xs mt-1">Bitácora horizontal para el control de salida de insumos del Cuartico.</p>
+            </div>
+            <Button 
+              onClick={() => handleOpenCreateConfig('logbook')}
+              className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg mt-4 self-start flex items-center gap-2 group-hover:translate-x-1 transition-all duration-300"
+            >
+              <span>Generar BC</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* History and Filtering Table */}
@@ -250,6 +274,7 @@ const RequisitionsManagement = () => {
                 <SelectItem value="purchase">Requisiciones de Compra (RC)</SelectItem>
                 <SelectItem value="service">Requisiciones de Servicio (RS)</SelectItem>
                 <SelectItem value="warehouse">Salida de Insumos/Suministros (VS)</SelectItem>
+                <SelectItem value="logbook">Bitácora de Control (BC)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -282,7 +307,7 @@ const RequisitionsManagement = () => {
               </TableHeader>
               <TableBody>
                 {filteredRequisitions.map((req) => {
-                  const prefix = req.type === 'purchase' ? 'RC' : req.type === 'service' ? 'RS' : 'VS';
+                  const prefix = req.type === 'purchase' ? 'RC' : req.type === 'service' ? 'RS' : req.type === 'warehouse' ? 'VS' : 'BC';
                   const code = `${prefix}-${String(req.sequence_number).padStart(3, '0')}`;
                   const createdDate = req.created_at 
                     ? format(new Date(req.created_at), "dd 'de' MMMM, yyyy - hh:mm a", { locale: es }) 
@@ -303,9 +328,11 @@ const RequisitionsManagement = () => {
                             ? 'bg-procarni-primary/10 text-procarni-primary' 
                             : req.type === 'service'
                               ? 'bg-procarni-blue/10 text-procarni-blue'
-                              : 'bg-emerald-100 text-emerald-800'
+                              : req.type === 'warehouse'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
                         }`}>
-                          {req.type === 'purchase' ? 'Compra' : req.type === 'service' ? 'Servicio' : 'Salida Insumos'}
+                          {req.type === 'purchase' ? 'Compra' : req.type === 'service' ? 'Servicio' : req.type === 'warehouse' ? 'Salida Insumos' : 'Bitácora'}
                         </span>
                       </TableCell>
                       <TableCell className="text-gray-500 font-medium text-xs py-4">
@@ -353,7 +380,7 @@ const RequisitionsManagement = () => {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {(selectedType === 'purchase' || selectedType === 'warehouse') && (
+            {(selectedType === 'purchase' || selectedType === 'warehouse' || selectedType === 'logbook') && (
               <div className="space-y-2">
                 <label className="text-[10px] uppercase font-bold tracking-widest text-gray-400 block">
                   Filas del Formato (Materiales)
@@ -367,7 +394,9 @@ const RequisitionsManagement = () => {
                   className="h-11 border-gray-200 rounded-xl bg-gray-50/50 focus:ring-procarni-primary/20 text-sm"
                 />
                 <span className="text-[10px] text-gray-400 block font-medium">
-                  Especifica la cantidad de renglones vacíos a dibujar en la hoja para escribir a mano.
+                  {selectedType === 'logbook' 
+                    ? "Especifica la cantidad de filas a dibujar en la bitácora (18 por defecto)."
+                    : "Especifica la cantidad de renglones vacíos a dibujar en la hoja para escribir a mano."}
                 </span>
               </div>
             )}
@@ -400,7 +429,7 @@ const RequisitionsManagement = () => {
             >
               Cancelar
             </Button>
-            <Button
+             <Button
               onClick={handleConfirmAction}
               disabled={createMutation.isPending}
               className={`rounded-xl text-white shadow-lg text-sm h-11 ${
@@ -408,7 +437,9 @@ const RequisitionsManagement = () => {
                   ? 'bg-procarni-primary hover:bg-procarni-primary/90' 
                   : selectedType === 'service'
                     ? 'bg-procarni-blue hover:bg-procarni-blue/90'
-                    : 'bg-emerald-600 hover:bg-emerald-700'
+                    : selectedType === 'warehouse'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-amber-600 hover:bg-amber-700'
               }`}
             >
               {createMutation.isPending ? 'Procesando...' : 'Generar y Continuar'}

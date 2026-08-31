@@ -33,7 +33,7 @@ export const WarehouseExitFormat: React.FC<WarehouseExitFormatProps> = ({
                 padding: '5px',
                 color: '#1b294a'
               }}>
-                SALIDA DE INSUMOS/SUMINISTROS
+                GUÍA DE REMISIÓN DE INSUMOS/SUMINISTROS
               </td>
               <td style={{ width: '25%', padding: '5px', verticalAlign: 'middle', fontSize: '10px' }}>
                 <div className="font-semibold text-gray-500 uppercase text-[8px] tracking-wider">N° de Salida</div>

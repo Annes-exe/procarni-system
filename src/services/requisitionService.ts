@@ -21,7 +21,7 @@ export const requisitionService = {
     return data as unknown as Requisition[];
   },
 
-  create: async (type: 'purchase' | 'service' | 'warehouse', quantity: number = 1): Promise<Requisition[] | null> => {
+  create: async (type: 'purchase' | 'service' | 'warehouse' | 'logbook', quantity: number = 1): Promise<Requisition[] | null> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       showError('No hay sesión activa para realizar esta acción.');
