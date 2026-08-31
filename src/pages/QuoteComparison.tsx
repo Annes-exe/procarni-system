@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { showError, showSuccess } from '@/utils/toast';
 import MaterialQuoteComparisonRow from '@/components/MaterialQuoteComparisonRow';
 import QuoteComparisonPDFButton from '@/components/QuoteComparisonPDFButton';
+import QuoteComparisonXLSXButton from '@/components/QuoteComparisonXLSXButton';
 import { Separator } from '@/components/ui/separator';
 import SaveComparisonDialog from '@/components/SaveComparisonDialog';
 import { useSession } from '@/components/SessionContextProvider';
@@ -517,15 +518,25 @@ const QuoteComparison = () => {
                 onRemoveMaterial={() => handleRemoveMaterial(materialComp.material.id)}
               />
             </div>
-            {/* Individual PDF Download Button */}
-            <div className="flex justify-end p-4 border-t border-gray-50 bg-gray-50/50">
+            {/* Individual Download Buttons */}
+            <div className="flex justify-end gap-2 p-4 border-t border-gray-50 bg-gray-50/50">
+              <QuoteComparisonXLSXButton
+                comparisonResults={[materialComp]}
+                baseCurrency={comparisonBaseCurrency}
+                globalExchangeRate={exchangeRate}
+                comparisonName={comparisonName}
+                creatorName={creatorName}
+                label={`Excel (${materialComp.material.code})`}
+                variant="outline"
+                className="border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+              />
               <QuoteComparisonPDFButton
                 comparisonResults={[materialComp]}
                 baseCurrency={comparisonBaseCurrency}
                 globalExchangeRate={exchangeRate}
                 comparisonName={comparisonName}
                 creatorName={creatorName}
-                label={`Descargar PDF de ${materialComp.material.code}`}
+                label={`PDF (${materialComp.material.code})`}
                 variant="outline"
                 isSingleMaterial={true}
               />
@@ -700,9 +711,21 @@ const QuoteComparison = () => {
                     globalExchangeRate={exchangeRate}
                     comparisonName={comparisonName}
                     creatorName={creatorName}
-                    label="Reporte General"
+                    label="PDF"
                     variant="outline"
                     className="w-full bg-white hover:bg-gray-50 mb-0"
+                  />
+                </div>
+                <div className="w-full sm:w-auto flex">
+                  <QuoteComparisonXLSXButton
+                    comparisonResults={comparisonResults}
+                    baseCurrency={comparisonBaseCurrency}
+                    globalExchangeRate={exchangeRate}
+                    comparisonName={comparisonName}
+                    creatorName={creatorName}
+                    label="Excel"
+                    variant="outline"
+                    className="w-full bg-white hover:bg-gray-50 mb-0 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
                   />
                 </div>
                 <Button
