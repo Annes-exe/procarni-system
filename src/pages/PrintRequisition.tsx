@@ -130,18 +130,8 @@ const PrintRequisition = () => {
           }
         }
         @page {
-          size: A4 portrait;
-          margin: 8mm 6mm;
-        }
-        @page landscapePage {
-          size: A4 landscape;
-          margin-top: 16mm;
-          margin-bottom: 5mm;
-          margin-left: 6mm;
-          margin-right: 6mm;
-        }
-        .landscape-page-style {
-          page: landscapePage;
+          size: ${requisitions.some(r => r.type === 'logbook') ? 'A4 landscape' : 'A4 portrait'};
+          margin: ${requisitions.some(r => r.type === 'logbook') ? '16mm 6mm 5mm 6mm' : '8mm 6mm'};
         }
         .custom-table th, .custom-table td {
           border: 1px solid #1e293b;
@@ -159,6 +149,11 @@ const PrintRequisition = () => {
           ? "pt-[16mm] pb-[5mm] px-[8mm]" 
           : "p-[8mm]";
 
+        // Enforce exactly 18 items for logbook
+        const currentEmptyRows = requisition.type === 'logbook'
+          ? Array.from({ length: 18 }, (_, i) => i + 1)
+          : emptyRows;
+
         return (
           <div 
             key={requisition.id}
@@ -169,25 +164,25 @@ const PrintRequisition = () => {
               <PurchaseRequisitionFormat
                 requisition={requisition}
                 correlative={correlative}
-                emptyRows={emptyRows}
+                emptyRows={currentEmptyRows}
               />
             ) : requisition.type === 'service' ? (
               <ServiceRequisitionFormat
                 requisition={requisition}
                 correlative={correlative}
-                emptyRows={emptyRows}
+                emptyRows={currentEmptyRows}
               />
             ) : requisition.type === 'warehouse' ? (
               <WarehouseExitFormat
                 requisition={requisition}
                 correlative={correlative}
-                emptyRows={emptyRows}
+                emptyRows={currentEmptyRows}
               />
             ) : (
               <LogbookControlFormat
                 requisition={requisition}
                 correlative={correlative}
-                emptyRows={emptyRows}
+                emptyRows={currentEmptyRows}
               />
             )}
           </div>

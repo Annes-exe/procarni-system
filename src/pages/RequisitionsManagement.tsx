@@ -87,18 +87,27 @@ const RequisitionsManagement = () => {
   });
 
   const handleOpenCreateConfig = (type: 'purchase' | 'service' | 'warehouse' | 'logbook') => {
+    if (type === 'logbook') {
+      setRowCount(18);
+      createMutation.mutate({ type: 'logbook', quantity: 1 });
+      return;
+    }
     setDialogMode('create');
     setSelectedType(type);
-    setRowCount(type === 'service' ? 12 : type === 'logbook' ? 18 : 15); // Default count: 18 for logbook, 15 for others, 12 for service
+    setRowCount(type === 'service' ? 12 : 15);
     setFormatCount(1);
     setIsConfigOpen(true);
   };
 
   const handleOpenPrintConfig = (id: string, type: 'purchase' | 'service' | 'warehouse' | 'logbook') => {
+    if (type === 'logbook') {
+      window.open(`/requisitions/print/${id}?rows=18`, '_blank');
+      return;
+    }
     setDialogMode('print_existing');
     setActiveRequisitionId(id);
     setSelectedType(type);
-    setRowCount(type === 'service' ? 12 : type === 'logbook' ? 18 : 15);
+    setRowCount(type === 'service' ? 12 : 15);
     setIsConfigOpen(true);
   };
 

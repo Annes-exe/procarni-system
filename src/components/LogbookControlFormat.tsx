@@ -11,7 +11,7 @@ export const LogbookControlFormat: React.FC<LogbookControlFormatProps> = ({
   emptyRows,
 }) => {
   return (
-    <div className="landscape-page-style w-full">
+    <div className="w-full">
       {/* Header */}
       <table className="w-full border-collapse mb-4 custom-table">
         <tbody>
