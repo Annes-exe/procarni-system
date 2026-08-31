@@ -47,7 +47,7 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
   variant = 'outline',
   className
 }) => {
-  const { session } = useSession();
+  const { session, profile, userName } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -188,7 +188,7 @@ const PriceHistoryDownloadButton: React.FC<PriceHistoryDownloadButtonProps> = ({
 
       // Footer
       const pageCount = doc.getNumberOfPages();
-      const printedByName = session?.user?.email || 'Sistema';
+      const printedByName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || 'Usuario';
 
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);

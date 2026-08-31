@@ -35,7 +35,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
   isSingleMaterial = false,
   className,
 }) => {
-  const { session } = useSession();
+  const { session, profile, userName } = useSession();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const { data: units = [] } = useQuery({
@@ -214,7 +214,7 @@ const QuoteComparisonPDFButton: React.FC<QuoteComparisonPDFButtonProps> = ({
 
       // 4. Page numbering & footer on all pages
       const pageCount = doc.getNumberOfPages();
-      const printedByName = session?.user?.email || 'Sistema';
+      const printedByName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || 'Usuario';
 
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);

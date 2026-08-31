@@ -3,11 +3,21 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+export interface UserProfile {
+  id?: string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  role?: string;
+}
+
 interface SessionContextType {
   session: Session | null;
   supabase: typeof supabase;
-  isLoadingSession: boolean; // Añadido: estado de carga de la sesión
-  role: string | null; // Añadido: rol del usuario
+  isLoadingSession: boolean;
+  role: string | null;
+  profile: UserProfile | null;
+  userName: string;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -15,26 +25,35 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userName, setUserName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const fetchRole = async (userId: string) => {
+  const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('role')
+        .select('id, first_name, last_name, username, role')
         .eq('id', userId)
         .single();
 
       if (!error && data) {
-        setRole(data.role);
+        setRole(data.role || null);
+        setProfile(data);
+        const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ').trim();
+        setUserName(fullName || data.username || '');
       } else {
         setRole(null);
+        setProfile(null);
+        setUserName('');
       }
     } catch (err) {
-      console.error('Error fetching role:', err);
+      console.error('Error fetching profile:', err);
       setRole(null);
+      setProfile(null);
+      setUserName('');
     }
   };
 
@@ -57,9 +76,11 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
       setSession(currentSession);
 
       if (currentSession?.user) {
-        fetchRole(currentSession.user.id).catch(console.error);
+        fetchProfile(currentSession.user.id).catch(console.error);
       } else {
         setRole(null);
+        setProfile(null);
+        setUserName('');
       }
 
       finishLoading();
@@ -74,9 +95,11 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
         setSession(initialSession);
 
         if (initialSession?.user) {
-          fetchRole(initialSession.user.id).catch(console.error);
+          fetchProfile(initialSession.user.id).catch(console.error);
         } else {
           setRole(null);
+          setProfile(null);
+          setUserName('');
         }
       } catch (error) {
         console.error("Session init error:", error);
@@ -113,7 +136,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   }
 
   return (
-    <SessionContext.Provider value={{ session, supabase, isLoadingSession: loading, role }}>
+    <SessionContext.Provider value={{ session, supabase, isLoadingSession: loading, role, profile, userName }}>
       {children}
     </SessionContext.Provider>
   );
