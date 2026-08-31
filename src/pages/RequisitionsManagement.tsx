@@ -146,7 +146,7 @@ const RequisitionsManagement = () => {
       {/* Primary Generation Buttons - Bento Style cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
-          <CardContent className="p-8 flex flex-col justify-between h-52">
+          <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
               <div className="w-12 h-12 rounded-2xl bg-procarni-primary/10 flex items-center justify-center text-procarni-primary group-hover:scale-110 transition-transform duration-300">
                 <FileSpreadsheet className="w-6 h-6" />
@@ -170,7 +170,7 @@ const RequisitionsManagement = () => {
         </Card>
 
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
-          <CardContent className="p-8 flex flex-col justify-between h-52">
+          <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
               <div className="w-12 h-12 rounded-2xl bg-procarni-blue/10 flex items-center justify-center text-procarni-blue group-hover:scale-110 transition-transform duration-300">
                 <FileText className="w-6 h-6" />
@@ -194,7 +194,7 @@ const RequisitionsManagement = () => {
         </Card>
 
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
-          <CardContent className="p-8 flex flex-col justify-between h-52">
+          <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform duration-300">
                 <FileSpreadsheet className="w-6 h-6" />
@@ -218,7 +218,7 @@ const RequisitionsManagement = () => {
         </Card>
 
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
-          <CardContent className="p-8 flex flex-col justify-between h-52">
+          <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform duration-300">
                 <FileText className="w-6 h-6" />
