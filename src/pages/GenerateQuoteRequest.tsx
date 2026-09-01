@@ -9,7 +9,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { PlusCircle, ArrowLeft, Loader2, Save, ShoppingCart, Info, Building2, Search, Sparkles, X } from 'lucide-react';
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { quoteRequestService } from '@/services/quoteRequestService';
-import { searchSuppliers, searchCompanies, getAllUnits, getSupplierDetails, getPurchaseHistoryReport, getSuppliersByMaterial } from '@/integrations/supabase/data';
+import { searchSuppliers, searchCompanies, getAllUnits, getSupplierDetails, getPurchaseHistoryReport, getSuppliersByMaterial, searchMaterials } from '@/integrations/supabase/data';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Mail, Phone, Send, AlertCircle } from 'lucide-react';
 
@@ -100,24 +100,51 @@ const GenerateQuoteRequest = () => {
 
   useEffect(() => {
     if (materialData) {
-      const initialItem: QuoteRequestItemForm = {
-        material_name: materialData.name,
-        quantity: 0,
-        description: materialData.specification || '',
-        unit: materialData.unit || (units[0]?.name || ''),
-        unit_id: materialData.unit_id || (units[0]?.id || ''),
-        material_id: materialData.id,
-      };
-      setItems([initialItem]);
-      
-      // Fetch price info for initial material
-      getPurchaseHistoryReport({ materialId: materialData.id }).then(history => {
-        if (history && history.length > 0) {
-          const latest = history[0];
-          const info = `Últ. compra: ${latest.unit_price} ${latest.purchase_orders.currency} (${latest.purchase_orders.suppliers.name})`;
-          setItems([{ ...initialItem, last_price_info: info }]);
+      const loadInitialMaterial = async () => {
+        let matId = materialData.id;
+        let matName = materialData.name;
+        let matUnit = materialData.unit;
+        let matUnitId = materialData.unit_id;
+        let matSpec = materialData.specification || '';
+
+        // If no ID provided (e.g. from search navigation), search by name
+        if (!matId && matName) {
+          try {
+            const found = await searchMaterials(matName);
+            const exact = found.find((m: any) => m.name.toLowerCase() === matName.toLowerCase()) || found[0];
+            if (exact) {
+              matId = exact.id;
+              matName = exact.name;
+              matUnit = exact.unit;
+              matUnitId = exact.unit_id;
+            }
+          } catch (e) {
+            console.error("Error finding material by name:", e);
+          }
         }
-      });
+
+        const initialItem: QuoteRequestItemForm = {
+          material_name: matName,
+          quantity: 0,
+          description: matSpec,
+          unit: matUnit || (units[0]?.name || ''),
+          unit_id: matUnitId || (units[0]?.id || ''),
+          material_id: matId,
+        };
+        setItems([initialItem]);
+
+        if (matId) {
+          getPurchaseHistoryReport({ materialId: matId }).then(history => {
+            if (history && history.length > 0) {
+              const latest = history[0];
+              const info = `Últ. compra: ${latest.unit_price} ${latest.purchase_orders?.currency || 'USD'} (${latest.purchase_orders?.suppliers?.name || ''})`;
+              setItems([{ ...initialItem, last_price_info: info }]);
+            }
+          });
+        }
+      };
+
+      loadInitialMaterial();
     } else if (units.length > 0 && items.length === 0) {
       // Si no hay material inicial y ya cargaron las unidades, abrir un ítem por defecto
       handleAddItem();

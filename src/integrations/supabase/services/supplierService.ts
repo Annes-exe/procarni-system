@@ -243,6 +243,37 @@ const SupplierService = {
     return true;
   },
 
+  searchSmart: async ({
+    searchTerm,
+    category,
+    city,
+    limit = 100,
+  }: {
+    searchTerm?: string | null;
+    category?: string | null;
+    city?: string | null;
+    limit?: number;
+  }) => {
+    try {
+      const { data, error } = await supabase.rpc('search_suppliers_by_term_or_category', {
+        p_search_term: searchTerm || null,
+        p_category: category || null,
+        p_city: city && city !== 'all' ? city : null,
+        p_limit: limit,
+      });
+
+      if (error) {
+        console.error('[SupplierService.searchSmart] Error:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (e) {
+      console.error('[SupplierService.searchSmart] Unexpected error:', e);
+      return [];
+    }
+  },
+
   search: async (query: string): Promise<Supplier[]> => {
     // Si la consulta está vacía, devuelve todos los proveedores como sugerencias
     if (!query.trim()) {
@@ -345,6 +376,9 @@ export const {
   update: updateSupplier,
   delete: deleteSupplier,
   search: searchSuppliers,
+  searchSmart: searchSuppliersSmart,
   getById: getSupplierDetails,
   getPaginated: getPaginatedSuppliers,
 } = SupplierService;
+
+export default SupplierService;

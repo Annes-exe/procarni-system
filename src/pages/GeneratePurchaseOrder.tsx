@@ -7,7 +7,7 @@ import { useShoppingCart } from '@/context/ShoppingCartContext';
 import { calculateTotals } from '@/utils/calculations';
 import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react';
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
-import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits } from '@/integrations/supabase/data';
+import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits, createSupplierMaterialRelation, searchMaterials } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 
 
@@ -283,21 +283,50 @@ const GeneratePurchaseOrder = () => {
     if (materialData) {
       // Clear cart to avoid accumulating materials from previous imports
       clearCart();
-      const matchedUnit = units.find((u: any) => u.id === materialData.unit_id);
-      addItem({
-        material_id: materialData.id,
-        material_name: materialData.name,
-        supplier_code: '',
-        quantity: 0,
-        unit_price: 0,
-        tax_rate: 0.16,
-        is_exempt: materialData.is_exempt || false,
-        unit: matchedUnit ? matchedUnit.name : (materialData.unit || (units[0]?.name || '')),
-        unit_id: materialData.unit_id || (matchedUnit?.id || undefined),
-        description: materialData.specification || '',
-        sales_percentage: 0,
-        discount_percentage: 0,
-      });
+
+      const loadMaterialData = async () => {
+        let matId = materialData.id;
+        let matName = materialData.name;
+        let matUnit = materialData.unit;
+        let matUnitId = materialData.unit_id;
+        let matExempt = materialData.is_exempt || false;
+        let matSpec = materialData.specification || '';
+
+        // If no ID was provided (e.g. from matched_materials_sample), search by name
+        if (!matId && matName) {
+          try {
+            const found = await searchMaterials(matName);
+            const exact = found.find((m: any) => m.name.toLowerCase() === matName.toLowerCase()) || found[0];
+            if (exact) {
+              matId = exact.id;
+              matName = exact.name;
+              matUnit = exact.unit;
+              matUnitId = exact.unit_id;
+              matExempt = exact.is_exempt || false;
+            }
+          } catch (e) {
+            console.error("Error finding material by name:", e);
+          }
+        }
+
+        const matchedUnit = units.find((u: any) => u.id === matUnitId);
+        addItem({
+          material_id: matId,
+          material_name: matName,
+          supplier_code: '',
+          quantity: 0,
+          unit_price: 0,
+          tax_rate: 0.16,
+          is_exempt: matExempt,
+          unit: matchedUnit ? matchedUnit.name : (matUnit || (units[0]?.name || '')),
+          unit_id: matUnitId || (matchedUnit?.id || undefined),
+          description: matSpec,
+          sales_percentage: 0,
+          discount_percentage: 0,
+        });
+      };
+
+      loadMaterialData();
     }
   }, [materialData, units]);
 
@@ -447,22 +476,6 @@ const GeneratePurchaseOrder = () => {
       return;
     }
 
-    let associatedMaterialIds: Set<string>;
-    try {
-      const associatedMaterials = await searchMaterialsBySupplier(supplierId, '');
-      associatedMaterialIds = new Set(associatedMaterials.map(m => m.id));
-    } catch (e) {
-      console.error("Error validating supplier materials:", e);
-      showError("Error al validar los materiales del proveedor.");
-      return;
-    }
-
-    const unassociatedItem = items.find(item => item.material_id && !associatedMaterialIds.has(item.material_id));
-    if (unassociatedItem) {
-      showError(`El proveedor seleccionado no distribuye el material: ${unassociatedItem.material_name}`);
-      return;
-    }
-
     if (paymentTerms === 'Otro' && (!customPaymentTerms || customPaymentTerms.trim() === '')) {
       showError('Debe especificar los términos de pago personalizados.');
       return;
@@ -514,6 +527,24 @@ const GeneratePurchaseOrder = () => {
     const createdOrder = await purchaseOrderService.create(orderData as any, items as any);
 
     if (createdOrder) {
+      // Auto-associate any new materials with the supplier in the background
+      if (userId && supplierId) {
+        items.forEach(async (item) => {
+          if (item.material_id && item.unit_id) {
+            try {
+              await createSupplierMaterialRelation({
+                supplier_id: supplierId,
+                material_id: item.material_id,
+                unit_id: item.unit_id,
+                user_id: userId,
+              });
+            } catch (e) {
+              // Ignore if already associated
+            }
+          }
+        });
+      }
+
       if (quoteRequest?.id) {
         const updatedQR = await updateQuoteRequestStatus(quoteRequest.id, 'Approved');
 
