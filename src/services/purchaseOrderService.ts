@@ -23,7 +23,7 @@ export const purchaseOrderService = {
     getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' = 'Active'): Promise<PurchaseOrderWithRelations[]> => {
         let query = supabase
             .from('purchase_orders')
-            .select('*, suppliers(name), companies(name), purchase_order_items(*)')
+            .select('*, suppliers(name), companies(name), purchase_order_items(*, materials(name))')
             .order('created_at', { ascending: false });
 
         if (statusFilter === 'Active') {
@@ -52,7 +52,7 @@ export const purchaseOrderService = {
 
         return data as unknown as PurchaseOrderWithRelations[];
     },
-    getPaginated: async (
+    getPaginated: async (
       page: number,
       pageSize: number,
       searchTerm: string = '',
@@ -66,7 +66,7 @@ export const purchaseOrderService = {
       const to = from + pageSize - 1;
   
       // Use standard join
-      const selectQuery = '*, suppliers(name), companies(name), purchase_order_items(*)';
+      const selectQuery = '*, suppliers(name), companies(name), purchase_order_items(*, materials(name))';
   
       let query = supabase
         .from('purchase_orders')

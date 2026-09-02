@@ -415,8 +415,9 @@ const QuoteRequestManagement = () => {
     return (
       <Card
         key={request.id}
+        onClick={() => navigate(`/quote-requests/${request.id}`)}
         className={cn(
-          "bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-5 transition-all overflow-hidden",
+          "bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-5 transition-all overflow-hidden cursor-pointer hover:border-slate-200",
           selectedIds.has(request.id) && "ring-2 ring-procarni-secondary border-procarni-secondary",
           isExpanded && "border-l-4 border-l-procarni-primary"
         )}
@@ -458,7 +459,10 @@ const QuoteRequestManagement = () => {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setExpandedRowId(isExpanded ? null : request.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpandedRowId(isExpanded ? null : request.id);
+          }}
           className="w-full flex items-center justify-between text-xs py-2 bg-slate-50/80 hover:bg-slate-100/80 border-slate-200 text-slate-700 font-medium rounded-xl my-2"
         >
           <span className="flex items-center gap-1.5">
@@ -473,21 +477,32 @@ const QuoteRequestManagement = () => {
 
         {/* Expanded Items Cards on Mobile */}
         {isExpanded && (
-          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div 
+            className="mt-3 space-y-2 border-t border-slate-100 pt-3 animate-in fade-in slide-in-from-top-1 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             {items.length === 0 ? (
               <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta solicitud.</p>
             ) : (
               <div className="space-y-2">
-                {items.map((item: any, idx: number) => (
-                  <div key={item.id || idx} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
-                    <div className="flex justify-between items-start gap-2">
-                      <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'Material S/N'}</span>
-                      <span className="font-mono font-bold text-procarni-dark shrink-0">
-                        {item.quantity} {item.unit || 'UND'}
-                      </span>
+                {items.map((item: any, idx: number) => {
+                  const matName = item.material_name || item.materials?.name || 'Material S/N';
+                  return (
+                    <div key={item.id || idx} className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-slate-800 block">{idx + 1}. {matName}</span>
+                          {item.description && (
+                            <p className="text-[11px] text-slate-500 italic mt-0.5"><span className="font-medium text-slate-400 not-italic">Nota:</span> {item.description}</p>
+                          )}
+                        </div>
+                        <span className="font-mono font-bold text-procarni-dark shrink-0">
+                          {item.quantity} {item.unit || 'UND'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -806,7 +821,7 @@ const QuoteRequestManagement = () => {
                           return (
                             <React.Fragment key={request.id}>
                               <TableRow
-                                onClick={() => setExpandedRowId(isExpanded ? null : request.id)}
+                                onClick={() => navigate(`/quote-requests/${request.id}`)}
                                 className={cn(
                                   "cursor-pointer transition-colors border-b border-slate-100/80",
                                   isExpanded
@@ -814,12 +829,24 @@ const QuoteRequestManagement = () => {
                                     : "hover:bg-slate-50/80"
                                 )}
                               >
-                                <TableCell className="pl-3 py-3 text-slate-400">
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
-                                  )}
+                                <TableCell 
+                                  className="pl-3 py-3 text-slate-400"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedRowId(isExpanded ? null : request.id);
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="p-1 hover:bg-slate-200/70 rounded-lg transition-colors focus:outline-none"
+                                    title={isExpanded ? "Ocultar detalle" : "Ver detalle"}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-transform duration-200" />
+                                    )}
+                                  </button>
                                 </TableCell>
                                 <TableCell className="pl-2 py-3" onClick={(e) => e.stopPropagation()}>
                                   <Checkbox
@@ -843,7 +870,7 @@ const QuoteRequestManagement = () => {
 
                               {isExpanded && (
                                 <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
-                                  <TableCell colSpan={8} className="p-4 pl-12">
+                                  <TableCell colSpan={8} className="p-4 pl-12" onClick={(e) => e.stopPropagation()}>
                                     <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                                         <div className="flex items-center gap-2">
@@ -864,20 +891,31 @@ const QuoteRequestManagement = () => {
                                             <TableHeader className="bg-slate-50">
                                               <TableRow className="border-b border-slate-100 hover:bg-transparent">
                                                 <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
-                                                <TableHead className="font-bold text-slate-500 py-2">Material / Descripción</TableHead>
+                                                <TableHead className="font-bold text-slate-500 py-2">Material / Ítem</TableHead>
+                                                <TableHead className="font-bold text-slate-500 py-2">Nota / Observación</TableHead>
                                                 <TableHead className="text-right font-bold text-slate-500 py-2">Cantidad</TableHead>
                                                 <TableHead className="text-center font-bold text-slate-500 py-2">Unidad</TableHead>
                                               </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                              {items.map((item: any, idx: number) => (
-                                                <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
-                                                  <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
-                                                  <TableCell className="font-medium text-slate-800 py-2">{item.material_name || item.description || 'S/N'}</TableCell>
-                                                  <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{item.quantity}</TableCell>
-                                                  <TableCell className="text-center text-slate-500 py-2">{item.unit || 'Und'}</TableCell>
-                                                </TableRow>
-                                              ))}
+                                              {items.map((item: any, idx: number) => {
+                                                const matName = item.material_name || item.materials?.name || 'Material S/N';
+                                                return (
+                                                  <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
+                                                    <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
+                                                    <TableCell className="font-semibold text-slate-800 py-2">{matName}</TableCell>
+                                                    <TableCell className="py-2 text-xs">
+                                                      {item.description ? (
+                                                        <span className="text-slate-600 italic">{item.description}</span>
+                                                      ) : (
+                                                        <span className="text-slate-300 italic text-[11px]">Sin notas</span>
+                                                      )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{item.quantity}</TableCell>
+                                                    <TableCell className="text-center text-slate-500 py-2 font-medium">{item.unit || 'UND'}</TableCell>
+                                                  </TableRow>
+                                                );
+                                              })}
                                             </TableBody>
                                           </Table>
                                         </div>

@@ -9,7 +9,7 @@ const QuoteRequestService = {
   getAll: async (statusFilter?: string | string[]): Promise<QuoteRequest[]> => {
     let query = supabase
       .from('quote_requests')
-      .select('*, suppliers(name), companies(name)')
+      .select('*, suppliers(name), companies(name), quote_request_items(*, materials(name))')
       .order('created_at', { ascending: false });
 
     if (statusFilter) {

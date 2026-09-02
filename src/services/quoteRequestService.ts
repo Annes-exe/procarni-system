@@ -44,7 +44,7 @@ export const quoteRequestService = {
         *,
         suppliers(name, rif),
         companies(name, rif),
-        quote_request_items(*)
+        quote_request_items(*, materials(name))
       `)
             .order('created_at', { ascending: false });
 

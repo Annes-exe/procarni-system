@@ -10,7 +10,7 @@ const ServiceOrderService = {
   getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' = 'Active'): Promise<ServiceOrder[]> => {
     let query = supabase
       .from('service_orders')
-      .select('*, suppliers(name), companies(name)')
+      .select('*, suppliers(name), companies(name), service_order_items(*), service_order_materials(*, materials(name))')
       .order('created_at', { ascending: false });
 
     if (statusFilter === 'Active') {
@@ -44,7 +44,7 @@ const ServiceOrderService = {
     const to = from + pageSize - 1;
 
     // Use standard join
-    const selectQuery = '*, suppliers(name), companies(name)';
+    const selectQuery = '*, suppliers(name), companies(name), service_order_items(*), service_order_materials(*, materials(name))';
 
     let query = supabase
       .from('service_orders')
