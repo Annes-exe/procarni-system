@@ -38,7 +38,7 @@ import {
   Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp,
   TrendingDown, Clock, ArrowUpRight, Activity, ChevronDown, ChevronRight, Package, Wrench,
   Save, AlertCircle, Trash2, Send, ExternalLink, RefreshCw, FileUp, Sparkles, Building2,
-  ChevronsUpDown, ChevronLeft
+  ChevronsUpDown, ChevronLeft, Tag
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -64,6 +64,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { serviceOrderService } from '@/services/serviceOrderService';
+import { calculateTotals } from '@/utils/calculations';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
 import { FichaTecnica, SupplierMaterialPayload } from '@/integrations/supabase/types';
 
@@ -100,6 +101,7 @@ interface SupplierDetailsData {
   address?: string;
   city?: string | null;
   state?: string | null;
+  rubros?: string | null;
   payment_terms: string;
   custom_payment_terms?: string | null;
   credit_days: number;
@@ -159,6 +161,7 @@ const SupplierDetails = () => {
   const [address, setAddress] = useState('');
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
+  const [rubros, setRubros] = useState('');
   const [openLocationPopover, setOpenLocationPopover] = useState(false);
   const [paymentTerms, setPaymentTerms] = useState('Contado');
   const [customPaymentTerms, setCustomPaymentTerms] = useState('');
@@ -287,6 +290,7 @@ const SupplierDetails = () => {
       setAddress('');
       setState('');
       setCity('');
+      setRubros('');
       setPaymentTerms('Contado');
       setCustomPaymentTerms('');
       setCreditDays(0);
@@ -303,6 +307,7 @@ const SupplierDetails = () => {
       setAddress(supplier.address || '');
       setState(supplier.state || '');
       setCity(supplier.city || '');
+      setRubros(supplier.rubros || '');
       setPaymentTerms(supplier.payment_terms || 'Contado');
       setCustomPaymentTerms(supplier.custom_payment_terms || '');
       setCreditDays(supplier.credit_days || 0);
@@ -374,6 +379,7 @@ const SupplierDetails = () => {
         address: address.trim() || null,
         state: state.trim() || null,
         city: city.trim() || null,
+        rubros: rubros.trim() || null,
         payment_terms: paymentTerms === 'Otro' ? 'Otro' : paymentTerms === 'Crédito' ? 'Crédito' : 'Contado',
         custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms.trim() || null : null,
         credit_days: paymentTerms === 'Crédito' ? Number(creditDays) || 0 : 0,
@@ -536,9 +542,19 @@ const SupplierDetails = () => {
     };
   }, [purchaseOrders, serviceOrders, supplier, creditDays, paymentTerms]);
 
-  // Suggested materials calculation
+  // Suggested materials calculation (Más Comprados)
   const suggestedMaterials = useMemo(() => {
-    if (!purchaseHistory || purchaseHistory.length === 0) return [];
+    const allItems: any[] = [];
+    (purchaseOrders || []).forEach((po: any) => {
+      (po.purchase_order_items || []).forEach((item: any) => {
+        allItems.push({
+          ...item,
+          issue_date: po.issue_date || po.created_at,
+        });
+      });
+    });
+
+    if (allItems.length === 0) return [];
 
     const materialMap: Record<string, {
       material_id: string | null;
@@ -552,11 +568,11 @@ const SupplierDetails = () => {
       dates: Date[];
     }> = {};
 
-    purchaseHistory.forEach((item: any) => {
+    allItems.forEach((item: any) => {
       const key = item.material_id || item.material_name;
       if (!key) return;
 
-      const orderDate = item.purchase_orders?.issue_date ? new Date(item.purchase_orders.issue_date) : new Date(0);
+      const orderDate = item.issue_date ? new Date(item.issue_date) : new Date(0);
 
       if (!materialMap[key]) {
         materialMap[key] = {
@@ -566,7 +582,7 @@ const SupplierDetails = () => {
           unit: item.unit || null,
           unit_id: item.unit_id || null,
           is_exempt: !!item.is_exempt,
-          unit_price: item.unit_price,
+          unit_price: Number(item.unit_price) || 0,
           count: 0,
           dates: [orderDate],
         };
@@ -575,7 +591,7 @@ const SupplierDetails = () => {
         const currentDates = materialMap[key].dates;
         const latestDateIndex = currentDates.findIndex(d => d.getTime() === Math.max(...currentDates.map(x => x.getTime())));
         if (latestDateIndex === currentDates.length - 1) {
-          materialMap[key].unit_price = item.unit_price;
+          materialMap[key].unit_price = Number(item.unit_price) || 0;
         }
       }
       materialMap[key].count += 1;
@@ -583,8 +599,8 @@ const SupplierDetails = () => {
 
     return Object.values(materialMap)
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [purchaseHistory]);
+      .slice(0, 15);
+  }, [purchaseOrders]);
 
   const [selectedSuggestIds, setSelectedSuggestIds] = useState<Set<string>>(new Set());
 
@@ -638,10 +654,56 @@ const SupplierDetails = () => {
     });
   };
 
-  // Price analysis metrics
+  // Price analysis metrics (Historial de Precios)
   const priceAnalysisByMaterial = useMemo(() => {
-    if (!supplierPriceHistory || supplierPriceHistory.length === 0) return [];
-    
+    const rawEntries: Array<{
+      materialId: string;
+      name: string;
+      code: string;
+      unit: string;
+      price: number;
+      date: Date;
+      recorded_at: string;
+      currency: string;
+    }> = [];
+
+    // 1. From explicit price_history table
+    (supplierPriceHistory || []).forEach(entry => {
+      const matId = entry.material_id;
+      if (!matId) return;
+      rawEntries.push({
+        materialId: matId,
+        name: entry.materials?.name || 'Desconocido',
+        code: (entry.materials as any)?.code || 'S/C',
+        unit: entry.units_of_measure?.name || entry.materials?.unit || 'UND',
+        price: Number(entry.unit_price) || 0,
+        date: new Date(entry.recorded_at),
+        recorded_at: entry.recorded_at,
+        currency: entry.currency || 'USD'
+      });
+    });
+
+    // 2. From purchase order items
+    (purchaseOrders || []).forEach((po: any) => {
+      (po.purchase_order_items || []).forEach((item: any) => {
+        const matId = item.material_id || item.material_name;
+        if (!matId) return;
+        const recorded = po.issue_date || po.created_at || new Date().toISOString();
+        rawEntries.push({
+          materialId: matId,
+          name: item.material_name || 'Material',
+          code: item.supplier_code || 'S/C',
+          unit: item.unit || 'UND',
+          price: Number(item.unit_price) || 0,
+          date: new Date(recorded),
+          recorded_at: recorded,
+          currency: po.currency || 'USD'
+        });
+      });
+    });
+
+    if (rawEntries.length === 0) return [];
+
     const groups: Record<string, {
       materialId: string;
       name: string;
@@ -654,44 +716,36 @@ const SupplierDetails = () => {
       currency: string;
     }> = {};
 
-    supplierPriceHistory.forEach(entry => {
-      const matId = entry.material_id;
-      if (!matId) return;
-
-      const matName = entry.materials?.name || 'Desconocido';
-      const matCode = (entry.materials as any)?.code || 'S/C';
-      const matUnit = entry.units_of_measure?.name || entry.materials?.unit || 'UND';
-      const price = entry.unit_price;
-      const date = new Date(entry.recorded_at);
-
-      if (!groups[matId]) {
-        groups[matId] = {
-          materialId: matId,
-          name: matName,
-          code: matCode,
-          unit: matUnit,
-          prices: [price],
-          dates: [date],
-          latestPrice: price,
+    rawEntries.forEach(entry => {
+      const key = entry.materialId;
+      if (!groups[key]) {
+        groups[key] = {
+          materialId: entry.materialId,
+          name: entry.name,
+          code: entry.code,
+          unit: entry.unit,
+          prices: [entry.price],
+          dates: [entry.date],
+          latestPrice: entry.price,
           latestDate: entry.recorded_at,
           currency: entry.currency
         };
       } else {
-        groups[matId].prices.push(price);
-        groups[matId].dates.push(date);
-        
-        if (new Date(entry.recorded_at) > new Date(groups[matId].latestDate)) {
-          groups[matId].latestPrice = price;
-          groups[matId].latestDate = entry.recorded_at;
-          groups[matId].currency = entry.currency;
+        groups[key].prices.push(entry.price);
+        groups[key].dates.push(entry.date);
+        if (entry.date > new Date(groups[key].latestDate)) {
+          groups[key].latestPrice = entry.price;
+          groups[key].latestDate = entry.recorded_at;
+          groups[key].currency = entry.currency;
         }
       }
     });
 
     return Object.values(groups).map(g => {
-      const min = Math.min(...g.prices);
-      const max = Math.max(...g.prices);
-      const avg = g.prices.reduce((sum, p) => sum + p, 0) / g.prices.length;
+      const validPrices = g.prices.filter(p => p > 0);
+      const min = validPrices.length > 0 ? Math.min(...validPrices) : 0;
+      const max = validPrices.length > 0 ? Math.max(...validPrices) : 0;
+      const avg = validPrices.length > 0 ? validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length : 0;
       
       let trend: 'up' | 'down' | 'stable' = 'stable';
       if (g.latestPrice > avg * 1.02) trend = 'up';
@@ -705,7 +759,7 @@ const SupplierDetails = () => {
         trend
       };
     });
-  }, [supplierPriceHistory]);
+  }, [supplierPriceHistory, purchaseOrders]);
 
   const chartData = useMemo(() => {
     if (!supplierPriceHistory || supplierPriceHistory.length === 0) return [];
@@ -855,6 +909,12 @@ const SupplierDetails = () => {
                 <Badge variant="outline" className="bg-amber-50 text-procarni-alert border-procarni-alert/30 font-bold text-xs">
                   <AlertTriangle className="h-3 w-3 mr-1" /> RIF Pendiente
                 </Badge>
+              )}
+              {rubros && (
+                <span className="font-semibold text-xs text-slate-600 bg-slate-100/90 px-3 py-1 rounded-lg border border-slate-200/80 flex items-center gap-1.5">
+                  <Tag className="h-3 w-3 text-slate-400" />
+                  <span>{rubros}</span>
+                </span>
               )}
             </div>
             <h1 className="text-[34px] font-black text-procarni-blue tracking-tight leading-tight mt-2">
@@ -1197,7 +1257,22 @@ const SupplierDetails = () => {
                   </Popover>
                 </div>
 
-
+                {/* Rubro / Especialidad (Debajo de Dirección Fiscal y Ubicación) */}
+                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                  <Label htmlFor="supplierRubros" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-slate-400" /> Rubro / Especialidad (Opcional)
+                  </Label>
+                  <div className="relative">
+                    <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="supplierRubros"
+                      placeholder="Ej: Carnes, Empaques, Ferretería, Químicos, Insumos de Limpieza..."
+                      value={rubros}
+                      onChange={(e) => setRubros(e.target.value)}
+                      className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                </div>
 
                 {/* Términos de Pago */}
                 <div className="space-y-1.5">
@@ -1250,20 +1325,6 @@ const SupplierDetails = () => {
                     />
                   </div>
                 )}
-
-                {/* Dirección Física */}
-                <div className="space-y-1.5 col-span-1 md:col-span-2">
-                  <Label htmlFor="supplierAddress" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-                    Dirección Fiscal / Despacho
-                  </Label>
-                  <Textarea
-                    id="supplierAddress"
-                    placeholder="Av. Principal, Edificio / Galpón, Zona Industrial..."
-                    value={address}
-                    onChange={(e) => handleAddressChange(e.target.value)}
-                    className="bg-slate-50/50 border-slate-200 rounded-xl min-h-[70px] text-xs font-semibold focus:ring-procarni-primary/20 resize-none"
-                  />
-                </div>
 
                 {/* Nota o Alerta Especial */}
                 <div className="space-y-1.5 col-span-1 md:col-span-2">
@@ -1344,26 +1405,45 @@ const SupplierDetails = () => {
                       href={`https://wa.me/${formatPhoneNumberForWhatsApp(phone)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-100 text-emerald-800 font-semibold transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-100 text-emerald-800 font-semibold transition-colors group"
+                      title="WhatsApp (Teléfono Principal)"
                     >
                       <div className="flex items-center gap-2 truncate">
                         <Send className="h-3.5 w-3.5 text-procarni-secondary" />
-                        <span className="truncate">{phone}</span>
+                        <span className="truncate font-mono">{phone}</span>
+                        <span className="text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-md">Ppal</span>
                       </div>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
+                    </a>
+                  ) : null}
+
+                  {phone2 ? (
+                    <a
+                      href={`https://wa.me/${formatPhoneNumberForWhatsApp(phone2)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/30 hover:bg-emerald-50/70 border border-emerald-100/80 text-emerald-800 font-semibold transition-colors group"
+                      title="WhatsApp (Teléfono Secundario)"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="truncate font-mono">{phone2}</span>
+                        <span className="text-[9px] font-bold uppercase bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md">Sec</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
                     </a>
                   ) : null}
 
                   {email ? (
                     <a
                       href={`mailto:${email}`}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/50 hover:bg-blue-50 border border-blue-100 text-procarni-blue font-semibold transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/50 hover:bg-blue-50 border border-blue-100 text-procarni-blue font-semibold transition-colors group"
                     >
                       <div className="flex items-center gap-2 truncate">
                         <Mail className="h-3.5 w-3.5 text-procarni-blue" />
                         <span className="truncate">{email}</span>
                       </div>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
                     </a>
                   ) : null}
 
@@ -1372,13 +1452,13 @@ const SupplierDetails = () => {
                       href={website.startsWith('http') ? website : `https://${website}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-semibold transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-semibold transition-colors group"
                     >
                       <div className="flex items-center gap-2 truncate">
                         <Globe className="h-3.5 w-3.5 text-procarni-blue" />
                         <span className="truncate">{website.replace(/^https?:\/\//, '')}</span>
                       </div>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
                     </a>
                   ) : null}
 
@@ -1387,17 +1467,17 @@ const SupplierDetails = () => {
                       href={`https://instagram.com/${instagram.replace(/^@/, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-pink-50/50 hover:bg-pink-50 border border-pink-100 text-pink-800 font-semibold transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-pink-50/50 hover:bg-pink-50 border border-pink-100 text-pink-800 font-semibold transition-colors group"
                     >
                       <div className="flex items-center gap-2 truncate">
                         <Instagram className="h-3.5 w-3.5 text-pink-600" />
                         <span className="truncate">@{instagram.replace(/^@/, '')}</span>
                       </div>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
                     </a>
                   ) : null}
 
-                  {!phone && !email && !website && !instagram && (
+                  {!phone && !phone2 && !email && !website && !instagram && (
                     <p className="text-gray-400 text-[11px] italic">Sin información de contacto registrada.</p>
                   )}
                 </div>
@@ -1752,34 +1832,37 @@ const SupplierDetails = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {purchaseOrders.map((po: any) => (
-                              <TableRow key={po.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
-                                <TableCell className="font-mono text-xs font-bold text-slate-700 pl-4 py-3">
-                                  {po.order_number || po.display_id || (po.id ? String(po.id).substring(0, 8) : '—')}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-500 py-3">
-                                  {po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '—'}
-                                </TableCell>
-                                <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
-                                  ${Number(po.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </TableCell>
-                                <TableCell className="py-3">
-                                  <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(po.status))}>
-                                    {po.status || 'Registrado'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right pr-4 py-3">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
-                                    className="h-7 text-xs font-bold text-procarni-blue hover:bg-blue-50 rounded-lg"
-                                  >
-                                    Ver <ExternalLink className="h-3 w-3 ml-1" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {purchaseOrders.map((po: any) => {
+                              const orderTotal = calculateTotals(po.purchase_order_items || []).total;
+                              return (
+                                <TableRow key={po.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
+                                  <TableCell className="font-mono text-xs font-bold text-slate-700 pl-4 py-3">
+                                    {po.sequence_number ? `OC-${po.sequence_number}` : (po.id ? String(po.id).substring(0, 8) : '—')}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-slate-500 py-3">
+                                    {po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '—'}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
+                                    ${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                  <TableCell className="py-3">
+                                    <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(po.status))}>
+                                      {po.status || 'Registrado'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right pr-4 py-3">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                      className="h-7 text-xs font-bold text-procarni-blue hover:bg-blue-50 rounded-lg"
+                                    >
+                                      Ver <ExternalLink className="h-3 w-3 ml-1" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
@@ -1805,34 +1888,40 @@ const SupplierDetails = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {serviceOrders.map((so: any) => (
-                              <TableRow key={so.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
-                                <TableCell className="font-mono text-xs font-bold text-slate-700 pl-4 py-3">
-                                  {so.order_number || so.display_id || (so.id ? String(so.id).substring(0, 8) : '—')}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-500 py-3">
-                                  {so.issue_date ? new Date(so.issue_date).toLocaleDateString() : '—'}
-                                </TableCell>
-                                <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
-                                  ${Number(so.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </TableCell>
-                                <TableCell className="py-3">
-                                  <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(so.status))}>
-                                    {so.status || 'Registrado'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right pr-4 py-3">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => navigate(`/service-orders/${so.id}`)}
-                                    className="h-7 text-xs font-bold text-procarni-blue hover:bg-blue-50 rounded-lg"
-                                  >
-                                    Ver <ExternalLink className="h-3 w-3 ml-1" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {serviceOrders.map((so: any) => {
+                              const serviceTotal = calculateTotals([
+                                ...(so.service_order_items || []),
+                                ...(so.service_order_materials || [])
+                              ]).total;
+                              return (
+                                <TableRow key={so.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
+                                  <TableCell className="font-mono text-xs font-bold text-slate-700 pl-4 py-3">
+                                    {so.sequence_number ? `OS-${so.sequence_number}` : (so.id ? String(so.id).substring(0, 8) : '—')}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-slate-500 py-3">
+                                    {so.issue_date ? new Date(so.issue_date).toLocaleDateString() : '—'}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
+                                    ${serviceTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                  <TableCell className="py-3">
+                                    <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(so.status))}>
+                                      {so.status || 'Registrado'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right pr-4 py-3">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => navigate(`/service-orders/${so.id}`)}
+                                      className="h-7 text-xs font-bold text-procarni-blue hover:bg-blue-50 rounded-lg"
+                                    >
+                                      Ver <ExternalLink className="h-3 w-3 ml-1" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
@@ -1889,6 +1978,90 @@ const SupplierDetails = () => {
                             ))}
                           </TableBody>
                         </Table>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* TAB 4: MÁS COMPRADOS / SUGERIDOS */}
+                  <TabsContent value="sugeridos" className="pt-4 space-y-4">
+                    {suggestedMaterials.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No hay historial de compras suficiente para generar sugerencias.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Seleccione los materiales recurrentes para generar una nueva Orden de Compra automáticamente.
+                          </p>
+                          <Button
+                            onClick={handleGenerateOCFromSuggestions}
+                            className="bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs rounded-xl h-9 px-4 shadow-md flex items-center gap-1.5 transition-all"
+                          >
+                            <ShoppingCart className="h-4 w-4" />
+                            <span>Generar OC ({selectedSuggestIds.size})</span>
+                          </Button>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
+                          <Table>
+                            <TableHeader className="bg-slate-50/70">
+                              <TableRow className="border-b border-slate-100">
+                                <TableHead className="w-12 pl-4">
+                                  <Checkbox
+                                    checked={selectedSuggestIds.size === suggestedMaterials.length && suggestedMaterials.length > 0}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        const allIds = new Set(suggestedMaterials.map(m => m.material_id || m.material_name).filter(Boolean) as string[]);
+                                        setSelectedSuggestIds(allIds);
+                                      } else {
+                                        setSelectedSuggestIds(new Set());
+                                      }
+                                    }}
+                                  />
+                                </TableHead>
+                                <TableHead className={tableHeaderClass}>Material</TableHead>
+                                <TableHead className={tableHeaderClass}>Unidad</TableHead>
+                                <TableHead className={tableHeaderClass}>Veces Comprado</TableHead>
+                                <TableHead className={tableHeaderClass}>Último Precio ($)</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {suggestedMaterials.map((item) => {
+                                const key = (item.material_id || item.material_name) as string;
+                                const isChecked = selectedSuggestIds.has(key);
+                                return (
+                                  <TableRow
+                                    key={`suggest-${key}`}
+                                    className={cn("hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors cursor-pointer", isChecked && "bg-blue-50/20")}
+                                    onClick={() => toggleSuggestSelection(key)}
+                                  >
+                                    <TableCell className="pl-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={() => toggleSuggestSelection(key)}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="font-bold text-xs text-slate-800 py-3">
+                                      {item.material_name}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs text-slate-500 py-3">
+                                      {item.unit || 'UND'}
+                                    </TableCell>
+                                    <TableCell className="py-3">
+                                      <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-procarni-blue border-blue-200">
+                                        {item.count} {item.count === 1 ? 'orden' : 'órdenes'}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
+                                      ${(item.unit_price || 0).toFixed(4)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     )}
                   </TabsContent>
