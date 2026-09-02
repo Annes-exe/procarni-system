@@ -1,41 +1,71 @@
-import React, { useState, useMemo } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, MoreVertical, Check, DollarSign, Edit, Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp, TrendingDown, Clock, ArrowUpRight, Activity, Percent, ChevronDown, ChevronRight, Package, Wrench } from 'lucide-react';
-import InlineEditableCell from '@/components/InlineEditableCell';
-
-import { getSupplierDetails, getFichaTecnicaBySupplierAndProduct, getFichaTecnicaBySupplierId, updateSupplier, updateMaterial, getAllMaterialCategories, getPurchaseHistoryReport, getPriceHistoryBySupplierId } from '@/integrations/supabase/data';
-import { showError, showSuccess } from '@/utils/toast';
-import { detectLocation } from '@/utils/location-detector';
-import { isGenericRif, validateRif } from '@/utils/validators';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info, TriangleAlert } from 'lucide-react';
-import { FichaTecnica, Supplier, SupplierMaterialPayload } from '@/integrations/supabase/types'; // Import Supplier type
-import { useIsMobile } from '@/hooks/use-mobile';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuLabel
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
-import SupplierForm from '@/components/SupplierForm'; // Import SupplierForm
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from '@/components/ui/command';
+import {
+  ArrowLeft, Phone, Instagram, PlusCircle, ShoppingCart, FileText, Check, DollarSign,
+  Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp,
+  TrendingDown, Clock, ArrowUpRight, Activity, ChevronDown, ChevronRight, Package, Wrench,
+  Save, AlertCircle, Trash2, Send, ExternalLink, RefreshCw, FileUp, Sparkles, Building2,
+  ChevronsUpDown, ChevronLeft
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+
+import { supabase } from '@/integrations/supabase/client';
+import {
+  getSupplierDetails,
+  getFichaTecnicaBySupplierAndProduct,
+  getFichaTecnicaBySupplierId,
+  createSupplier,
+  updateSupplier,
+  getAllMaterialCategories,
+  getPurchaseHistoryReport,
+  getPriceHistoryBySupplierId,
+  getLocations
+} from '@/integrations/supabase/data';
+import { useSession } from '@/components/SessionContextProvider';
+import { detectLocation } from '@/utils/location-detector';
+import { isGenericRif, validateRif } from '@/utils/validators';
+import { showError, showSuccess } from '@/utils/toast';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { serviceOrderService } from '@/services/serviceOrderService';
-import { calculateTotals } from '@/utils/calculations';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { format } from 'date-fns';
-
+import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
+import { FichaTecnica, SupplierMaterialPayload } from '@/integrations/supabase/types';
 
 interface MaterialAssociation {
   id: string; // ID of supplier_materials entry
@@ -47,6 +77,7 @@ interface MaterialAssociation {
     name: string;
     code?: string;
     category?: string;
+    unit?: string;
   };
   units_of_measure?: {
     id: string;
@@ -75,60 +106,133 @@ interface SupplierDetailsData {
   status: string;
   user_id: string;
   alert_comment: string | null;
+  created_at?: string;
+  updated_at?: string;
   materials?: MaterialAssociation[];
 }
+
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  FRESCA: { bg: 'bg-red-50', text: 'text-procarni-primary', border: 'border-procarni-primary/20' },
+  SECA: { bg: 'bg-amber-50', text: 'text-procarni-alert', border: 'border-procarni-alert/20' },
+  EMPAQUE: { bg: 'bg-blue-50', text: 'text-procarni-blue', border: 'border-procarni-blue/20' },
+  ETIQUETA: { bg: 'bg-slate-100', text: 'text-procarni-dark', border: 'border-procarni-dark/20' },
+};
+
+const PAYMENT_TERMS_OPTIONS = [
+  { value: 'Contado', label: 'Contado' },
+  { value: 'Crédito', label: 'Crédito' },
+  { value: 'Otro', label: 'Personalizado / Otro' }
+];
+
+const getStatusColor = (status?: string) => {
+  switch (status?.toLowerCase()) {
+    case 'approved':
+    case 'aprobado':
+      return 'bg-emerald-50 text-procarni-secondary border-emerald-200';
+    case 'pending':
+    case 'pendiente':
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'rejected':
+    case 'rechazado':
+      return 'bg-red-50 text-procarni-primary border-red-200';
+    default:
+      return 'bg-slate-50 text-slate-700 border-slate-200';
+  }
+};
 
 const SupplierDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
+  const { session } = useSession();
+  const isNew = id === 'new';
+
+  // --- Form Local State ---
+  const [name, setName] = useState('');
+  const [rif, setRif] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phone2, setPhone2] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [website, setWebsite] = useState('');
+  const [address, setAddress] = useState('');
+  const [state, setState] = useState('');
+  const [city, setCity] = useState('');
+  const [openLocationPopover, setOpenLocationPopover] = useState(false);
+  const [paymentTerms, setPaymentTerms] = useState('Contado');
+  const [customPaymentTerms, setCustomPaymentTerms] = useState('');
+  const [creditDays, setCreditDays] = useState<number>(0);
+  const [isActive, setIsActive] = useState(true);
+  const [alertComment, setAlertComment] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // --- Search & UI States ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [materialPage, setMaterialPage] = useState(1);
+  const MATERIAL_PAGE_SIZE = 6;
+  const [selectedAnalysisMaterial, setSelectedAnalysisMaterial] = useState<string>('all');
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedAnalysisMaterial, setSelectedAnalysisMaterial] = useState<string>('all');
 
-  // Expanded row state for OC & OS accordion (only 1 row open per table)
-  const [expandedOcId, setExpandedOcId] = useState<string | null>(null);
-  const [expandedOsId, setExpandedOsId] = useState<string | null>(null);
+  // Association Dialog States
+  const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
+  const [materialSearchQuery, setMaterialSearchQuery] = useState('');
+  const [allCatalogMaterials, setAllCatalogMaterials] = useState<any[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [isAssociating, setIsAssociating] = useState(false);
 
-  const { data: supplier, isLoading, error } = useQuery<SupplierDetailsData | null>({
+  // --- Data Fetching ---
+  const { data: dbLocations = [] } = useQuery({
+    queryKey: ['locations'],
+    queryFn: getLocations,
+    staleTime: 1000 * 60 * 60,
+  });
+
+  const municipalitiesFlat = useMemo(() => {
+    return dbLocations
+      .map(loc => ({
+        city: loc.city,
+        state: loc.state,
+        label: `${loc.city}, ${loc.state}`
+      }))
+      .sort((a, b) => a.city.localeCompare(b.city));
+  }, [dbLocations]);
+
+  const { data: supplier, isLoading: isLoadingSupplier } = useQuery<SupplierDetailsData | null>({
     queryKey: ['supplierDetails', id],
     queryFn: async () => {
-      if (!id) throw new Error('Supplier ID is missing.');
+      if (!id || id === 'new') return null;
       const details = await getSupplierDetails(id);
-      if (!details) throw new Error('Supplier not found.');
+      if (!details) throw new Error('Proveedor no encontrado.');
       return details as SupplierDetailsData;
     },
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
 
-  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = useQuery({
+  const { data: purchaseOrders = [] } = useQuery({
     queryKey: ['supplierPurchaseOrders', id],
     queryFn: () => purchaseOrderService.getBySupplierId(id!),
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
 
-  const { data: serviceOrders = [], isLoading: isLoadingSOs } = useQuery({
+  const { data: serviceOrders = [] } = useQuery({
     queryKey: ['supplierServiceOrders', id],
     queryFn: () => serviceOrderService.getBySupplierId(id!),
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
 
-  const { data: supplierPriceHistory = [], isLoading: isLoadingPriceHistory } = useQuery({
+  const { data: supplierPriceHistory = [], refetch: refetchPriceHistory } = useQuery({
     queryKey: ['supplierPriceHistory', id],
     queryFn: () => getPriceHistoryBySupplierId(id!),
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
 
-
-  // --- Optimized Batch Fetch: 1 single query for all fichas tecnicas of the supplier ---
   const { data: supplierFichas = [], isLoading: isLoadingFichaStatus } = useQuery({
-    queryKey: ['supplierFichas', supplier?.id],
-    queryFn: () => getFichaTecnicaBySupplierId(supplier!.id),
-    enabled: !!supplier?.id,
+    queryKey: ['supplierFichas', id],
+    queryFn: () => getFichaTecnicaBySupplierId(id!),
+    enabled: !!id && id !== 'new',
     staleTime: 1000 * 60 * 5,
   });
 
@@ -148,7 +252,16 @@ const SupplierDetails = () => {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Combine materials with their ficha status from the batch set
+  const { data: purchaseHistory = [] } = useQuery({
+    queryKey: ['supplierPurchaseHistory', id],
+    queryFn: async () => {
+      if (!id || id === 'new') return [];
+      return getPurchaseHistoryReport({ supplierId: id, status: 'Approved' });
+    },
+    enabled: !!id && id !== 'new',
+  });
+
+  // Combine materials with their ficha status
   const materialsWithStatus = useMemo(() => {
     if (!supplier?.materials) return [];
     return supplier.materials.map((sm) => {
@@ -161,17 +274,269 @@ const SupplierDetails = () => {
     });
   }, [supplier?.materials, fichasSet, isLoadingFichaStatus]);
 
-  // Fetch supplier purchase history
-  const { data: purchaseHistory = [], isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['supplierPurchaseHistory', id],
-    queryFn: async () => {
-      if (!id) return [];
-      return getPurchaseHistoryReport({ supplierId: id, status: 'Approved' });
-    },
-    enabled: !!id,
-  });
+  // Sync state with loaded supplier data
+  useEffect(() => {
+    if (isNew) {
+      setName('');
+      setRif('');
+      setEmail('');
+      setPhone('');
+      setPhone2('');
+      setInstagram('');
+      setWebsite('');
+      setAddress('');
+      setState('');
+      setCity('');
+      setPaymentTerms('Contado');
+      setCustomPaymentTerms('');
+      setCreditDays(0);
+      setIsActive(true);
+      setAlertComment('');
+    } else if (supplier) {
+      setName(supplier.name || '');
+      setRif(isGenericRif(supplier.rif) ? '' : (supplier.rif || ''));
+      setEmail(supplier.email || '');
+      setPhone(supplier.phone || '');
+      setPhone2(supplier.phone_2 || '');
+      setInstagram(supplier.instagram || '');
+      setWebsite(supplier.website || '');
+      setAddress(supplier.address || '');
+      setState(supplier.state || '');
+      setCity(supplier.city || '');
+      setPaymentTerms(supplier.payment_terms || 'Contado');
+      setCustomPaymentTerms(supplier.custom_payment_terms || '');
+      setCreditDays(supplier.credit_days || 0);
+      setIsActive(supplier.status === 'Active' || supplier.status === 'Activo');
+      setAlertComment(supplier.alert_comment || '');
+    }
+  }, [supplier, isNew]);
 
-  // Calculate Top 10 most purchased materials from history
+  // Handle address input and auto-detect location
+  const handleAddressChange = (val: string) => {
+    setAddress(val);
+    if (val && dbLocations.length > 0) {
+      const { state: detectedState, city: detectedCity } = detectLocation(val, dbLocations);
+      if (detectedState) setState(detectedState);
+      if (detectedCity) setCity(detectedCity);
+    }
+  };
+
+  // Payment terms change handler
+  const handlePaymentTermsChange = (val: string) => {
+    setPaymentTerms(val);
+    if (val === 'Contado') {
+      setCreditDays(0);
+      setCustomPaymentTerms('');
+    } else if (val === 'Crédito') {
+      if (!creditDays || creditDays === 0) setCreditDays(15);
+      setCustomPaymentTerms('');
+    } else if (val === 'Otro') {
+      setCreditDays(0);
+    }
+  };
+
+  // --- Save / Create Supplier ---
+  const handleSaveChanges = async () => {
+    const trimmedName = name.trim().toUpperCase();
+    if (!trimmedName) {
+      toast.error('El nombre o razón social del proveedor es obligatorio.');
+      return;
+    }
+
+    let formattedRif = rif.trim();
+    if (formattedRif && formattedRif.toUpperCase() !== 'SR' && !formattedRif.toUpperCase().startsWith('SR')) {
+      const validated = validateRif(formattedRif);
+      if (!validated) {
+        toast.error('Formato de RIF inválido. Ej: J-12345678-9, V-12345678, o SR si no posee.');
+        return;
+      }
+      formattedRif = validated;
+    } else {
+      // Generar RIF genérico único con sufijo invisible para 'SR' o campo vacío
+      if (!isNew && supplier?.rif?.startsWith('SR')) {
+        formattedRif = supplier.rif;
+      } else {
+        const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
+        formattedRif = 'SR' + invisibleSuffix;
+      }
+    }
+
+    try {
+      setIsSaving(true);
+      const supplierPayload: any = {
+        name: trimmedName,
+        rif: formattedRif,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        phone_2: phone2.trim() || null,
+        instagram: instagram.trim() || null,
+        website: website.trim() || null,
+        address: address.trim() || null,
+        state: state.trim() || null,
+        city: city.trim() || null,
+        payment_terms: paymentTerms === 'Otro' ? 'Otro' : paymentTerms === 'Crédito' ? 'Crédito' : 'Contado',
+        custom_payment_terms: paymentTerms === 'Otro' ? customPaymentTerms.trim() || null : null,
+        credit_days: paymentTerms === 'Crédito' ? Number(creditDays) || 0 : 0,
+        status: isActive ? 'Active' : 'Inactive',
+        alert_comment: alertComment.trim() || null,
+        user_id: session?.user?.id || null,
+      };
+
+      if (isNew) {
+        const newSupplier = await createSupplier(supplierPayload, []);
+        if (newSupplier) {
+          toast.success('Proveedor creado exitosamente.');
+          queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
+          navigate(`/suppliers/${newSupplier.id}`);
+        }
+      } else {
+        if (!supplier) return;
+        const currentMaterialsPayload: SupplierMaterialPayload[] = (supplier.materials || []).map(m => ({
+          material_id: m.material_id,
+          unit_id: m.unit_id || null,
+          specification: m.specification || ''
+        }));
+
+        await updateSupplier(supplier.id, supplierPayload, currentMaterialsPayload);
+        toast.success('Cambios guardados correctamente.');
+        queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+        queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
+      }
+    } catch (err: any) {
+      console.error('Error saving supplier:', err);
+      if (err?.code === '23505') {
+        toast.error('El RIF ingresado ya pertenece a otro proveedor registrado.');
+      } else {
+        toast.error(err.message || 'Ocurrió un error al guardar los datos del proveedor.');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // --- Material Association Dialog Logic ---
+  const handleOpenAddMaterial = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, name, code, category, unit')
+        .eq('status', 'active')
+        .order('name', { ascending: true })
+        .limit(100);
+      if (error) throw error;
+      setAllCatalogMaterials(data || []);
+      setSelectedMaterialIds((supplier?.materials || []).map(m => m.material_id));
+      setMaterialSearchQuery('');
+      setIsAddMaterialOpen(true);
+    } catch (err) {
+      console.error('Error fetching catalog materials:', err);
+      toast.error('No se pudieron cargar los materiales del catálogo.');
+    }
+  };
+
+  useEffect(() => {
+    if (!isAddMaterialOpen) return;
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        let queryBuilder = supabase
+          .from('materials')
+          .select('id, name, code, category, unit')
+          .eq('status', 'active')
+          .order('name', { ascending: true })
+          .limit(60);
+
+        if (materialSearchQuery.trim()) {
+          queryBuilder = queryBuilder.ilike('name', `%${materialSearchQuery.trim()}%`);
+        }
+
+        const { data, error } = await queryBuilder;
+        if (error) throw error;
+        setAllCatalogMaterials(data || []);
+      } catch (err) {
+        console.error('Error searching materials:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [materialSearchQuery, isAddMaterialOpen]);
+
+  const handleSaveMaterialAssociations = async () => {
+    if (!supplier) return;
+    try {
+      setIsAssociating(true);
+      const originalIds = (supplier.materials || []).map(m => m.material_id);
+      const idsToAdd = selectedMaterialIds.filter(matId => !originalIds.includes(matId));
+      const idsToRemove = originalIds.filter(matId => !selectedMaterialIds.includes(matId));
+
+      // 1. Add new associations
+      if (idsToAdd.length > 0) {
+        const insertPayloads = idsToAdd.map(materialId => {
+          const matObj = allCatalogMaterials.find(m => m.id === materialId);
+          return {
+            supplier_id: supplier.id,
+            material_id: materialId,
+            unit_id: null,
+            user_id: session?.user?.id || '',
+            specification: matObj?.category || ''
+          };
+        });
+        const { error: insertError } = await supabase
+          .from('supplier_materials')
+          .insert(insertPayloads);
+        if (insertError) throw insertError;
+      }
+
+      // 2. Remove associations
+      if (idsToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('supplier_materials')
+          .delete()
+          .eq('supplier_id', supplier.id)
+          .in('material_id', idsToRemove);
+        if (deleteError) throw deleteError;
+      }
+
+      toast.success('Materiales vinculados actualizados exitosamente.');
+      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+      setIsAddMaterialOpen(false);
+    } catch (err) {
+      console.error('Error saving material associations:', err);
+      toast.error('Ocurrió un error al guardar los materiales asociados.');
+    } finally {
+      setIsAssociating(false);
+    }
+  };
+
+  const handleRemoveSingleMaterial = async (supplierMaterialId: string) => {
+    try {
+      const { error } = await supabase
+        .from('supplier_materials')
+        .delete()
+        .eq('id', supplierMaterialId);
+      if (error) throw error;
+      toast.success('Material desvinculado del proveedor.');
+      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+    } catch (err) {
+      toast.error('No se pudo desvincular el material.');
+    }
+  };
+
+  // --- Metrics & Calculations ---
+  const stats = useMemo(() => {
+    const approvedPOs = purchaseOrders.filter((po: any) => po.status === 'Approved' || po.status === 'Paid' || po.status === 'Received');
+    const approvedSOs = serviceOrders.filter((so: any) => so.status === 'Approved' || so.status === 'Paid' || so.status === 'Received');
+
+    return {
+      totalOrdersCount: purchaseOrders.length + serviceOrders.length,
+      approvedOrdersCount: approvedPOs.length + approvedSOs.length,
+      materialsCount: supplier?.materials?.length || 0,
+      creditDays: creditDays || supplier?.credit_days || 0,
+      paymentTerms: paymentTerms || supplier?.payment_terms || 'Contado'
+    };
+  }, [purchaseOrders, serviceOrders, supplier, creditDays, paymentTerms]);
+
+  // Suggested materials calculation
   const suggestedMaterials = useMemo(() => {
     if (!purchaseHistory || purchaseHistory.length === 0) return [];
 
@@ -223,8 +588,7 @@ const SupplierDetails = () => {
 
   const [selectedSuggestIds, setSelectedSuggestIds] = useState<Set<string>>(new Set());
 
-  // Initialize selectedSuggestIds when suggestedMaterials is loaded/calculated
-  React.useEffect(() => {
+  useEffect(() => {
     if (suggestedMaterials.length > 0) {
       const initialIds = new Set<string>();
       suggestedMaterials.forEach(m => {
@@ -238,18 +602,14 @@ const SupplierDetails = () => {
   const toggleSuggestSelection = (key: string) => {
     setSelectedSuggestIds(prev => {
       const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   const handleGenerateOCFromSuggestions = () => {
     if (!supplier) return;
-
     const selectedItems = suggestedMaterials
       .filter(m => {
         const key = m.material_id || m.material_name;
@@ -266,7 +626,7 @@ const SupplierDetails = () => {
       }));
 
     if (selectedItems.length === 0) {
-      showError('Por favor selecciona al menos un material sugerido.');
+      toast.error('Por favor selecciona al menos un material sugerido.');
       return;
     }
 
@@ -278,81 +638,7 @@ const SupplierDetails = () => {
     });
   };
 
-  const filteredMaterials = useMemo(() => {
-    if (!materialsWithStatus) return [];
-    if (!searchTerm.trim()) return materialsWithStatus;
-
-    const lowerSearch = searchTerm.toLowerCase();
-    return materialsWithStatus.filter(sm =>
-      sm.materials.name.toLowerCase().includes(lowerSearch) ||
-      sm.materials.code?.toLowerCase().includes(lowerSearch) ||
-      sm.materials.category?.toLowerCase().includes(lowerSearch) ||
-      sm.units_of_measure?.name.toLowerCase().includes(lowerSearch)
-    );
-  }, [materialsWithStatus, searchTerm]);
-
-  const groupedMaterials = useMemo(() => {
-    const groups: Record<string, {
-      material_id: string;
-      name: string;
-      code?: string;
-      category?: string;
-      items: any[];
-    }> = {};
-
-    filteredMaterials.forEach(sm => {
-      const mId = sm.material_id;
-      if (!groups[mId]) {
-        groups[mId] = {
-          material_id: mId,
-          name: sm.materials.name,
-          code: sm.materials.code,
-          category: sm.materials.category,
-          items: []
-        };
-      }
-      groups[mId].items.push(sm);
-    });
-
-    return Object.values(groups);
-  }, [filteredMaterials]);
-
-  const stats = useMemo(() => {
-    const approvedPOs = (purchaseOrders as any[]).filter(o => ['Approved', 'Paid', 'Credit', 'Received', 'ToPay'].includes(o.status));
-    const approvedSOs = (serviceOrders as any[]).filter(o => ['Approved', 'Paid', 'Credit'].includes(o.status));
-
-    let totalUSD = 0;
-    approvedPOs.forEach(po => {
-      const items = po.purchase_order_items || [];
-      const orderTotal = calculateTotals(items).total;
-      if (po.currency === 'VES' && po.exchange_rate) {
-        totalUSD += orderTotal / po.exchange_rate;
-      } else {
-        totalUSD += orderTotal;
-      }
-    });
-
-    approvedSOs.forEach(so => {
-      const items = [
-        ...(so.service_order_items || []).map((i: any) => ({ ...i, unit_price: i.unit_price })),
-        ...(so.service_order_materials || []).map((m: any) => ({ ...m, unit_price: m.unit_price }))
-      ];
-      const orderTotal = calculateTotals(items as any).total;
-      if (so.currency === 'VES' && so.exchange_rate) {
-        totalUSD += orderTotal / so.exchange_rate;
-      } else {
-        totalUSD += orderTotal;
-      }
-    });
-
-    return {
-      totalTransactedUSD: totalUSD,
-      totalOrdersCount: purchaseOrders.length + serviceOrders.length,
-      approvedOrdersCount: approvedPOs.length + approvedSOs.length,
-      materialsCount: supplier?.materials?.length || 0
-    };
-  }, [purchaseOrders, serviceOrders, supplier]);
-
+  // Price analysis metrics
   const priceAnalysisByMaterial = useMemo(() => {
     if (!supplierPriceHistory || supplierPriceHistory.length === 0) return [];
     
@@ -451,1555 +737,1150 @@ const SupplierDetails = () => {
       });
   }, [supplierPriceHistory]);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Draft':
-        return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 uppercase text-[9px] font-bold">Borrador</Badge>;
-      case 'Approved':
-        return <Badge className="bg-green-50 text-green-700 border-green-200 uppercase text-[9px] font-bold">Aprobada</Badge>;
-      case 'Paid':
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 uppercase text-[9px] font-bold">Pagada</Badge>;
-      case 'Credit':
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 uppercase text-[9px] font-bold">Crédito</Badge>;
-      case 'ToPay':
-        return <Badge className="bg-yellow-50 text-yellow-800 border-yellow-200 uppercase text-[9px] font-bold">Por Pagar</Badge>;
-      case 'Received':
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 uppercase text-[9px] font-bold">Recibido</Badge>;
-      case 'Archived':
-        return <Badge variant="secondary" className="uppercase text-[9px] font-bold">Archivada</Badge>;
-      case 'Rejected':
-        return <Badge className="bg-red-50 text-red-700 border-red-200 uppercase text-[9px] font-bold">Rechazada</Badge>;
-      default:
-        return <Badge variant="outline" className="uppercase text-[9px] font-bold">{status}</Badge>;
+  // Filter materials in profile table
+  const filteredMaterials = useMemo(() => {
+    if (!materialsWithStatus) return [];
+    if (!searchTerm.trim()) return materialsWithStatus;
+
+    const lowerSearch = searchTerm.toLowerCase();
+    return materialsWithStatus.filter(sm =>
+      sm.materials.name.toLowerCase().includes(lowerSearch) ||
+      sm.materials.code?.toLowerCase().includes(lowerSearch) ||
+      sm.materials.category?.toLowerCase().includes(lowerSearch) ||
+      sm.units_of_measure?.name.toLowerCase().includes(lowerSearch)
+    );
+  }, [materialsWithStatus, searchTerm]);
+
+  const totalMaterialPages = Math.ceil(filteredMaterials.length / MATERIAL_PAGE_SIZE) || 1;
+
+  const paginatedMaterials = useMemo(() => {
+    const start = (materialPage - 1) * MATERIAL_PAGE_SIZE;
+    return filteredMaterials.slice(start, start + MATERIAL_PAGE_SIZE);
+  }, [filteredMaterials, materialPage]);
+
+  useEffect(() => {
+    setMaterialPage(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (materialPage > totalMaterialPages) {
+      setMaterialPage(totalMaterialPages);
     }
-  };
-  // --------------------------------------------------------------------
+  }, [totalMaterialPages, materialPage]);
 
-  // Mutation for updating supplier
-  const updateMutation = useMutation({
-    mutationFn: ({ id, supplierData, materials }: { id: string; supplierData: Partial<Omit<Supplier, 'id' | 'created_at' | 'updated_at' | 'materials'>>; materials: SupplierMaterialPayload[] }) =>
-      updateSupplier(id, supplierData, materials),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      setIsEditOpen(false);
-      showSuccess('Proveedor actualizado exitosamente.');
-    },
-    onError: (err) => {
-      showError(`Error al actualizar proveedor: ${err.message}`);
-    },
-  });
-
-  // Inline-only mutation: patches a single field directly, never touches supplier_materials.
-  const inlineUpdateMutation = useMutation({
-    mutationFn: async ({ field, value }: { field: string; value: string | number }) => {
-      const { supabase } = await import('@/integrations/supabase/client');
-      
-      let payloadValue: any = value;
-      
-      if (field === 'rif') {
-        const validated = validateRif(String(value));
-        if (!validated) {
-          throw new Error('Formato de RIF inválido. Ej: J123456789 o SR');
-        }
-        if (validated === 'SR') {
-          // Generar sufijo invisible para evadir constraint unique
-          const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
-          payloadValue = 'SR' + invisibleSuffix;
-        } else {
-          payloadValue = validated;
-        }
-      } else if (field === 'name') {
-        payloadValue = String(value).toUpperCase();
-      }
-      
-      const payload = { [field]: payloadValue };
-      
-      // Auto-detect location when address changes
-      if (field === 'address') {
-        const { state, city } = detectLocation(String(value));
-        if (state) payload.state = state;
-        if (city) payload.city = city;
-      }
-
-      const { error } = await supabase
-        .from('suppliers')
-        .update(payload)
-        .eq('id', id!);
-        
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
-      queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
-      showSuccess('Campo actualizado.');
-    },
-    onError: (err: any) => {
-      if (err?.code === '23505') {
-        showError('El RIF ingresado ya pertenece a otro proveedor. Verifícalo e intenta de nuevo.');
-      } else {
-        showError('No se pudo actualizar el campo. Intenta de nuevo.');
-      }
-    },
-  });
-
-  const handleInlineSave = (field: string) => async (newValue: string | number) => {
-    await inlineUpdateMutation.mutateAsync({ field, value: newValue });
-  };
-
-  // Mutation for inline editing of materials in the list (with tripa logic)
-  const materialInlineUpdateMutation = useMutation({
-    mutationFn: async ({ materialId, field, value }: { materialId: string; field: string; value: string }) => {
-      const updates: Record<string, string> = { [field]: value };
-
-      // Apply tripa auto-fill: if renaming to "tripa...", force EMPAQUE + mt
-      if (field === 'name' && value.toLowerCase().startsWith('tripa')) {
-        const empaqueCategory = categories.find(c => c.name.toUpperCase() === 'EMPAQUE');
-        const { getAllUnits } = await import('@/integrations/supabase/data');
-        const allUnits = await getAllUnits();
-        const mtUnitObj = allUnits.find((u: any) => u.name.toLowerCase() === 'mt');
-        if (empaqueCategory) updates['category'] = empaqueCategory.name;
-        if (mtUnitObj) updates['unit'] = mtUnitObj.name;
-      }
-
-      await updateMaterial(materialId, updates as any);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
-      queryClient.invalidateQueries({ queryKey: ['materials_paginated'] });
-      showSuccess('Material actualizado.');
-    },
-    onError: (err: any) => {
-      if (err?.code === '23505') {
-        showError('Ya existe un material con ese nombre o código. Revisa los datos e intenta de nuevo.');
-      } else {
-        showError('No se pudo actualizar el material. Intenta de nuevo.');
-      }
-    },
-  });
-
-  const handleMaterialInlineSave = (materialId: string, field: string) => async (newValue: string) => {
-    await materialInlineUpdateMutation.mutateAsync({ materialId, field, value: newValue });
-  };
-
-  const handleEditSubmit = async (data: any) => {
-    if (!supplier) return;
-
-    const { materials, ...supplierData } = data;
-    const materialsPayload = materials?.map((mat: any) => ({
-      material_id: mat.material_id,
-      unit_id: mat.unit_id || null,
-      specification: mat.specification,
-    })) || [];
-
-    await updateMutation.mutateAsync({ id: supplier.id, supplierData, materials: materialsPayload });
-  };
-
-
-  const formatPhoneNumberForWhatsApp = (phone: string) => {
-    const digitsOnly = phone.replace(/\D/g, '');
+  // Format WhatsApp Link
+  const formatPhoneNumberForWhatsApp = (rawPhone: string) => {
+    const digitsOnly = rawPhone.replace(/\D/g, '');
     if (!digitsOnly.startsWith('58')) {
       return `58${digitsOnly}`;
     }
     return digitsOnly;
   };
 
-  const handleGenerateSC = () => {
-    if (!supplier) return;
-    // Navigate to the quote request creation page with the supplier data
-    navigate('/generate-quote', {
-      state: {
-        supplier: supplier,
-      },
-    });
-  };
-
-  const handleGenerateOC = () => {
-    if (!supplier) return;
-    // Navigate to the purchase order creation page with the supplier data
-    navigate('/generate-po', {
-      state: {
-        supplier: supplier,
-      },
-    });
-  };
-
   const handleViewFicha = async (materialName: string) => {
-    if (!supplier?.id) {
-      showError('ID de proveedor no disponible.');
-      return;
-    }
-
+    if (!supplier?.id) return;
     const ficha: FichaTecnica | null = await getFichaTecnicaBySupplierAndProduct(supplier.id, materialName);
-
     if (ficha && ficha.storage_url) {
       setCurrentFichaUrl(ficha.storage_url);
       setCurrentFichaTitle(`Ficha Técnica: ${materialName}`);
       setIsViewerOpen(true);
     } else {
-      // This case should ideally not be reached if the button is only shown when hasFicha is true
-      showError(`No se encontró una ficha técnica para el material "${materialName}" de este proveedor.`);
+      toast.error(`No se encontró una ficha técnica para el material "${materialName}".`);
     }
   };
 
-  if (isLoading || isLoadingFichaStatus) {
+  if (isLoadingSupplier) {
     return (
-      <div className="flex h-[400px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-procarni-secondary" />
-        <span className="ml-2 text-gray-500 font-medium">Cargando detalles del proveedor...</span>
+      <div className="container mx-auto p-6 lg:p-8 space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <Skeleton className="h-44 rounded-[2rem]" />
+          <Skeleton className="h-44 rounded-[2rem]" />
+          <Skeleton className="h-44 rounded-[2rem]" />
+        </div>
       </div>
     );
   }
 
-  if (error) {
-    showError(error.message);
+  if (!supplier && !isNew) {
     return (
-      <div className="container mx-auto p-4 text-center text-destructive">
-        Error: {error.message}
-        <Button asChild variant="link" className="mt-4">
-          <Link to="/supplier-management">Volver a la gestión de proveedores</Link>
+      <div className="container mx-auto p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <AlertCircle className="h-12 w-12 text-procarni-primary animate-bounce" />
+        <h2 className="text-xl font-bold text-procarni-dark">Proveedor no encontrado</h2>
+        <p className="text-sm text-gray-500">El ID especificado no corresponde a ningún proveedor registrado.</p>
+        <Button onClick={() => navigate('/supplier-management')} className="bg-procarni-blue hover:bg-procarni-blue/90 text-white rounded-xl active:scale-95 transition-all">
+          Volver a Proveedores
         </Button>
       </div>
     );
   }
 
-  if (!supplier) {
-    return (
-      <div className="container mx-auto p-4 text-center text-muted-foreground">
-        Proveedor no encontrado.
-        <Button asChild variant="link" className="mt-4">
-          <Link to="/supplier-management">Volver a la gestión de proveedores</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  const isEditable = true;
-  const microLabelClass = "text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1 block";
-  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-bold text-slate-600";
-  const valueClass = "text-procarni-dark font-medium text-sm";
+  const tableHeaderClass = "text-[10px] uppercase tracking-wider font-bold text-slate-400 py-3";
 
   return (
-    <div className="container mx-auto p-4 pb-24 relative min-h-screen">
+    <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+      <div className="container mx-auto space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-300">
 
-      {/* Back navigation */}
-      <div className="mb-6 flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-procarni-dark hover:bg-gray-100/50 rounded-full gap-2 px-3 py-1">
-          <ArrowLeft className="h-4 w-4" />
-          <span>Volver</span>
-        </Button>
-      </div>
+        {/* Back navigation */}
+        <button
+          onClick={() => navigate('/supplier-management')}
+          className="group flex items-center gap-2 text-sm font-bold text-procarni-blue hover:text-procarni-primary transition-all duration-300"
+        >
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+          <span>Volver a Gestión de Proveedores</span>
+        </button>
 
-      {/* PHASE 1.5: SUPPLIER ALERT */}
-      {supplier.alert_comment && (
-        <Alert variant="destructive" className="mb-6 bg-red-50 border-red-200 text-red-900 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm rounded-2xl">
-          <TriangleAlert className="h-4 w-4 text-red-600" />
-          <AlertTitle className="text-red-800 font-bold flex items-center gap-2">
-            Aviso Importante para este Proveedor
-          </AlertTitle>
-          <AlertDescription className="text-red-700 font-medium mt-1 leading-relaxed">
-            {supplier.alert_comment}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* BENTO GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
-        
-        {/* Bento Box 1: Identidad y Acciones (col-span-2) */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-white/70 to-blue-50/20 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 flex flex-col justify-between hover:scale-[1.002] transition-transform duration-300">
-          <div>
-            <div className="flex items-center gap-2.5 mb-4 flex-wrap">
-              <Badge className={cn(
-                "px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-none border",
-                supplier.status === 'Activo' ? "bg-green-50 text-procarni-secondary border-green-200" : "bg-gray-50 text-gray-500 border-gray-200"
-              )}>
-                {supplier.status}
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/50 pb-6">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              {!isNew && (
+                <span className="font-mono font-bold text-sm text-procarni-dark bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                  {supplier?.code || 'SIN CÓDIGO'}
+                </span>
+              )}
+              <Badge
+                variant="outline"
+                className={cn(
+                  'font-bold text-xs border px-2.5 py-0.5',
+                  isActive
+                    ? 'bg-emerald-50 text-procarni-secondary border-procarni-secondary/20'
+                    : 'bg-red-50 text-procarni-primary border-procarni-primary/20'
+                )}
+              >
+                {isActive ? 'Activo' : 'Inactivo'}
               </Badge>
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider bg-gray-100/70 px-2 py-0.5 rounded">
-                Código: {supplier.code || 'N/A'}
-              </span>
+              {!isNew && isGenericRif(supplier?.rif || '') && (
+                <Badge variant="outline" className="bg-amber-50 text-procarni-alert border-procarni-alert/30 font-bold text-xs">
+                  <AlertTriangle className="h-3 w-3 mr-1" /> RIF Pendiente
+                </Badge>
+              )}
             </div>
-
-            <h1 className="text-3xl font-extrabold text-procarni-blue tracking-tight mb-6">
-              <InlineEditableCell
-                value={supplier.name}
-                onSave={handleInlineSave('name')}
-                alwaysShowIcon={isMobile}
-                displayClassName="font-extrabold text-3xl text-procarni-blue tracking-tight whitespace-normal break-words leading-none"
-                placeholder="Nombre del proveedor"
-              />
+            <h1 className="text-[34px] font-black text-procarni-blue tracking-tight leading-tight mt-2">
+              {isNew ? 'Añadir Nuevo Proveedor' : (name || 'Detalles del Proveedor')}
             </h1>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div className="bg-white/40 border border-white/60 p-3 rounded-2xl">
-                <span className={microLabelClass}>RIF del Proveedor</span>
-                <InlineEditableCell
-                  value={isGenericRif(supplier.rif) ? '' : supplier.rif}
-                  onSave={handleInlineSave('rif')}
-                  alwaysShowIcon={isMobile}
-                  displayClassName={cn(valueClass, isGenericRif(supplier.rif) && 'text-procarni-alert')}
-                  placeholder="RIF"
-                  renderDisplay={(v) => isGenericRif(supplier.rif) ? (
-                    <span className="flex items-center gap-1 text-procarni-alert">
-                      <AlertTriangle className="h-3 w-3" /> Faltante
-                    </span>
-                  ) : <span className="font-bold font-mono">{String(v)}</span>}
-                />
-              </div>
-              
-              <div className="bg-white/40 border border-white/60 p-3 rounded-2xl">
-                <span className={microLabelClass}>Término de Relación</span>
-                <span className="text-xs font-semibold text-gray-500 uppercase">Institucional</span>
-              </div>
-
-              <div className="sm:col-span-2 bg-white/40 border border-white/60 p-3 rounded-2xl">
-                <span className={microLabelClass}>Rubros Generales</span>
-                <InlineEditableCell
-                  value={supplier.rubros || ''}
-                  onSave={handleInlineSave('rubros')}
-                  alwaysShowIcon={isMobile}
-                  displayClassName="text-xs font-semibold text-procarni-dark"
-                  placeholder="Sin rubros generales definidos (ej. Empaques, Papelería)"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-gray-100/50">
-            <Button onClick={() => setIsEditOpen(true)} variant="outline" size="sm" className="gap-2 rounded-xl">
-              <Edit className="h-4 w-4" />
-              <span>Editar Perfil</span>
-            </Button>
-
-            <Button onClick={handleGenerateSC} className="bg-procarni-secondary hover:bg-green-700 text-white gap-2 shadow-md rounded-xl" size="sm">
-              <PlusCircle className="h-4 w-4" />
-              <span>Generar SC</span>
-            </Button>
-
-            <Button onClick={handleGenerateOC} variant="outline" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 gap-2 rounded-xl" size="sm">
-              <ShoppingCart className="h-4 w-4" />
-              <span>Generar OC</span>
-            </Button>
-
-            <SupplierPriceHistoryDownloadButton
-              supplierId={supplier.id}
-              supplierName={supplier.name}
-              disabled={isLoading}
-              className="ml-auto rounded-xl"
-            />
+            {!isNew && supplier?.id && (
+              <p className="text-[13px] text-gray-500 font-medium italic">
+                ID de catálogo: {supplier.id}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Bento Box 2: Canales de Contacto (col-span-1) */}
-        <div className="bg-white/70 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 hover:scale-[1.002] transition-transform duration-300 flex flex-col justify-between">
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
-              Canales de Contacto
-            </h3>
-            <div className="space-y-4">
-              {/* WhatsApp / Teléfono Principal */}
-              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
-                <span className={microLabelClass}>Teléfono / WhatsApp Principal</span>
-                <InlineEditableCell
-                  value={supplier.phone || ''}
-                  onSave={handleInlineSave('phone')}
-                  alwaysShowIcon={isMobile}
-                  displayClassName="text-xs font-semibold text-procarni-dark"
-                  placeholder="Sin teléfono principal"
-                  renderDisplay={(v) => supplier.phone ? (
-                    <div className="flex items-center justify-between w-full mt-0.5">
-                      <span className="font-mono text-xs font-semibold text-procarni-dark">{supplier.phone}</span>
+        {/* Operational Alert Notice if present */}
+        {!isNew && supplier?.alert_comment && (
+          <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in">
+            <AlertTriangle className="h-5 w-5 text-procarni-alert shrink-0 mt-0.5" />
+            <div className="space-y-0.5 text-xs">
+              <p className="font-bold text-amber-900 uppercase tracking-wider text-[10px]">Alerta / Aviso Operativo</p>
+              <p className="text-amber-800 font-medium leading-relaxed">{supplier.alert_comment}</p>
+            </div>
+          </div>
+        )}
+
+        {/* KPI Bar */}
+        {!isNew && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Card 1: Materiales Suministrados */}
+            <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-emerald-50 text-procarni-secondary">
+                    <Package className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Materiales Habilitados</p>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                      {stats.materialsCount}
+                    </span>
+                    <span className="text-gray-500 font-bold text-sm uppercase">ÍTEMS</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Productos vinculados en catálogo
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: Órdenes Emitidas */}
+            <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-procarni-blue/10 text-procarni-blue">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Órdenes Generadas</p>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                      {stats.totalOrdersCount}
+                    </span>
+                    <Badge variant="outline" className="bg-blue-50 text-procarni-blue border-procarni-blue/20 text-[10px] font-bold">
+                      {stats.approvedOrdersCount} Aprobadas
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Total de OCs y OSs registradas
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 3: Condición Comercial */}
+            <Card className="border-none bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-2xl shadow-gray-200/50 rounded-[2rem] p-1.5 transition-all duration-300 hover:scale-[1.01]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="p-3 rounded-2xl bg-amber-50 text-procarni-alert">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Condición Comercial</p>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
+                      {stats.creditDays}
+                    </span>
+                    <span className="text-gray-500 font-bold text-sm uppercase">DÍAS CRÉDITO</span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-semibold mt-2">
+                    Términos: <span className="text-procarni-dark">{stats.paymentTerms}</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Layout Grid */}
+        <div className="grid grid-cols-12 gap-8">
+
+          {/* Central Section (Form + Materials + History) */}
+          <div className="col-span-12 lg:col-span-9 space-y-8">
+
+            {/* 1. FICHA Y CONFIGURACIÓN DEL PROVEEDOR */}
+            <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-8 rounded-[2rem] shadow-2xl shadow-gray-200/50 space-y-6">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <Building2 className="h-5 w-5 text-procarni-primary" />
+                <h3 className="font-extrabold text-lg text-procarni-dark tracking-tight">Ficha y Datos del Proveedor</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Nombre / Razón Social */}
+                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                  <Label htmlFor="supplierName" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Nombre o Razón Social <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="supplierName"
+                    placeholder="Ej: DISTRIBUIDORA CARNICA C.A."
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm font-semibold focus:ring-procarni-primary/20"
+                  />
+                </div>
+
+                {/* RIF */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierRif" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    RIF Fiscal (Ej: J-12345678-9 o SR)
+                  </Label>
+                  <Input
+                    id="supplierRif"
+                    placeholder="Ej: J-12345678-9 o SR"
+                    value={rif}
+                    onChange={(e) => setRif(e.target.value.toUpperCase())}
+                    className="bg-slate-50/50 border-slate-200 rounded-xl h-11 font-mono text-sm uppercase focus:ring-procarni-primary/20"
+                  />
+                </div>
+
+                {/* Correo Electrónico */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierEmail" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Correo Electrónico
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="supplierEmail"
+                      type="email"
+                      placeholder="ventas@proveedor.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Teléfono 1 */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierPhone" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Teléfono Principal
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="supplierPhone"
+                        placeholder="0414-1234567"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm font-mono focus:ring-procarni-primary/20"
+                      />
+                    </div>
+                    {phone && (
                       <a
-                        href={`https://wa.me/${formatPhoneNumberForWhatsApp(supplier.phone)}`}
+                        href={`https://wa.me/${formatPhoneNumberForWhatsApp(phone)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50/60 hover:bg-green-50 text-green-700 hover:text-green-800 border border-green-100/50 rounded-xl transition-all font-sans text-[10px] font-bold uppercase tracking-wider"
-                        onClick={(e) => e.stopPropagation()}
+                        className="h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-procarni-secondary hover:bg-emerald-100 transition-colors shrink-0"
+                        title="Abrir en WhatsApp"
                       >
-                        Chatear
-                        <Phone className="h-3 w-3" />
+                        <Send className="h-4 w-4" />
                       </a>
-                    </div>
-                  ) : <span className="text-xs text-gray-400 font-medium">Sin teléfono principal</span>}
-                />
-              </div>
-
-              {/* Teléfono Secundario */}
-              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
-                <span className={microLabelClass}>Teléfono Secundario</span>
-                <InlineEditableCell
-                  value={supplier.phone_2 || ''}
-                  onSave={handleInlineSave('phone_2')}
-                  alwaysShowIcon={isMobile}
-                  displayClassName="text-xs font-semibold text-procarni-dark"
-                  placeholder="No asignado"
-                  renderDisplay={(v) => v ? (
-                    <a href={`https://wa.me/${formatPhoneNumberForWhatsApp(String(v))}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      {String(v)}
-                    </a>
-                  ) : <p className="text-xs text-gray-400 font-medium">No asignado</p>}
-                />
-              </div>
-
-              {/* Email */}
-              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
-                <span className={microLabelClass}>Correo Electrónico</span>
-                <InlineEditableCell
-                  value={supplier.email || ''}
-                  onSave={handleInlineSave('email')}
-                  type="email"
-                  alwaysShowIcon={isMobile}
-                  displayClassName="text-xs font-semibold text-procarni-dark truncate block max-w-full"
-                  placeholder="Sin email registrado"
-                />
-              </div>
-
-              {/* Instagram */}
-              <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
-                <span className={microLabelClass}>Instagram</span>
-                <InlineEditableCell
-                  value={supplier.instagram || ''}
-                  onSave={handleInlineSave('instagram')}
-                  alwaysShowIcon={isMobile}
-                  displayClassName="text-xs font-semibold text-procarni-dark"
-                  placeholder="No asignado"
-                  renderDisplay={(v) => v ? (
-                    <a href={`https://instagram.com/${String(v).replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      {String(v)}
-                    </a>
-                  ) : <p className="text-xs text-gray-400 font-medium">No asignado</p>}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Website Link button at bottom */}
-          {supplier.website && (
-            <Button variant="outline" size="sm" asChild className="w-full rounded-xl mt-4 border-gray-200">
-              <a href={supplier.website.startsWith('http') ? supplier.website : `https://${supplier.website}`} target="_blank" rel="noopener noreferrer" className="gap-2">
-                <Globe className="h-3.5 w-3.5 text-gray-500" />
-                <span className="truncate">Visitar Sitio Web</span>
-              </a>
-            </Button>
-          )}
-        </div>
-
-        {/* Bento Box 3: Condiciones Comerciales (col-span-1) */}
-        <div className="bg-gradient-to-br from-white/70 to-green-50/10 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 hover:scale-[1.002] transition-transform duration-300">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
-            Condiciones de Compra
-          </h3>
-          <div className="space-y-4">
-            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
-              <span className={microLabelClass}>Términos de Pago</span>
-              <InlineEditableCell
-                value={supplier.payment_terms}
-                onSave={handleInlineSave('payment_terms')}
-                type="select"
-                options={[
-                  { value: 'Contado', label: 'Contado' },
-                  { value: 'Crédito', label: 'Crédito' },
-                  { value: 'Otro', label: 'Otro' }
-                ]}
-                alwaysShowIcon={isMobile}
-                displayClassName="text-sm font-bold text-procarni-dark"
-                renderDisplay={(v) => (
-                  <p className="text-sm font-bold text-procarni-dark">
-                    {v === 'Otro' && supplier.custom_payment_terms
-                      ? supplier.custom_payment_terms
-                      : String(v)}
-                  </p>
-                )}
-              />
-            </div>
-
-            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-2xl">
-              <span className={microLabelClass}>Días de Crédito</span>
-              <InlineEditableCell
-                value={supplier.credit_days}
-                onSave={handleInlineSave('credit_days')}
-                type="number"
-                alwaysShowIcon={isMobile}
-                displayClassName="text-sm font-bold text-procarni-dark"
-                renderDisplay={(v) => <p className="text-sm font-bold text-procarni-dark">{v} días acordados</p>}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Bento Box 4: Ubicación (col-span-2) */}
-        <div className="lg:col-span-2 bg-white/70 backdrop-blur-xl border border-white/50 rounded-3xl p-6 shadow-xl shadow-gray-200/50 hover:scale-[1.002] transition-transform duration-300 flex flex-col justify-between">
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
-              Dirección y Ubicación
-            </h3>
-            <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl min-h-[80px]">
-              <span className={microLabelClass}>Dirección Fiscal Principal</span>
-              <InlineEditableCell
-                value={supplier.address || ''}
-                onSave={handleInlineSave('address')}
-                alwaysShowIcon={isMobile}
-                displayClassName="text-xs font-medium text-gray-700 leading-relaxed block"
-                placeholder="Sin dirección física registrada"
-              />
-            </div>
-          </div>
-
-          {(supplier.city || supplier.state) && (
-            <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100/50">
-              <div className="bg-blue-50/50 border border-blue-100/40 px-3 py-1 rounded-full text-[11px] text-blue-700 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <MapPin className="h-3 w-3 text-blue-500" />
-                <span>Ubicación de Despacho: {supplier.city}{supplier.city && supplier.state ? ', ' : ''}{supplier.state}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      <Tabs defaultValue="materials" className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TabsList className="bg-slate-100/80 backdrop-blur-xl p-1.5 rounded-2xl h-auto flex flex-col sm:flex-row border border-slate-200/50 gap-1 w-full max-w-full sm:max-w-2xl shadow-sm">
-              <TabsTrigger value="materials" className="w-full sm:flex-1 rounded-xl py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-center">
-                Materiales Ofrecidos
-              </TabsTrigger>
-              <TabsTrigger value="orders" className="w-full sm:flex-1 rounded-xl py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-center">
-                Historial de Órdenes ({purchaseOrders.length + serviceOrders.length})
-              </TabsTrigger>
-              <TabsTrigger value="analysis" className="w-full sm:flex-1 rounded-xl py-2.5 px-3 text-xs font-bold uppercase tracking-wider text-center">
-                Análisis de Precios
-              </TabsTrigger>
-            </TabsList>
-
-            {/* TAB 1: MATERIALS & SUGGESTIONS */}
-            <TabsContent value="materials" className="space-y-6 focus-visible:outline-none">
-              {/* Sugerencias de Compra Card */}
-              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                      <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                        <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
-                        Sugerencia de Compra (Materiales Frecuentes)
-                      </CardTitle>
-                      <CardDescription className="text-xs text-gray-500 italic mt-0.5">
-                        Basado en los 10 materiales más comprados a este proveedor en el historial aprobado.
-                      </CardDescription>
-                    </div>
-                    {suggestedMaterials.length > 0 && (
-                      <Button
-                        onClick={handleGenerateOCFromSuggestions}
-                        disabled={selectedSuggestIds.size === 0}
-                        className="bg-procarni-primary hover:bg-procarni-primary/95 text-white gap-2 shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all rounded-full px-5"
-                        size="sm"
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                        Generar Orden ({selectedSuggestIds.size})
-                      </Button>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {suggestedMaterials.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400 text-xs italic">
-                      No hay historial de compras aprobadas para este proveedor para sugerir materiales frecuentes.
+                </div>
+
+                {/* Teléfono 2 */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierPhone2" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Teléfono Secundario (Opcional)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="supplierPhone2"
+                        placeholder="0241-1234567"
+                        value={phone2}
+                        onChange={(e) => setPhone2(e.target.value)}
+                        className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm font-mono focus:ring-procarni-primary/20"
+                      />
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {suggestedMaterials.map((item) => {
-                        const key = item.material_id || item.material_name;
-                        const isSelected = selectedSuggestIds.has(key);
+                    {phone2 && (
+                      <a
+                        href={`https://wa.me/${formatPhoneNumberForWhatsApp(phone2)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-11 w-11 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-procarni-secondary hover:bg-emerald-100 transition-colors shrink-0"
+                        title="Abrir en WhatsApp"
+                      >
+                        <Send className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Instagram */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierInstagram" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Instagram
+                  </Label>
+                  <div className="relative">
+                    <Instagram className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="supplierInstagram"
+                      placeholder="@proveedor_oficial"
+                      value={instagram}
+                      onChange={(e) => setInstagram(e.target.value)}
+                      className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Sitio Web */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="supplierWebsite" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Sitio Web / Enlace
+                  </Label>
+                  <div className="relative">
+                    <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="supplierWebsite"
+                      type="url"
+                      placeholder="https://www.proveedor.com"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Dirección */}
+                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="supplierAddress" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                      Dirección Fiscal / Operativa (Auto-detecta Estado y Ciudad)
+                    </Label>
+                    {(state || city) && (
+                      <span className="text-[10px] text-procarni-secondary font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                        <Check className="h-3 w-3" /> Ubicación: {city || '—'}, {state || '—'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <MapPin className="absolute left-3.5 top-3.5 h-4 w-4 text-gray-400" />
+                    <Textarea
+                      id="supplierAddress"
+                      placeholder="Ej: Zona Industrial San Diego, Valencia, Edo. Carabobo..."
+                      value={address}
+                      onChange={(e) => handleAddressChange(e.target.value)}
+                      className="pl-10 bg-slate-50/50 border-slate-200 rounded-xl min-h-[70px] text-sm focus:ring-procarni-primary/20 resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Selector Rápido de Ciudad/Municipio de Venezuela */}
+                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                  <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Búsqueda / Selección de Municipio y Estado (Venezuela)
+                  </Label>
+                  <Popover open={openLocationPopover} onOpenChange={setOpenLocationPopover}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openLocationPopover}
+                        className={cn(
+                          "w-full justify-between bg-slate-50/50 border-slate-200 rounded-xl h-11 text-xs font-normal",
+                          (!city && !state) && "text-muted-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <MapPin className="h-3.5 w-3.5 text-procarni-primary shrink-0" />
+                          <span className="truncate font-medium text-slate-800">
+                            {city || state ? `${city || 'Ciudad'}, ${state || 'Estado'}` : "Buscar o seleccionar municipio / estado..."}
+                          </span>
+                        </div>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[340px] sm:w-[420px] p-0 bg-white shadow-2xl rounded-2xl border border-slate-100" align="start">
+                      <Command>
+                        <CommandInput placeholder="Escribe municipio, ciudad o estado..." className="h-10 text-xs" />
+                        <CommandList className="max-h-60 overflow-y-auto">
+                          <CommandEmpty className="p-4 text-xs text-muted-foreground text-center">
+                            No se encontraron ubicaciones coincidentes.
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {municipalitiesFlat.map((loc) => (
+                              <CommandItem
+                                key={`${loc.city}-${loc.state}`}
+                                value={loc.label}
+                                className="text-xs cursor-pointer py-2.5"
+                                onSelect={() => {
+                                  setCity(loc.city);
+                                  setState(loc.state);
+                                  setOpenLocationPopover(false);
+                                  toast.success(`Ubicación seleccionada: ${loc.city}, ${loc.state}`);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-3.5 w-3.5 text-procarni-secondary",
+                                    (city === loc.city && state === loc.state) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <span className="font-semibold text-slate-800">{loc.city}</span>
+                                <span className="text-slate-400 ml-1.5">({loc.state})</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+
+
+                {/* Términos de Pago */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Términos de Pago
+                  </Label>
+                  <Select value={paymentTerms} onValueChange={handlePaymentTermsChange}>
+                    <SelectTrigger className="bg-slate-50/50 border-slate-200 rounded-xl h-11 focus:ring-procarni-primary/20">
+                      <SelectValue placeholder="Seleccione Términos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TERMS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Días de Crédito */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="creditDays" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Días de Crédito {paymentTerms === 'Crédito' && <span className="text-procarni-primary font-bold">*</span>}
+                  </Label>
+                  <Input
+                    id="creditDays"
+                    type="number"
+                    min="0"
+                    placeholder="Ej: 15, 30..."
+                    value={paymentTerms === 'Crédito' ? (creditDays || '') : 0}
+                    onChange={(e) => setCreditDays(parseInt(e.target.value, 10) || 0)}
+                    disabled={paymentTerms !== 'Crédito'}
+                    className="bg-slate-50/50 border-slate-200 rounded-xl h-11 font-mono text-sm focus:ring-procarni-primary/20 disabled:opacity-50"
+                  />
+                </div>
+
+                {/* Términos Personalizados si aplica */}
+                {paymentTerms === 'Otro' && (
+                  <div className="space-y-1.5 col-span-1 md:col-span-2 animate-in fade-in">
+                    <Label htmlFor="customPaymentTerms" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                      Detalle de Términos Personalizados <span className="text-procarni-primary font-bold">*</span>
+                    </Label>
+                    <Input
+                      id="customPaymentTerms"
+                      placeholder="Ej: 50% anticipo, 50% contra entrega..."
+                      value={customPaymentTerms}
+                      onChange={(e) => setCustomPaymentTerms(e.target.value)}
+                      className="bg-slate-50/50 border-slate-200 rounded-xl h-11 text-sm focus:ring-procarni-primary/20"
+                    />
+                  </div>
+                )}
+
+                {/* Dirección Física */}
+                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                  <Label htmlFor="supplierAddress" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                    Dirección Fiscal / Despacho
+                  </Label>
+                  <Textarea
+                    id="supplierAddress"
+                    placeholder="Av. Principal, Edificio / Galpón, Zona Industrial..."
+                    value={address}
+                    onChange={(e) => handleAddressChange(e.target.value)}
+                    className="bg-slate-50/50 border-slate-200 rounded-xl min-h-[70px] text-xs font-semibold focus:ring-procarni-primary/20 resize-none"
+                  />
+                </div>
+
+                {/* Nota o Alerta Especial */}
+                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                  <Label htmlFor="alertComment" className="text-[10px] uppercase tracking-wider font-semibold text-amber-600 flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5" /> Alerta o Nota Especial para Compras (Opcional)
+                  </Label>
+                  <Textarea
+                    id="alertComment"
+                    placeholder="Ej: No despacha viernes después de las 2pm / Requiere confirmación bancaria previa..."
+                    value={alertComment}
+                    onChange={(e) => setAlertComment(e.target.value)}
+                    className="bg-amber-50/30 border-amber-200/60 rounded-xl min-h-[60px] text-xs focus:ring-amber-500/20 resize-none"
+                  />
+                </div>
+
+              </div>
+            </section>
+          </div>
+
+          {/* Right Column: Actions & Contact */}
+          <div className="col-span-12 lg:col-span-3 space-y-6">
+
+            {/* Actions Card */}
+            <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] shadow-xl shadow-gray-200/50 space-y-4">
+              <h4 className="font-extrabold text-sm text-procarni-dark uppercase tracking-wider text-[11px] pb-2 border-b border-slate-100">
+                Acciones del Proveedor
+              </h4>
+
+              <div className="space-y-3 pt-1">
+                <Button
+                  disabled={isSaving}
+                  onClick={handleSaveChanges}
+                  className="w-full bg-procarni-primary hover:bg-procarni-primary/95 text-white py-6 rounded-2xl font-bold shadow-lg shadow-procarni-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSaving ? (isNew ? 'Creando...' : 'Guardando...') : (isNew ? 'Crear Proveedor' : 'Guardar Cambios')}
+                </Button>
+
+                {!isNew && (
+                  <>
+                    <Button
+                      onClick={() => navigate('/generate-quote', { state: { supplier } })}
+                      className="w-full bg-white text-procarni-dark hover:bg-slate-50 py-5 rounded-2xl font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs border border-slate-200"
+                    >
+                      <FileText className="h-4 w-4 text-procarni-blue" />
+                      Generar Cotización (SC)
+                    </Button>
+
+                    <Button
+                      onClick={() => navigate('/generate-po', { state: { supplier } })}
+                      className="w-full bg-white text-procarni-dark hover:bg-slate-50 py-5 rounded-2xl font-bold hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-xs border border-slate-200"
+                    >
+                      <ShoppingCart className="h-4 w-4 text-procarni-secondary" />
+                      Generar Orden Compra (OC)
+                    </Button>
+
+                    <Button
+                      onClick={() => navigate('/ficha-tecnica-upload')}
+                      variant="ghost"
+                      className="w-full text-slate-600 hover:text-procarni-primary py-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2"
+                    >
+                      <FileUp className="h-4 w-4" />
+                      Subir Ficha Técnica
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Contact Card */}
+            {!isNew && (
+              <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] shadow-md border border-slate-100 space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Contacto Rápido</span>
+
+                <div className="space-y-2 text-xs">
+                  {phone ? (
+                    <a
+                      href={`https://wa.me/${formatPhoneNumberForWhatsApp(phone)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-100 text-emerald-800 font-semibold transition-colors"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Send className="h-3.5 w-3.5 text-procarni-secondary" />
+                        <span className="truncate">{phone}</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
+                  ) : null}
+
+                  {email ? (
+                    <a
+                      href={`mailto:${email}`}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/50 hover:bg-blue-50 border border-blue-100 text-procarni-blue font-semibold transition-colors"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Mail className="h-3.5 w-3.5 text-procarni-blue" />
+                        <span className="truncate">{email}</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
+                  ) : null}
+
+                  {website ? (
+                    <a
+                      href={website.startsWith('http') ? website : `https://${website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 font-semibold transition-colors"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Globe className="h-3.5 w-3.5 text-procarni-blue" />
+                        <span className="truncate">{website.replace(/^https?:\/\//, '')}</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
+                  ) : null}
+
+                  {instagram ? (
+                    <a
+                      href={`https://instagram.com/${instagram.replace(/^@/, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-pink-50/50 hover:bg-pink-50 border border-pink-100 text-pink-800 font-semibold transition-colors"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <Instagram className="h-3.5 w-3.5 text-pink-600" />
+                        <span className="truncate">@{instagram.replace(/^@/, '')}</span>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
+                  ) : null}
+
+                  {!phone && !email && !website && !instagram && (
+                    <p className="text-gray-400 text-[11px] italic">Sin información de contacto registrada.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* FILA 2: MATERIALES SUMINISTRADOS + TARJETA DE PAGINACIÓN ALINEADA A LA DERECHA */}
+        {!isNew && (
+          <div className="grid grid-cols-12 gap-8 items-start">
+            <div className="col-span-12 lg:col-span-9">
+              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-5 sm:p-8 rounded-[2rem] shadow-xl shadow-gray-200/50 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-5 w-5 text-procarni-primary shrink-0" />
+                    <div>
+                      <h3 className="font-extrabold text-base sm:text-lg text-procarni-dark tracking-tight">Materiales Suministrados</h3>
+                      <p className="text-[11px] sm:text-xs text-gray-400">Catálogo de productos que provee esta empresa ({filteredMaterials.length})</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {/* Buscador */}
+                    <div className="relative flex-1 sm:w-52">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <Input
+                        placeholder="Buscar material..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-8 bg-slate-50 border-slate-200 rounded-xl h-9 text-xs focus:ring-procarni-primary/20 w-full"
+                      />
+                    </div>
+
+                    {/* Botón Asociar */}
+                    <Button
+                      onClick={handleOpenAddMaterial}
+                      className="bg-procarni-secondary hover:bg-green-700 text-white font-bold text-xs rounded-xl h-9 px-3.5 shadow-md flex items-center gap-1.5 transition-all shrink-0"
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      <span>Asociar</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {filteredMaterials.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                    <Package className="h-8 w-8 text-gray-300 mb-2" />
+                    <p className="text-xs text-gray-500 font-semibold">No hay materiales asociados que coincidan con la búsqueda.</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Presiona "Asociar" para vincular productos del catálogo a este proveedor.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* VISTA DESKTOP: TABLA CLÁSICA (md+) */}
+                    <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
+                      <Table>
+                        <TableHeader className="bg-slate-50/70">
+                          <TableRow className="border-b border-slate-100">
+                            <TableHead className={cn(tableHeaderClass, "pl-4")}>Código</TableHead>
+                            <TableHead className={tableHeaderClass}>Nombre del Material</TableHead>
+                            <TableHead className={tableHeaderClass}>Categoría</TableHead>
+                            <TableHead className={tableHeaderClass}>Unidad</TableHead>
+                            <TableHead className={tableHeaderClass}>Ficha Técnica</TableHead>
+                            <TableHead className={cn(tableHeaderClass, "text-right pr-4")}>Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedMaterials.map((sm) => {
+                            const catColor = CATEGORY_COLORS[sm.materials.category?.toUpperCase() || ''] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
+                            return (
+                              <TableRow key={sm.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
+                                <TableCell className="font-mono text-xs font-bold text-slate-500 pl-4 py-3">
+                                  {sm.materials.code || '—'}
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  <span
+                                    onClick={() => navigate(`/material/${sm.material_id}`)}
+                                    className="font-bold text-xs text-slate-800 hover:text-procarni-primary cursor-pointer transition-colors"
+                                  >
+                                    {sm.materials.name}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  <Badge variant="outline" className={cn("text-[10px] font-bold border px-2 py-0.5", catColor.bg, catColor.text, catColor.border)}>
+                                    {sm.materials.category || 'Sin Cat.'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs font-semibold text-slate-600 py-3">
+                                  {sm.units_of_measure?.name || sm.materials.unit || 'UND'}
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  {sm.hasFichaResult ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleViewFicha(sm.materials.name)}
+                                      className="h-7 text-[10px] font-bold text-procarni-secondary border-procarni-secondary/30 hover:bg-emerald-50 rounded-lg"
+                                    >
+                                      <FileText className="h-3 w-3 mr-1" /> Ver Ficha
+                                    </Button>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400 italic">No disponible</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right pr-4 py-3">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleRemoveSingleMaterial(sm.id)}
+                                    className="h-7 w-7 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                                    title="Desvincular material"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* VISTA MOBILE: TARJETAS STACKEADAS (< md) */}
+                    <div className="block md:hidden space-y-3">
+                      {paginatedMaterials.map((sm) => {
+                        const catColor = CATEGORY_COLORS[sm.materials.category?.toUpperCase() || ''] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
                         return (
                           <div
-                            key={key}
-                            onClick={() => toggleSuggestSelection(key)}
-                            className={cn(
-                              "flex items-center gap-3 p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer select-none",
-                              isSelected
-                                ? "bg-blue-50/20 border-blue-200/60 shadow-sm"
-                                : "bg-gray-50/10 border-gray-100 hover:bg-gray-50/30"
-                            )}
+                            key={`mobile-mat-${sm.id}`}
+                            className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-100 shadow-sm space-y-2.5 transition-all"
                           >
-                            <div className="flex items-center justify-center">
-                              <div
-                                className={cn(
-                                  "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
-                                  isSelected
-                                    ? "bg-procarni-primary border-procarni-primary text-white"
-                                    : "border-gray-300 bg-white"
-                                )}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                <span className="font-mono text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
+                                  {sm.materials.code || 'S/C'}
+                                </span>
+                                <Badge variant="outline" className={cn("text-[9px] font-bold border px-1.5 py-0.5", catColor.bg, catColor.text, catColor.border)}>
+                                  {sm.materials.category || 'Sin Cat.'}
+                                </Badge>
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleRemoveSingleMaterial(sm.id)}
+                                className="h-7 w-7 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0 -mt-1 -mr-1"
+                                title="Desvincular material"
                               >
-                                {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                              </div>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-xs text-procarni-dark truncate uppercase tracking-tight">
-                                {item.material_name}
-                              </p>
-                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center mt-1 text-[10px] text-gray-400 font-medium">
-                                {item.supplier_code && (
-                                  <span className="bg-gray-100 text-gray-600 px-1 rounded font-mono">
-                                    Cód: {item.supplier_code}
-                                  </span>
-                                )}
-                                <span>{item.unit || 'UND'}</span>
-                                <span className="text-gray-300">•</span>
-                                <span>{item.count} {item.count === 1 ? 'compra' : 'compras'}</span>
+
+                            <p
+                              onClick={() => navigate(`/material/${sm.material_id}`)}
+                              className="font-bold text-xs text-slate-900 leading-snug cursor-pointer hover:text-procarni-primary transition-colors"
+                            >
+                              {sm.materials.name}
+                            </p>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-100/80 text-xs">
+                              <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                                <span>Unidad:</span>
+                                <span className="font-mono font-bold text-slate-700">{sm.units_of_measure?.name || sm.materials.unit || 'UND'}</span>
                               </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block mb-0.5">Último Precio</span>
-                              <span className="font-mono text-xs font-bold text-procarni-dark">
-                                {item.unit_price.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
+
+                              {sm.hasFichaResult ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewFicha(sm.materials.name)}
+                                  className="h-6 text-[10px] font-bold text-procarni-secondary border-procarni-secondary/30 hover:bg-emerald-50 rounded-lg px-2"
+                                >
+                                  <FileText className="h-3 w-3 mr-1" /> Ficha Técnica
+                                </Button>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 italic">Sin ficha</span>
+                              )}
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
 
-              {/* Materials Card */}
-              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                      <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
-                      Materiales Ofrecidos
-                    </CardTitle>
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Buscar material..."
-                        className="pl-8 h-9 text-xs bg-white border-gray-200"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {supplier.materials && supplier.materials.length > 0 ? (
-                    <div className="divide-y divide-gray-100/30">
-                      {groupedMaterials.length > 0 ? (
-                        groupedMaterials.map((group) => (
-                          <div key={group.material_id} className="bg-transparent overflow-hidden group/material border-b border-slate-100/40 last:border-b-0">
-                            {/* Material Group Header */}
-                            <div className="bg-slate-50/50 p-3 px-6 border-b border-slate-100/40 flex flex-col md:flex-row md:items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-procarni-secondary" />
-                                  <h3 className="font-bold text-procarni-dark text-[13px] uppercase tracking-tight">
-                                    {group.name}
-                                  </h3>
-                                </div>
-                                <div className="flex items-center gap-2 mt-0.5 ml-3.5">
-                                  <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono text-gray-400 bg-white border-gray-100">
-                                    {group.code || 'S/C'}
-                                  </Badge>
-                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
-                                    {group.category || 'Sin categoría'}
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                 <Badge className="bg-blue-50 text-blue-600 border-blue-100 shadow-none text-[10px] font-bold">
-                                   {group.items.length} {group.items.length === 1 ? 'Presentación' : 'Presentaciones'}
-                                 </Badge>
-                              </div>
-                            </div>
+                    {/* PAGINACIÓN DISCRETA Y COMPACTA PARA MÓVILES (< md) */}
+                    {totalMaterialPages > 1 && (
+                      <div className="flex md:hidden items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {((materialPage - 1) * MATERIAL_PAGE_SIZE) + 1}–{Math.min(materialPage * MATERIAL_PAGE_SIZE, filteredMaterials.length)} de {filteredMaterials.length}
+                        </span>
 
-                            {/* Presentations Mobile Cards */}
-                            <div className="block md:hidden p-3 space-y-2">
-                              {group.items.map((sm: any) => (
-                                <div key={sm.id} className="bg-white/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-100 shadow-md shadow-gray-200/40 ring-1 ring-white flex items-center justify-between gap-2">
-                                  <div className="space-y-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
-                                        {sm.units_of_measure?.name || 'N/A'}
-                                      </span>
-                                    </div>
-                                    <p className="text-slate-700 italic text-xs">
-                                      {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
-                                    </p>
-                                  </div>
-                                  <div className="shrink-0">
-                                    {sm.isLoadingFicha ? (
-                                      <Loader2 className="h-4 w-4 animate-spin text-gray-300" />
-                                    ) : sm.hasFichaResult ? (
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        onClick={() => handleViewFicha(sm.materials.name)} 
-                                        className="h-8 px-2.5 text-xs text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary/5 gap-1.5 rounded-lg"
-                                      >
-                                        <FileText className="h-3.5 w-3.5 text-procarni-secondary" />
-                                        <span>Ficha</span>
-                                      </Button>
-                                    ) : (
-                                      <span className="text-[10px] text-gray-300 font-semibold">Sin Ficha</span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Presentations Desktop Table */}
-                            <div className="hidden md:block overflow-x-auto">
-                              <Table>
-                                <TableHeader className="bg-white">
-                                  <TableRow className="border-b-0 hover:bg-transparent">
-                                    <TableHead className={cn(tableHeaderClass, "w-[150px] pl-10 h-8 py-0")}>Unidad</TableHead>
-                                    <TableHead className={cn(tableHeaderClass, "h-8 py-0")}>Rubro / Especificación</TableHead>
-                                    <TableHead className={cn(tableHeaderClass, "w-[120px] text-center pr-6 h-8 py-0")}>Ficha Técnica</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {group.items.map((sm: any) => (
-                                    <TableRow key={sm.id} className="border-b border-slate-100/40 hover:bg-slate-100/40 transition-colors last:border-b-0">
-                                      <TableCell className="pl-10">
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-procarni-secondary/5 border border-procarni-secondary/10 text-procarni-secondary font-bold text-[11px]">
-                                          {sm.units_of_measure?.name || 'N/A'}
-                                        </span>
-                                      </TableCell>
-                                      <TableCell className="text-slate-700 italic text-[12px]">
-                                        {sm.specification || <span className="text-gray-300">Sin especificaciones</span>}
-                                      </TableCell>
-                                      <TableCell className="text-center pr-6">
-                                        {sm.isLoadingFicha ? (
-                                          <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto text-gray-300" />
-                                        ) : sm.hasFichaResult ? (
-                                          <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            onClick={() => handleViewFicha(sm.materials.name)} 
-                                            className="hover:bg-green-50 rounded-full h-8 w-8 group/ficha"
-                                          >
-                                            <FileText className="h-4 w-4 text-procarni-secondary transition-transform group-hover/ficha:scale-110" />
-                                          </Button>
-                                        ) : (
-                                          <span className="text-[10px] text-gray-300">N/A</span>
-                                        )}
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-                          <Search className="h-8 w-8 opacity-10" />
-                          <p className="italic text-sm">No se encontraron materiales que coincidan con la búsqueda.</p>
+                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200/80 rounded-xl p-0.5 shadow-sm">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={materialPage <= 1}
+                            onClick={() => setMaterialPage(p => Math.max(1, p - 1))}
+                            className="h-6 w-6 rounded-lg text-slate-600 disabled:opacity-20"
+                            title="Página anterior"
+                          >
+                            <ChevronLeft className="h-3 w-3" />
+                          </Button>
+                          <span className="text-[10px] font-bold text-slate-700 px-1 font-mono">
+                            {materialPage} / {totalMaterialPages}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={materialPage >= totalMaterialPages}
+                            onClick={() => setMaterialPage(p => Math.min(totalMaterialPages, p + 1))}
+                            className="h-6 w-6 rounded-lg text-slate-600 disabled:opacity-20"
+                            title="Página siguiente"
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                          </Button>
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-                      <ShoppingCart className="h-10 w-10 opacity-10" />
-                      <p className="italic text-sm">Este proveedor no tiene materiales registrados.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* TAB 2: ORDER HISTORY */}
-            <TabsContent value="orders" className="space-y-6 focus-visible:outline-none">
-              {/* Purchase Orders List */}
-              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
-                    Órdenes de Compra (OC)
-                  </CardTitle>
-                  <CardDescription className="text-xs text-gray-500 italic mt-0.5">
-                    Histórico de órdenes de adquisición de bienes y materiales.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {isLoadingPOs ? (
-                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-procarni-primary" />
-                      Cargando órdenes de compra...
-                    </div>
-                  ) : purchaseOrders.length === 0 ? (
-                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-                      <ShoppingCart className="h-10 w-10 opacity-10" />
-                      <p className="italic text-sm">No se encontraron órdenes de compra para este proveedor.</p>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Mobile PO Cards */}
-                      <div className="block md:hidden p-4 space-y-3">
-                        {purchaseOrders.map((order: any) => {
-                          const isExpanded = expandedOcId === order.id;
-                          const items = order.purchase_order_items || [];
-                          const totals = calculateTotals(items);
-
-                          return (
-                            <Card key={order.id} className={cn("p-5 bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden transition-all", isExpanded && "border-l-4 border-l-procarni-primary")}>
-                              <div className="flex justify-between items-start mb-2">
-                                <Link to={`/purchase-orders/${order.id}`} className="font-bold font-mono text-sm text-blue-600 hover:underline">
-                                  #{order.sequence_number || 'S/N'}
-                                </Link>
-                                <div>{getStatusBadge(order.status)}</div>
-                              </div>
-
-                              <div className="space-y-1 text-xs mb-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Empresa</span>
-                                    <p className="font-semibold text-slate-800 truncate">{order.companies?.name || 'N/A'}</p>
-                                  </div>
-                                  <div>
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Monto Total</span>
-                                    <p className="font-mono font-bold text-procarni-dark text-sm">
-                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-slate-400">Fecha Emisión</span>
-                                  <p className="text-slate-600">{order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}</p>
-                                </div>
-                              </div>
-
-                              {/* Mobile Accordion Toggle */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setExpandedOcId(isExpanded ? null : order.id)}
-                                className="w-full flex items-center justify-between text-xs py-2 bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium rounded-xl"
-                              >
-                                <span className="flex items-center gap-1.5">
-                                  <Package className="h-3.5 w-3.5 text-procarni-primary" />
-                                  {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
-                                </span>
-                                <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
-                                  {isExpanded ? 'Ocultar' : 'Ver detalle'}
-                                  {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
-                                </span>
-                              </Button>
-
-                              {/* Mobile Expanded Items */}
-                              {isExpanded && (
-                                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                                  {items.length === 0 ? (
-                                    <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta orden.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {items.map((item: any, idx: number) => {
-                                        const qty = Number(item.quantity || 0);
-                                        const unitPrice = Number(item.unit_price || 0);
-                                        const subtotal = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0) ? Number(item.subtotal) : qty * unitPrice;
-                                        const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt) ? Number(item.tax_amount) : (item.is_exempt ? 0 : subtotal * 0.16);
-                                        const lineTotal = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0) ? Number(item.total_price) : (subtotal + tax);
-
-                                        return (
-                                          <div key={item.id || idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
-                                            <div className="flex justify-between items-start gap-2">
-                                              <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.description || item.material_name || 'S/N'}</span>
-                                              <span className="font-mono font-bold text-procarni-dark shrink-0">
-                                                {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                              </span>
-                                            </div>
-                                            <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                                              <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
-                                              <span>IVA: {tax.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-
-                                      <div className="bg-slate-100/80 p-2.5 rounded-xl text-xs font-mono space-y-1 border border-slate-200/60 mt-2">
-                                        <div className="flex justify-between text-slate-600">
-                                          <span>Subtotal:</span>
-                                          <span className="font-semibold">{totals.subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
-                                        </div>
-                                        <div className="flex justify-between text-slate-600">
-                                          <span>IVA (16%):</span>
-                                          <span className="font-semibold">{(totals.montoIVA || totals.subtotal * 0.16).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
-                                        </div>
-                                        <div className="flex justify-between text-slate-800 font-bold border-t border-slate-200/80 pt-1 mt-1">
-                                          <span className="text-procarni-dark font-extrabold">TOTAL:</span>
-                                          <span className="text-procarni-primary font-black text-sm">{totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </Card>
-                          );
-                        })}
                       </div>
-
-                      {/* Desktop PO Table */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50/50">
-                              <TableHead className="w-[30px] pl-3 py-2"></TableHead>
-                              <TableHead className={cn(tableHeaderClass, "pl-2 w-[120px]")}>Número</TableHead>
-                              <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
-                              <TableHead className={tableHeaderClass}>Empresa Solicitante</TableHead>
-                              <TableHead className={tableHeaderClass}>Tasa / Moneda</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
-                              <TableHead className="w-[50px]"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {purchaseOrders.map((order: any) => {
-                              const isExpanded = expandedOcId === order.id;
-                              const items = order.purchase_order_items || [];
-                              const totals = calculateTotals(items);
-
-                              return (
-                                <React.Fragment key={order.id}>
-                                  <TableRow
-                                    onClick={() => setExpandedOcId(isExpanded ? null : order.id)}
-                                    className={cn(
-                                      "cursor-pointer transition-colors border-b border-slate-100/40",
-                                      isExpanded
-                                        ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
-                                        : "hover:bg-slate-100/30"
-                                    )}
-                                  >
-                                    <TableCell className="pl-3 py-3 text-slate-400">
-                                      {isExpanded ? (
-                                        <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="pl-2 font-bold font-mono text-xs" onClick={(e) => e.stopPropagation()}>
-                                      <Link to={`/purchase-orders/${order.id}`} className="text-blue-600 hover:underline">
-                                        #{order.sequence_number || 'S/N'}
-                                      </Link>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-600 font-medium">
-                                      {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-700 font-semibold">
-                                      {order.companies?.name || 'N/A'}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-500 font-mono">
-                                      {order.currency} {order.exchange_rate ? `(Tasa: ${order.exchange_rate})` : ''}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
-                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      {getStatusBadge(order.status)}
-                                    </TableCell>
-                                    <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                      <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
-                                        <Link to={`/purchase-orders/${order.id}`}>
-                                          <ArrowUpRight className="h-4 w-4" />
-                                        </Link>
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-
-                                  {isExpanded && (
-                                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
-                                      <TableCell colSpan={8} className="p-4 pl-10">
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                            <div className="flex items-center gap-2">
-                                              <Package className="h-4 w-4 text-procarni-primary" />
-                                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems de la Orden de Compra</h4>
-                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
-                                                {items.length} {items.length === 1 ? 'ítem' : 'ítems'}
-                                              </Badge>
-                                            </div>
-                                            <span className="text-[11px] text-slate-400 font-mono">ID: {order.id}</span>
-                                          </div>
-
-                                          {items.length === 0 ? (
-                                            <p className="text-xs text-slate-400 italic py-2">No hay ítems registrados en esta orden.</p>
-                                          ) : (
-                                            <div className="overflow-x-auto rounded-lg border border-slate-100">
-                                              <Table className="text-xs">
-                                                <TableHeader className="bg-slate-50">
-                                                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                                                    <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
-                                                    <TableHead className="font-bold text-slate-500 py-2">Descripción / Producto</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Subtotal</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">IVA / Imp.</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
-                                                  </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                  {items.map((item: any, idx: number) => {
-                                                    const qty = Number(item.quantity || 0);
-                                                    const unitPrice = Number(item.unit_price || 0);
-                                                    const subtotal = (item.subtotal !== undefined && item.subtotal !== null && Number(item.subtotal) > 0)
-                                                      ? Number(item.subtotal)
-                                                      : qty * unitPrice;
-                                                    const tax = (item.tax_amount !== undefined && item.tax_amount !== null && Number(item.tax_amount) >= 0 && !item.is_exempt)
-                                                      ? Number(item.tax_amount)
-                                                      : (item.is_exempt ? 0 : subtotal * 0.16);
-                                                    const lineTotal = (item.total_price !== undefined && item.total_price !== null && Number(item.total_price) > 0)
-                                                      ? Number(item.total_price)
-                                                      : ((item.total !== undefined && item.total !== null && Number(item.total) > 0) ? Number(item.total) : (subtotal + tax));
-
-                                                    return (
-                                                      <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
-                                                        <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
-                                                        <TableCell className="font-medium text-slate-800 py-2">{item.description || item.material_name || 'S/N'}</TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
-                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
-                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
-                                                        <TableCell className="text-right font-mono text-slate-500 py-2">{tax.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</TableCell>
-                                                      </TableRow>
-                                                    );
-                                                  })}
-                                                </TableBody>
-                                              </Table>
-
-                                              {/* Summary Footer for items */}
-                                              <div className="bg-slate-50/80 px-4 py-2 border-t border-slate-100 flex justify-end gap-6 text-xs font-mono">
-                                                <div><span className="text-slate-500 font-medium">Subtotal:</span> <span className="font-semibold text-slate-700">{totals.subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
-                                                <div><span className="text-slate-500 font-medium">IVA (16%):</span> <span className="font-semibold text-slate-700">{totals.montoIVA ? totals.montoIVA.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (totals.subtotal * 0.16).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
-                                                <div><span className="text-slate-600 font-bold">TOTAL:</span> <span className="font-extrabold text-procarni-primary">{totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}</span></div>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Service Orders List */}
-              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
-                    Órdenes de Servicio (OS)
-                  </CardTitle>
-                  <CardDescription className="text-xs text-gray-500 italic mt-0.5">
-                    Histórico de órdenes de servicio, reparaciones y mantenimiento técnico contratado.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {isLoadingSOs ? (
-                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-procarni-secondary" />
-                      Cargando órdenes de servicio...
-                    </div>
-                  ) : serviceOrders.length === 0 ? (
-                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-                      <FileText className="h-10 w-10 opacity-10" />
-                      <p className="italic text-sm">No se encontraron órdenes de servicio para este proveedor.</p>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Mobile OS Cards */}
-                      <div className="block md:hidden p-4 space-y-3">
-                        {serviceOrders.map((order: any) => {
-                          const isExpanded = expandedOsId === order.id;
-                          const serviceItems = order.service_order_items || [];
-                          const materialItems = order.service_order_materials || [];
-                          const totalItemsCount = serviceItems.length + materialItems.length;
-
-                          const combinedItems = [
-                            ...serviceItems.map((i: any) => ({ ...i, name: i.description, unit_price: i.unit_price })),
-                            ...materialItems.map((m: any) => ({ ...m, name: m.material_name, unit_price: m.unit_price }))
-                          ];
-                          const totals = calculateTotals(combinedItems as any);
-
-                          return (
-                            <Card key={order.id} className={cn("p-5 bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden transition-all", isExpanded && "border-l-4 border-l-procarni-primary")}>
-                              <div className="flex justify-between items-start mb-2">
-                                <Link to={`/service-orders/${order.id}`} className="font-bold font-mono text-sm text-blue-600 hover:underline">
-                                  #{order.sequence_number || 'S/N'}
-                                </Link>
-                                <div>{getStatusBadge(order.status)}</div>
-                              </div>
-
-                              <div className="space-y-1 text-xs mb-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Equipo / Servicio</span>
-                                    <p className="font-semibold text-slate-800 truncate">{order.equipment_name || 'General'}</p>
-                                  </div>
-                                  <div>
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Monto Total</span>
-                                    <p className="font-mono font-bold text-procarni-dark text-sm">
-                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-slate-400">Fecha Emisión</span>
-                                  <p className="text-slate-600">{order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}</p>
-                                </div>
-                              </div>
-
-                              {/* Mobile Accordion Toggle */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setExpandedOsId(isExpanded ? null : order.id)}
-                                className="w-full flex items-center justify-between text-xs py-2 bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-medium rounded-xl"
-                              >
-                                <span className="flex items-center gap-1.5">
-                                  <Wrench className="h-3.5 w-3.5 text-procarni-secondary" />
-                                  {totalItemsCount} {totalItemsCount === 1 ? 'ítem e insumo' : 'ítems e insumos'}
-                                </span>
-                                <span className="flex items-center gap-1 text-slate-500 font-semibold text-[11px]">
-                                  {isExpanded ? 'Ocultar' : 'Ver detalle'}
-                                  {isExpanded ? <ChevronDown className="h-4 w-4 text-procarni-primary" /> : <ChevronRight className="h-4 w-4" />}
-                                </span>
-                              </Button>
-
-                              {/* Mobile Expanded Items */}
-                              {isExpanded && (
-                                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                                  {totalItemsCount === 0 ? (
-                                    <p className="text-xs text-slate-400 italic py-1 text-center">No hay ítems registrados en esta orden de servicio.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {combinedItems.map((item: any, idx: number) => {
-                                        const qty = Number(item.quantity || 1);
-                                        const unitPrice = Number(item.unit_price || 0);
-                                        const total = Number(item.total_price || qty * unitPrice);
-
-                                        return (
-                                          <div key={item.id || idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs space-y-1">
-                                            <div className="flex justify-between items-start gap-2">
-                                              <span className="font-semibold text-slate-800 flex-1">{idx + 1}. {item.name || 'Servicio/Material'}</span>
-                                              <span className="font-mono font-bold text-procarni-dark shrink-0">
-                                                {total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                              </span>
-                                            </div>
-                                            <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                                              <span>Cant: {qty} × {unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
-                                            </div>
-                                            {item.material_name && item.description && (
-                                              <p className="text-[10px] text-slate-400 italic font-medium">{item.description}</p>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </Card>
-                          );
-                        })}
-                      </div>
-
-                      {/* Desktop OS Table */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50/50">
-                              <TableHead className="w-[30px] pl-3 py-2"></TableHead>
-                              <TableHead className={cn(tableHeaderClass, "pl-2 w-[120px]")}>Número</TableHead>
-                              <TableHead className={tableHeaderClass}>Fecha Emisión</TableHead>
-                              <TableHead className={tableHeaderClass}>Equipo</TableHead>
-                              <TableHead className={tableHeaderClass}>Tipo de Servicio</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-right")}>Monto Total</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-center w-[120px]")}>Estado</TableHead>
-                              <TableHead className="w-[50px]"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {serviceOrders.map((order: any) => {
-                              const isExpanded = expandedOsId === order.id;
-                              const serviceItems = order.service_order_items || [];
-                              const materialItems = order.service_order_materials || [];
-                              const totalItemsCount = serviceItems.length + materialItems.length;
-
-                              const combinedItems = [
-                                ...serviceItems.map((i: any) => ({ ...i, name: i.description, isService: true })),
-                                ...materialItems.map((m: any) => ({ ...m, name: m.material_name, isService: false }))
-                              ];
-                              const totals = calculateTotals(combinedItems as any);
-
-                              return (
-                                <React.Fragment key={order.id}>
-                                  <TableRow
-                                    onClick={() => setExpandedOsId(isExpanded ? null : order.id)}
-                                    className={cn(
-                                      "cursor-pointer transition-colors border-b border-slate-100/40",
-                                      isExpanded
-                                        ? "bg-red-50/20 hover:bg-red-50/30 border-l-4 border-l-procarni-primary"
-                                        : "hover:bg-slate-100/30"
-                                    )}
-                                  >
-                                    <TableCell className="pl-3 py-3 text-slate-400">
-                                      {isExpanded ? (
-                                        <ChevronDown className="h-4 w-4 text-procarni-primary transition-transform duration-200" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200" />
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="pl-2 font-bold font-mono text-xs" onClick={(e) => e.stopPropagation()}>
-                                      <Link to={`/service-orders/${order.id}`} className="text-blue-600 hover:underline">
-                                        #{order.sequence_number || 'S/N'}
-                                      </Link>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-600 font-medium">
-                                      {order.issue_date ? format(new Date(order.issue_date), 'dd/MM/yyyy') : 'Sin fecha'}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-700 font-bold uppercase truncate max-w-[200px]">
-                                      {order.equipment_name || 'General'}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-500 font-medium italic">
-                                      {order.service_type || 'N/A'}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono font-bold text-xs text-procarni-dark">
-                                      {totals.total.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      {getStatusBadge(order.status)}
-                                    </TableCell>
-                                    <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                      <Button asChild size="icon" variant="ghost" className="h-7 w-7 rounded-full text-blue-600 hover:bg-blue-50">
-                                        <Link to={`/service-orders/${order.id}`}>
-                                          <ArrowUpRight className="h-4 w-4" />
-                                        </Link>
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-
-                                  {isExpanded && (
-                                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-b border-slate-200/80">
-                                      <TableCell colSpan={8} className="p-4 pl-10">
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                            <div className="flex items-center gap-2">
-                                              <Wrench className="h-4 w-4 text-procarni-secondary" />
-                                              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ítems e Insumos del Servicio</h4>
-                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
-                                                {totalItemsCount} {totalItemsCount === 1 ? 'ítem' : 'ítems'}
-                                              </Badge>
-                                            </div>
-                                            <span className="text-[11px] text-slate-400 font-mono">ID: {order.id}</span>
-                                          </div>
-
-                                          {totalItemsCount === 0 ? (
-                                            <p className="text-xs text-slate-400 italic py-2">No hay ítems registrados en esta orden de servicio.</p>
-                                          ) : (
-                                            <div className="overflow-x-auto rounded-lg border border-slate-100">
-                                              <Table className="text-xs">
-                                                <TableHeader className="bg-slate-50">
-                                                  <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                                                    <TableHead className="w-[40px] font-bold text-slate-500 py-2 text-center">#</TableHead>
-                                                    <TableHead className="font-bold text-slate-500 py-2">Descripción / Concepto</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Cant.</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Precio Unit.</TableHead>
-                                                    <TableHead className="text-right font-bold text-slate-500 py-2">Total</TableHead>
-                                                  </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                  {combinedItems.map((item: any, idx: number) => {
-                                                    const unitPrice = Number(item.unit_price || 0);
-                                                    const qty = Number(item.quantity || 1);
-                                                    const total = Number(item.total_price || qty * unitPrice);
-
-                                                    return (
-                                                      <TableRow key={item.id || idx} className="hover:bg-slate-50/50 border-b border-slate-100/60 last:border-b-0">
-                                                        <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
-                                                        <TableCell className="font-medium text-slate-800 py-2">{item.description || item.material_name || 'Servicio/Material'}</TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-slate-800 py-2">{qty}</TableCell>
-                                                        <TableCell className="text-right font-mono text-slate-600 py-2">{unitPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
-                                                        <TableCell className="text-right font-mono font-bold text-procarni-dark py-2">{total.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</TableCell>
-                                                      </TableRow>
-                                                    );
-                                                  })}
-                                                </TableBody>
-                                              </Table>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* TAB 3: PRICE ANALYSIS */}
-            <TabsContent value="analysis" className="space-y-6 focus-visible:outline-none">
-              {/* Analysis Metrics Bento */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Total Transado</span>
-                    <DollarSign className="h-4 w-4 text-green-600" />
+                    )}
                   </div>
-                  <h4 className="text-xl font-extrabold text-slate-800 mt-2 font-mono">
-                    ${stats.totalTransactedUSD.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1 italic">Órdenes Aprobadas (en USD equivalent)</p>
-                </div>
-                
-                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Total de Órdenes</span>
-                    <Clock className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <h4 className="text-xl font-extrabold text-slate-800 mt-2">
-                    {stats.totalOrdersCount}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1 italic">{stats.approvedOrdersCount} Aprobadas / {stats.totalOrdersCount - stats.approvedOrdersCount} Otras</p>
-                </div>
+                )}
+              </section>
+            </div>
 
-                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Items Catalogados</span>
-                    <ShoppingCart className="h-4 w-4 text-procarni-primary" />
-                  </div>
-                  <h4 className="text-xl font-extrabold text-slate-800 mt-2">
-                    {stats.materialsCount}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1 italic">Materiales registrados en su portafolio</p>
-                </div>
-
-                <div className="bg-white/70 backdrop-blur-xl border border-white/50 p-5 rounded-3xl shadow-lg flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Historial Precios</span>
-                    <Activity className="h-4 w-4 text-purple-600" />
-                  </div>
-                  <h4 className="text-xl font-extrabold text-slate-800 mt-2">
-                    {supplierPriceHistory.length}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1 italic">Registros de precios guardados</p>
-                </div>
-              </div>
-
-              {/* Price Evolution Chart */}
-              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div>
-                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                      <span className="flex h-2 w-2 rounded-full bg-procarni-primary" />
-                      Evolución Temporal de Precios
-                    </CardTitle>
-                    <CardDescription className="text-xs text-gray-500 italic mt-0.5">
-                      Visualización histórica de los precios ofrecidos por este proveedor.
-                    </CardDescription>
-                  </div>
-                  {uniquePriceMaterials.length > 0 && (
+            {/* Columna Derecha Alineada con Materiales (Exactamente en el recuadro naranja!) */}
+            <div className="col-span-12 lg:col-span-3">
+              {totalMaterialPages > 1 ? (
+                <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] shadow-xl shadow-gray-200/50 space-y-4 animate-in fade-in sticky top-6">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] uppercase font-bold text-gray-400 whitespace-nowrap">Material:</span>
-                      <select 
-                        value={selectedAnalysisMaterial} 
-                        onChange={(e) => setSelectedAnalysisMaterial(e.target.value)}
-                        className="text-xs rounded-lg border border-gray-200 bg-white p-1.5 focus:outline-none focus:ring-1 focus:ring-procarni-primary"
-                      >
-                        <option value="all">Todos los materiales</option>
-                        {uniquePriceMaterials.map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
+                      <Package className="h-4 w-4 text-procarni-primary" />
+                      <span className="font-extrabold text-xs text-procarni-dark uppercase tracking-wider">
+                        Páginas de Materiales
+                      </span>
                     </div>
-                  )}
-                </CardHeader>
-                <CardContent className="p-6">
-                  {isLoadingPriceHistory ? (
-                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-procarni-primary" />
-                      Cargando gráfico...
-                    </div>
-                  ) : chartData.length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 text-xs italic">
-                      No hay suficientes registros históricos de precios para graficar.
-                    </div>
-                  ) : (
-                    <div className="h-[250px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                          <XAxis dataKey="fechaFormato" tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
-                          <YAxis tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '11px' }}
-                            labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
-                            formatter={(value, name, props) => {
-                              const itemMaterial = props.payload?.material;
-                              const formattedPrice = `${Number(value).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${props.payload?.moneda || 'USD'}`;
-                              return [
-                                formattedPrice,
-                                selectedAnalysisMaterial === 'all' && itemMaterial ? itemMaterial : name
-                              ];
-                            }}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                          <Line 
-                            name={selectedAnalysisMaterial === 'all' ? "Precio de Materiales" : chartData[0]?.material} 
-                            type="monotone" 
-                            dataKey="Precio" 
-                            stroke="#880a0a" 
-                            strokeWidth={2.5} 
-                            activeDot={{ r: 6 }} 
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <Badge variant="outline" className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700">
+                      {filteredMaterials.length} ítems
+                    </Badge>
+                  </div>
 
-              {/* Price Stats Table */}
-              <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50/50 to-white pb-4 border-b border-gray-100/50">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-procarni-blue flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-procarni-secondary" />
-                    Análisis de Precios de Materiales
-                  </CardTitle>
-                  <CardDescription className="text-xs text-gray-500 italic mt-0.5">
-                    Estadísticas agregadas de precios históricos registrados en compras y cotizaciones.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {isLoadingPriceHistory ? (
-                    <div className="p-12 text-center text-slate-400 text-xs italic flex justify-center items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-procarni-secondary" />
-                      Calculando análisis...
-                    </div>
-                  ) : priceAnalysisByMaterial.length === 0 ? (
-                    <div className="p-16 text-center text-gray-400 flex flex-col items-center gap-3">
-                      <Activity className="h-10 w-10 opacity-10" />
-                      <p className="italic text-sm">Este proveedor no tiene historial de precios registrado.</p>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Mobile Price Analysis Cards */}
-                      <div className="block md:hidden p-4 space-y-3">
-                        {priceAnalysisByMaterial.map((m) => (
-                          <div key={m.materialId} className="bg-white/80 backdrop-blur-xl p-4.5 rounded-3xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white space-y-2 overflow-hidden">
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="min-w-0">
-                                <p className="font-bold text-procarni-dark text-xs uppercase truncate">{m.name}</p>
-                                <span className="text-[9px] text-gray-400 font-mono">Cód: {m.code} • {m.unit}</span>
-                              </div>
-                              <div>
-                                {m.trend === 'up' && (
-                                  <Badge className="bg-red-50 text-red-600 border-red-100 flex items-center gap-0.5 text-[9px] font-bold">
-                                    <TrendingUp className="h-3 w-3" /> Alza
-                                  </Badge>
-                                )}
-                                {m.trend === 'down' && (
-                                  <Badge className="bg-green-50 text-green-600 border-green-100 flex items-center gap-0.5 text-[9px] font-bold">
-                                    <TrendingDown className="h-3 w-3" /> Baja
-                                  </Badge>
-                                )}
-                                {m.trend === 'stable' && (
-                                  <Badge className="bg-slate-50 text-slate-500 border-slate-200 text-[9px] font-bold">
-                                    Estable
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
+                  <div className="space-y-3">
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      Selecciona libremente la página que deseas visualizar:
+                    </p>
 
-                            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-50 p-2 rounded-xl border border-slate-100">
-                              <div>
-                                <span className="text-[9px] text-slate-400 uppercase tracking-tight block">Mín - Máx</span>
-                                <span className="text-slate-700 font-semibold">{m.min.toLocaleString('es-VE')} - {m.max.toLocaleString('es-VE')} {m.currency}</span>
-                              </div>
-                              <div>
-                                <span className="text-[9px] text-slate-400 uppercase tracking-tight block">Último Precio</span>
-                                <span className="text-procarni-blue font-extrabold">{m.latestPrice.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {m.currency}</span>
-                              </div>
-                            </div>
+                    {/* Grid de Botones de Página libres */}
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {Array.from({ length: totalMaterialPages }, (_, i) => i + 1).map((pageNum) => (
+                        <Button
+                          key={`page-btn-${pageNum}`}
+                          variant={materialPage === pageNum ? 'default' : 'outline'}
+                          onClick={() => setMaterialPage(pageNum)}
+                          className={cn(
+                            "h-8 font-mono text-xs font-bold rounded-xl transition-all",
+                            materialPage === pageNum
+                              ? "bg-procarni-primary text-white shadow-md shadow-procarni-primary/20 scale-105"
+                              : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                          )}
+                        >
+                          {pageNum}
+                        </Button>
+                      ))}
+                    </div>
 
-                            <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
-                              <span>Promedio: <strong className="font-mono">{m.avg.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {m.currency}</strong></span>
-                              <span>Último reg: {format(new Date(m.latestDate), 'dd/MM/yyyy')}</span>
-                            </div>
-                          </div>
-                        ))}
+                    {/* Selector directo si hay muchas páginas */}
+                    {totalMaterialPages > 5 && (
+                      <div className="pt-1">
+                        <Select
+                          value={String(materialPage)}
+                          onValueChange={(val) => setMaterialPage(Number(val))}
+                        >
+                          <SelectTrigger className="w-full bg-slate-50 border-slate-200 rounded-xl h-8 text-xs">
+                            <SelectValue placeholder="Ir a la página..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-56">
+                            {Array.from({ length: totalMaterialPages }, (_, i) => i + 1).map((pageNum) => (
+                              <SelectItem key={`select-page-${pageNum}`} value={String(pageNum)} className="text-xs">
+                                Página {pageNum} de {totalMaterialPages}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
+                    )}
 
-                      {/* Desktop Price Analysis Table */}
-                      <div className="hidden md:block overflow-x-auto">
+                    {/* Botones Anterior / Siguiente */}
+                    <div className="flex items-center justify-between pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={materialPage <= 1}
+                        onClick={() => setMaterialPage(p => Math.max(1, p - 1))}
+                        className="h-8 text-xs font-bold rounded-xl border-slate-200 text-slate-600 disabled:opacity-30 px-2.5"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Ant.
+                      </Button>
+                      <span className="text-[10px] font-bold text-slate-500 font-mono">
+                        {materialPage} / {totalMaterialPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={materialPage >= totalMaterialPages}
+                        onClick={() => setMaterialPage(p => Math.min(totalMaterialPages, p + 1))}
+                        className="h-8 text-xs font-bold rounded-xl border-slate-200 text-slate-600 disabled:opacity-30 px-2.5"
+                      >
+                        Sig. <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* FILA 3: PESTAÑAS DE HISTORIAL Y ANÁLISIS + AUDITORÍA */}
+        {!isNew && (
+          <div className="grid grid-cols-12 gap-8 items-start">
+            <div className="col-span-12 lg:col-span-9">
+              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-8 rounded-[2rem] shadow-xl shadow-gray-200/50 space-y-6">
+                <Tabs defaultValue="ordenes-compra" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-slate-100/80 p-1.5 rounded-2xl gap-1">
+                    <TabsTrigger value="ordenes-compra" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
+                      Órdenes Compra ({purchaseOrders.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="ordenes-servicio" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
+                      Servicios ({serviceOrders.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="historial-precios" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
+                      Historial Precios ({supplierPriceHistory.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="sugeridos" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
+                      Más Comprados ({suggestedMaterials.length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* TAB 1: ÓRDENES DE COMPRA */}
+                  <TabsContent value="ordenes-compra" className="pt-4 space-y-3">
+                    {purchaseOrders.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No hay órdenes de compra registradas para este proveedor.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
                         <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50/50">
-                              <TableHead className={cn(tableHeaderClass, "pl-6")}>Material / Código</TableHead>
-                              <TableHead className={tableHeaderClass}>Presentación</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Mínimo</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Máximo</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-right")}>Precio Promedio</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-right")}>Último Precio</TableHead>
-                              <TableHead className={tableHeaderClass}>Fecha Último Registro</TableHead>
-                              <TableHead className={cn(tableHeaderClass, "text-center w-[80px]")}>Tendencia</TableHead>
+                          <TableHeader className="bg-slate-50/70">
+                            <TableRow className="border-b border-slate-100">
+                              <TableHead className={cn(tableHeaderClass, "pl-4")}>Nº Orden</TableHead>
+                              <TableHead className={tableHeaderClass}>Fecha</TableHead>
+                              <TableHead className={tableHeaderClass}>Total ($)</TableHead>
+                              <TableHead className={tableHeaderClass}>Estado</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right pr-4")}>Acción</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {purchaseOrders.map((po: any) => (
+                              <TableRow key={po.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
+                                <TableCell className="font-mono text-xs font-bold text-slate-700 pl-4 py-3">
+                                  {po.order_number || po.display_id || (po.id ? String(po.id).substring(0, 8) : '—')}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 py-3">
+                                  {po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '—'}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
+                                  ${Number(po.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(po.status))}>
+                                    {po.status || 'Registrado'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right pr-4 py-3">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                                    className="h-7 text-xs font-bold text-procarni-blue hover:bg-blue-50 rounded-lg"
+                                  >
+                                    Ver <ExternalLink className="h-3 w-3 ml-1" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* TAB 2: ÓRDENES DE SERVICIO */}
+                  <TabsContent value="ordenes-servicio" className="pt-4 space-y-3">
+                    {serviceOrders.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No hay órdenes de servicio registradas para este proveedor.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
+                        <Table>
+                          <TableHeader className="bg-slate-50/70">
+                            <TableRow className="border-b border-slate-100">
+                              <TableHead className={cn(tableHeaderClass, "pl-4")}>Nº Servicio</TableHead>
+                              <TableHead className={tableHeaderClass}>Fecha</TableHead>
+                              <TableHead className={tableHeaderClass}>Monto ($)</TableHead>
+                              <TableHead className={tableHeaderClass}>Estado</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-right pr-4")}>Acción</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {serviceOrders.map((so: any) => (
+                              <TableRow key={so.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
+                                <TableCell className="font-mono text-xs font-bold text-slate-700 pl-4 py-3">
+                                  {so.order_number || so.display_id || (so.id ? String(so.id).substring(0, 8) : '—')}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 py-3">
+                                  {so.issue_date ? new Date(so.issue_date).toLocaleDateString() : '—'}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
+                                  ${Number(so.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="py-3">
+                                  <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(so.status))}>
+                                    {so.status || 'Registrado'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right pr-4 py-3">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => navigate(`/service-orders/${so.id}`)}
+                                    className="h-7 text-xs font-bold text-procarni-blue hover:bg-blue-50 rounded-lg"
+                                  >
+                                    Ver <ExternalLink className="h-3 w-3 ml-1" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* TAB 3: HISTORIAL DE PRECIOS */}
+                  <TabsContent value="historial-precios" className="pt-4 space-y-3">
+                    {priceAnalysisByMaterial.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No hay registros de precios históricos para este proveedor.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
+                        <Table>
+                          <TableHeader className="bg-slate-50/70">
+                            <TableRow className="border-b border-slate-100">
+                              <TableHead className={cn(tableHeaderClass, "pl-4")}>Material</TableHead>
+                              <TableHead className={tableHeaderClass}>Unidad</TableHead>
+                              <TableHead className={tableHeaderClass}>Precio Mínimo</TableHead>
+                              <TableHead className={tableHeaderClass}>Precio Promedio</TableHead>
+                              <TableHead className={tableHeaderClass}>Precio Máximo</TableHead>
+                              <TableHead className={tableHeaderClass}>Último Precio</TableHead>
+                              <TableHead className={cn(tableHeaderClass, "text-center pr-4")}>Tendencia</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {priceAnalysisByMaterial.map((m) => (
-                              <TableRow key={m.materialId} className="hover:bg-slate-100/30 transition-colors border-b border-slate-100/40">
-                                <TableCell className="pl-6 py-3.5">
-                                  <p className="font-bold text-procarni-dark text-xs uppercase">{m.name}</p>
-                                  <span className="text-[9px] text-gray-400 font-mono">{m.code}</span>
-                                </TableCell>
-                                <TableCell className="text-xs font-semibold text-slate-600">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px]">
-                                    {m.unit}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
-                                  {m.min.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                                </TableCell>
-                                <TableCell className="text-right font-mono font-bold text-xs text-slate-600">
-                                  {m.max.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                                </TableCell>
-                                <TableCell className="text-right font-mono font-bold text-xs text-slate-700 bg-slate-50/30">
-                                  {m.avg.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                                </TableCell>
-                                <TableCell className="text-right font-mono font-bold text-xs text-procarni-blue">
-                                  {m.latestPrice.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {m.currency}
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-500 font-medium">
-                                  {format(new Date(m.latestDate), 'dd/MM/yyyy')}
-                                </TableCell>
-                                <TableCell className="text-center">
+                              <TableRow key={m.materialId} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
+                                <TableCell className="font-bold text-xs text-slate-800 pl-4 py-3">{m.name}</TableCell>
+                                <TableCell className="font-mono text-xs text-slate-500 py-3">{m.unit}</TableCell>
+                                <TableCell className="font-mono text-xs text-slate-600 py-3">${m.min.toFixed(4)}</TableCell>
+                                <TableCell className="font-mono text-xs font-semibold text-slate-700 py-3">${m.avg.toFixed(4)}</TableCell>
+                                <TableCell className="font-mono text-xs text-slate-600 py-3">${m.max.toFixed(4)}</TableCell>
+                                <TableCell className="font-mono text-xs font-black text-procarni-primary py-3">${m.latestPrice.toFixed(4)}</TableCell>
+                                <TableCell className="text-center pr-4 py-3">
                                   {m.trend === 'up' && (
-                                    <Badge className="bg-red-50 text-red-600 border-red-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
-                                      <TrendingUp className="h-3 w-3" /> Alza
+                                    <Badge className="bg-red-50 text-procarni-primary border-red-200 text-[10px] font-bold">
+                                      <TrendingUp className="h-3 w-3 mr-1" /> Alza
                                     </Badge>
                                   )}
                                   {m.trend === 'down' && (
-                                    <Badge className="bg-green-50 text-green-600 border-green-100 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
-                                      <TrendingDown className="h-3 w-3" /> Baja
+                                    <Badge className="bg-emerald-50 text-procarni-secondary border-emerald-200 text-[10px] font-bold">
+                                      <TrendingDown className="h-3 w-3 mr-1" /> Baja
                                     </Badge>
                                   )}
                                   {m.trend === 'stable' && (
-                                    <Badge className="bg-slate-50 text-slate-500 border-slate-200 flex items-center justify-center gap-0.5 w-max mx-auto text-[9px] font-bold">
+                                    <Badge variant="outline" className="text-[10px] font-bold text-slate-500">
                                       Estable
                                     </Badge>
                                   )}
@@ -2009,45 +1890,132 @@ const SupplierDetails = () => {
                           </TableBody>
                         </Table>
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </section>
+            </div>
 
+            {/* Columna Derecha: Auditoría */}
+            <div className="col-span-12 lg:col-span-3">
+              {supplier && (
+                <div className="p-6 bg-white/70 backdrop-blur-xl ring-1 ring-white/60 rounded-[2rem] border border-dashed border-slate-200/80 shadow-sm space-y-1">
+                  <div className="flex items-center gap-2 text-gray-400 mb-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Auditoría</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium italic leading-relaxed">
+                    Registrado: {supplier.created_at ? new Date(supplier.created_at).toLocaleDateString() : '—'}<br />
+                    Última actualización: {supplier.updated_at ? new Date(supplier.updated_at).toLocaleDateString() : '—'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
+      </div>
 
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-5xl h-[95vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{currentFichaTitle}</DialogTitle>
+      {/* MODAL: ASOCIAR MATERIALES EN LOTE */}
+      <Dialog open={isAddMaterialOpen} onOpenChange={setIsAddMaterialOpen}>
+        <DialogContent className="max-w-md bg-white rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-black text-procarni-blue tracking-tight">
+              Asociar Materiales al Proveedor
+            </DialogTitle>
+            <p className="text-xs text-gray-500 font-medium">
+              Vincule múltiples materiales del catálogo general a este proveedor.
+            </p>
           </DialogHeader>
-          <div className="flex-1 overflow-auto">
+
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar material por nombre o código..."
+                className="pl-9 bg-slate-50 border-slate-200 rounded-xl h-10 text-xs focus:ring-procarni-primary/20"
+                value={materialSearchQuery}
+                onChange={(e) => setMaterialSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              {allCatalogMaterials.length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-4">
+                  No se encontraron materiales.
+                </p>
+              ) : (
+                allCatalogMaterials.map((mat) => {
+                  const isChecked = selectedMaterialIds.includes(mat.id);
+                  return (
+                    <div
+                      key={`mat-item-${mat.id}`}
+                      onClick={() => {
+                        if (isChecked) {
+                          setSelectedMaterialIds(selectedMaterialIds.filter(id => id !== mat.id));
+                        } else {
+                          setSelectedMaterialIds([...selectedMaterialIds, mat.id]);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border",
+                        isChecked
+                          ? "bg-emerald-50/20 border-emerald-200/50"
+                          : "bg-white border-transparent hover:bg-slate-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Checkbox checked={isChecked} onCheckedChange={() => {}} />
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-slate-800">{mat.name}</p>
+                          <p className="text-[10px] text-gray-400 font-mono">Cód: {mat.code || 'S/C'} • {mat.category || 'Sin cat.'} • {mat.unit || 'UND'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 border-t border-slate-100 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddMaterialOpen(false)}
+              className="flex-1 bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-5 rounded-xl border border-slate-200"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={isAssociating}
+              onClick={handleSaveMaterialAssociations}
+              className="flex-1 bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs py-5 rounded-xl shadow-md"
+            >
+              {isAssociating ? 'Guardando...' : 'Guardar Asociaciones'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: VISOR DE FICHA TÉCNICA */}
+      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
+        <DialogContent className="max-w-5xl h-[95vh] flex flex-col bg-white rounded-3xl p-6">
+          <DialogHeader className="pb-3 border-b border-slate-100">
+            <DialogTitle className="text-lg font-black text-procarni-blue">{currentFichaTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto rounded-2xl bg-slate-50 border border-slate-100 mt-2">
             {currentFichaUrl ? (
-              <iframe src={currentFichaUrl} className="w-full h-full border-none" title="PDF Viewer"></iframe>
+              <iframe src={currentFichaUrl} className="w-full h-full border-none" title="PDF Viewer" />
             ) : (
-              <div className="text-center text-destructive">No se pudo cargar el documento.</div>
+              <div className="text-center text-destructive py-10">No se pudo cargar el documento.</div>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* NEW EDIT DIALOG */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[425px] md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Proveedor</DialogTitle>
-          </DialogHeader>
-          <SupplierForm
-            initialData={supplier as any}
-            onSubmit={handleEditSubmit}
-            onCancel={() => setIsEditOpen(false)}
-            isSubmitting={updateMutation.isPending}
-          />
-        </DialogContent>
-      </Dialog>
-    </div >
+    </div>
   );
 };
 

@@ -236,8 +236,7 @@ const SupplierManagement = () => {
   });
 
   const handleAddSupplier = () => {
-    setEditingSupplier(null);
-    setIsFormOpen(true);
+    navigate('/suppliers/new');
   };
 
   const handleEditSupplier = async (supplierId: string) => {
@@ -336,20 +335,19 @@ const SupplierManagement = () => {
             <FileUp className={cn("h-4 w-4", !isMobile && "mr-2")} />
             {!isMobile && 'Fichas Técnicas'}
           </Button>
+          <Button
+            onClick={handleAddSupplier}
+            className={cn(
+              "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
+              isMobile && "w-10 h-10 p-0"
+            )}
+            size={isMobile ? "default" : "sm"}
+          >
+            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
+            {!isMobile && 'Añadir Proveedor'}
+          </Button>
+
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={handleAddSupplier}
-                className={cn(
-                  "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
-                  isMobile && "w-10 h-10 p-0"
-                )}
-                size={isMobile ? "default" : "sm"}
-              >
-                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-                {!isMobile && 'Añadir Proveedor'}
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>

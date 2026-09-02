@@ -28,9 +28,43 @@ const SupplierService = {
     supplierData: Omit<Supplier, 'id' | 'created_at' | 'updated_at'>,
     materials: SupplierMaterialPayload[],
   ): Promise<Supplier | null> => {
-    const payload = {
+    let finalUserId = supplierData.user_id && String(supplierData.user_id).trim() !== '' 
+      ? supplierData.user_id 
+      : null;
+
+    if (!finalUserId) {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData.user?.id) {
+        finalUserId = authData.user.id;
+      }
+    }
+
+    const validTerms = ['Contado', 'Crédito', 'Otro'];
+    let normalizedTerms = supplierData.payment_terms;
+    if (!validTerms.includes(normalizedTerms)) {
+      if (normalizedTerms?.includes('días') || normalizedTerms === 'Crédito') {
+        normalizedTerms = 'Crédito';
+      } else if (normalizedTerms === 'Personalizado' || normalizedTerms === 'Otro') {
+        normalizedTerms = 'Otro';
+      } else {
+        normalizedTerms = 'Contado';
+      }
+    }
+
+    let finalRif = supplierData.rif?.trim();
+    if (!finalRif || finalRif === 'SR' || finalRif.toUpperCase() === 'SR') {
+      const invisibleSuffix = Date.now().toString().split('').map(d => String.fromCharCode(0x200B + (parseInt(d) % 3))).join('');
+      finalRif = 'SR' + invisibleSuffix;
+    }
+
+    const payload: any = {
       ...supplierData,
-      name: supplierData.name.toUpperCase(), // Convert name to uppercase
+      name: supplierData.name.toUpperCase(),
+      rif: finalRif,
+      payment_terms: normalizedTerms,
+      credit_days: normalizedTerms === 'Crédito' ? (Number(supplierData.credit_days) || 0) : 0,
+      custom_payment_terms: normalizedTerms === 'Otro' ? (supplierData.custom_payment_terms || null) : null,
+      user_id: finalUserId || null,
     };
 
     const { data: newSupplier, error: supplierError } = await supabase
@@ -40,17 +74,17 @@ const SupplierService = {
       .single();
 
     if (supplierError) {
-      console.error('[SupplierService.create] Error:', supplierError);
+      console.error('[SupplierService.create] Error details:', supplierError);
       if (supplierError.code === '23505') { // Unique violation
-        if (supplierError.message.includes('rif')) {
+        if (supplierError.message?.includes('rif')) {
           showError('Ya existe un proveedor con este RIF.');
-        } else if (supplierError.message.includes('code')) {
+        } else if (supplierError.message?.includes('code')) {
           showError('Ya existe un proveedor con este código interno.');
         } else {
           showError('El proveedor ya existe (violación de restricción única).');
         }
       } else {
-        showError('Error al crear el proveedor.');
+        showError(`Error al crear el proveedor: ${supplierError.message || 'Error desconocido'}`);
       }
       return null;
     }
