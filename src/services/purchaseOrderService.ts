@@ -56,7 +56,7 @@ export const purchaseOrderService = {
       page: number,
       pageSize: number,
       searchTerm: string = '',
-      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'All' = 'Active',
+      statusFilter: 'Active' | 'Archived' | 'Approved' | 'Rejected' | 'ToPay' | 'Credit' | 'Paid' | 'Transit' | 'All' = 'Active',
       onlyRawMaterials: boolean = false,
       startDate?: string,
       endDate?: string,
@@ -87,6 +87,8 @@ export const purchaseOrderService = {
         query = query.in('status', ['Draft']);
       } else if (statusFilter === 'Approved') {
         query = query.in('status', ['Approved', 'Credit', 'Paid', 'ToPay', 'Received']);
+      } else if (statusFilter === 'Transit') {
+        query = query.eq('reception_status', 'En tránsito').neq('status', 'Archived').neq('status', 'Rejected');
       } else if (statusFilter === 'ToPay') {
         query = query.eq('status', 'ToPay');
       } else if (statusFilter === 'Credit') {

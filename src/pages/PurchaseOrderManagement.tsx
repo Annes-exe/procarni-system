@@ -75,7 +75,7 @@ const PurchaseOrderManagement = () => {
   const pageSize = 25;
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [debouncedSearch] = useDebounce(searchInput, 500);
-  const activeTab = (searchParams.get('tab') || 'all') as 'active' | 'archived' | 'approved' | 'rejected' | 'all';
+  const activeTab = (searchParams.get('tab') || 'all') as 'active' | 'archived' | 'approved' | 'transit' | 'topay' | 'rejected' | 'all';
 
   // Helper function to update search params
   const updateSearchParams = (key: string, value: string | null) => {
@@ -156,6 +156,7 @@ const PurchaseOrderManagement = () => {
     switch (tab) {
       case 'active': return 'Active';
       case 'approved': return 'Approved';
+      case 'transit': return 'Transit';
       case 'topay': return 'ToPay';
       case 'archived': return 'Archived';
       case 'rejected': return 'Rejected';
@@ -915,6 +916,10 @@ const PurchaseOrderManagement = () => {
                     <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Todas</TabsTrigger>
                     <TabsTrigger value="active" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Borradores</TabsTrigger>
                     <TabsTrigger value="approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="transit" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-blue-600" />
+                      <span>En tránsito</span>
+                    </TabsTrigger>
                     <TabsTrigger value="topay" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Por pagar</TabsTrigger>
                   </>
                 ) : (
