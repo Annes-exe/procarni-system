@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Phone, Mail, ArrowLeft, Tag, MapPin, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Phone, Mail, ArrowLeft, Tag, MapPin, MoreHorizontal, Building2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,31 +199,37 @@ const CompanyManagement = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Empresas</h1>
-          <p className="text-muted-foreground text-sm">Administra la información de tus empresas.</p>
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Gestión de Empresas</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Administra las razones sociales, sedes y datos fiscales de tu organización.
+          </p>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
               <Button
                 onClick={handleAddCompany}
-                className={cn(
-                  "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
-                  isMobile && "w-10 h-10 p-0"
-                )}
-                size={isMobile ? "default" : "sm"}
+                className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full md:w-auto"
               >
-                <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-                {!isMobile && "Añadir Empresa"}
+                <PlusCircle className="h-4 w-4" />
+                <span>Añadir Empresa</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[425px] md:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white/95 backdrop-blur-xl border-none shadow-2xl">
               <DialogHeader>
-                <DialogTitle>{editingCompany ? 'Editar Empresa' : 'Añadir Nueva Empresa'}</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-xl font-bold text-procarni-dark">
+                  {editingCompany ? 'Editar Empresa' : 'Añadir Nueva Empresa'}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
                   {editingCompany ? 'Edita los detalles de la empresa existente.' : 'Completa los campos para añadir una nueva empresa.'}
                 </DialogDescription>
               </DialogHeader>
@@ -238,14 +244,16 @@ const CompanyManagement = () => {
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      {/* Main Container Card */}
+      <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+        <CardContent className="p-0 space-y-5">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
             <Input
               type="text"
               placeholder="Buscar empresa por RIF, nombre, dirección o email..."
-              className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
+              className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -255,33 +263,46 @@ const CompanyManagement = () => {
             isMobileView ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredCompanies.map((company) => (
-                  <Card key={company.id} className="p-4 shadow-md flex flex-col h-full overflow-hidden">
-                    <CardTitle className="text-lg mb-1 truncate" title={company.name}>{company.name}</CardTitle>
-                    <CardDescription className="mb-2 flex items-center">
-                      <Tag className="mr-1 h-3 w-3 shrink-0" /> <span className="truncate flex-1 min-w-0">RIF: {company.rif}</span>
-                    </CardDescription>
-                    <div className="text-sm space-y-1 mt-2 w-full flex-grow min-w-0">
-                      {company.email && (
-                        <p className="flex items-center w-full" title={company.email}>
-                          <Mail className="mr-1 h-3 w-3 shrink-0" />
-                          <span className="truncate flex-1 min-w-0">Email: <a href={`mailto:${company.email}`} className="text-blue-600 hover:underline ml-1">{company.email}</a></span>
-                        </p>
-                      )}
-                      {company.phone && (
-                        <p className="flex items-center w-full" title={company.phone}>
-                          <Phone className="mr-1 h-3 w-3 shrink-0" />
-                          <span className="truncate flex-1 min-w-0">Teléfono: {company.phone}</span>
-                        </p>
-                      )}
-                      {company.address && (
-                        <p className="flex items-start w-full" title={company.address}>
-                          <MapPin className="mr-1 h-3 w-3 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2 flex-1 min-w-0">Dirección: {company.address}</span>
-                        </p>
-                      )}
+                  <Card key={company.id} className="bg-white/90 backdrop-blur-xl border border-slate-100/90 shadow-lg shadow-slate-200/40 ring-1 ring-white rounded-3xl p-5 hover:shadow-xl transition-all duration-200 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-8 w-8 rounded-xl bg-procarni-blue/10 text-procarni-blue flex items-center justify-center shrink-0 font-bold text-xs">
+                            {company.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm text-procarni-dark truncate" title={company.name}>{company.name}</h3>
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                              {company.rif}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-xs space-y-2 mt-3 pt-2 border-t border-slate-100 text-slate-600">
+                        {company.email && (
+                          <p className="flex items-center gap-2 text-slate-600" title={company.email}>
+                            <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <a href={`mailto:${company.email}`} className="text-blue-600 hover:underline truncate text-xs">{company.email}</a>
+                          </p>
+                        )}
+                        {company.phone && (
+                          <p className="flex items-center gap-2 text-slate-600" title={company.phone}>
+                            <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="font-mono text-xs">{company.phone}</span>
+                          </p>
+                        )}
+                        {company.address && (
+                          <p className="flex items-start gap-2 text-slate-500" title={company.address}>
+                            <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                            <span className="line-clamp-2 text-xs">{company.address}</span>
+                          </p>
+                        )}
+                      </div>
                     </div>
+
                     <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3">
-                      <span className="text-[11px] text-slate-400 font-medium">Acciones</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Opciones</span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
@@ -312,27 +333,44 @@ const CompanyManagement = () => {
                 ))}
               </div>
             ) : (
-              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
+              <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                 <Table>
-                  <TableHeader className="bg-gray-50/50">
-                    <TableRow>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Nombre</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">RIF</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Email</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Teléfono</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Dirección</TableHead>
-                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Opciones</TableHead>
+                  <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 pl-4 py-3.5">Nombre</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">RIF</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Email</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Teléfono</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Dirección</TableHead>
+                      <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Opciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredCompanies.map((company) => (
-                      <TableRow key={company.id} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="pl-4 py-3 font-medium text-procarni-dark max-w-[200px] truncate" title={company.name}>{company.name}</TableCell>
-                        <TableCell className="py-3 whitespace-nowrap">{company.rif}</TableCell>
-                        <TableCell className="py-3 text-gray-600 max-w-[200px] truncate" title={company.email}>{company.email || 'N/A'}</TableCell>
-                        <TableCell className="py-3 text-gray-600 whitespace-nowrap">{company.phone || 'N/A'}</TableCell>
-                        <TableCell className="py-3 text-gray-600 max-w-[250px] truncate" title={company.address}>{company.address || 'N/A'}</TableCell>
-                        <TableCell className="text-right pr-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <TableRow key={company.id} className="hover:bg-slate-50/60 transition-colors border-b border-slate-50">
+                        <TableCell className="pl-4 py-3.5 font-bold text-sm text-procarni-dark max-w-[200px] truncate" title={company.name}>
+                          <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-lg bg-procarni-blue/10 text-procarni-blue flex items-center justify-center shrink-0 font-bold text-xs">
+                              {company.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="truncate">{company.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3.5 whitespace-nowrap">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                            {company.rif}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3.5 text-xs text-slate-600 max-w-[200px] truncate" title={company.email}>
+                          {company.email || <span className="text-slate-400 italic">N/A</span>}
+                        </TableCell>
+                        <TableCell className="py-3.5 font-mono text-xs text-slate-600 whitespace-nowrap">
+                          {company.phone || <span className="text-slate-400 italic font-sans">N/A</span>}
+                        </TableCell>
+                        <TableCell className="py-3.5 text-xs text-slate-500 max-w-[250px] truncate" title={company.address}>
+                          {company.address || <span className="text-slate-400 italic">N/A</span>}
+                        </TableCell>
+                        <TableCell className="text-right pr-4 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -371,8 +409,14 @@ const CompanyManagement = () => {
               </div>
             )
           ) : (
-            <div className="text-center text-muted-foreground p-8">
-              No hay empresas registradas o no se encontraron resultados para tu búsqueda.
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                <Search className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">No se encontraron empresas</h3>
+              <p className="text-xs text-slate-500 max-w-sm mt-1">
+                No hay empresas registradas o no coinciden con los términos de búsqueda.
+              </p>
             </div>
           )}
         </CardContent>

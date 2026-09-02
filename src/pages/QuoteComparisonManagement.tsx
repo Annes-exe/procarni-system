@@ -184,27 +184,60 @@ const QuoteComparisonManagement = () => {
 
     if (isMobile) {
       return (
-        <Card key={comparison.id} className={cn("p-4 shadow-md", selectedIds.has(comparison.id) && "border-destructive border-2")}>
-          <div className="flex justify-between items-start mb-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={selectedIds.has(comparison.id)}
-                onCheckedChange={() => toggleSelection(comparison.id)}
-              />
-              <CardTitle className="text-lg mb-1 truncate">{comparison.name}</CardTitle>
+        <Card
+          key={comparison.id}
+          className={cn(
+            "bg-white/90 backdrop-blur-xl border border-slate-100/90 shadow-lg shadow-slate-200/40 ring-1 ring-white rounded-3xl p-5 hover:shadow-xl transition-all duration-200 flex flex-col justify-between",
+            selectedIds.has(comparison.id) && "ring-2 ring-procarni-primary border-procarni-primary/40 bg-procarni-primary/5"
+          )}
+        >
+          <div>
+            <div className="flex justify-between items-start gap-2 mb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Checkbox
+                  checked={selectedIds.has(comparison.id)}
+                  onCheckedChange={() => toggleSelection(comparison.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div className="min-w-0">
+                  <h3
+                    className="font-bold text-sm text-procarni-dark truncate cursor-pointer hover:text-procarni-primary transition-colors"
+                    title={comparison.name}
+                    onClick={() => handleLoadComparison(comparison)}
+                  >
+                    {comparison.name}
+                  </h3>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                    ID: {comparison.id.substring(0, 8)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Moneda Base</p>
+                <p className="font-mono font-bold text-xs text-slate-700">{comparison.base_currency}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Tasa Global</p>
+                <p className="font-mono text-xs text-slate-600">{exchangeRateDisplay}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Materiales</p>
+                <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-procarni-blue border border-blue-100 mt-0.5">
+                  {materialCount} {materialCount === 1 ? 'ítem' : 'ítems'}
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Fecha</p>
+                <p className="text-xs text-slate-500 font-medium">{format(new Date(comparison.created_at), 'dd/MM/yyyy')}</p>
+              </div>
             </div>
           </div>
-          <CardDescription className="mb-2 flex items-center">
-            <Scale className="mr-1 h-3 w-3" /> ID: {comparison.id.substring(0, 8)}
-          </CardDescription>
-          <div className="text-sm space-y-1 mt-2 w-full">
-            <p><strong>Moneda Base:</strong> {comparison.base_currency}</p>
-            <p><strong>Tasa Global:</strong> {exchangeRateDisplay}</p>
-            <p><strong>Materiales:</strong> {materialCount}</p>
-            <p><strong>Guardado:</strong> {format(new Date(comparison.created_at), 'dd/MM/yyyy')}</p>
-          </div>
+
           <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3" onClick={(e) => e.stopPropagation()}>
-            <span className="text-[11px] text-slate-400 font-medium">Opciones</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Opciones</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
@@ -236,20 +269,39 @@ const QuoteComparisonManagement = () => {
     }
 
     return (
-      <TableRow key={comparison.id} className="hover:bg-gray-50/50 transition-colors">
-        <TableCell className="pl-4 py-3">
+      <TableRow
+        key={comparison.id}
+        className={cn(
+          "hover:bg-slate-50/60 transition-colors border-b border-slate-50 group cursor-pointer",
+          selectedIds.has(comparison.id) && "bg-procarni-primary/5 hover:bg-procarni-primary/10"
+        )}
+        onClick={() => handleLoadComparison(comparison)}
+      >
+        <TableCell className="pl-4 py-3.5" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={selectedIds.has(comparison.id)}
             onCheckedChange={() => toggleSelection(comparison.id)}
           />
         </TableCell>
-        <TableCell className="py-3 font-medium text-procarni-dark">{comparison.name}</TableCell>
-        <TableCell className="py-3 text-xs text-gray-500">{comparison.id.substring(0, 8)}</TableCell>
-        <TableCell className="py-3 text-sm text-gray-600 font-mono">{comparison.base_currency}</TableCell>
-        <TableCell className="py-3 text-sm text-gray-600 font-mono">{exchangeRateDisplay}</TableCell>
-        <TableCell className="py-3 text-sm text-gray-600">{materialCount}</TableCell>
-        <TableCell className="py-3 text-sm text-gray-600">{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
-        <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <TableCell className="py-3.5 font-bold text-sm text-procarni-dark group-hover:text-procarni-primary transition-colors">
+          {comparison.name}
+        </TableCell>
+        <TableCell className="py-3.5">
+          <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+            {comparison.id.substring(0, 8)}
+          </span>
+        </TableCell>
+        <TableCell className="py-3.5 text-xs text-slate-700 font-mono font-bold">{comparison.base_currency}</TableCell>
+        <TableCell className="py-3.5 text-xs text-slate-600 font-mono">{exchangeRateDisplay}</TableCell>
+        <TableCell className="py-3.5">
+          <span className="inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-procarni-blue border border-blue-100">
+            {materialCount} {materialCount === 1 ? 'material' : 'materiales'}
+          </span>
+        </TableCell>
+        <TableCell className="py-3.5 text-xs text-slate-500 font-medium">
+          {format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-3.5" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -292,66 +344,84 @@ const QuoteComparisonManagement = () => {
   };
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Comparaciones</h1>
-          <p className="text-muted-foreground text-sm flex items-center gap-2">
-            Compara precios de proveedores e ítems o gestiona tus análisis guardados.
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <Scale className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Gestión de Comparaciones</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Compara cotizaciones de múltiples proveedores y analiza las matrices de precios.
           </p>
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              className={cn(
-                "bg-procarni-secondary hover:bg-green-700 w-full md:w-auto",
-              )}
+              className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full md:w-auto"
             >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Nueva Comparación
+              <PlusCircle className="h-4 w-4" />
+              <span>Nueva Comparación</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuItem onClick={() => navigate('/quote-comparison')}>
-              Comparación de Cotizaciones
+          <DropdownMenuContent align="end" className="w-56 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+            <DropdownMenuItem
+              onClick={() => navigate('/quote-comparison')}
+              className="flex items-center gap-2 text-xs font-semibold py-2.5 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+            >
+              <Scale className="h-4 w-4 text-slate-400" />
+              <span>Comparación de Cotizaciones</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate('/price-matrix')}>
-              Matriz de Proveedores
+            <DropdownMenuItem
+              onClick={() => navigate('/price-matrix')}
+              className="flex items-center gap-2 text-xs font-semibold py-2.5 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+            >
+              <PlusCircle className="h-4 w-4 text-slate-400" />
+              <span>Matriz de Proveedores</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="bg-gray-100/50 border border-gray-200 p-1 h-auto flex flex-nowrap overflow-x-auto scrollbar-hide justify-start mb-6">
-          <TabsTrigger value="saved" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+        <TabsList className="bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1 mb-6">
+          <TabsTrigger
+            value="saved"
+            className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all"
+          >
             Comparación de Cotizaciones
           </TabsTrigger>
-          <TabsTrigger value="matrix" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+          <TabsTrigger
+            value="matrix"
+            className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all"
+          >
             Matrices de Proveedores
           </TabsTrigger>
         </TabsList>
 
-        <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-          <CardContent className="p-0 md:p-6 mt-4 md:mt-0">
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+          <CardContent className="p-0 space-y-5">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <Input
                   type="text"
-                  placeholder="Buscar por nombre o ID..."
-                  className="w-full appearance-none bg-background pl-8 h-9 text-sm shadow-none"
+                  placeholder="Buscar por nombre o ID de comparación..."
+                  className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="w-full sm:w-[220px]">
                 <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger className="h-9 bg-background border-gray-200 focus:ring-procarni-primary/20">
+                  <SelectTrigger className="h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
                     <SelectValue placeholder="Filtrar por usuario" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                     <SelectItem value="all">Todos los usuarios</SelectItem>
                     {usersList.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
@@ -371,23 +441,23 @@ const QuoteComparisonManagement = () => {
                   {filteredComparisons.map(renderComparisonRow)}
                 </div>
               ) : (
-                <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
+                <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                   <Table>
-                    <TableHeader className="bg-gray-50/50">
-                      <TableRow>
-                        <TableHead className="w-[50px] pl-4 py-3">
+                    <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[50px] pl-4 py-3.5">
                           <Checkbox
                             checked={filteredComparisons.length > 0 && selectedIds.size === filteredComparisons.length}
                             onCheckedChange={toggleAll}
                           />
                         </TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">ID</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Moneda Base</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Tasa Global</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Materiales</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Fecha Guardado</TableHead>
-                        <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Nombre</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">ID</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Moneda Base</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Tasa Global</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Materiales</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Fecha Guardado</TableHead>
+                        <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Opciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -397,8 +467,14 @@ const QuoteComparisonManagement = () => {
                 </div>
               )
             ) : (
-              <div className="text-center text-muted-foreground p-8">
-                No hay comparaciones guardadas o no se encontraron resultados.
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                  <Search className="h-8 w-8" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">No se encontraron comparaciones</h3>
+                <p className="text-xs text-slate-500 max-w-sm mt-1">
+                  No hay análisis de comparación guardados o no coinciden con los filtros aplicados.
+                </p>
               </div>
             )}
           </CardContent>
