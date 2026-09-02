@@ -1282,12 +1282,12 @@ const MaterialGeneralProfile = () => {
                   )}
 
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro</Label>
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Grupo / Ítem Oro Padre</Label>
 
                     {isMasterLocal ? (
                       <div className="flex items-center justify-between p-3 bg-amber-50/50 border border-amber-200/50 rounded-xl">
                         <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
-                          ⭐ Este ítem es un Patrón de Oro
+                          ⭐ Este ítem es un Ítem Oro Principal (Cabecera de Grupo)
                         </span>
                         <Button
                           type="button"
@@ -1306,7 +1306,7 @@ const MaterialGeneralProfile = () => {
                     ) : selectedParentId ? (
                       <div className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-200/50 rounded-xl">
                         <div className="flex flex-col">
-                          <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Vinculado al Patrón</span>
+                          <span className="text-[9px] uppercase tracking-widest text-blue-600 font-bold">Variación Agrupada bajo</span>
                           <span className="text-xs font-bold text-slate-800 truncate max-w-[200px]">{selectedParentName}</span>
                         </div>
                         <Button
@@ -1331,7 +1331,7 @@ const MaterialGeneralProfile = () => {
                                 type="button"
                                 className="w-full bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-5 rounded-xl border border-slate-200 active:scale-95 transition-all flex items-center justify-between"
                               >
-                                <span>Configurar Patrón de Oro</span>
+                                <span>Configurar Grupo / Ítem Oro</span>
                                 <ChevronRight className="h-4 w-4 text-gray-400" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -1343,7 +1343,7 @@ const MaterialGeneralProfile = () => {
                                 }}
                                 className="font-bold text-xs py-3 cursor-pointer"
                               >
-                                Hacer Patrón de Oro (Ítem Oficial)
+                                Hacer Ítem Oro Principal (Cabecera de Grupo)
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
@@ -1352,14 +1352,14 @@ const MaterialGeneralProfile = () => {
                                 }}
                                 className="font-bold text-xs py-3 cursor-pointer"
                               >
-                                Buscar Patrón de Oro Existente
+                                Asociar a un Grupo / Ítem Oro Existente
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         ) : (
                           <div className="space-y-2">
                             <SmartSearch
-                              placeholder="Buscar patrón de oro..."
+                              placeholder="Buscar Grupo / Ítem Oro Padre..."
                               displayValue={selectedParentName}
                               selectedId={selectedParentId}
                               onSelect={(item) => {
@@ -1383,7 +1383,7 @@ const MaterialGeneralProfile = () => {
                                 return (data || []).map((m: any) => ({
                                   id: m.id,
                                   name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
-                                  group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
+                                  group: m.is_suggested ? '⭐ Grupos Sugeridos (Similitud)' : 'Todos los Ítems Oro / Grupos'
                                 }));
                               }}
                             />

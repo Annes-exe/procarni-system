@@ -827,27 +827,44 @@ const MaterialManagement = () => {
 
                       {role === 'admin' && (
                         <div className="mt-3 ml-7 flex flex-wrap gap-2">
-                          <Button
-                            variant={material.is_master ? "default" : "outline"}
-                            size="sm"
-                            className={cn(
-                              "h-7 rounded-xl text-[11px] font-bold transition-all",
-                              material.is_master 
-                                ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm" 
-                                : "border-slate-200 text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const newIsMaster = !material.is_master;
-                              const updates: Partial<Material> = { is_master: newIsMaster };
-                              if (newIsMaster) {
-                                updates.base_material_id = null;
-                              }
-                              updateMutation.mutate({ id: material.id, updates });
-                            }}
-                          >
-                            {material.is_master ? '★ Patrón Oro' : '☆ Marcar Oro'}
-                          </Button>
+                          {material.is_master ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="h-7 rounded-xl text-[11px] font-bold transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateMutation.mutate({ id: material.id, updates: { is_master: false } });
+                              }}
+                            >
+                              ★ Patrón Oro
+                            </Button>
+                          ) : material.base_material_id ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 rounded-xl text-[11px] font-bold transition-all bg-blue-50/80 border-blue-200 text-blue-700 hover:bg-blue-100/80"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/material/${material.base_material_id}`);
+                              }}
+                              title="Ver ítem oro principal del grupo"
+                            >
+                              🔗 Grupo
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 rounded-xl text-[11px] font-bold transition-all border-slate-200 text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateMutation.mutate({ id: material.id, updates: { is_master: true, base_material_id: null } });
+                              }}
+                            >
+                              ☆ Marcar Oro
+                            </Button>
+                          )}
                           
                           {material.is_master && (
                             <Button
@@ -1008,26 +1025,41 @@ const MaterialManagement = () => {
                           <TableCell className="py-2 text-gray-600">{material.is_exempt ? 'Sí' : 'No'}</TableCell>
                           {role === 'admin' && (
                             <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                variant={material.is_master ? "default" : "outline"}
-                                size="sm"
-                                className={cn(
-                                  "h-8 rounded-full text-xs font-bold transition-all",
-                                  material.is_master 
-                                    ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm" 
-                                    : "border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
-                                )}
-                                onClick={() => {
-                                  const newIsMaster = !material.is_master;
-                                  const updates: Partial<Material> = { is_master: newIsMaster };
-                                  if (newIsMaster) {
-                                    updates.base_material_id = null;
-                                  }
-                                  updateMutation.mutate({ id: material.id, updates });
-                                }}
-                              >
-                                {material.is_master ? '★ Oro' : '☆ Marcar'}
-                              </Button>
+                              {material.is_master ? (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-8 rounded-full text-xs font-bold transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                                  onClick={() => {
+                                    updateMutation.mutate({ id: material.id, updates: { is_master: false } });
+                                  }}
+                                >
+                                  ★ Oro
+                                </Button>
+                              ) : material.base_material_id ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-full text-xs font-bold transition-all bg-blue-50/80 border-blue-200 text-blue-700 hover:bg-blue-100/80"
+                                  onClick={() => {
+                                    navigate(`/material/${material.base_material_id}`);
+                                  }}
+                                  title="Ver ítem oro principal del grupo"
+                                >
+                                  🔗 Grupo
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-full text-xs font-bold transition-all border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+                                  onClick={() => {
+                                    updateMutation.mutate({ id: material.id, updates: { is_master: true, base_material_id: null } });
+                                  }}
+                                >
+                                  ☆ Marcar
+                                </Button>
+                              )}
                             </TableCell>
                           )}
                           <TableCell className="text-right pr-4 py-2" onClick={(e) => e.stopPropagation()}>

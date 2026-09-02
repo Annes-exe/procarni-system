@@ -12,7 +12,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { useQuery } from '@tanstack/react-query';
 import { Material, MaterialCategory } from '@/integrations/supabase/types';
 import { UnitOfMeasure } from '@/integrations/supabase/services/unitService';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, Layers, FolderTree, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import SmartSearch from '@/components/SmartSearch';
 
@@ -550,7 +550,7 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
       }
 
       if (editingMaterial && selectedParentId === editingMaterial.id) {
-        showError('Un material no puede ser su propio patrón de oro.');
+        showError('Un material no puede ser su propio grupo / ítem padre.');
         setIsSubmitting(false);
         return;
       }
@@ -728,40 +728,88 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
               </p>
             </div>
           )}
-          {/* 1. Patrón de Oro (SmartSearch) */}
+
+          {/* Master Item Indicator if Editing Master */}
+          {editingMaterial?.is_master && (
+            <div className="flex items-center gap-2.5 p-3.5 bg-amber-50/70 border border-amber-200/60 rounded-2xl">
+              <span className="text-amber-600 text-base">⭐</span>
+              <div>
+                <p className="text-xs font-bold text-amber-900">Ítem Oro Principal (Cabecera de Grupo)</p>
+                <p className="text-[11px] text-amber-700/90 font-medium">Este material funciona como el patrón oficial/padre de su grupo. Los demás materiales y variaciones se asocian bajo él.</p>
+              </div>
+            </div>
+          )}
+
+          {/* 1. Grupo / Variación de Ítem Oro Padre (SmartSearch) */}
           {(!editingMaterial || !editingMaterial.is_master) && (
-            <div className="grid gap-1.5 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
-              <Label htmlFor="parentMaterial" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Patrón de Oro (Material Oficial) [Opcional]</Label>
-              <SmartSearch 
-                placeholder="Buscar patrón de oro..."
-                displayValue={selectedParentName}
-                selectedId={selectedParentId}
-                onSelect={(item) => {
-                  setSelectedParentId(item.id);
-                  setSelectedParentName(item.name.split(' - ')[0]); // Extrae el nombre limpio
-                }}
-                disabled={isSubmitting}
-                fetchFunction={async (query) => {
-                  const searchTargetName = materialName.trim() || query.trim();
-                  
-                  const { data, error } = await supabase.rpc('search_master_materials_suggested', {
-                    p_target_name: searchTargetName,
-                    p_search_query: query.trim(),
-                    p_exclude_id: editingMaterial?.id || null
-                  });
+            <div className="grid gap-2 p-4 bg-white/70 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-sm">
+              <div className="space-y-0.5">
+                <Label htmlFor="parentMaterial" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1.5">
+                  <FolderTree className="h-3.5 w-3.5 text-procarni-primary" />
+                  Grupo / Ítem Oro Padre (Opcional)
+                </Label>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Asocia este material como una variación específica (medida, color, presentación) dentro del grupo del Ítem Oro seleccionado, manteniendo su identidad independiente.
+                </p>
+              </div>
 
-                  if (error) {
-                    console.error('[search_master_materials_suggested Error]:', error);
-                    return [];
-                  }
+              {selectedParentId ? (
+                <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-200/60 rounded-xl">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700 shrink-0">
+                      <Layers className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] uppercase tracking-wider text-blue-600 font-bold block">Grupo Asignado (Ítem Oro)</span>
+                      <span className="text-xs font-bold text-slate-800 truncate block">{selectedParentName || 'Material Padre'}</span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedParentId('');
+                      setSelectedParentName('');
+                    }}
+                    className="h-7 px-2 text-xs text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0 ml-2"
+                    title="Desvincular del grupo"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" /> Quitar grupo
+                  </Button>
+                </div>
+              ) : (
+                <SmartSearch 
+                  placeholder="Buscar Grupo / Ítem Oro Padre..."
+                  displayValue={selectedParentName}
+                  selectedId={selectedParentId}
+                  onSelect={(item) => {
+                    setSelectedParentId(item.id);
+                    setSelectedParentName(item.name.split(' - ')[0]); // Extrae el nombre limpio
+                  }}
+                  disabled={isSubmitting}
+                  fetchFunction={async (query) => {
+                    const searchTargetName = materialName.trim() || query.trim();
+                    
+                    const { data, error } = await supabase.rpc('search_master_materials_suggested', {
+                      p_target_name: searchTargetName,
+                      p_search_query: query.trim(),
+                      p_exclude_id: editingMaterial?.id || null
+                    });
 
-                  return (data || []).map((m: any) => ({
-                    id: m.id,
-                    name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
-                    group: m.is_suggested ? '⭐ Sugeridos (Similitud Trigrama)' : 'Otros Patrones de Oro'
-                  }));
-                }}
-              />
+                    if (error) {
+                      console.error('[search_master_materials_suggested Error]:', error);
+                      return [];
+                    }
+
+                    return (data || []).map((m: any) => ({
+                      id: m.id,
+                      name: `${m.name}${m.category ? ` - ${m.category}` : ''}${m.code ? ` (${m.code})` : ''}`,
+                      group: m.is_suggested ? '⭐ Grupos Sugeridos (Similitud)' : 'Todos los Ítems Oro / Grupos'
+                    }));
+                  }}
+                />
+              )}
             </div>
           )}
 
@@ -1063,7 +1111,11 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
 
             {!editingMaterial && !isExactMatch && isMaterialNameValid && !isCheckingExistence && !suggestedMaterial && (
               <p className="text-xs text-amber-700 font-semibold px-4 italic">
-                Material nuevo: <strong>{materialName.toUpperCase()}</strong>. Se creará al guardar.
+                {selectedParentId ? (
+                  <>Variación nueva: <strong>{materialName.toUpperCase()}</strong> (se guardará dentro del grupo de <strong>{selectedParentName}</strong>).</>
+                ) : (
+                  <>Material nuevo: <strong>{materialName.toUpperCase()}</strong>. Se creará al guardar.</>
+                )}
               </p>
             )}
           </div>
