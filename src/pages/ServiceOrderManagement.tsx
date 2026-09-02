@@ -1027,6 +1027,9 @@ const ServiceOrderManagement = () => {
                                                   {order.observations}
                                                 </p>
                                               )}
+                                            </div>
+                                          )}
+
                                           {/* Total summary footer */}
                                           <div className="bg-slate-50/80 px-4 py-2 border-t border-slate-100 flex justify-end gap-6 text-xs font-mono rounded-lg">
                                             <div><span className="text-slate-500 font-bold">TOTAL SERVICIO:</span> <span className="font-bold text-procarni-primary">{grandTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })} {order.currency}</span></div>
