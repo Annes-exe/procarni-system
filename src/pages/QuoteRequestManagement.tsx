@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash, ChevronDown, ChevronRight, Package, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash, ChevronDown, ChevronRight, Package, MoreHorizontal, FileText } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -554,14 +554,22 @@ const QuoteRequestManagement = () => {
   };
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Solicitudes de Cotización</h1>
-          <p className="text-muted-foreground text-sm">Gestiona tus peticiones de precios a proveedores.</p>
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <FileText className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Solicitudes de Cotización</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Gestiona tus peticiones de precios a proveedores y seguimiento de cotizaciones.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <Button
             variant={isHistoryMode ? "secondary" : "outline"}
             onClick={() => {
@@ -569,55 +577,56 @@ const QuoteRequestManagement = () => {
               setIsHistoryMode(newHistoryMode);
               setActiveTab(newHistoryMode ? 'Rejected' : 'all');
             }}
-            className="gap-2"
+            className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 shadow-sm rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2"
             size="sm"
           >
-            {isHistoryMode ? <CheckCircle className="h-4 w-4" /> : <History className="h-4 w-4" />}
-            {isHistoryMode ? 'Ver Activos' : 'Historial'}
+            {isHistoryMode ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <History className="h-4 w-4 text-slate-500" />}
+            <span>{isHistoryMode ? 'Ver Activos' : 'Historial'}</span>
           </Button>
           <Button
             asChild
-            className="bg-procarni-secondary hover:bg-green-700 text-white gap-2"
+            className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full sm:w-auto"
             size="sm"
           >
             <Link to="/generate-quote">
               <PlusCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Nueva Solicitud</span>
+              <span>Nueva Solicitud</span>
             </Link>
           </Button>
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className={cn("grid w-full md:w-auto md:flex h-9", isHistoryMode ? "grid-cols-2" : "grid-cols-3")}>
+      {/* Main Content Card */}
+      <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+        <CardContent className="p-0 space-y-5">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-5">
+            <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+              <TabsList className={cn("bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1", isHistoryMode ? "grid grid-cols-2" : "grid grid-cols-3")}>
                 {isHistoryMode ? (
                   <>
-                    <TabsTrigger value="Rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
-                    <TabsTrigger value="Archived" className="text-xs md:text-sm hidden md:flex">Archivadas</TabsTrigger>
+                    <TabsTrigger value="Rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Rechazadas</TabsTrigger>
+                    <TabsTrigger value="Archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Archivadas</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
-                    <TabsTrigger value="Draft" className="text-xs md:text-sm">Borradores</TabsTrigger>
-                    <TabsTrigger value="Approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Todas</TabsTrigger>
+                    <TabsTrigger value="Draft" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Borradores</TabsTrigger>
+                    <TabsTrigger value="Approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Aprobadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                 {/* Filtro Por Usuario */}
-                <div className="w-full sm:w-48">
+                <div className="w-full sm:w-52">
                   <Select
                     value={selectedUserId}
                     onValueChange={setSelectedUserId}
                   >
-                    <SelectTrigger className="h-9 w-full bg-slate-50 border-gray-250 rounded-xl text-[10px] font-semibold text-gray-500 uppercase tracking-wider focus:ring-procarni-primary/20">
+                    <SelectTrigger className="w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
                       <SelectValue placeholder="POR USUARIO" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                       <SelectItem value="all">TODOS LOS USUARIOS</SelectItem>
                       {usersList.map((u) => {
                         const name = u.first_name || u.last_name 
@@ -634,8 +643,8 @@ const QuoteRequestManagement = () => {
                 </div>
 
                 {/* Switch Materia Prima */}
-                <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
-                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                <div className="flex items-center space-x-2 bg-slate-50/80 border border-slate-200/80 px-3.5 h-10 rounded-2xl self-stretch sm:self-auto justify-between sm:justify-start">
+                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
                     Materia Prima
                   </Label>
                   <Switch
@@ -646,11 +655,11 @@ const QuoteRequestManagement = () => {
                 </div>
 
                 <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     type="text"
                     placeholder="Buscar solicitud..."
-                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -662,10 +671,10 @@ const QuoteRequestManagement = () => {
 
               {/* Bulk Actions Bar */}
               {selectedIds.size > 0 && (
-                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2 rounded-md mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
+                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2.5 rounded-2xl mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                  <span className="text-xs font-bold text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 text-xs hover:bg-white/50">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 rounded-xl text-xs hover:bg-white/50">
                       Cancelar
                     </Button>
                     <TooltipProvider delayDuration={0}>
@@ -679,7 +688,7 @@ const QuoteRequestManagement = () => {
                                     <Button
                                       variant="outline"
                                       size="icon"
-                                      className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                      className="h-8 w-8 rounded-xl text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
                                       onClick={() => setIsBulkApproveDialogOpen(true)}
                                     >
                                       <CheckCircle className="h-4 w-4" />
@@ -693,7 +702,7 @@ const QuoteRequestManagement = () => {
                                     <Button
                                       variant="outline"
                                       size="icon"
-                                      className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
+                                      className="h-8 w-8 rounded-xl text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
                                       onClick={() => setIsBulkRejectDialogOpen(true)}
                                     >
                                       <XCircle className="h-4 w-4" />
@@ -709,7 +718,7 @@ const QuoteRequestManagement = () => {
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  className="h-8 w-8 text-gray-500 border-gray-200 hover:bg-gray-500 hover:text-white"
+                                  className="h-8 w-8 rounded-xl text-slate-500 border-slate-200 hover:bg-slate-500 hover:text-white"
                                   onClick={() => setIsBulkArchiveDialogOpen(true)}
                                 >
                                   <Archive className="h-4 w-4" />
@@ -726,7 +735,7 @@ const QuoteRequestManagement = () => {
                                   <Button
                                     variant="outline"
                                     size="icon"
-                                    className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                    className="h-8 w-8 rounded-xl text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
                                     onClick={() => setIsBulkRestoreDialogOpen(true)}
                                   >
                                     <RotateCcw className="h-4 w-4" />
@@ -742,7 +751,7 @@ const QuoteRequestManagement = () => {
                                   <Button
                                     variant="outline"
                                     size="icon"
-                                    className="h-8 w-8 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
+                                    className="h-8 w-8 rounded-xl text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
                                     onClick={() => setIsBulkDeleteDialogOpen(true)}
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -762,7 +771,7 @@ const QuoteRequestManagement = () => {
               {isLoading ? (
                 <div className="text-center text-muted-foreground p-12 flex flex-col items-center">
                   <div className="h-8 w-8 border-4 border-procarni-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p>Cargando solicitudes...</p>
+                  <p className="text-xs font-medium">Cargando solicitudes...</p>
                 </div>
               ) : filteredQuoteRequests.length > 0 ? (
                 isMobileView ? (
@@ -770,23 +779,23 @@ const QuoteRequestManagement = () => {
                     {filteredQuoteRequests.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-slate-200/80 shadow-sm bg-white overflow-hidden">
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                     <Table>
-                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[30px] pl-3 py-3"></TableHead>
-                          <TableHead className="w-[40px] pl-2 py-3">
+                          <TableHead className="w-[30px] pl-3 py-3.5"></TableHead>
+                          <TableHead className="w-[40px] pl-2 py-3.5">
                             <Checkbox
                               checked={filteredQuoteRequests.length > 0 && selectedIds.size === filteredQuoteRequests.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">ID</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Proveedor</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Empresa</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Estado</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Fecha</TableHead>
-                          <TableHead className="text-right font-bold text-[11px] tracking-wider uppercase text-slate-600 pr-4 py-3">Acciones</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">ID</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Proveedor</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Empresa</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Estado</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Fecha</TableHead>
+                          <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -885,18 +894,18 @@ const QuoteRequestManagement = () => {
                   </div>
                 )
               ) : (
-                <div className="text-center p-12 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                  <div className="bg-white p-3 rounded-full w-fit mx-auto shadow-sm mb-3">
-                    <Search className="h-6 w-6 text-gray-300" />
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                    <Search className="h-8 w-8" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">No se encontraron solicitudes</h3>
-                  <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                  <h3 className="text-base font-bold text-slate-800">No se encontraron solicitudes</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
                     {searchTerm
                       ? `No hay resultados para "${searchTerm}" en esta vista.`
-                      : "No tienes solicitudes de cotización en esta categoría."}
+                      : "No tienes solicitudes de cotización registradas para los filtros aplicados."}
                   </p>
                   {!searchTerm && !isHistoryMode && (
-                    <Button variant="outline" className="mt-4" asChild>
+                    <Button variant="outline" className="mt-4 rounded-2xl border-slate-200 text-xs font-semibold" asChild>
                       <Link to="/generate-quote">Crear primera solicitud</Link>
                     </Button>
                   )}

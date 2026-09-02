@@ -27,7 +27,8 @@ import {
     Package,
     ArrowUpRight,
     ArrowDownRight,
-    Search
+    Search,
+    BarChart3
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -68,15 +69,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const KpiCard = ({ title, value, prefix = '', isCurrency = true, icon, colorClass }: any) => {
     return (
-        <Card className="bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <Card className="bg-white/90 backdrop-blur-xl border border-slate-100/90 shadow-lg shadow-slate-200/40 ring-1 ring-white rounded-3xl p-5 hover:shadow-xl transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-0 pb-2">
+                <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     {title}
                 </CardTitle>
-                {icon}
+                <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    {icon}
+                </div>
             </CardHeader>
-            <CardContent>
-                <div className={cn("text-2xl font-bold text-gray-900", colorClass)}>
+            <CardContent className="p-0 pt-2">
+                <div className={cn("text-2xl font-extrabold tracking-tight text-procarni-dark font-mono", colorClass)}>
                     {prefix}{typeof value === 'number' ? value.toLocaleString('en-US', { minimumFractionDigits: isCurrency ? 2 : 0, maximumFractionDigits: isCurrency ? 2 : 0 }) : value}
                 </div>
             </CardContent>
@@ -575,123 +578,134 @@ const PriceVariationTab = ({ materials, currency, dateRange, selectedSupplierId,
             </div>
 
             {/* Variation Table */}
-            <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
-                <CardHeader className="py-4 border-b bg-gray-50/30">
-                    <CardTitle className="text-sm font-semibold text-gray-700">Variación de Precios Reciente</CardTitle>
+            <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+                <CardHeader className="p-0 pb-4 border-b border-slate-100 mb-4">
+                    <CardTitle className="text-lg font-bold text-procarni-dark">Variación de Precios Reciente</CardTitle>
+                    <CardDescription className="text-xs text-slate-500 font-medium">
+                        Comparativa de precios actuales versus anteriores en las últimas compras.
+                    </CardDescription>
                 </CardHeader>
-                <div className="rounded-md border-0 sm:border border-gray-100 overflow-hidden bg-white">
+                <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                     {isMobile ? (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-slate-100">
                             {variationTableData.map((item: any, idx) => (
                                 <div 
                                     key={idx} 
-                                    className="p-4 space-y-3 active:bg-gray-50 transition-colors"
+                                    className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors cursor-pointer"
                                     onClick={() => item.orderId && navigate(`/purchase-orders/${item.orderId}`)}
                                 >
                                     <div className="flex justify-between items-start">
                                         <div className="space-y-1 max-w-[70%]">
                                             <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.material}</h4>
-                                            <p className="text-xs text-gray-500 truncate">{item.supplier}</p>
+                                            <p className="text-xs text-slate-500 font-medium truncate">{item.supplier}</p>
                                         </div>
                                         {item.isNew ? (
-                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Nuevo</Badge>
+                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">Nuevo</Badge>
                                         ) : (
                                             <Badge
                                                 variant="outline"
                                                 className={cn(
+                                                    "text-[10px] font-bold",
                                                     item.change > 0 ? "bg-red-50 text-red-700 border-red-200" :
-                                                        item.change < 0 ? "bg-green-50 text-green-700 border-green-200" :
-                                                            "bg-gray-50 text-gray-700 border-gray-200"
+                                                        item.change < 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                                            "bg-slate-50 text-slate-700 border-slate-200"
                                                 )}
                                             >
                                                 {item.change > 0 && '+'}{item.percent.toFixed(1)}%
                                             </Badge>
                                         )}
                                     </div>
-                                    <div className="flex justify-between items-end text-sm">
+                                    <div className="flex justify-between items-end text-xs">
                                         <div className="space-y-1">
-                                            <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider">Precio</p>
+                                            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Precio</p>
                                             <div className="flex items-baseline gap-2">
                                                 <span className="font-mono font-bold text-procarni-dark">
                                                     {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
                                                 </span>
                                                 {!item.isNew && (
-                                                    <span className="font-mono text-xs text-gray-400 line-through">
+                                                    <span className="font-mono text-xs text-slate-400 line-through">
                                                         {currency === 'USD' ? '$' : 'Bs'}{item.previousPrice.toFixed(2)}
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="flex items-center justify-end gap-1 text-gray-500 text-xs">
+                                            <div className="flex items-center justify-end gap-1 text-slate-500 text-xs font-mono">
                                                 <CalendarIcon className="h-3 w-3" />
                                                 {format(new Date(item.date), 'dd/MM/yy')}
                                             </div>
-                                            {item.orderId && <p className="text-[10px] text-procarni-primary font-medium mt-1">Ver Orden <ArrowUpRight className="inline h-2 w-2" /></p>}
+                                            {item.orderId && <p className="text-[10px] text-procarni-primary font-bold mt-1">Ver Orden <ArrowUpRight className="inline h-2.5 w-2.5" /></p>}
                                         </div>
                                     </div>
                                 </div>
                             ))}
                             {variationTableData.length === 0 && (
-                                <div className="p-8 text-center text-gray-500 text-sm italic">
-                                    Selecciona materiales para ver sus variaciones.
+                                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                                    <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                                        <Search className="h-8 w-8" />
+                                    </div>
+                                    <h3 className="text-base font-bold text-slate-800">No hay variaciones seleccionadas</h3>
+                                    <p className="text-xs text-slate-500 max-w-sm mt-1">
+                                        Selecciona materiales para ver sus variaciones de precio en el gráfico y tabla.
+                                    </p>
                                 </div>
                             )}
                         </div>
                     ) : (
                         <Table>
-                            <TableHeader className="bg-gray-50/50">
-                                <TableRow>
-                                    <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Material</TableHead>
-                                    <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
-                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Actual</TableHead>
-                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Anterior</TableHead>
-                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Variación</TableHead>
-                                    <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Fecha</TableHead>
+                            <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 pl-4 py-3.5">Material</TableHead>
+                                    <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Proveedor</TableHead>
+                                    <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Precio Actual</TableHead>
+                                    <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Precio Anterior</TableHead>
+                                    <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Variación</TableHead>
+                                    <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Fecha</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {variationTableData.map((item: any, idx) => (
                                     <TableRow
                                         key={idx}
-                                        className={cn("hover:bg-gray-50/50 transition-colors", item.orderId && "cursor-pointer")}
+                                        className={cn("hover:bg-slate-50/60 transition-colors border-b border-slate-50 group", item.orderId && "cursor-pointer")}
                                         onClick={() => item.orderId && navigate(`/purchase-orders/${item.orderId}`)}
                                     >
-                                        <TableCell className="pl-4 py-3 font-medium text-procarni-dark">{item.material}</TableCell>
-                                        <TableCell className="py-3 text-gray-600">{item.supplier}</TableCell>
-                                        <TableCell className="py-3 text-right font-mono">
+                                        <TableCell className="pl-4 py-3.5 font-bold text-procarni-dark text-sm">{item.material}</TableCell>
+                                        <TableCell className="py-3.5 text-slate-600 text-xs font-medium">{item.supplier}</TableCell>
+                                        <TableCell className="py-3.5 text-right font-mono font-bold text-xs text-procarni-dark">
                                             {currency === 'USD' ? '$' : 'Bs'}{item.currentPrice.toFixed(2)}
                                         </TableCell>
-                                        <TableCell className="py-3 text-right font-mono text-gray-500">
-                                            {item.isNew ? '-' : `${currency === 'USD' ? '$' : 'Bs'}${item.previousPrice.toFixed(2)}`}
+                                        <TableCell className="py-3.5 text-right font-mono text-xs text-slate-400">
+                                            {item.isNew ? '—' : `${currency === 'USD' ? '$' : 'Bs'}${item.previousPrice.toFixed(2)}`}
                                         </TableCell>
-                                        <TableCell className="py-3 text-right">
+                                        <TableCell className="py-3.5 text-right">
                                             {item.isNew ? (
-                                                <Badge variant="outline">Nuevo</Badge>
+                                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">Nuevo</Badge>
                                             ) : (
                                                 <Badge
                                                     variant="outline"
                                                     className={cn(
+                                                        "text-[10px] font-bold",
                                                         item.change > 0 ? "bg-red-50 text-red-700 border-red-200" :
-                                                            item.change < 0 ? "bg-green-50 text-green-700 border-green-200" :
-                                                                "bg-gray-50 text-gray-700 border-gray-200"
+                                                            item.change < 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                                                "bg-slate-50 text-slate-700 border-slate-200"
                                                     )}
                                                 >
                                                     {item.change > 0 && '+'}{item.percent.toFixed(1)}%
                                                 </Badge>
                                             )}
                                         </TableCell>
-                                        <TableCell className="pr-4 py-3 text-right text-sm text-gray-600">
+                                        <TableCell className="pr-4 py-3.5 text-right text-xs text-slate-600 font-mono">
                                             <div className="flex items-center justify-end gap-1">
                                                 {format(new Date(item.date), 'dd/MM/yy')}
-                                                {item.orderId && <ArrowUpRight className="h-3 w-3 text-gray-400" />}
+                                                {item.orderId && <ArrowUpRight className="h-3 w-3 text-slate-400" />}
                                             </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}
                                 {variationTableData.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-gray-500">
+                                        <TableCell colSpan={6} className="h-32 text-center text-slate-500 text-xs">
                                             Selecciona materiales para ver sus variaciones.
                                         </TableCell>
                                     </TableRow>
@@ -1007,19 +1021,24 @@ const ReportsAnalytics = () => {
     }, [unifiedFilteredData]);
 
     return (
-        <div className="container mx-auto p-4 pb-20">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6">
+        <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+            {/* Header */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
                 <div className="space-y-1">
-                    <h1 className="text-3xl font-extrabold text-procarni-dark tracking-tight">Reportes & Análisis</h1>
-                    <p className="text-muted-foreground text-sm flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-procarni-primary" />
-                        Monitoreo inteligente de costos y proveedores.
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+                            <BarChart3 className="h-5 w-5" />
+                        </div>
+                        <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Reportes & Análisis</h1>
+                    </div>
+                    <p className="text-xs md:text-sm text-slate-500 font-medium">
+                        Monitoreo inteligente de costos, variaciones de precios y comportamiento de proveedores.
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-6 lg:gap-8 w-full lg:w-auto">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
                     {/* Supplier Select */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial sm:mr-4">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 sm:flex-initial">
                         <div className="w-full sm:w-[220px]">
                             <SmartSearch
                                 placeholder="Buscar proveedor..."
@@ -1035,14 +1054,14 @@ const ReportsAnalytics = () => {
                                 supplierName={selectedSupplierName}
                                 variant="outline"
                                 asChild={false}
-                                className="shadow-sm"
+                                className="shadow-sm rounded-2xl h-10 text-xs"
                             />
                         )}
                     </div>
 
                     {/* Switch Materia Prima */}
-                    <div className="flex items-center space-x-2 bg-white px-3 py-1.5 h-9 rounded-xl border border-gray-200 shadow-sm self-stretch sm:self-auto justify-between sm:justify-start">
-                        <Label htmlFor="reports-raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                    <div className="flex items-center space-x-2 bg-slate-50/80 px-3.5 h-10 rounded-2xl border border-slate-200/80 self-stretch sm:self-auto justify-between sm:justify-start">
+                        <Label htmlFor="reports-raw-materials-switch" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
                             Materia Prima
                         </Label>
                         <Switch
@@ -1052,41 +1071,41 @@ const ReportsAnalytics = () => {
                         />
                     </div>
 
-                    {/* Filtro de Fecha Container (Relativo para posicionar el botón de limpiar sin alterar la altura) */}
+                    {/* Filtro de Fecha Container */}
                     <div className="relative flex flex-col items-stretch sm:items-end w-full sm:w-auto">
                         {/* Filtro de Fecha (Periodo / Día Específico) */}
-                        <div className="flex items-center gap-2 bg-white px-2 py-0.5 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto">
+                        <div className="flex items-center gap-2 bg-slate-50/80 px-2.5 h-10 rounded-2xl border border-slate-200/80 w-full sm:w-auto">
                             <Select
                                 value={dateFilterType}
                                 onValueChange={(val: 'range' | 'single') => setDateFilterType(val)}
                             >
-                                <SelectTrigger className="h-8 w-[125px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1">
+                                <SelectTrigger className="h-8 w-[125px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1 font-semibold text-slate-700">
                                     <SelectValue placeholder="Tipo de filtro" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                                     <SelectItem value="range">Periodo</SelectItem>
                                     <SelectItem value="single">Día específico</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Separator orientation="vertical" className="h-4 bg-gray-200" />
+                            <Separator orientation="vertical" className="h-4 bg-slate-200" />
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <Button
                                         variant="ghost"
                                         className={cn(
-                                            "h-8 justify-start text-left font-normal text-xs bg-transparent w-full sm:w-auto min-w-[155px] hover:bg-slate-50 px-2",
+                                            "h-8 justify-start text-left font-normal text-xs bg-transparent w-full sm:w-auto min-w-[155px] hover:bg-white px-2",
                                             dateFilterType === 'single' ? !singleDate && "text-muted-foreground" : !date.from && "text-muted-foreground"
                                         )}
                                     >
-                                        <CalendarIcon className="mr-2 h-3.5 w-3.5 text-gray-500 shrink-0" />
+                                        <CalendarIcon className="mr-2 h-3.5 w-3.5 text-slate-500 shrink-0" />
                                         {dateFilterType === 'single' ? (
                                             singleDate ? format(singleDate, "dd/MM/yyyy") : <span className="truncate">Seleccionar día</span>
                                         ) : (
                                             date.from ? (
                                                 date.to ? (
-                                                    <span className="truncate">{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</span>
+                                                    <span className="truncate font-mono">{format(date.from, "dd/MM/yy")} - {format(date.to, "dd/MM/yy")}</span>
                                                 ) : (
-                                                    <span className="truncate">{format(date.from, "dd/MM/yy")}</span>
+                                                    <span className="truncate font-mono">{format(date.from, "dd/MM/yy")}</span>
                                                 )
                                             ) : (
                                                 <span className="truncate">Seleccionar periodo</span>
@@ -1094,7 +1113,7 @@ const ReportsAnalytics = () => {
                                         )}
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="end">
+                                <PopoverContent className="w-auto p-0 rounded-3xl shadow-2xl border border-slate-100" align="end">
                                     {dateFilterType === 'single' ? (
                                         <Calendar
                                             initialFocus
@@ -1118,14 +1137,14 @@ const ReportsAnalytics = () => {
                             </Popover>
                         </div>
 
-                        {/* Contenedor absoluto sutil para el botón de limpiar (evita desalineación vertical y layout shift) */}
+                        {/* Contenedor sutil para limpiar fechas */}
                         <div className={cn(
                             "absolute top-full right-1 mt-1 flex items-center justify-end transition-all duration-200",
                             hasActiveDateFilter ? "opacity-100" : "opacity-0 pointer-events-none"
                         )}>
                             <button
                                 onClick={clearDates}
-                                className="text-[10px] text-slate-400 hover:text-procarni-primary hover:underline transition-colors font-medium whitespace-nowrap"
+                                className="text-[10px] text-slate-400 hover:text-procarni-primary hover:underline transition-colors font-semibold whitespace-nowrap"
                             >
                                 Limpiar fechas (Ver todos)
                             </button>
@@ -1134,7 +1153,7 @@ const ReportsAnalytics = () => {
                 </div>
             </div>
 
-            <div className="space-y-8">
+            <div className="space-y-6">
 
                 {/* --- KPI Cards --- */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1159,18 +1178,20 @@ const ReportsAnalytics = () => {
                         icon={<ShoppingCart className="h-4 w-4 text-violet-600" />}
                         colorClass="text-violet-700"
                     />
-                    <Card className="bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <Card className="bg-white/90 backdrop-blur-xl border border-slate-100/90 shadow-lg shadow-slate-200/40 ring-1 ring-white rounded-3xl p-5 hover:shadow-xl transition-all duration-200">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-0 pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                                 Material Top
                             </CardTitle>
-                            <Package className="h-4 w-4 text-orange-600" />
+                            <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                <Package className="h-4 w-4 text-amber-600" />
+                            </div>
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-lg font-bold truncate text-gray-900" title={kpis.topMaterial}>
+                        <CardContent className="p-0 pt-2">
+                            <div className="text-base font-bold truncate text-procarni-dark" title={kpis.topMaterial}>
                                 {kpis.topMaterial}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-xs text-slate-500 font-mono font-medium mt-1">
                                 {currency === 'USD' ? '$' : 'Bs'}{kpis.topMaterialSpend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                         </CardContent>
@@ -1179,134 +1200,138 @@ const ReportsAnalytics = () => {
 
                 {/* --- Tabs System --- */}
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                    <TabsList className="bg-gray-100/50 border border-gray-200 p-1 h-auto flex flex-nowrap overflow-x-auto scrollbar-hide justify-start sm:justify-center">
-                        <TabsTrigger value="search" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                    <TabsList className="bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1 mb-6">
+                        <TabsTrigger value="search" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">
                             Buscador
                         </TabsTrigger>
-                        <TabsTrigger value="cashflow" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                        <TabsTrigger value="cashflow" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">
                             Flujo de Caja
                         </TabsTrigger>
-                        <TabsTrigger value="price-variation" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                        <TabsTrigger value="price-variation" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">
                             Tendencias
                         </TabsTrigger>
-                        <TabsTrigger value="top-suppliers" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-procarni-primary data-[state=active]:shadow-sm">
+                        <TabsTrigger value="top-suppliers" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">
                             Proveedores
                         </TabsTrigger>
                     </TabsList>
 
                     {/* Buscador Global (Debajo de la franja de pestañas) */}
                     <div className="relative w-full sm:w-[380px] mx-auto">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                         <Input
                             type="text"
                             placeholder="Buscar material o proveedor..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 bg-white w-full h-9 rounded-xl border border-gray-200 shadow-sm"
+                            className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
                         />
                     </div>
 
                     {/* Tab: Buscador de Compras */}
                     <TabsContent value="search" className="space-y-6 animate-in fade-in-50">
-                        <Card className="border-gray-200 shadow-sm bg-white overflow-hidden">
-                            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/50">
-                                <div>
-                                    <CardTitle className="text-lg font-semibold text-gray-800">Historial Detallado</CardTitle>
-                                    <CardDescription>
-                                        Encuentra rápidamente qué se compró, cuándo, a quién y por cuánto.
-                                    </CardDescription>
-                                </div>
+                        <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+                            <CardHeader className="p-0 pb-4 border-b border-slate-100 mb-4">
+                                <CardTitle className="text-lg font-bold text-procarni-dark">Historial Detallado</CardTitle>
+                                <CardDescription className="text-xs text-slate-500 font-medium">
+                                    Encuentra rápidamente qué se compró, cuándo, a quién y por cuánto.
+                                </CardDescription>
                             </CardHeader>
-                            <div className="rounded-md overflow-hidden bg-white max-h-[600px] overflow-y-auto">
+                            <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm max-h-[600px] overflow-y-auto">
                                 {isMobile ? (
-                                    <div className="divide-y divide-gray-100">
+                                    <div className="divide-y divide-slate-100">
                                         {searchResults.map((item: any) => (
                                             <div 
                                                 key={item.id} 
-                                                className="p-4 space-y-3 active:bg-gray-50 transition-colors"
+                                                className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors cursor-pointer"
                                                 onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)}
                                             >
                                                 <div className="flex justify-between items-start">
                                                     <div className="space-y-1 max-w-[70%]">
-                                                        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                                                        <span className="text-[10px] text-slate-400 font-mono font-bold uppercase tracking-wider">
                                                             {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                         </span>
                                                         <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name || item.material_name}</h4>
                                                     </div>
-                                                    <Badge variant="secondary" className="text-procarni-primary bg-procarni-primary/10">
+                                                    <Badge variant="secondary" className="text-procarni-primary bg-procarni-primary/10 font-mono font-bold text-xs rounded-xl">
                                                         #{item.purchase_orders.sequence_number || 'OC'}
                                                     </Badge>
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                                <div className="grid grid-cols-2 gap-4 text-xs">
                                                     <div className="space-y-1">
-                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Proveedor</p>
-                                                        <p className="text-gray-700 truncate text-xs">{item.purchase_orders.suppliers.name}</p>
+                                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Proveedor</p>
+                                                        <p className="text-slate-700 font-medium truncate">{item.purchase_orders.suppliers.name}</p>
                                                     </div>
                                                     <div className="text-right space-y-1">
-                                                        <p className="text-[10px] text-gray-400 uppercase font-semibold">Total</p>
+                                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total</p>
                                                         <p className="font-mono font-bold text-procarni-dark text-xs">
                                                             {item.purchase_orders.currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <div className="flex justify-between items-center pt-1 border-t border-gray-50">
-                                                    <span className="text-[10px] text-gray-400">
+                                                <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                                                    <span className="text-[10px] text-slate-500 font-medium">
                                                         {item.quantity} {item.units_of_measure?.name || item.unit || 'Und'}
                                                     </span>
-                                                    <span className="text-[10px] text-procarni-primary font-medium flex items-center gap-1">
-                                                        Ver detalles <ArrowUpRight className="h-2.5 w-2.5" />
+                                                    <span className="text-[10px] text-procarni-primary font-bold flex items-center gap-1">
+                                                        Ver detalles <ArrowUpRight className="h-3 w-3" />
                                                     </span>
                                                 </div>
                                             </div>
                                         ))}
                                         {searchResults.length === 0 && (
-                                            <div className="p-12 text-center text-gray-500 italic text-sm">
-                                                No se encontraron resultados.
+                                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                                                <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                                                    <Search className="h-8 w-8" />
+                                                </div>
+                                                <h3 className="text-base font-bold text-slate-800">No se encontraron resultados</h3>
+                                                <p className="text-xs text-slate-500 max-w-sm mt-1">
+                                                    No hay registros de compras que coincidan con los filtros y búsqueda actuales.
+                                                </p>
                                             </div>
                                         )}
                                     </div>
                                 ) : (
                                     <Table>
-                                        <TableHeader className="bg-gray-50/50 sticky top-0 z-10 shadow-sm">
-                                            <TableRow>
-                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3 w-[120px]">Fecha</TableHead>
-                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Material</TableHead>
-                                                <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Proveedor</TableHead>
-                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Cant.</TableHead>
-                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Precio Unit.</TableHead>
-                                                <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Total</TableHead>
-                                                <TableHead className="text-center font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3 w-[80px]">O.C.</TableHead>
+                                        <TableHeader className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10 shadow-sm">
+                                            <TableRow className="hover:bg-transparent">
+                                                <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 pl-4 py-3.5 w-[120px]">Fecha</TableHead>
+                                                <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Material</TableHead>
+                                                <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Proveedor</TableHead>
+                                                <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Cant.</TableHead>
+                                                <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Precio Unit.</TableHead>
+                                                <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Total</TableHead>
+                                                <TableHead className="text-center font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5 w-[80px]">O.C.</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {searchResults.map((item: any) => (
                                                 <TableRow
                                                     key={item.id}
-                                                    className="hover:bg-gray-50/80 transition-colors"
+                                                    className="hover:bg-slate-50/60 transition-colors border-b border-slate-50 group"
                                                 >
-                                                    <TableCell className="pl-4 py-3 text-sm text-gray-600">
+                                                    <TableCell className="pl-4 py-3.5 text-xs text-slate-600 font-mono">
                                                         {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                     </TableCell>
-                                                    <TableCell className="py-3">
+                                                    <TableCell className="py-3.5">
                                                         <div className="flex flex-col">
-                                                            <span className="text-procarni-dark font-medium text-sm">{item.materials?.name || item.material_name}</span>
-                                                            <span className="text-[10px] text-muted-foreground mt-0.5" title="Frecuencia de compra en el periodo">
+                                                            <span className="text-procarni-dark font-bold text-sm">{item.materials?.name || item.material_name}</span>
+                                                            <span className="text-[10px] text-slate-400 font-medium mt-0.5" title="Frecuencia de compra en el periodo">
                                                                 Comprado {materialFrequencies[item.materials?.name || item.material_name || 'Desconocido']} veces
                                                             </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="py-3 text-gray-600 text-sm">{item.purchase_orders.suppliers.name}</TableCell>
-                                                    <TableCell className="py-3 text-right text-sm">
-                                                        {item.quantity} <span className="text-xs text-gray-400">{item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und'}</span>
+                                                    <TableCell className="py-3.5 text-slate-600 text-xs font-medium">{item.purchase_orders.suppliers.name}</TableCell>
+                                                    <TableCell className="py-3.5 text-right text-xs">
+                                                        <span className="font-mono font-bold">{item.quantity}</span> <span className="text-slate-400">{item.units_of_measure?.name || item.unit || item.materials?.unit || 'Und'}</span>
                                                     </TableCell>
-                                                    <TableCell className="py-3 text-right font-mono text-sm">
+                                                    <TableCell className="py-3.5 text-right font-mono text-xs text-slate-600">
                                                         {item.purchase_orders.currency === 'USD' ? '$' : 'Bs'}{item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
-                                                    <TableCell className="py-3 text-right font-mono font-medium text-sm text-procarni-dark">
+                                                    <TableCell className="py-3.5 text-right font-mono font-bold text-xs text-procarni-dark">
                                                         {item.purchase_orders.currency === 'USD' ? '$' : 'Bs'}{(item.unit_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
-                                                    <TableCell className="pr-4 py-3 text-center">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-procarni-primary hover:bg-procarni-primary/10" onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)} title={`Ver ${item.purchase_orders.sequence_number || 'Orden'}`}>
+                                                    <TableCell className="pr-4 py-3.5 text-center">
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-procarni-primary hover:bg-procarni-primary/10" onClick={() => navigate(`/purchase-orders/${item.purchase_orders.id}`)} title={`Ver ${item.purchase_orders.sequence_number || 'Orden'}`}>
                                                             <ArrowUpRight className="h-4 w-4" />
                                                         </Button>
                                                     </TableCell>
@@ -1314,7 +1339,7 @@ const ReportsAnalytics = () => {
                                             ))}
                                             {searchResults.length === 0 && (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                                                    <TableCell colSpan={7} className="h-32 text-center text-slate-500 text-xs">
                                                         {filteredData.length === 0
                                                             ? "No hay compras registradas en este periodo con los filtros actuales."
                                                             : "No se encontraron coincidencias para la búsqueda."}

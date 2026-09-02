@@ -537,14 +537,22 @@ const ServiceOrderManagement = () => {
   };
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Órdenes de Servicio</h1>
-          <p className="text-muted-foreground text-sm">Administra tus órdenes de servicio generadas.</p>
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <Wrench className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Órdenes de Servicio</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Control y seguimiento de órdenes de servicio, mantenimientos técnicos y proveedores.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <Button
             variant={showHistory ? "secondary" : "outline"}
             onClick={() => {
@@ -552,56 +560,57 @@ const ServiceOrderManagement = () => {
               setShowHistory(newMode);
               updateSearchParams('tab', newMode ? 'archived' : 'all');
             }}
-            className="gap-2"
+            className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 shadow-sm rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2"
             size="sm"
           >
-            {showHistory ? <CheckCircle className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-            {showHistory ? 'Ver Activos' : 'Historial'}
+            {showHistory ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <Archive className="h-4 w-4 text-slate-500" />}
+            <span>{showHistory ? 'Ver Activos' : 'Historial'}</span>
           </Button>
           <Button
             asChild
-            className="bg-procarni-secondary hover:bg-green-700 text-white gap-2"
+            className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full sm:w-auto"
             size="sm"
           >
             <Link to="/generate-so">
               <PlusCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Nueva Orden</span>
+              <span>Nueva Orden</span>
             </Link>
           </Button>
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={(value) => updateSearchParams('tab', value)} className="w-full">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className={cn("grid w-full md:w-auto md:flex h-9", !showHistory ? "grid-cols-4" : "grid-cols-2")}>
+      {/* Main Content Card */}
+      <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+        <CardContent className="p-0 space-y-5">
+          <Tabs value={activeTab} onValueChange={(value) => updateSearchParams('tab', value)} className="w-full space-y-5">
+            <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+              <TabsList className={cn("bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1", !showHistory ? "grid grid-cols-2 sm:flex" : "grid grid-cols-2")}>
                 {!showHistory ? (
                   <>
-                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
-                    <TabsTrigger value="active" className="text-xs md:text-sm">Borradores</TabsTrigger>
-                    <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
-                    <TabsTrigger value="topay" className="text-xs md:text-sm">Por pagar</TabsTrigger>
+                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Todas</TabsTrigger>
+                    <TabsTrigger value="active" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Borradores</TabsTrigger>
+                    <TabsTrigger value="approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="topay" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Por pagar</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
-                    <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
+                    <TabsTrigger value="archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Archivadas</TabsTrigger>
+                    <TabsTrigger value="rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Rechazadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                 {/* Filtro Por Usuario */}
-                <div className="w-full sm:w-48">
+                <div className="w-full sm:w-52">
                   <Select
                     value={selectedUserId}
                     onValueChange={setSelectedUserId}
                   >
-                    <SelectTrigger className="h-9 w-full bg-slate-50 border-gray-250 rounded-xl text-[10px] font-semibold text-gray-500 uppercase tracking-wider focus:ring-procarni-primary/20">
+                    <SelectTrigger className="w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
                       <SelectValue placeholder="POR USUARIO" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                       <SelectItem value="all">TODOS LOS USUARIOS</SelectItem>
                       {usersList.map((u) => {
                         const name = u.first_name || u.last_name 
@@ -618,11 +627,11 @@ const ServiceOrderManagement = () => {
                 </div>
 
                 <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     type="text"
                     placeholder="Buscar orden..."
-                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
                     value={searchInput}
                     onChange={handleSearchChange}
                   />
@@ -633,10 +642,10 @@ const ServiceOrderManagement = () => {
             <TabsContent value={activeTab} className="mt-0">
               {/* Bulk Actions Bar */}
               {selectedIds.size > 0 && (
-                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2 rounded-md mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-                  <span className="text-sm font-medium text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
+                <div className="bg-procarni-primary/5 border border-procarni-primary/20 p-2.5 rounded-2xl mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                  <span className="text-xs font-bold text-procarni-primary ml-2">{selectedIds.size} {isMobile ? 'Sel.' : 'seleccionados'}</span>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 text-xs hover:bg-white/50">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="h-8 rounded-xl text-xs hover:bg-white/50">
                       Cancelar
                     </Button>
                     <TooltipProvider delayDuration={0}>
@@ -650,7 +659,7 @@ const ServiceOrderManagement = () => {
                                     <Button
                                       variant="outline"
                                       size="icon"
-                                      className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                      className="h-8 w-8 rounded-xl text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
                                       onClick={() => setIsBulkApproveDialogOpen(true)}
                                     >
                                       <CheckCircle className="h-4 w-4" />
@@ -664,7 +673,7 @@ const ServiceOrderManagement = () => {
                                     <Button
                                       variant="outline"
                                       size="icon"
-                                      className="h-8 w-8 text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
+                                      className="h-8 w-8 rounded-xl text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
                                       onClick={() => setIsBulkRejectDialogOpen(true)}
                                     >
                                       <XCircle className="h-4 w-4" />
@@ -680,7 +689,7 @@ const ServiceOrderManagement = () => {
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  className="h-8 w-8 text-gray-500 border-gray-200 hover:bg-gray-500 hover:text-white"
+                                  className="h-8 w-8 rounded-xl text-slate-500 border-slate-200 hover:bg-slate-500 hover:text-white"
                                   onClick={() => setIsBulkArchiveDialogOpen(true)}
                                 >
                                   <Archive className="h-4 w-4" />
@@ -697,7 +706,7 @@ const ServiceOrderManagement = () => {
                                   <Button
                                     variant="outline"
                                     size="icon"
-                                    className="h-8 w-8 text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
+                                    className="h-8 w-8 rounded-xl text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
                                     onClick={() => setIsBulkRestoreDialogOpen(true)}
                                   >
                                     <RotateCcw className="h-4 w-4" />
@@ -730,9 +739,15 @@ const ServiceOrderManagement = () => {
                 </div>
               )}
               <div className={cn("transition-opacity duration-200 mt-4", isFetching && "opacity-50 pointer-events-none")}>
-              {(!isLoading && currentOrders.length === 0) ? (
-                <div className="text-center text-muted-foreground p-12 flex flex-col items-center">
-                  <p>No se encontraron órdenes para esta vista o búsqueda.</p>
+              {currentOrders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                    <Search className="h-8 w-8" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800">No se encontraron órdenes</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
+                    No hay órdenes registradas para esta vista o no coinciden con los filtros aplicados.
+                  </p>
                 </div>
               ) : (
                 isMobileView ? (
@@ -740,24 +755,24 @@ const ServiceOrderManagement = () => {
                     {currentOrders.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-slate-200/80 shadow-sm bg-white overflow-hidden">
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                     <Table>
-                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[30px] pl-3 py-3"></TableHead>
-                          <TableHead className="w-[40px] pl-2 py-3">
+                          <TableHead className="w-[30px] pl-3 py-3.5"></TableHead>
+                          <TableHead className="w-[40px] pl-2 py-3.5">
                             <Checkbox
                               checked={currentOrders.length > 0 && selectedIds.size === currentOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">N° Orden</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Proveedor</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Equipo</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Tipo Servicio</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Fecha Servicio</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Estado</TableHead>
-                          <TableHead className="text-right font-bold text-[11px] tracking-wider uppercase text-slate-600 pr-4 py-3">Acciones</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">N° Orden</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Proveedor</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Equipo</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Tipo Servicio</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Fecha Servicio</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Estado</TableHead>
+                          <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2, Package, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, XCircle, Trash2, Download, Copy, X, Truck, Loader2, Package, ChevronDown, ChevronRight, MoreHorizontal, ShoppingCart } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -772,11 +772,19 @@ const PurchaseOrderManagement = () => {
   const canBulkRestore = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Archived' || order.status === 'Rejected');
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Órdenes de Compra</h1>
-          <p className="text-muted-foreground text-sm">Administra tus órdenes de compra generadas.</p>
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Órdenes de Compra</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Control integral de compras, estados de aprobación, pagos y recepciones.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -787,57 +795,57 @@ const PurchaseOrderManagement = () => {
               setShowHistory(newMode);
               updateSearchParams('tab', newMode ? 'archived' : 'all');
             }}
-            className="gap-2"
+            className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 shadow-sm rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2"
             size="sm"
           >
-            {showHistory ? <CheckCircle className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-            {showHistory ? 'Ver Activos' : 'Historial'}
+            {showHistory ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <Archive className="h-4 w-4 text-slate-500" />}
+            <span>{showHistory ? 'Ver Activos' : 'Historial'}</span>
           </Button>
 
           {/* Selector de fecha (Día / Periodo) */}
           <div className="relative flex flex-col items-stretch sm:items-end">
-            <div className="flex items-center gap-2 bg-white px-2 py-0.5 h-9 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto">
+            <div className="flex items-center gap-2 bg-slate-50/80 px-2.5 h-10 rounded-2xl border border-slate-200/80 w-full sm:w-auto">
               <Select
                 value={dateFilterType}
                 onValueChange={(val: 'range' | 'single') => setDateFilterType(val)}
               >
-                <SelectTrigger className="h-8 w-[95px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1">
+                <SelectTrigger className="h-8 w-[95px] border-none bg-transparent shadow-none text-xs focus:ring-0 px-1 font-semibold text-slate-700">
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                   <SelectItem value="range">Periodo</SelectItem>
                   <SelectItem value="single">Día</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Separator orientation="vertical" className="h-4 bg-gray-200" />
+              <Separator orientation="vertical" className="h-4 bg-slate-200" />
 
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 gap-2 text-xs text-gray-600 hover:bg-gray-50 font-normal px-2"
+                    className="h-8 gap-2 text-xs text-slate-600 hover:bg-white font-normal px-2"
                   >
-                    <CalendarIcon className="h-3.5 w-3.5 text-gray-400" />
+                    <CalendarIcon className="h-3.5 w-3.5 text-slate-500" />
                     {dateFilterType === 'single' ? (
                       singleDate ? (
-                        format(singleDate, 'dd/MM/yyyy')
+                        <span className="font-mono">{format(singleDate, 'dd/MM/yyyy')}</span>
                       ) : (
-                        <span className="text-gray-400 font-normal">Elegir día</span>
+                        <span className="text-slate-400 font-normal">Elegir día</span>
                       )
                     ) : date.from ? (
                       date.to ? (
-                        `${format(date.from, 'dd/MM/yyyy')} - ${format(date.to, 'dd/MM/yyyy')}`
+                        <span className="font-mono">{`${format(date.from, 'dd/MM/yyyy')} - ${format(date.to, 'dd/MM/yyyy')}`}</span>
                       ) : (
-                        format(date.from, 'dd/MM/yyyy')
+                        <span className="font-mono">{format(date.from, 'dd/MM/yyyy')}</span>
                       )
                     ) : (
-                      <span className="text-gray-400 font-normal">Rango de fechas</span>
+                      <span className="text-slate-400 font-normal">Rango de fechas</span>
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
+                <PopoverContent className="w-auto p-0 rounded-3xl shadow-2xl border border-slate-100" align="end">
                   <Calendar
                     initialFocus
                     mode={dateFilterType === 'single' ? 'single' : 'range'}
@@ -859,7 +867,7 @@ const PurchaseOrderManagement = () => {
             {hasActiveDateFilter && (
               <button
                 onClick={clearDates}
-                className="absolute top-full right-1 mt-1 text-[10px] text-gray-400 hover:text-procarni-primary transition-colors font-medium flex items-center gap-0.5 select-none"
+                className="absolute top-full right-1 mt-1 text-[10px] text-slate-400 hover:text-procarni-primary transition-colors font-semibold flex items-center gap-0.5 select-none"
               >
                 <X className="h-3 w-3" />
                 Limpiar fechas
@@ -869,48 +877,49 @@ const PurchaseOrderManagement = () => {
 
           <Button
             asChild
-            className="bg-procarni-secondary hover:bg-green-700 text-white gap-2"
+            className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full sm:w-auto"
             size="sm"
           >
             <Link to="/generate-po">
               <PlusCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Nueva Orden</span>
+              <span>Nueva Orden</span>
             </Link>
           </Button>
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); }} className="w-full">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-              <TabsList className={cn("grid w-full md:w-auto md:flex h-9", !showHistory ? "grid-cols-4" : "grid-cols-2")}>
+      {/* Main Content Card */}
+      <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+        <CardContent className="p-0 space-y-5">
+          <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); }} className="w-full space-y-5">
+            <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+              <TabsList className={cn("bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1", !showHistory ? "grid grid-cols-2 sm:flex" : "grid grid-cols-2")}>
                 {!showHistory ? (
                   <>
-                    <TabsTrigger value="all" className="text-xs md:text-sm">Todas</TabsTrigger>
-                    <TabsTrigger value="active" className="text-xs md:text-sm">Borradores</TabsTrigger>
-                    <TabsTrigger value="approved" className="text-xs md:text-sm">Aprobadas</TabsTrigger>
-                    <TabsTrigger value="topay" className="text-xs md:text-sm">Por pagar</TabsTrigger>
+                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Todas</TabsTrigger>
+                    <TabsTrigger value="active" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Borradores</TabsTrigger>
+                    <TabsTrigger value="approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="topay" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Por pagar</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="archived" className="text-xs md:text-sm">Archivadas</TabsTrigger>
-                    <TabsTrigger value="rejected" className="text-xs md:text-sm">Rechazadas</TabsTrigger>
+                    <TabsTrigger value="archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Archivadas</TabsTrigger>
+                    <TabsTrigger value="rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Rechazadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                 {/* Filtro Por Usuario */}
-                <div className="w-full sm:w-48">
+                <div className="w-full sm:w-52">
                   <Select
                     value={selectedUserId}
                     onValueChange={setSelectedUserId}
                   >
-                    <SelectTrigger className="h-9 w-full bg-slate-50 border-gray-250 rounded-xl text-[10px] font-semibold text-gray-500 uppercase tracking-wider focus:ring-procarni-primary/20">
+                    <SelectTrigger className="w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
                       <SelectValue placeholder="POR USUARIO" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                       <SelectItem value="all">TODOS LOS USUARIOS</SelectItem>
                       {usersList.map((u) => {
                         const name = u.first_name || u.last_name 
@@ -927,8 +936,8 @@ const PurchaseOrderManagement = () => {
                 </div>
 
                 {/* Switch Materia Prima */}
-                <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
-                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+                <div className="flex items-center space-x-2 bg-slate-50/80 border border-slate-200/80 px-3.5 h-10 rounded-2xl self-stretch sm:self-auto justify-between sm:justify-start">
+                  <Label htmlFor="raw-materials-switch" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
                     Materia Prima
                   </Label>
                   <Switch
@@ -939,11 +948,11 @@ const PurchaseOrderManagement = () => {
                 </div>
 
                 <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     type="text"
                     placeholder="Buscar orden..."
-                    className="w-full appearance-none bg-background pl-8 h-9 text-sm"
+                    className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
                     value={searchInput}
                     onChange={(e) => {
                       setSearchInput(e.target.value);
@@ -957,8 +966,14 @@ const PurchaseOrderManagement = () => {
             <TabsContent value={activeTab} className="mt-0">
               <div className={cn("transition-opacity duration-200 mt-4", isFetching && "opacity-50 pointer-events-none")}>
               {(!isLoading && currentOrders.length === 0) ? (
-                <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
-                  <p className="text-gray-500 text-lg">No se encontraron órdenes para esta vista o búsqueda.</p>
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                    <Search className="h-8 w-8" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800">No se encontraron órdenes</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
+                    No hay órdenes de compra registradas para esta vista o no coinciden con los filtros aplicados.
+                  </p>
                 </div>
               ) : (
                 isMobileView ? (
@@ -966,26 +981,26 @@ const PurchaseOrderManagement = () => {
                     {currentOrders.map(renderMobileCard)}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-slate-200/80 shadow-sm bg-white overflow-hidden">
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                     <Table>
-                      <TableHeader className="bg-slate-50/80 border-b border-slate-200/80">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-[30px] pl-3 py-3"></TableHead>
-                          <TableHead className="w-[40px] pl-2 py-3">
+                          <TableHead className="w-[30px] pl-3 py-3.5"></TableHead>
+                          <TableHead className="w-[40px] pl-2 py-3.5">
                             <Checkbox
                               checked={currentOrders.length > 0 && selectedIds.size === currentOrders.length}
                               onCheckedChange={toggleAll}
                             />
                           </TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">N° Orden</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Proveedor</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Empresa</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Moneda</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Calculada en</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Estado</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Recepción</TableHead>
-                          <TableHead className="font-bold text-[11px] tracking-wider uppercase text-slate-600 py-3">Fecha</TableHead>
-                          <TableHead className="text-right font-bold text-[11px] tracking-wider uppercase text-slate-600 pr-4 py-3">Acciones</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">N° Orden</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Proveedor</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Empresa</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Moneda</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Calculada en</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Estado</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Recepción</TableHead>
+                          <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Fecha</TableHead>
+                          <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

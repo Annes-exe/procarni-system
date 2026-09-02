@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp, MoreHorizontal, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -327,46 +327,50 @@ const SupplierManagement = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Proveedores</h1>
-          <p className="text-muted-foreground text-sm">Administra la información de tus proveedores.</p>
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <Users className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Gestión de Proveedores</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Directorio maestro de proveedores, condiciones comerciales, rubros y contactos.
+          </p>
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <Button
             variant="outline"
             onClick={() => navigate('/ficha-tecnica-upload')}
-            className={cn(isMobile && "w-10 h-10 p-0", "text-procarni-secondary border-procarni-secondary/30 hover:bg-procarni-secondary/10 hover:text-procarni-secondary")}
+            className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 shadow-sm rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2"
             title="Fichas Técnicas"
           >
-            <FileUp className={cn("h-4 w-4", !isMobile && "mr-2")} />
-            {!isMobile && 'Fichas Técnicas'}
+            <FileUp className="h-4 w-4 text-procarni-primary" />
+            <span>Fichas Técnicas</span>
           </Button>
           <Button
             onClick={handleAddSupplier}
-            className={cn(
-              "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
-              isMobile && "w-10 h-10 p-0"
-            )}
-            size={isMobile ? "default" : "sm"}
+            className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full sm:w-auto"
           >
-            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-            {!isMobile && 'Añadir Proveedor'}
+            <PlusCircle className="h-4 w-4" />
+            <span>Añadir Proveedor</span>
           </Button>
 
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogContent className="sm:max-w-[425px] md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[425px] md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white/95 backdrop-blur-xl border-none shadow-2xl">
               <DialogHeader>
-                <DialogTitle>{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-xl font-bold text-procarni-dark">{editingSupplier ? 'Editar Proveedor' : 'Añadir Nuevo Proveedor'}</DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
                   {editingSupplier ? 'Edita los detalles del proveedor existente.' : 'Completa los campos para añadir un nuevo proveedor.'}
                 </DialogDescription>
               </DialogHeader>
               {isLoadingEditData ? (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-procarni-primary" />
-                  <span className="ml-2 text-muted-foreground">Cargando datos del proveedor...</span>
+                  <span className="ml-2 text-muted-foreground text-xs">Cargando datos del proveedor...</span>
                 </div>
               ) : (
                 <SupplierForm
@@ -381,13 +385,14 @@ const SupplierManagement = () => {
         </div>
       </div>
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+      {/* Main Content Card */}
+      <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+        <CardContent className="p-0 space-y-5">
+          <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-3 flex-1">
               {/* Switch Materia Prima */}
-              <div className="flex items-center space-x-2 bg-slate-50 border border-gray-200 px-3 py-1.5 h-9 rounded-xl self-stretch sm:self-auto justify-between sm:justify-start">
-                <Label htmlFor="raw-materials-switch" className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+              <div className="flex items-center space-x-2 bg-slate-50/80 border border-slate-200/80 px-3.5 h-10 rounded-2xl self-stretch sm:self-auto justify-between sm:justify-start">
+                <Label htmlFor="raw-materials-switch" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
                   Materia Prima
                 </Label>
                 <Switch
@@ -397,42 +402,43 @@ const SupplierManagement = () => {
                 />
               </div>
 
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Buscar proveedor por RIF, nombre o email..."
                   value={searchInput}
                   onChange={handleSearchChange}
-                  className="w-full pl-10 bg-white"
+                  className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
                 />
               </div>
             </div>
-            <div className="relative w-full md:w-48">
-              <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={selectedStatus} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-full pl-8 h-9 text-sm">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">Todos los Estados</SelectItem>
-                  <SelectItem value="Active">Activo</SelectItem>
-                  <SelectItem value="Inactive">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             
-            <div className="relative w-full md:w-64">
-              <AlertTriangle className={cn("absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground", dataQualityFilter !== 'All' && "text-amber-500")} />
-              <Select value={dataQualityFilter} onValueChange={handleQualityChange}>
-                <SelectTrigger className={cn("w-full pl-8 h-9 text-sm", dataQualityFilter !== 'All' && "ring-1 ring-amber-400 bg-amber-50")}>
-                  <SelectValue placeholder="Calidad de Datos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">Calidad: Todos</SelectItem>
-                  <SelectItem value="MissingCritical">Datos Críticos Faltantes</SelectItem>
-                  <SelectItem value="MissingSecondary">Datos Secundarios Faltantes</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative w-full sm:w-44">
+                <Select value={selectedStatus} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
+                    <SelectItem value="All">Todos los Estados</SelectItem>
+                    <SelectItem value="Active">Activo</SelectItem>
+                    <SelectItem value="Inactive">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="relative w-full sm:w-60">
+                <Select value={dataQualityFilter} onValueChange={handleQualityChange}>
+                  <SelectTrigger className={cn("w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20", dataQualityFilter !== 'All' && "ring-1 ring-amber-400 bg-amber-50/50")}>
+                    <SelectValue placeholder="Calidad de Datos" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
+                    <SelectItem value="All">Calidad: Todos</SelectItem>
+                    <SelectItem value="MissingCritical">Datos Críticos Faltantes</SelectItem>
+                    <SelectItem value="MissingSecondary">Datos Secundarios Faltantes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -442,76 +448,85 @@ const SupplierManagement = () => {
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-procarni-primary border-t-transparent"></div>
             </div>
           ) : error ? (
-            <div className="text-center text-red-500 p-4">Error cargando proveedores</div>
+            <div className="text-center text-red-500 p-4 text-xs font-medium">Error cargando proveedores</div>
           ) : suppliersList.length > 0 ? (
             isMobile ? (
               <div className="grid gap-4">
                 {suppliersList.map((supplier) => (
                   <Card
                     key={supplier.id}
-                    className="p-4 w-full shadow-md cursor-pointer hover:border-slate-300 transition-all"
+                    className="bg-white/90 backdrop-blur-xl border border-slate-100/90 shadow-lg shadow-slate-200/40 ring-1 ring-white rounded-3xl p-5 hover:shadow-xl transition-all duration-200 w-full cursor-pointer flex flex-col justify-between"
                     onClick={() => navigate(`/suppliers/${supplier.id}`)}
                   >
-                    <div className="mb-2">
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
-                      <span className="font-bold text-base text-procarni-dark hover:text-procarni-primary transition-colors block">
-                        {supplier.name}
-                      </span>
-                      {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
-                        <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-1" title="Falta RIF, Teléfono o Dirección">
-                          <Search className="h-3 w-3" /> Info incompleta
+                    <div>
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-xl bg-procarni-blue/10 text-procarni-blue flex items-center justify-center shrink-0 font-bold text-xs">
+                            {supplier.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-bold text-sm text-procarni-dark hover:text-procarni-primary transition-colors block truncate">
+                              {supplier.name}
+                            </span>
+                            {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
+                              <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-0.5 font-medium" title="Falta RIF, Teléfono o Dirección">
+                                <Search className="h-3 w-3" /> Info incompleta
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mb-3 pt-2 border-t border-slate-100 text-xs">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">RIF</p>
+                          {isGenericRif(supplier.rif) ? (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-procarni-alert">
+                              <AlertTriangle className="h-3 w-3" /> Faltante
+                            </span>
+                          ) : (
+                            <span className="font-mono text-xs font-bold text-slate-700">{supplier.rif}</span>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">Teléfono</p>
+                          {!supplier.phone ? (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-procarni-alert">
+                              <AlertTriangle className="h-3 w-3" /> Faltante
+                            </span>
+                          ) : (
+                            <span className="font-mono text-xs text-slate-600">{supplier.phone}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Rubro: ÚNICO CAMPO CON EDICIÓN INLINE */}
+                      <div className="mb-3 p-2.5 bg-slate-50/80 rounded-2xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">Rubro / Especialidad</p>
+                        <InlineEditableCell
+                          value={supplier.rubros || ''}
+                          onSave={(v) => handleInlineSave(supplier.id, 'rubros', v)}
+                          alwaysShowIcon
+                          displayClassName="text-xs font-semibold text-procarni-dark"
+                          placeholder="Asignar rubro..."
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Términos:</span>
+                        <span className="font-medium text-slate-700">{supplier.payment_terms === 'Otro' && supplier.custom_payment_terms ? supplier.custom_payment_terms : supplier.payment_terms}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Estado:</span>
+                        <span className={cn("px-2 py-0.5 text-[10px] font-bold rounded-full", getStatusBadgeClass(supplier.status))}>
+                          {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                         </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">RIF</p>
-                        {isGenericRif(supplier.rif) ? (
-                          <span className="flex items-center gap-1 text-[11px] font-medium text-procarni-alert">
-                            <AlertTriangle className="h-3 w-3" /> Faltante
-                          </span>
-                        ) : (
-                          <span className="font-mono text-xs text-gray-700">{supplier.rif}</span>
-                        )}
-                      </div>
-
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Teléfono</p>
-                        {!supplier.phone ? (
-                          <span className="flex items-center gap-1 text-[11px] font-medium text-procarni-alert">
-                            <AlertTriangle className="h-3 w-3" /> Faltante
-                          </span>
-                        ) : (
-                          <span className="font-mono text-xs text-gray-700">{supplier.phone}</span>
-                        )}
                       </div>
                     </div>
 
-                    {/* Rubro: ÚNICO CAMPO CON EDICIÓN INLINE */}
-                    <div className="mb-2 p-2 bg-slate-50 rounded-xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Rubro / Especialidad</p>
-                      <InlineEditableCell
-                        value={supplier.rubros || ''}
-                        onSave={(v) => handleInlineSave(supplier.id, 'rubros', v)}
-                        alwaysShowIcon
-                        displayClassName="text-xs font-semibold text-procarni-dark"
-                        placeholder="Asignar rubro..."
-                      />
-                    </div>
-
-                    <p className="text-xs mb-1 text-slate-600">
-                      <strong>Términos:</strong> {supplier.payment_terms === 'Otro' && supplier.custom_payment_terms ? supplier.custom_payment_terms : supplier.payment_terms}
-                    </p>
-                    <p className="text-xs mb-3 text-slate-600">
-                      <strong>Estado:</strong>
-                      <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full", getStatusBadgeClass(supplier.status))}>
-                        {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </p>
-
-                    <div className="flex items-center justify-between mt-3 border-t border-slate-100 pt-3">
-                      <span className="text-[11px] text-slate-400 font-medium">Acciones</span>
+                    <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Opciones</span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
@@ -549,51 +564,55 @@ const SupplierManagement = () => {
                 ))}
               </div>
             ) : (
-              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
+              <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                 <Table>
-                  <TableHeader className="bg-gray-50/50">
-                    <TableRow>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 pl-4 py-3">Código</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">RIF</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Rubro</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Teléfono</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Estado</TableHead>
-                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Opciones</TableHead>
+                  <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 pl-4 py-3.5">Código</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Nombre</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">RIF</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Rubro</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Teléfono</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Estado</TableHead>
+                      <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Opciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {suppliersList.map((supplier) => (
                       <TableRow
                         key={supplier.id}
-                        className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
+                        className="hover:bg-slate-50/60 transition-colors border-b border-slate-50 group cursor-pointer"
                         onClick={() => navigate(`/suppliers/${supplier.id}`)}
                       >
-                        <TableCell className="pl-4 py-3 font-mono text-xs text-gray-600">{supplier.code || 'N/A'}</TableCell>
-                        <TableCell className="py-3 max-w-[220px]">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-sm text-procarni-dark group-hover:text-procarni-primary transition-colors whitespace-normal break-words">
-                              {supplier.name}
-                            </span>
-                            {/* Alerta de Datos Críticos Faltantes */}
-                            {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
-                              <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-1" title="Falta RIF, Teléfono o Dirección">
-                                <Search className="h-3 w-3" /> Info incompleta
+                        <TableCell className="pl-4 py-3.5 font-mono text-xs font-semibold text-slate-600">{supplier.code || '—'}</TableCell>
+                        <TableCell className="py-3.5 max-w-[240px]">
+                          <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-lg bg-procarni-blue/10 text-procarni-blue flex items-center justify-center shrink-0 font-bold text-xs">
+                              {supplier.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-sm text-procarni-dark group-hover:text-procarni-primary transition-colors block truncate">
+                                {supplier.name}
                               </span>
-                            )}
+                              {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
+                                <span className="flex items-center gap-1 text-[10px] text-blue-500 font-medium" title="Falta RIF, Teléfono o Dirección">
+                                  <Search className="h-3 w-3" /> Info incompleta
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell className="py-3">
+                        <TableCell className="py-3.5">
                           {isGenericRif(supplier.rif) ? (
-                            <span className="flex items-center gap-1 text-procarni-alert font-medium text-xs">
+                            <span className="flex items-center gap-1 text-procarni-alert font-bold text-xs">
                               <AlertTriangle className="h-3 w-3" /> Faltante
                             </span>
                           ) : (
-                            <span className="font-mono text-xs text-gray-700">{supplier.rif}</span>
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">{supplier.rif}</span>
                           )}
                         </TableCell>
                         {/* RUBRO: ÚNICO CAMPO CON EDICIÓN INLINE */}
-                        <TableCell className="py-3 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="py-3.5 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
                           <InlineEditableCell
                             value={supplier.rubros || ''}
                             onSave={(v) => handleInlineSave(supplier.id, 'rubros', v)}
@@ -601,21 +620,21 @@ const SupplierManagement = () => {
                             placeholder="Asignar rubro..."
                           />
                         </TableCell>
-                        <TableCell className="py-3 font-mono text-xs text-gray-600">
+                        <TableCell className="py-3.5 font-mono text-xs text-slate-600">
                           {!supplier.phone ? (
-                            <span className="flex items-center gap-1 text-procarni-alert font-medium text-xs">
+                            <span className="flex items-center gap-1 text-procarni-alert font-bold text-xs">
                               <AlertTriangle className="h-3 w-3" /> Faltante
                             </span>
                           ) : (
                             <span>{supplier.phone}</span>
                           )}
                         </TableCell>
-                        <TableCell className="py-3">
-                          <span className={cn("px-2 py-0.5 text-xs font-medium rounded-md border", getStatusBadgeClass(supplier.status))}>
+                        <TableCell className="py-3.5">
+                          <span className={cn("px-2.5 py-0.5 text-[11px] font-bold rounded-full border", getStatusBadgeClass(supplier.status))}>
                             {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="text-right pr-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -661,8 +680,14 @@ const SupplierManagement = () => {
               </div>
             )
           ) : (
-            <div className="text-center text-muted-foreground p-8">
-              No hay proveedores registrados o no se encontraron resultados para tu búsqueda.
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                <Search className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">No se encontraron proveedores</h3>
+              <p className="text-xs text-slate-500 max-w-sm mt-1">
+                No hay proveedores registrados o no coinciden con los términos de búsqueda y filtros.
+              </p>
             </div>
           )}
           </div>

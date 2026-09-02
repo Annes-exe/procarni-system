@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2, MoreHorizontal, Package } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -580,19 +580,27 @@ const MaterialManagement = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-procarni-primary tracking-tight">Gestión de Materiales</h1>
-          <p className="text-muted-foreground text-sm">Administra la información de tus materiales.</p>
+    <div className="container mx-auto p-4 md:p-6 pb-20 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl border border-slate-100 shadow-xl shadow-slate-200/40 ring-1 ring-white rounded-3xl p-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-procarni-primary/10 text-procarni-primary">
+              <Package className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-extrabold text-procarni-dark tracking-tight">Gestión de Materiales</h1>
+          </div>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
+            Catálogo central de insumos, materias primas, unidades y patrones de oro.
+          </p>
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           {role === 'admin' && (
             <>
               <Button
                 variant="outline"
                 onClick={() => setIsUnitsModalOpen(true)}
-                className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
+                className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 h-10 w-10 p-0 rounded-2xl shadow-sm"
                 size="icon"
                 title="Gestionar Unidades"
               >
@@ -602,7 +610,7 @@ const MaterialManagement = () => {
               <Button
                 variant="outline"
                 onClick={() => setIsCategoriesModalOpen(true)}
-                className="border-procarni-primary text-procarni-primary hover:bg-procarni-primary/10 h-10 w-10 p-0"
+                className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 h-10 w-10 p-0 rounded-2xl shadow-sm"
                 size="icon"
                 title="Gestionar Categorías"
               >
@@ -613,25 +621,19 @@ const MaterialManagement = () => {
 
           <Button
             onClick={handleAddMaterial}
-            className={cn(
-              "bg-procarni-secondary hover:bg-green-700 text-white gap-2",
-              isMobile && "w-10 h-10 p-0"
-            )}
-            size={isMobile ? "default" : "sm"}
+            className="bg-procarni-secondary hover:bg-emerald-800 text-white shadow-lg shadow-emerald-900/10 rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2 w-full md:w-auto"
           >
-            <PlusCircle className={cn("h-4 w-4", !isMobile && "mr-2")} />
-            {!isMobile && 'Añadir Material'}
+            <PlusCircle className="h-4 w-4" />
+            <span>Añadir Material</span>
           </Button>
-
-
         </div>
       </div>
 
       {/* ActionBar para Multi-selección (Burbuja Flotante) */}
       {selectedMaterialIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95vw] max-w-[680px] p-3 md:p-4 bg-white/95 backdrop-blur-xl border border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[2rem] flex items-center justify-between gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-5 duration-300 ring-1 ring-white">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95vw] max-w-[680px] p-3 md:p-4 bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-3xl flex items-center justify-between gap-2 md:gap-4 animate-in fade-in slide-in-from-bottom-5 duration-300 ring-1 ring-white">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
-            <div className="bg-procarni-primary text-white w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center text-xs font-bold shadow-md shrink-0 animate-pulse">
+            <div className="bg-procarni-primary text-white w-8 h-8 md:w-9 md:h-9 rounded-2xl flex items-center justify-center text-xs font-bold shadow-md shrink-0 animate-pulse">
               {selectedMaterialIds.length}
             </div>
             <div className="hidden sm:block min-w-0">
@@ -705,26 +707,26 @@ const MaterialManagement = () => {
         </div>
       )}
 
-      <Card className="mb-6 border-none shadow-sm bg-transparent md:bg-white md:border md:border-gray-200">
-        <CardContent className="p-0 md:p-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
-            <div className="relative w-full md:w-72">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      {/* Main Content Card */}
+      <Card className="bg-white/80 backdrop-blur-xl border border-slate-100 shadow-xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 overflow-hidden">
+        <CardContent className="p-0 space-y-5">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Buscar material..."
+                placeholder="Buscar material por código, nombre o alias..."
                 value={searchInput}
                 onChange={handleSearchChange}
-                className="w-full pl-10 bg-white"
+                className="w-full bg-slate-50/80 border-slate-200/80 rounded-2xl pl-10 h-10 text-xs focus:bg-white focus:ring-2 focus:ring-procarni-primary/20 transition-all shadow-none"
               />
             </div>
-            <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
-              <div className="relative w-full md:w-52">
-                <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full sm:w-56">
                 <Select value={selectedCategory} onValueChange={handleCategoryChange}>
-                  <SelectTrigger className="w-full pl-8 h-9 text-sm">
+                  <SelectTrigger className="w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
                     <SelectValue placeholder="Filtrar por categoría" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                     <SelectItem value="all">Todas las Categorías</SelectItem>
                     {categories.map(category => (
                       <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
@@ -732,13 +734,12 @@ const MaterialManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="relative w-full md:w-52">
-                <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <div className="relative w-full sm:w-56">
                 <Select value={masterFilter} onValueChange={handleMasterFilterChange}>
-                  <SelectTrigger className="w-full pl-8 h-9 text-sm">
+                  <SelectTrigger className="w-full h-10 bg-slate-50/80 border-slate-200/80 rounded-2xl text-xs font-medium focus:ring-procarni-primary/20">
                     <SelectValue placeholder="Tipo de Registro" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-2xl shadow-xl border border-slate-100">
                     <SelectItem value="all">Todos los Materiales</SelectItem>
                     <SelectItem value="master">
                       {role === 'admin' ? 'Solo Patrón de Oro' : 'Solo Materiales Principales'}
@@ -765,64 +766,75 @@ const MaterialManagement = () => {
                 {materialsList.map((material) => (
                   <Card 
                     key={material.id} 
-                    className={cn("p-4 shadow-md transition-all duration-200 cursor-pointer hover:bg-slate-50/50", selectedMaterialIds.includes(material.id) && "ring-2 ring-procarni-primary bg-procarni-primary/5")}
+                    className={cn(
+                      "bg-white/90 backdrop-blur-xl border border-slate-100/90 shadow-lg shadow-slate-200/40 ring-1 ring-white rounded-3xl p-5 hover:shadow-xl transition-all duration-200 flex flex-col justify-between cursor-pointer",
+                      selectedMaterialIds.includes(material.id) && "ring-2 ring-procarni-primary border-procarni-primary/40 bg-procarni-primary/5"
+                    )}
                     onClick={() => navigate(`/material/${material.id}`)}
                   >
-                    <div className="flex items-start gap-3 mb-2">
-                      <Checkbox 
-                        checked={selectedMaterialIds.includes(material.id)}
-                        onCheckedChange={() => toggleMaterialSelection(material.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1"
-                      />
-                      <div className="flex-1" onClick={(e) => e.stopPropagation()}>
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Nombre</p>
-                        <span className="flex items-center gap-1.5 flex-wrap font-semibold text-base text-procarni-dark">
-                          {material.name}
-                          {material.is_exempt && (
-                            <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
-                          )}
-                          {material.base_material_id && (
-                            <Badge variant="secondary" className="text-[10px]" title="Forma parte de un grupo de materiales">Grupo</Badge>
-                          )}
-                          {role === 'admin' && material.is_master && (
-                            <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
-                          )}
-                          {role !== 'admin' && material.is_master && (
-                            <Badge className="bg-slate-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-slate-600">★ Principal</Badge>
-                          )}
-                          {material.search_aliases && material.search_aliases.length > 0 && (
-                            <Badge variant="outline" className="text-[10px] border-procarni-primary text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
-                              {material.search_aliases.length} Alias
-                            </Badge>
-                          )}
-                        </span>
+                    <div>
+                      <div className="flex items-start gap-3 mb-2">
+                        <Checkbox 
+                          checked={selectedMaterialIds.includes(material.id)}
+                          onCheckedChange={() => toggleMaterialSelection(material.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1.5 flex-wrap font-bold text-sm text-procarni-dark">
+                            <span className="truncate">{material.name}</span>
+                            {material.is_exempt && (
+                              <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-procarni-primary/10 text-procarni-primary rounded-full leading-none">EXENTO</span>
+                            )}
+                            {material.base_material_id && (
+                              <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1.5 font-normal">Grupo</Badge>
+                            )}
+                            {role === 'admin' && material.is_master && (
+                              <Badge className="bg-amber-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-amber-600">★ Patrón Oro</Badge>
+                            )}
+                            {role !== 'admin' && material.is_master && (
+                              <Badge className="bg-slate-500 text-white text-[9px] h-4 py-0 px-1.5 font-bold hover:bg-slate-600">★ Principal</Badge>
+                            )}
+                            {material.search_aliases && material.search_aliases.length > 0 && (
+                              <Badge variant="outline" className="text-[9px] border-procarni-primary/40 text-procarni-primary" title={`Tiene alias: ${material.search_aliases.join(', ')}`}>
+                                {material.search_aliases.length} Alias
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="mb-1 ml-7">
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Código</p>
-                      <span className="font-mono text-xs text-gray-600">{material.code}</span>
-                    </div>
-                    <div className="mb-1 ml-7">
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Categoría</p>
-                      <span className="text-sm text-gray-600 font-medium">{material.category || 'Sin categoría'}</span>
-                    </div>
-                    <div className="mb-3 ml-7">
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Unidad</p>
-                      <span className="text-sm text-gray-600 font-medium">{material.unit || 'Sin unidad'}</span>
-                    </div>
-                    {role === 'admin' && (
-                      <div className="mb-3 ml-7">
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Patrón Oro</p>
-                        <div className="flex flex-wrap gap-2">
+
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs ml-7">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Código</p>
+                          <span className="font-mono text-xs font-semibold text-slate-600">{material.code || '—'}</span>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Categoría</p>
+                          <span className="text-xs text-slate-700 font-medium">{material.category || 'Sin categoría'}</span>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Unidad</p>
+                          <span className="font-mono text-xs font-bold text-slate-600">{material.unit || '—'}</span>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">IVA</p>
+                          <span className={cn("inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full", material.is_exempt ? "bg-amber-50 text-procarni-alert" : "bg-slate-100 text-slate-600")}>
+                            {material.is_exempt ? 'EXENTO' : 'GRAVADO'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {role === 'admin' && (
+                        <div className="mt-3 ml-7 flex flex-wrap gap-2">
                           <Button
                             variant={material.is_master ? "default" : "outline"}
                             size="sm"
                             className={cn(
-                              "h-8 rounded-full text-xs font-bold transition-all",
+                              "h-7 rounded-xl text-[11px] font-bold transition-all",
                               material.is_master 
                                 ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm" 
-                                : "border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
+                                : "border-slate-200 text-slate-600 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200"
                             )}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -834,50 +846,38 @@ const MaterialManagement = () => {
                               updateMutation.mutate({ id: material.id, updates });
                             }}
                           >
-                            {material.is_master ? '★ Patrón Oro' : '☆ Marcar como Oro'}
+                            {material.is_master ? '★ Patrón Oro' : '☆ Marcar Oro'}
                           </Button>
                           
                           {material.is_master && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 rounded-full text-xs font-bold transition-all border-slate-200 text-slate-600 hover:bg-slate-50"
+                              className="h-7 rounded-xl text-[11px] font-bold transition-all border-slate-200 text-slate-600 hover:bg-slate-50"
                               onClick={(e) => toggleExpand(material.id, e)}
                             >
                               {expandedIds[material.id] ? '▲ Ocultar Hijos' : '▼ Mostrar Hijos'}
                             </Button>
                           )}
                         </div>
-                      </div>
-                    )}
-                    {role !== 'admin' && material.is_master && (
-                      <div className="mb-3 ml-7">
-                        <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Grupo Jerárquico</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 rounded-full text-xs font-bold transition-all border-slate-200 text-slate-600 hover:bg-slate-50"
-                          onClick={(e) => toggleExpand(material.id, e)}
-                        >
-                          {expandedIds[material.id] ? '▲ Ocultar Hijos' : '▼ Mostrar Hijos'}
-                        </Button>
-                      </div>
-                    )}
+                      )}
 
-                    {expandedIds[material.id] && (
-                      <MobileChildMaterialsList
-                        parentId={material.id}
-                        categories={categories}
-                        units={units}
-                        role={role}
-                        onInlineSave={handleInlineSave}
-                        onEditMaterial={handleEditMaterial}
-                        confirmDeleteMaterial={confirmDeleteMaterial}
-                        updateMutation={updateMutation}
-                      />
-                    )}
+                      {expandedIds[material.id] && (
+                        <MobileChildMaterialsList
+                          parentId={material.id}
+                          categories={categories}
+                          units={units}
+                          role={role}
+                          onInlineSave={handleInlineSave}
+                          onEditMaterial={handleEditMaterial}
+                          confirmDeleteMaterial={confirmDeleteMaterial}
+                          updateMutation={updateMutation}
+                        />
+                      )}
+                    </div>
+
                     <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3 ml-7" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-[11px] text-slate-400 font-medium">Acciones</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Opciones</span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
@@ -915,26 +915,26 @@ const MaterialManagement = () => {
                 ))}
               </div>
             ) : (
-              <div className="rounded-md border border-gray-100 overflow-hidden bg-white">
+              <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white shadow-sm">
                 <Table>
-                  <TableHeader className="bg-gray-50/50">
-                    <TableRow>
-                      <TableHead className="w-12 pl-4 py-3">
+                  <TableHeader className="bg-slate-50/80 border-b border-slate-100">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-12 pl-4 py-3.5">
                         <Checkbox 
                           checked={filteredMaterials.length > 0 && filteredMaterials.every(m => selectedMaterialIds.includes(m.id))}
                           onCheckedChange={toggleAllSelections}
                         />
                       </TableHead>
-                      <TableHead className="w-10 py-3"></TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Código</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Nombre</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Categoría</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Unidad</TableHead>
-                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Exento IVA</TableHead>
+                      <TableHead className="w-10 py-3.5"></TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Código</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Nombre</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Categoría</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Unidad</TableHead>
+                      <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Exento IVA</TableHead>
                       {role === 'admin' && (
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Patrón Oro</TableHead>
+                        <TableHead className="font-bold text-[10px] tracking-wider uppercase text-slate-500 py-3.5">Patrón Oro</TableHead>
                       )}
-                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
+                      <TableHead className="text-right font-bold text-[10px] tracking-wider uppercase text-slate-500 pr-4 py-3.5">Opciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -942,7 +942,7 @@ const MaterialManagement = () => {
                       <React.Fragment key={material.id}>
                         <TableRow 
                           className={cn(
-                            "hover:bg-gray-50/50 transition-colors cursor-pointer group",
+                            "hover:bg-slate-50/60 transition-colors border-b border-slate-50 cursor-pointer group",
                             selectedMaterialIds.includes(material.id) && "bg-procarni-primary/5 hover:bg-procarni-primary/10"
                           )}
                           onClick={() => navigate(`/material/${material.id}`)}
@@ -1090,8 +1090,14 @@ const MaterialManagement = () => {
               </div>
             )
           ) : (
-            <div className="text-center text-muted-foreground p-8">
-              No hay materiales registrados o no se encontraron resultados para tu búsqueda/filtro.
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
+                <Search className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">No se encontraron materiales</h3>
+              <p className="text-xs text-slate-500 max-w-sm mt-1">
+                No hay materiales registrados o no coinciden con los criterios de búsqueda y filtros aplicados.
+              </p>
             </div>
           )}
         </div>
