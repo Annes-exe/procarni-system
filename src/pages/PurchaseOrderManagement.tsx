@@ -189,6 +189,51 @@ const PurchaseOrderManagement = () => {
     placeholderData: keepPreviousData,
   });
 
+  // Query for counts on pending tabs (Borradores, En tránsito, Por pagar)
+  const { data: tabCounts } = useQuery({
+    queryKey: ['purchase_order_tab_counts', onlyRawMaterials, selectedUserId],
+    queryFn: async () => {
+      let draftQ = supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'Draft');
+
+      let transitQ = supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('reception_status', 'En tránsito')
+        .neq('status', 'Archived')
+        .neq('status', 'Rejected');
+
+      let topayQ = supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'ToPay');
+
+      if (onlyRawMaterials) {
+        draftQ = draftQ.eq('is_raw_material', true);
+        transitQ = transitQ.eq('is_raw_material', true);
+        topayQ = topayQ.eq('is_raw_material', true);
+      }
+
+      if (selectedUserId && selectedUserId !== 'all') {
+        draftQ = draftQ.eq('user_id', selectedUserId);
+        transitQ = transitQ.eq('user_id', selectedUserId);
+        topayQ = topayQ.eq('user_id', selectedUserId);
+      }
+
+      const [draftRes, transitRes, topayRes] = await Promise.all([draftQ, transitQ, topayQ]);
+
+      return {
+        drafts: draftRes.count || 0,
+        transit: transitRes.count || 0,
+        topay: topayRes.count || 0,
+      };
+    },
+    enabled: !!session,
+    refetchInterval: 20000,
+  });
+
   const currentOrders = data?.data || [];
   const totalCount = data?.count || 0;
 
@@ -196,6 +241,7 @@ const PurchaseOrderManagement = () => {
     mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Archived'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess('Orden de compra archivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -211,6 +257,7 @@ const PurchaseOrderManagement = () => {
     mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Draft'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess('Orden de compra desarchivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -226,6 +273,7 @@ const PurchaseOrderManagement = () => {
     mutationFn: (id: string) => purchaseOrderService.updateStatus(id, 'Rejected'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess('Orden de compra rechazada exitosamente.');
       setIsRejectDialogOpen(false);
       setOrderToReject(null);
@@ -324,6 +372,7 @@ const PurchaseOrderManagement = () => {
       await Promise.all(promises);
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess(`${selectedIds.size} órdenes aprobadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkApproveDialogOpen(false);
@@ -337,6 +386,7 @@ const PurchaseOrderManagement = () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Archived')));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess(`${selectedIds.size} órdenes archivadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkArchiveDialogOpen(false);
@@ -350,6 +400,7 @@ const PurchaseOrderManagement = () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Rejected')));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess(`${selectedIds.size} órdenes rechazadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkRejectDialogOpen(false);
@@ -363,6 +414,7 @@ const PurchaseOrderManagement = () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Draft')));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess(`${selectedIds.size} órdenes restauradas a borrador.`);
       setSelectedIds(new Set());
       setIsBulkRestoreDialogOpen(false);
@@ -376,6 +428,7 @@ const PurchaseOrderManagement = () => {
     try {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.delete(id)));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
       showSuccess(`${selectedIds.size} órdenes eliminadas permanentemente.`);
       setSelectedIds(new Set());
       setIsBulkDeleteDialogOpen(false);
@@ -910,22 +963,47 @@ const PurchaseOrderManagement = () => {
         <CardContent className="p-0 space-y-5">
           <Tabs value={activeTab} onValueChange={(val) => { updateSearchParams('tab', val); }} className="w-full space-y-5">
             <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
-              <TabsList className={cn("bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1", !showHistory ? "grid grid-cols-2 sm:flex" : "grid grid-cols-2")}>
+              <TabsList className={cn("bg-slate-100/80 p-1 rounded-2xl border border-slate-200/60 inline-flex items-center flex-wrap gap-1 min-h-[44px]", !showHistory ? "grid grid-cols-2 sm:flex" : "grid grid-cols-2")}>
                 {!showHistory ? (
                   <>
-                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Todas</TabsTrigger>
-                    <TabsTrigger value="active" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Borradores</TabsTrigger>
-                    <TabsTrigger value="approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Aprobadas</TabsTrigger>
-                    <TabsTrigger value="transit" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all flex items-center gap-1.5">
-                      <Truck className="h-3.5 w-3.5 text-blue-600" />
-                      <span>En tránsito</span>
+                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">
+                      Todas
                     </TabsTrigger>
-                    <TabsTrigger value="topay" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Por pagar</TabsTrigger>
+                    <TabsTrigger value="active" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center gap-1.5">
+                      <span>Borradores</span>
+                      {Boolean(tabCounts?.drafts && tabCounts.drafts > 0) && (
+                        <span className="relative flex h-2 w-2" title={`${tabCounts?.drafts} borradores pendientes`}>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">
+                      Aprobadas
+                    </TabsTrigger>
+                    <TabsTrigger value="transit" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center gap-1.5">
+                      <span>En tránsito</span>
+                      {Boolean(tabCounts?.transit && tabCounts.transit > 0) && (
+                        <span className="relative flex h-2 w-2" title={`${tabCounts?.transit} órdenes en tránsito`}>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                        </span>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="topay" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center gap-1.5">
+                      <span>Por pagar</span>
+                      {Boolean(tabCounts?.topay && tabCounts.topay > 0) && (
+                        <span className="relative flex h-2 w-2" title={`${tabCounts?.topay} órdenes por pagar`}>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-procarni-primary"></span>
+                        </span>
+                      )}
+                    </TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Archivadas</TabsTrigger>
-                    <TabsTrigger value="rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Rechazadas</TabsTrigger>
+                    <TabsTrigger value="archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Archivadas</TabsTrigger>
+                    <TabsTrigger value="rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Rechazadas</TabsTrigger>
                   </>
                 )}
               </TabsList>

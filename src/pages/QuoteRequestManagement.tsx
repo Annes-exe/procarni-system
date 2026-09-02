@@ -616,17 +616,17 @@ const QuoteRequestManagement = () => {
         <CardContent className="p-0 space-y-5">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-5">
             <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
-              <TabsList className={cn("bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60 inline-flex flex-wrap gap-1", isHistoryMode ? "grid grid-cols-2" : "grid grid-cols-3")}>
+              <TabsList className={cn("bg-slate-100/80 p-1 rounded-2xl border border-slate-200/60 inline-flex items-center flex-wrap gap-1 min-h-[44px]", isHistoryMode ? "grid grid-cols-2" : "grid grid-cols-3")}>
                 {isHistoryMode ? (
                   <>
-                    <TabsTrigger value="Rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Rechazadas</TabsTrigger>
-                    <TabsTrigger value="Archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Archivadas</TabsTrigger>
+                    <TabsTrigger value="Rejected" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Rechazadas</TabsTrigger>
+                    <TabsTrigger value="Archived" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Archivadas</TabsTrigger>
                   </>
                 ) : (
                   <>
-                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Todas</TabsTrigger>
-                    <TabsTrigger value="Draft" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Borradores</TabsTrigger>
-                    <TabsTrigger value="Approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-md transition-all">Aprobadas</TabsTrigger>
+                    <TabsTrigger value="all" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Todas</TabsTrigger>
+                    <TabsTrigger value="Draft" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Borradores</TabsTrigger>
+                    <TabsTrigger value="Approved" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all inline-flex items-center justify-center text-center">Aprobadas</TabsTrigger>
                   </>
                 )}
               </TabsList>
