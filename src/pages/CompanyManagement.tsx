@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Phone, Mail, ArrowLeft, Tag, MapPin } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Phone, Mail, ArrowLeft, Tag, MapPin, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 import { getAllCompanies, createCompany, updateCompany, deleteCompany } from '@/integrations/supabase/data';
 import { showError, showSuccess } from '@/utils/toast';
@@ -274,23 +280,33 @@ const CompanyManagement = () => {
                         </p>
                       )}
                     </div>
-                    <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleEditCompany(company); }}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Edit className={cn("h-4 w-4", !isMobile && "mr-2")} /> {!isMobile && "Editar"}
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); confirmDeleteCompany(company.id); }}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3">
+                      <span className="text-[11px] text-slate-400 font-medium">Acciones</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            onClick={() => handleEditCompany(company)}
+                            disabled={deleteMutation.isPending}
+                            className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                          >
+                            <Edit className="h-4 w-4 text-slate-400" />
+                            <span>Editar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => confirmDeleteCompany(company.id)}
+                            disabled={deleteMutation.isPending}
+                            className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>Eliminar</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </Card>
                 ))}
@@ -305,7 +321,7 @@ const CompanyManagement = () => {
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Email</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Teléfono</TableHead>
                       <TableHead className="font-semibold text-xs tracking-wider uppercase text-gray-500 py-3">Dirección</TableHead>
-                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Acciones</TableHead>
+                      <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-gray-500 pr-4 py-3">Opciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -316,23 +332,37 @@ const CompanyManagement = () => {
                         <TableCell className="py-3 text-gray-600 max-w-[200px] truncate" title={company.email}>{company.email || 'N/A'}</TableCell>
                         <TableCell className="py-3 text-gray-600 whitespace-nowrap">{company.phone || 'N/A'}</TableCell>
                         <TableCell className="py-3 text-gray-600 max-w-[250px] truncate" title={company.address}>{company.address || 'N/A'}</TableCell>
-                        <TableCell className="text-right pr-4 py-3 whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => { e.stopPropagation(); handleEditCompany(company); }}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => { e.stopPropagation(); confirmDeleteCompany(company.id); }}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                        <TableCell className="text-right pr-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                                title="Opciones"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                              <DropdownMenuItem
+                                onClick={() => handleEditCompany(company)}
+                                disabled={deleteMutation.isPending}
+                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                              >
+                                <Edit className="h-4 w-4 text-slate-400" />
+                                <span>Editar</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => confirmDeleteCompany(company.id)}
+                                disabled={deleteMutation.isPending}
+                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span>Eliminar</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}

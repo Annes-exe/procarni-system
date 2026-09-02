@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import InlineEditableCell from '@/components/InlineEditableCell';
 
@@ -123,45 +129,51 @@ const ChildMaterialsRow = ({
                           {child.is_exempt ? 'EXENTO' : 'GRAVADO'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right pr-4 py-1.5 flex items-center justify-end gap-1">
-                        {role === 'admin' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-[10px] text-slate-500 hover:text-destructive hover:bg-destructive/5 font-semibold px-2 rounded-lg border border-slate-100"
-                            onClick={() => updateMutation.mutate({ id: child.id, updates: { base_material_id: null } })}
-                            title="Remover este material del grupo del padre"
-                          >
-                            Desvincular
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg hover:bg-slate-100 text-procarni-blue"
-                          onClick={() => navigate(`/material/${child.id}`)}
-                          title="Ver Perfil"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg hover:bg-slate-100"
-                          onClick={() => onEditMaterial(child)}
-                          title="Editar completo"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg hover:bg-destructive/5 hover:text-destructive"
-                          onClick={() => confirmDeleteMaterial(child.id)}
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                      <TableCell className="text-right pr-4 py-1.5" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-lg hover:bg-slate-100 text-slate-500"
+                              title="Opciones"
+                            >
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                            <DropdownMenuItem
+                              onClick={() => navigate(`/material/${child.id}`)}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                            >
+                              <Eye className="h-4 w-4 text-slate-400" />
+                              <span>Ver Perfil</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => onEditMaterial(child)}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                            >
+                              <Edit className="h-4 w-4 text-slate-400" />
+                              <span>Editar</span>
+                            </DropdownMenuItem>
+                            {role === 'admin' && (
+                              <DropdownMenuItem
+                                onClick={() => updateMutation.mutate({ id: child.id, updates: { base_material_id: null } })}
+                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-amber-700 hover:bg-amber-50"
+                              >
+                                <Network className="h-4 w-4 text-amber-500" />
+                                <span>Desvincular</span>
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => confirmDeleteMaterial(child.id)}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Eliminar</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -257,23 +269,40 @@ const MobileChildMaterialsList = ({
             </div>
           </div>
           
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-50" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => onEditMaterial(child)}
-            >
-              <Edit className="h-3 w-3 mr-1" /> Editar
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => confirmDeleteMaterial(child.id)}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+          <div className="flex items-center justify-between pt-2 border-t border-slate-50" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[10px] text-slate-400 font-medium">Opciones</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-slate-100 text-slate-500">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                <DropdownMenuItem
+                  onClick={() => onEditMaterial(child)}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                >
+                  <Edit className="h-4 w-4 text-slate-400" />
+                  <span>Editar</span>
+                </DropdownMenuItem>
+                {role === 'admin' && (
+                  <DropdownMenuItem
+                    onClick={() => updateMutation.mutate({ id: child.id, updates: { base_material_id: null } })}
+                    className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-amber-700 hover:bg-amber-50"
+                  >
+                    <Network className="h-4 w-4 text-amber-500" />
+                    <span>Desvincular</span>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => confirmDeleteMaterial(child.id)}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Eliminar</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       ))}
@@ -847,23 +876,40 @@ const MaterialManagement = () => {
                         updateMutation={updateMutation}
                       />
                     )}
-                    <div className="flex justify-start gap-2 mt-4 border-t pt-3 ml-7">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleEditMaterial(material); }}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Edit className="h-4 w-4 mr-2" /> Editar
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); confirmDeleteMaterial(material.id); }}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3 ml-7" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-[11px] text-slate-400 font-medium">Acciones</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                          <DropdownMenuItem
+                            onClick={() => navigate(`/material/${material.id}`)}
+                            className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                          >
+                            <Eye className="h-4 w-4 text-slate-400" />
+                            <span>Ver Perfil</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleEditMaterial(material)}
+                            disabled={deleteMutation.isPending}
+                            className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                          >
+                            <Edit className="h-4 w-4 text-slate-400" />
+                            <span>Editar</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => confirmDeleteMaterial(material.id)}
+                            disabled={deleteMutation.isPending}
+                            className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span>Eliminar</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </Card>
                 ))}
@@ -984,33 +1030,45 @@ const MaterialManagement = () => {
                               </Button>
                             </TableCell>
                           )}
-                          <TableCell className="text-right pr-4 py-2 flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => { e.stopPropagation(); navigate(`/material/${material.id}`); }}
-                              disabled={deleteMutation.isPending}
-                              title="Ver Perfil"
-                            >
-                              <Eye className="h-4 w-4 text-procarni-blue" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => { e.stopPropagation(); handleEditMaterial(material); }}
-                              disabled={deleteMutation.isPending}
-                              title="Editar completo"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => { e.stopPropagation(); confirmDeleteMaterial(material.id); }}
-                              disabled={deleteMutation.isPending}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                          <TableCell className="text-right pr-4 py-2" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                                  title="Opciones"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/material/${material.id}`)}
+                                  disabled={deleteMutation.isPending}
+                                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                                >
+                                  <Eye className="h-4 w-4 text-slate-400" />
+                                  <span>Ver Perfil</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleEditMaterial(material)}
+                                  disabled={deleteMutation.isPending}
+                                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                                >
+                                  <Edit className="h-4 w-4 text-slate-400" />
+                                  <span>Editar</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => confirmDeleteMaterial(material.id)}
+                                  disabled={deleteMutation.isPending}
+                                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Eliminar</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                         {expandedIds[material.id] && (

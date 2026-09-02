@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Search, Scale, Eye, Trash2, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Search, Scale, Eye, Trash2, PlusCircle, MoreHorizontal } from 'lucide-react';
 
 import { getAllQuoteComparisons, deleteQuoteComparison } from '@/integrations/supabase/data';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -203,40 +203,33 @@ const QuoteComparisonManagement = () => {
             <p><strong>Materiales:</strong> {materialCount}</p>
             <p><strong>Guardado:</strong> {format(new Date(comparison.created_at), 'dd/MM/yyyy')}</p>
           </div>
-          <div className="flex justify-end gap-2 mt-4 border-t pt-3">
-            <TooltipProvider delayDuration={0}>
-              <div className="flex gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => handleLoadComparison(comparison)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Cargar y Editar</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9 text-destructive border-destructive/20 hover:bg-destructive hover:text-white"
-                      onClick={() => confirmDeleteComparison(comparison.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Eliminar</TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
+          <div className="flex items-center justify-between mt-4 border-t border-slate-100 pt-3" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[11px] text-slate-400 font-medium">Opciones</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                <DropdownMenuItem
+                  onClick={() => handleLoadComparison(comparison)}
+                  disabled={deleteMutation.isPending}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                >
+                  <Eye className="h-4 w-4 text-slate-400" />
+                  <span>Cargar y Editar</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => confirmDeleteComparison(comparison.id)}
+                  disabled={deleteMutation.isPending}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Eliminar</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </Card>
       );
@@ -256,40 +249,37 @@ const QuoteComparisonManagement = () => {
         <TableCell className="py-3 text-sm text-gray-600 font-mono">{exchangeRateDisplay}</TableCell>
         <TableCell className="py-3 text-sm text-gray-600">{materialCount}</TableCell>
         <TableCell className="py-3 text-sm text-gray-600">{format(new Date(comparison.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
-        <TableCell className="text-right pr-4 py-3">
-          <TooltipProvider delayDuration={0}>
-            <div className="flex justify-end gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleLoadComparison(comparison)}
-                    disabled={deleteMutation.isPending}
-                    className="h-8 w-8"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Cargar y Editar</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => confirmDeleteComparison(comparison.id)}
-                    disabled={deleteMutation.isPending}
-                    className="h-8 w-8"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Eliminar</TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
+        <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                title="Opciones"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+              <DropdownMenuItem
+                onClick={() => handleLoadComparison(comparison)}
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+              >
+                <Eye className="h-4 w-4 text-slate-400" />
+                <span>Cargar y Editar</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => confirmDeleteComparison(comparison.id)}
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Eliminar</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TableCell>
       </TableRow>
     );

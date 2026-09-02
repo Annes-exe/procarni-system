@@ -11,7 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, Edit, Link, Search, X, Loader2, Sparkles } from 'lucide-react';
+import { Check, Edit, Link, Search, X, Loader2, Sparkles, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import SmartSearch from '@/components/SmartSearch';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { Material } from '@/integrations/supabase/types';
@@ -236,42 +242,42 @@ const MaterialApproval = () => {
                       <TableCell className="text-xs text-slate-500">
                         {material.created_at ? new Date(material.created_at).toLocaleDateString() : '-'}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {/* Approve Action */}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => approveMutation.mutate(material.id)}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl"
-                            title="Aprobar Material"
-                          >
-                            <Check className="h-4.5 w-4.5" />
-                          </Button>
-                          
-                          {/* Link to Master Action */}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => setLinkingMaterial(material)}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl"
-                            title="Vincular a Patrón de Oro"
-                          >
-                            <Link className="h-4.5 w-4.5" />
-                          </Button>
-
-                          {/* Edit Action */}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => setEditingMaterial(material)}
-                            className="text-slate-600 hover:text-slate-700 hover:bg-slate-50 rounded-xl"
-                            title="Editar Material"
-                          >
-                            <Edit className="h-4.5 w-4.5" />
-                          </Button>
-
-                        </div>
+                      <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                              title="Opciones"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                            <DropdownMenuItem
+                              onClick={() => approveMutation.mutate(material.id)}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-emerald-700 hover:bg-emerald-50"
+                            >
+                              <Check className="h-4 w-4 text-emerald-600" />
+                              <span>Aprobar Material</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setLinkingMaterial(material)}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-blue-700 hover:bg-blue-50"
+                            >
+                              <Link className="h-4 w-4 text-blue-600" />
+                              <span>Vincular a Patrón de Oro</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setEditingMaterial(material)}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                            >
+                              <Edit className="h-4 w-4 text-slate-400" />
+                              <span>Editar Material</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}

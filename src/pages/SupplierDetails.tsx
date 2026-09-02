@@ -38,8 +38,14 @@ import {
   Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp,
   TrendingDown, Clock, ArrowUpRight, Activity, ChevronDown, ChevronRight, Package, Wrench,
   Save, AlertCircle, Trash2, Send, ExternalLink, RefreshCw, FileUp, Sparkles, Building2,
-  ChevronsUpDown, ChevronLeft, Tag
+  ChevronsUpDown, ChevronLeft, Tag, MoreHorizontal, Eye
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
@@ -1583,16 +1589,44 @@ const SupplierDetails = () => {
                                     <span className="text-[10px] text-gray-400 italic">No disponible</span>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right pr-4 py-3">
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleRemoveSingleMaterial(sm.id)}
-                                    className="h-7 w-7 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                                    title="Desvincular material"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                                        title="Opciones"
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                                      <DropdownMenuItem
+                                        onClick={() => navigate(`/material/${sm.material_id}`)}
+                                        className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                                      >
+                                        <Eye className="h-4 w-4 text-slate-400" />
+                                        <span>Ver Perfil</span>
+                                      </DropdownMenuItem>
+                                      {sm.hasFichaResult && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleViewFicha(sm.materials.name)}
+                                          className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-procarni-secondary hover:bg-emerald-50"
+                                        >
+                                          <FileText className="h-4 w-4 text-procarni-secondary" />
+                                          <span>Ver Ficha Técnica</span>
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuItem
+                                        onClick={() => handleRemoveSingleMaterial(sm.id)}
+                                        className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span>Desvincular</span>
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </TableCell>
                               </TableRow>
                             );
@@ -1619,15 +1653,45 @@ const SupplierDetails = () => {
                                   {sm.materials.category || 'Sin Cat.'}
                                 </Badge>
                               </div>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleRemoveSingleMaterial(sm.id)}
-                                className="h-7 w-7 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0 -mt-1 -mr-1"
-                                title="Desvincular material"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg shrink-0 -mt-1 -mr-1"
+                                      title="Opciones"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                                    <DropdownMenuItem
+                                      onClick={() => navigate(`/material/${sm.material_id}`)}
+                                      className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                                    >
+                                      <Eye className="h-4 w-4 text-slate-400" />
+                                      <span>Ver Perfil</span>
+                                    </DropdownMenuItem>
+                                    {sm.hasFichaResult && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleViewFicha(sm.materials.name)}
+                                        className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-procarni-secondary hover:bg-emerald-50"
+                                      >
+                                        <FileText className="h-4 w-4 text-procarni-secondary" />
+                                        <span>Ver Ficha Técnica</span>
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem
+                                      onClick={() => handleRemoveSingleMaterial(sm.id)}
+                                      className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span>Desvincular</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </div>
 
                             <p

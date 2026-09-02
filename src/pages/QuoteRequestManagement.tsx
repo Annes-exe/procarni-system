@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Eye, ArrowLeft, Archive, RotateCcw, CheckCircle, Send, History, Clock, XCircle, Trash, ChevronDown, ChevronRight, Package, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 import { quoteRequestService } from '@/services/quoteRequestService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -341,59 +347,63 @@ const QuoteRequestManagement = () => {
 
     return (
       <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <TooltipProvider delayDuration={0}>
-          <div className="flex justify-end gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewDetails(request.id); }} className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ver Detalles</TooltipContent>
-            </Tooltip>
+        <div className="flex items-center justify-end gap-1">
+          <PDFDownloadButton
+            requestId={request.id}
+            endpoint="generate-qr-pdf"
+            fileNameGenerator={() => {
+              const id = request.id.substring(0, 8);
+              const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+              return `Cotizacion-${id}-${supplierName}.pdf`;
+            }}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+            label=""
+          />
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <PDFDownloadButton
-                    requestId={request.id}
-                    endpoint="generate-qr-pdf"
-                    fileNameGenerator={() => {
-                      const id = request.id.substring(0, 8);
-                      const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                      return `Cotizacion-${id}-${supplierName}.pdf`;
-                    }}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                    label=""
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Descargar PDF</TooltipContent>
-            </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                title="Opciones"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+              <DropdownMenuItem
+                onClick={() => handleViewDetails(request.id)}
+                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+              >
+                <Eye className="h-4 w-4 text-slate-400" />
+                <span>Ver Detalles</span>
+              </DropdownMenuItem>
 
-            {request.status === 'Draft' ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(request.id, 'archive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
-                    <Archive className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Archivar</TooltipContent>
-              </Tooltip>
-            ) : request.status === 'Archived' && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(request.id, 'unarchive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Desarchivar</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </TooltipProvider>
+              {request.status === 'Draft' && (
+                <DropdownMenuItem
+                  onClick={() => confirmAction(request.id, 'archive')}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                >
+                  <Archive className="h-4 w-4 text-slate-400" />
+                  <span>Archivar</span>
+                </DropdownMenuItem>
+              )}
+
+              {request.status === 'Archived' && (
+                <DropdownMenuItem
+                  onClick={() => confirmAction(request.id, 'unarchive')}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                >
+                  <RotateCcw className="h-4 w-4 text-slate-400" />
+                  <span>Desarchivar</span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </TableCell>
     );
   };
@@ -484,41 +494,60 @@ const QuoteRequestManagement = () => {
         )}
 
         {/* Action Buttons Footer */}
-        <div className="flex flex-wrap justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
-          <TooltipProvider delayDuration={0}>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
-              <Button variant="outline" size="sm" className="h-9 px-3 text-xs gap-1.5" onClick={() => handleViewDetails(request.id)}>
-                <Eye className="h-3.5 w-3.5" />
-                <span>Detalles</span>
-              </Button>
+        <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[11px] text-slate-400 font-medium">Opciones</span>
+          <div className="flex items-center gap-1">
+            <PDFDownloadButton
+              requestId={request.id}
+              endpoint="generate-qr-pdf"
+              fileNameGenerator={() => {
+                const id = request.id.substring(0, 8);
+                const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                return `Cotizacion-${id}-${supplierName}.pdf`;
+              }}
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
+              label="PDF"
+            />
 
-              <PDFDownloadButton
-                requestId={request.id}
-                endpoint="generate-qr-pdf"
-                fileNameGenerator={() => {
-                  const id = request.id.substring(0, 8);
-                  const supplierName = request.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                  return `Cotizacion-${id}-${supplierName}.pdf`;
-                }}
-                variant="outline"
-                size="sm"
-                className="h-9 px-3 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
-                label="PDF"
-              />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                <DropdownMenuItem
+                  onClick={() => handleViewDetails(request.id)}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                >
+                  <Eye className="h-4 w-4 text-slate-400" />
+                  <span>Ver Detalles</span>
+                </DropdownMenuItem>
 
-              {request.status === 'Draft' ? (
-                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(request.id, 'archive')}>
-                  <Archive className="h-3.5 w-3.5" />
-                  <span>Archivar</span>
-                </Button>
-              ) : request.status === 'Archived' && (
-                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(request.id, 'unarchive')}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Restaurar</span>
-                </Button>
-              )}
-            </div>
-          </TooltipProvider>
+                {request.status === 'Draft' && (
+                  <DropdownMenuItem
+                    onClick={() => confirmAction(request.id, 'archive')}
+                    className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                  >
+                    <Archive className="h-4 w-4 text-slate-400" />
+                    <span>Archivar</span>
+                  </DropdownMenuItem>
+                )}
+
+                {request.status === 'Archived' && (
+                  <DropdownMenuItem
+                    onClick={() => confirmAction(request.id, 'unarchive')}
+                    className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                  >
+                    <RotateCcw className="h-4 w-4 text-slate-400" />
+                    <span>Desarchivar</span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </Card>
     );

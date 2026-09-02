@@ -6,7 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Search, Eye, Edit, Archive, RotateCcw, Wrench, XCircle, Trash2, CheckCircle, Trash, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { PlusCircle, Search, Eye, Edit, Archive, RotateCcw, Wrench, XCircle, Trash2, CheckCircle, Trash, ChevronDown, ChevronRight, Package, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import PDFDownloadButton from '@/components/PDFDownloadButton';
 import { serviceOrderService, ServiceOrderWithRelations } from '@/services/serviceOrderService';
@@ -464,47 +470,67 @@ const ServiceOrderManagement = () => {
         )}
 
         {/* Action Buttons Footer */}
-        <div className="flex flex-wrap justify-end gap-2 pt-3 mt-3 border-t border-slate-100">
-          <TooltipProvider delayDuration={0}>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
-              <Button variant="outline" size="sm" className="h-9 px-3 text-xs gap-1.5" onClick={() => handleViewDetails(order.id)}>
-                <Eye className="h-3.5 w-3.5" />
-                <span>Detalles</span>
-              </Button>
+        <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[11px] text-slate-400 font-medium">Opciones</span>
+          <div className="flex items-center gap-1">
+            <PDFDownloadButton
+              orderId={order.id}
+              endpoint="generate-so-pdf"
+              fileNameGenerator={() => {
+                const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+                const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                return `${sequence}-${supplierName}.pdf`;
+              }}
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
+              label="PDF"
+            />
 
-              <PDFDownloadButton
-                orderId={order.id}
-                endpoint="generate-so-pdf"
-                fileNameGenerator={() => {
-                  const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
-                  const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                  return `${sequence}-${supplierName}.pdf`;
-                }}
-                variant="outline"
-                size="sm"
-                className="h-9 px-3 text-xs text-blue-600 border-blue-100 hover:bg-blue-50"
-                label="PDF"
-              />
-
-              {order.status !== 'Archived' ? (
-                <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(order.id, 'archive')}>
-                  <Archive className="h-3.5 w-3.5" />
-                  <span>Archivar</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
-              ) : (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-slate-500 border-slate-200 hover:bg-slate-50 gap-1.5" onClick={() => confirmAction(order.id, 'unarchive')}>
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    <span>Restaurar</span>
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-destructive border-destructive/20 hover:bg-destructive hover:text-white gap-1.5" onClick={() => confirmDelete(order.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Eliminar</span>
-                  </Button>
-                </div>
-              )}
-            </div>
-          </TooltipProvider>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                <DropdownMenuItem
+                  onClick={() => handleViewDetails(order.id)}
+                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                >
+                  <Eye className="h-4 w-4 text-slate-400" />
+                  <span>Ver Detalles</span>
+                </DropdownMenuItem>
+
+                {order.status !== 'Archived' ? (
+                  <DropdownMenuItem
+                    onClick={() => confirmAction(order.id, 'archive')}
+                    className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                  >
+                    <Archive className="h-4 w-4 text-slate-400" />
+                    <span>Archivar</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => confirmAction(order.id, 'unarchive')}
+                      className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                    >
+                      <RotateCcw className="h-4 w-4 text-slate-400" />
+                      <span>Desarchivar</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => confirmDelete(order.id)}
+                      className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Eliminar</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </Card>
     );
@@ -781,73 +807,72 @@ const ServiceOrderManagement = () => {
                                     {STATUS_TRANSLATIONS[order.status] || order.status}
                                   </span>
                                 </TableCell>
-                                <TableCell className="py-3 text-right pr-4" onClick={(e) => e.stopPropagation()}>
-                                  <TooltipProvider delayDuration={0}>
-                                    <div className="flex justify-end gap-1">
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleViewDetails(order.id); }} className="h-8 w-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100">
-                                            <Eye className="h-4 w-4" />
+                                <TableCell className="text-right whitespace-nowrap pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center justify-end gap-1">
+                                      <PDFDownloadButton
+                                        orderId={order.id}
+                                        endpoint="generate-so-pdf"
+                                        fileNameGenerator={() => {
+                                          const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
+                                          const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
+                                          return `${sequence}-${supplierName}.pdf`;
+                                        }}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                        label=""
+                                      />
+
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                                            title="Opciones"
+                                          >
+                                            <MoreHorizontal className="h-4 w-4" />
                                           </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Ver Detalles</TooltipContent>
-                                      </Tooltip>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                                          <DropdownMenuItem
+                                            onClick={() => handleViewDetails(order.id)}
+                                            className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                                          >
+                                            <Eye className="h-4 w-4 text-slate-400" />
+                                            <span>Ver Detalles</span>
+                                          </DropdownMenuItem>
 
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <div onClick={(e) => e.stopPropagation()}>
-                                            <PDFDownloadButton
-                                              orderId={order.id}
-                                              endpoint="generate-so-pdf"
-                                              fileNameGenerator={() => {
-                                                const sequence = formatSequenceNumber(order.sequence_number, order.created_at);
-                                                const supplierName = order.suppliers?.name?.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Proveedor';
-                                                return `${sequence}-${supplierName}.pdf`;
-                                              }}
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                                              label=""
-                                            />
-                                          </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Descargar PDF</TooltipContent>
-                                      </Tooltip>
-
-                                      {order.status !== 'Archived' && (
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(order.id, 'archive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
-                                              <Archive className="h-4 w-4" />
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>Archivar</TooltipContent>
-                                        </Tooltip>
-                                      )}
-
-                                      {order.status === 'Archived' && (
-                                        <>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmAction(order.id, 'unarchive'); }} className="h-8 w-8 text-gray-500 hover:bg-gray-100">
-                                                <RotateCcw className="h-4 w-4" />
-                                              </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Desarchivar</TooltipContent>
-                                          </Tooltip>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); confirmDelete(order.id); }} className="h-8 w-8 text-destructive hover:bg-red-50">
+                                          {order.status !== 'Archived' ? (
+                                            <DropdownMenuItem
+                                              onClick={() => confirmAction(order.id, 'archive')}
+                                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                                            >
+                                              <Archive className="h-4 w-4 text-slate-400" />
+                                              <span>Archivar</span>
+                                            </DropdownMenuItem>
+                                          ) : (
+                                            <>
+                                              <DropdownMenuItem
+                                                onClick={() => confirmAction(order.id, 'unarchive')}
+                                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:bg-slate-50"
+                                              >
+                                                <RotateCcw className="h-4 w-4 text-slate-400" />
+                                                <span>Desarchivar</span>
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem
+                                                onClick={() => confirmDelete(order.id)}
+                                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-destructive hover:bg-red-50 focus:text-destructive focus:bg-red-50"
+                                              >
                                                 <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Eliminar Permanentemente</TooltipContent>
-                                          </Tooltip>
-                                        </>
-                                      )}
+                                                <span>Eliminar</span>
+                                              </DropdownMenuItem>
+                                            </>
+                                          )}
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     </div>
-                                  </TooltipProvider>
-                                </TableCell>
+                                  </TableCell>
                               </TableRow>
 
                               {isExpanded && (
