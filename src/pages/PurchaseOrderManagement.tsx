@@ -813,8 +813,8 @@ const PurchaseOrderManagement = () => {
 
   // Compute bulk action conditions
   const selectedOrders = currentOrders.filter(order => selectedIds.has(order.id));
-  const canBulkApprove = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Draft');
-  const canBulkReject = selectedOrders.length > 0 && selectedOrders.some(order => order.status !== 'Rejected' && order.status !== 'Archived');
+  const canBulkApprove = selectedOrders.length > 0 && selectedOrders.every(order => order.status === 'Draft');
+  const canBulkReject = selectedOrders.length > 0 && selectedOrders.every(order => order.status === 'Draft');
   const canBulkArchive = selectedOrders.length > 0 && selectedOrders.some(order => order.status !== 'Archived');
   const canBulkRestore = selectedOrders.length > 0 && selectedOrders.some(order => order.status === 'Archived' || order.status === 'Rejected');
 

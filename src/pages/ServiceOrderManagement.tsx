@@ -635,37 +635,49 @@ const ServiceOrderManagement = () => {
                       <div className="flex gap-1.5">
                         {!showHistory ? (
                           <>
-                            {(activeTab === 'active' || role === 'admin') && (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 rounded-xl text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white"
-                                      onClick={() => setIsBulkApproveDialogOpen(true)}
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Aprobar Seleccionadas</TooltipContent>
-                                </Tooltip>
+                            {(() => {
+                              const selectedOrders = currentOrders.filter(order => selectedIds.has(order.id));
+                              const canBulkApprove = selectedOrders.length > 0 && selectedOrders.every(order => order.status === 'Draft');
+                              const canBulkReject = selectedOrders.length > 0 && selectedOrders.every(order => order.status === 'Draft');
 
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 rounded-xl text-red-500 border-red-200 hover:bg-red-500 hover:text-white"
-                                      onClick={() => setIsBulkRejectDialogOpen(true)}
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Rechazar Seleccionadas</TooltipContent>
-                                </Tooltip>
-                              </>
-                            )}
+                              return (
+                                <>
+                                  {(activeTab === 'active' || role === 'admin') && (
+                                    <>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            disabled={!canBulkApprove}
+                                            className="h-8 w-8 rounded-xl text-procarni-secondary border-procarni-secondary/20 hover:bg-procarni-secondary hover:text-white disabled:opacity-40"
+                                            onClick={() => setIsBulkApproveDialogOpen(true)}
+                                          >
+                                            <CheckCircle className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Aprobar Seleccionadas</TooltipContent>
+                                      </Tooltip>
+
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            disabled={!canBulkReject}
+                                            className="h-8 w-8 rounded-xl text-red-500 border-red-200 hover:bg-red-500 hover:text-white disabled:opacity-40"
+                                            onClick={() => setIsBulkRejectDialogOpen(true)}
+                                          >
+                                            <XCircle className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Rechazar Seleccionadas</TooltipContent>
+                                      </Tooltip>
+                                    </>
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             <Tooltip>
                               <TooltipTrigger asChild>

@@ -420,7 +420,7 @@ const QuoteRequestDetails = () => {
                   <ShoppingCart className="mr-2 h-4 w-4 text-slate-500" /> Convertir a OC
                 </DropdownMenuItem>
 
-                {(request.status === 'Draft' || role === 'admin') && request.status !== 'Archived' && request.status !== 'Rejected' && (
+                {request.status === 'Draft' && (
                   <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600 rounded-xl cursor-pointer">
                     <Clock className="mr-2 h-4 w-4" /> Rechazar Solicitud
                   </DropdownMenuItem>

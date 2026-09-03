@@ -774,7 +774,7 @@ const PurchaseOrderDetails = () => {
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel>Operaciones</DropdownMenuLabel>
 
-                    {(order.status === 'Draft' || role === 'admin') && order.status !== 'Archived' && order.status !== 'Rejected' && (
+                    {order.status === 'Draft' && (
                       <DropdownMenuItem onSelect={() => setIsRejectConfirmOpen(true)} className="text-red-600 focus:text-red-600">
                         <Clock className="mr-2 h-4 w-4" /> Rechazar Orden
                       </DropdownMenuItem>
