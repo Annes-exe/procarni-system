@@ -76,11 +76,13 @@ export const PendingReceiptsIndicator: React.FC = () => {
   const { data: items = [], isLoading, refetch } = useQuery<PendingOrderItem[]>({
     queryKey: ['pending_receipts'],
     queryFn: async () => {
-      // 1. Get orders that are in transit or partial
+      // 1. Get orders that are in transit or partial and not archived/rejected
       const { data: orders, error: ordersError } = await supabase
         .from('purchase_orders')
         .select('id')
-        .in('reception_status', ['En tránsito', 'Parcial']);
+        .in('reception_status', ['En tránsito', 'Parcial'])
+        .neq('status', 'Archived')
+        .neq('status', 'Rejected');
 
       if (ordersError) throw ordersError;
       if (!orders || orders.length === 0) return [];
@@ -331,7 +333,9 @@ export const PendingReceiptsIndicator: React.FC = () => {
       const { count, error } = await supabase
         .from('purchase_orders')
         .select('*', { count: 'exact', head: true })
-        .in('reception_status', ['En tránsito', 'Parcial']);
+        .in('reception_status', ['En tránsito', 'Parcial'])
+        .neq('status', 'Archived')
+        .neq('status', 'Rejected');
       
       if (error) throw error;
       return count || 0;

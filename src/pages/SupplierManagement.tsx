@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp, MoreHorizontal, Users } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, Phone, Mail, Eye, Loader2, ArrowLeft, Instagram, Filter, Tag, AlertTriangle, FileUp, MoreHorizontal, Users, GitMerge } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,7 @@ import { getPaginatedSuppliers, createSupplier, updateSupplier, deleteSupplier, 
 import { showError, showSuccess } from '@/utils/toast';
 import { isGenericRif, validateRif } from '@/utils/validators';
 import SupplierForm from '@/components/SupplierForm';
+import { SupplierMergeModal } from '@/components/SupplierMergeModal';
 import { useSession } from '@/components/SessionContextProvider';
 import { Input } from '@/components/ui/input';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -86,7 +87,8 @@ interface SupplierFormValues {
 
 const SupplierManagement = () => {
   const queryClient = useQueryClient();
-  const { session } = useSession();
+  const { session, role } = useSession();
+  const isAdmin = role === 'admin' || role === 'administrador';
   const userId = session?.user?.id;
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -105,6 +107,8 @@ const SupplierManagement = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [supplierToDeleteId, setSupplierToDeleteId] = useState<string | null>(null);
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [mergeSourceSupplierId, setMergeSourceSupplierId] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['suppliers_paginated', page, pageSize, debouncedSearch, selectedStatus, dataQualityFilter, onlyRawMaterials],
@@ -342,6 +346,20 @@ const SupplierManagement = () => {
           </p>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setMergeSourceSupplierId(null);
+                setIsMergeModalOpen(true);
+              }}
+              className="border-slate-200 bg-slate-50/80 hover:bg-slate-100 text-slate-700 shadow-sm rounded-2xl h-10 px-4 font-semibold text-xs transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center gap-2"
+              title="Fusionar Proveedores (Solo Admin)"
+            >
+              <GitMerge className="h-4 w-4 text-procarni-blue" />
+              <span>Fusionar Proveedores</span>
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => navigate('/ficha-tecnica-upload')}
@@ -549,6 +567,18 @@ const SupplierManagement = () => {
                             <Edit className="h-4 w-4 text-slate-400" />
                             <span>Editar en Modal</span>
                           </DropdownMenuItem>
+                          {isAdmin && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setMergeSourceSupplierId(supplier.id);
+                                setIsMergeModalOpen(true);
+                              }}
+                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                            >
+                              <GitMerge className="h-4 w-4 text-slate-400" />
+                              <span>Fusionar con otro...</span>
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() => confirmDeleteSupplier(supplier.id)}
                             disabled={deleteMutation.isPending}
@@ -662,6 +692,18 @@ const SupplierManagement = () => {
                                 <Edit className="h-4 w-4 text-slate-400" />
                                 <span>Editar en Modal</span>
                               </DropdownMenuItem>
+                              {isAdmin && (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setMergeSourceSupplierId(supplier.id);
+                                    setIsMergeModalOpen(true);
+                                  }}
+                                  className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                                >
+                                  <GitMerge className="h-4 w-4 text-slate-400" />
+                                  <span>Fusionar con otro...</span>
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => confirmDeleteSupplier(supplier.id)}
                                 disabled={deleteMutation.isPending}
@@ -704,21 +746,35 @@ const SupplierManagement = () => {
 
       {/* AlertDialog for delete confirmation */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-3xl bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente el proveedor y todas las órdenes de compra/solicitudes de cotización asociadas a él.
+            <AlertDialogTitle className="text-procarni-dark">¿Estás seguro de eliminar este proveedor?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500">
+              Esta acción no se puede deshacer. Se eliminarán permanentemente el proveedor y sus relaciones si no tiene órdenes asociadas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDeleteSupplier} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+            <AlertDialogCancel disabled={deleteMutation.isPending} className="rounded-2xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDeleteSupplier}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-2xl"
+            >
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Admin Supplier Merge Modal */}
+      <SupplierMergeModal
+        isOpen={isMergeModalOpen}
+        onClose={() => {
+          setIsMergeModalOpen(false);
+          setMergeSourceSupplierId(null);
+        }}
+        initialSourceSupplierId={mergeSourceSupplierId}
+      />
     </div>
   );
 };

@@ -386,6 +386,10 @@ export const purchaseOrderService = {
     updateStatus: async (id: string, newStatus: PurchaseOrder['status']): Promise<boolean> => {
         let updateData: any = { status: newStatus };
 
+        if (newStatus === 'Archived') {
+            updateData.reception_status = 'Ninguno';
+        }
+
         if (newStatus === 'Paid') {
             try {
                 // Fetch the purchase order details with items to calculate total
@@ -458,7 +462,7 @@ export const purchaseOrderService = {
     bulkArchiveBySupplier: async (supplierId: string): Promise<number> => {
         const { data, error } = await supabase
             .from('purchase_orders')
-            .update({ status: 'Archived' })
+            .update({ status: 'Archived', reception_status: 'Ninguno' })
             .eq('supplier_id', supplierId)
             .neq('status', 'Archived')
             .neq('status', 'Approved')

@@ -242,6 +242,8 @@ const PurchaseOrderManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_receipts'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_receipts_count'] });
       showSuccess('Orden de compra archivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -258,6 +260,8 @@ const PurchaseOrderManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_receipts'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_receipts_count'] });
       showSuccess('Orden de compra desarchivada exitosamente.');
       setIsConfirmDialogOpen(false);
       setOrderToModify(null);
@@ -387,6 +391,8 @@ const PurchaseOrderManagement = () => {
       await Promise.all(Array.from(selectedIds).map(id => purchaseOrderService.updateStatus(id, 'Archived')));
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       queryClient.invalidateQueries({ queryKey: ['purchase_order_tab_counts'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_receipts'] });
+      queryClient.invalidateQueries({ queryKey: ['pending_receipts_count'] });
       showSuccess(`${selectedIds.size} órdenes archivadas exitosamente.`);
       setSelectedIds(new Set());
       setIsBulkArchiveDialogOpen(false);

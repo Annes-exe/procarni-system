@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { PriceAlert } from './PriceAlert';
+import { LastPriceButton } from './LastPriceButton';
 
 interface PurchaseOrderItemForm {
   id?: string;
@@ -284,7 +285,22 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-xs text-muted-foreground">Precio ({currency})</label>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
+                <LastPriceButton
+                  materialId={item.material_id}
+                  unitId={item.unit_id}
+                  supplierId={supplierId}
+                  currency={currency}
+                  exchangeRate={exchangeRate}
+                  currentOrderId={orderId}
+                  currentPrice={item.unit_price || 0}
+                  onApplyPrice={(price) => {
+                    onItemChange(index, 'unit_price', price);
+                    if (item.was_recalculated) {
+                      onItemChange(index, 'was_recalculated', false);
+                    }
+                  }}
+                />
                 <Button 
                   type="button" 
                   variant="ghost" 
@@ -517,9 +533,26 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             {/* Col 9-11: Precio */}
             <div className="col-span-3 space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
-                  <Calculator className="w-3 h-3" /> Precio
-                </label>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1 shrink-0">
+                    <Calculator className="w-3 h-3" /> Precio
+                  </label>
+                  <LastPriceButton
+                    materialId={item.material_id}
+                    unitId={item.unit_id}
+                    supplierId={supplierId}
+                    currency={currency}
+                    exchangeRate={exchangeRate}
+                    currentOrderId={orderId}
+                    currentPrice={item.unit_price || 0}
+                    onApplyPrice={(price) => {
+                      onItemChange(index, 'unit_price', price);
+                      if (item.was_recalculated) {
+                        onItemChange(index, 'was_recalculated', false);
+                      }
+                    }}
+                  />
+                </div>
                 <div className="flex gap-1">
                   <Button 
                     type="button" 

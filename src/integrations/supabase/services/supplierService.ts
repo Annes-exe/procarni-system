@@ -402,6 +402,27 @@ const SupplierService = {
 
     return { data: data as Supplier[], totalCount: count || 0 };
   },
+
+  mergeSuppliers: async (targetId: string, sourceId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.rpc('merge_suppliers_unified', {
+        p_target_supplier_id: targetId,
+        p_source_supplier_id: sourceId,
+      });
+
+      if (error) {
+        console.error('[SupplierService.mergeSuppliers] RPC Error:', error);
+        showError(`Error al fusionar proveedores: ${error.message}`);
+        return false;
+      }
+
+      return true;
+    } catch (err: any) {
+      console.error('[SupplierService.mergeSuppliers] Unexpected error:', err);
+      showError(`Error inesperado al fusionar proveedores: ${err?.message || 'Desconocido'}`);
+      return false;
+    }
+  },
 };
 
 export const {
@@ -413,6 +434,7 @@ export const {
   searchSmart: searchSuppliersSmart,
   getById: getSupplierDetails,
   getPaginated: getPaginatedSuppliers,
+  mergeSuppliers,
 } = SupplierService;
 
 export default SupplierService;

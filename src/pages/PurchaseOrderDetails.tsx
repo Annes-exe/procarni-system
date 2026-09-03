@@ -428,6 +428,8 @@ const PurchaseOrderDetails = () => {
         showSuccess(`Estado cambiado a ${STATUS_TRANSLATIONS[newStatus] || newStatus} exitosamente.`);
         queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
         queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+        queryClient.invalidateQueries({ queryKey: ['pending_receipts'] });
+        queryClient.invalidateQueries({ queryKey: ['pending_receipts_count'] });
       } else {
         throw new Error('Error al actualizar el estado.');
       }
