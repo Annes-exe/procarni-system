@@ -133,20 +133,51 @@ const PAYMENT_TERMS_OPTIONS = [
   { value: 'Otro', label: 'Personalizado / Otro' }
 ];
 
+const STATUS_LABELS_ES: Record<string, string> = {
+  approved: 'Aprobado',
+  pending: 'Pendiente',
+  credit: 'A Crédito',
+  paid: 'Pagado',
+  received: 'Recibido',
+  topay: 'Por Pagar',
+  rejected: 'Rechazado',
+  archived: 'Archivado',
+  draft: 'Borrador',
+};
+
+const getStatusLabel = (status?: string): string => {
+  if (!status) return 'Registrado';
+  const key = status.toLowerCase().replace(/[-_ ]/g, '');
+  return STATUS_LABELS_ES[key] || STATUS_LABELS_ES[status.toLowerCase()] || status;
+};
+
 const getStatusColor = (status?: string) => {
-  switch (status?.toLowerCase()) {
-    case 'approved':
-    case 'aprobado':
-      return 'bg-emerald-50 text-procarni-secondary border-emerald-200';
-    case 'pending':
-    case 'pendiente':
-      return 'bg-amber-50 text-amber-700 border-amber-200';
-    case 'rejected':
-    case 'rechazado':
-      return 'bg-red-50 text-procarni-primary border-red-200';
-    default:
-      return 'bg-slate-50 text-slate-700 border-slate-200';
+  const s = status?.toLowerCase() || '';
+  if (s === 'approved' || s === 'aprobado') {
+    return 'bg-emerald-50 text-procarni-secondary border-emerald-200';
   }
+  if (s === 'credit' || s === 'crédito' || s === 'a crédito') {
+    return 'bg-blue-50 text-procarni-blue border-blue-200';
+  }
+  if (s === 'paid' || s === 'pagado') {
+    return 'bg-green-50 text-green-700 border-green-200';
+  }
+  if (s === 'received' || s === 'recibido') {
+    return 'bg-teal-50 text-teal-700 border-teal-200';
+  }
+  if (s === 'topay' || s === 'por pagar') {
+    return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+  }
+  if (s === 'pending' || s === 'pendiente') {
+    return 'bg-amber-50 text-amber-700 border-amber-200';
+  }
+  if (s === 'rejected' || s === 'rechazado') {
+    return 'bg-red-50 text-procarni-primary border-red-200';
+  }
+  if (s === 'archived' || s === 'archivado') {
+    return 'bg-slate-100 text-slate-600 border-slate-300';
+  }
+  return 'bg-slate-50 text-slate-700 border-slate-200';
 };
 
 const SupplierDetails = () => {
@@ -185,6 +216,12 @@ const SupplierDetails = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
+
+  // Tab search states
+  const [searchPO, setSearchPO] = useState('');
+  const [searchSO, setSearchSO] = useState('');
+  const [searchPriceHistory, setSearchPriceHistory] = useState('');
+  const [searchSuggested, setSearchSuggested] = useState('');
 
   // Association Dialog States
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
@@ -797,6 +834,90 @@ const SupplierDetails = () => {
         return true;
       });
   }, [supplierPriceHistory]);
+
+  // Tab filter memoized data
+  const filteredPurchaseOrders = useMemo(() => {
+    if (!purchaseOrders) return [];
+    if (!searchPO.trim()) return purchaseOrders;
+    const q = searchPO.toLowerCase().trim();
+    return purchaseOrders.filter((po: any) => {
+      const seq = po.sequence_number ? `oc-${po.sequence_number}` : '';
+      const id = String(po.id || '');
+      const date = po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '';
+      const rawStatus = String(po.status || '').toLowerCase();
+      const spanishStatus = getStatusLabel(po.status).toLowerCase();
+      const itemsMatch = (po.purchase_order_items || []).some((it: any) =>
+        (it.material_name || '').toLowerCase().includes(q)
+      );
+      return (
+        seq.includes(q) ||
+        id.toLowerCase().includes(q) ||
+        date.includes(q) ||
+        rawStatus.includes(q) ||
+        spanishStatus.includes(q) ||
+        itemsMatch
+      );
+    });
+  }, [purchaseOrders, searchPO]);
+
+  const filteredServiceOrders = useMemo(() => {
+    if (!serviceOrders) return [];
+    if (!searchSO.trim()) return serviceOrders;
+    const q = searchSO.toLowerCase().trim();
+    return serviceOrders.filter((so: any) => {
+      const seq = so.sequence_number ? `os-${so.sequence_number}` : '';
+      const id = String(so.id || '');
+      const date = so.issue_date ? new Date(so.issue_date).toLocaleDateString() : '';
+      const rawStatus = String(so.status || '').toLowerCase();
+      const spanishStatus = getStatusLabel(so.status).toLowerCase();
+      const equipment = (so.equipment_name || '').toLowerCase();
+      const serviceType = (so.service_type || '').toLowerCase();
+      const desc = (so.detailed_service_description || '').toLowerCase();
+      const itemsMatch = [
+        ...(so.service_order_items || []),
+        ...(so.service_order_materials || [])
+      ].some((it: any) =>
+        (it.description || it.material_name || '').toLowerCase().includes(q)
+      );
+      return (
+        seq.includes(q) ||
+        id.toLowerCase().includes(q) ||
+        date.includes(q) ||
+        rawStatus.includes(q) ||
+        spanishStatus.includes(q) ||
+        equipment.includes(q) ||
+        serviceType.includes(q) ||
+        desc.includes(q) ||
+        itemsMatch
+      );
+    });
+  }, [serviceOrders, searchSO]);
+
+  const filteredPriceAnalysis = useMemo(() => {
+    if (!priceAnalysisByMaterial) return [];
+    if (!searchPriceHistory.trim()) return priceAnalysisByMaterial;
+    const q = searchPriceHistory.toLowerCase().trim();
+    return priceAnalysisByMaterial.filter((m: any) => {
+      return (
+        (m.name || '').toLowerCase().includes(q) ||
+        (m.code || '').toLowerCase().includes(q) ||
+        (m.unit || '').toLowerCase().includes(q)
+      );
+    });
+  }, [priceAnalysisByMaterial, searchPriceHistory]);
+
+  const filteredSuggestedMaterials = useMemo(() => {
+    if (!suggestedMaterials) return [];
+    if (!searchSuggested.trim()) return suggestedMaterials;
+    const q = searchSuggested.toLowerCase().trim();
+    return suggestedMaterials.filter((m: any) => {
+      return (
+        (m.material_name || '').toLowerCase().includes(q) ||
+        (m.supplier_code || '').toLowerCase().includes(q) ||
+        (m.unit || '').toLowerCase().includes(q)
+      );
+    });
+  }, [suggestedMaterials, searchSuggested]);
 
   // Filter materials in profile table
   const filteredMaterials = useMemo(() => {
@@ -1875,24 +1996,45 @@ const SupplierDetails = () => {
                 <Tabs defaultValue="ordenes-compra" className="w-full">
                   <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-slate-100/80 p-1.5 rounded-2xl gap-1">
                     <TabsTrigger value="ordenes-compra" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
-                      Órdenes Compra ({purchaseOrders.length})
+                      Órdenes Compra ({filteredPurchaseOrders.length !== purchaseOrders.length ? `${filteredPurchaseOrders.length}/${purchaseOrders.length}` : purchaseOrders.length})
                     </TabsTrigger>
                     <TabsTrigger value="ordenes-servicio" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
-                      Servicios ({serviceOrders.length})
+                      Servicios ({filteredServiceOrders.length !== serviceOrders.length ? `${filteredServiceOrders.length}/${serviceOrders.length}` : serviceOrders.length})
                     </TabsTrigger>
                     <TabsTrigger value="historial-precios" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
-                      Historial Precios ({supplierPriceHistory.length})
+                      Historial Precios ({filteredPriceAnalysis.length !== priceAnalysisByMaterial.length ? `${filteredPriceAnalysis.length}/${priceAnalysisByMaterial.length}` : priceAnalysisByMaterial.length})
                     </TabsTrigger>
                     <TabsTrigger value="sugeridos" className="text-xs font-bold py-2.5 rounded-xl text-slate-600 data-[state=active]:bg-white data-[state=active]:text-procarni-blue data-[state=active]:shadow-sm transition-all">
-                      Más Comprados ({suggestedMaterials.length})
+                      Más Comprados ({filteredSuggestedMaterials.length !== suggestedMaterials.length ? `${filteredSuggestedMaterials.length}/${suggestedMaterials.length}` : suggestedMaterials.length})
                     </TabsTrigger>
                   </TabsList>
 
                   {/* TAB 1: ÓRDENES DE COMPRA */}
                   <TabsContent value="ordenes-compra" className="pt-4 space-y-3">
+                    {purchaseOrders.length > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+                        <div className="text-xs text-slate-500 font-medium">
+                          Mostrando {filteredPurchaseOrders.length} de {purchaseOrders.length} {purchaseOrders.length === 1 ? 'orden' : 'órdenes'}
+                        </div>
+                        <div className="relative w-full sm:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                          <Input
+                            placeholder="Buscar por Nº, fecha, material o estado..."
+                            value={searchPO}
+                            onChange={(e) => setSearchPO(e.target.value)}
+                            className="pl-8 bg-slate-50 border-slate-200 rounded-xl h-9 text-xs focus:ring-procarni-primary/20 w-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {purchaseOrders.length === 0 ? (
                       <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
                         No hay órdenes de compra registradas para este proveedor.
+                      </div>
+                    ) : filteredPurchaseOrders.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No se encontraron órdenes de compra que coincidan con "{searchPO}".
                       </div>
                     ) : (
                       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
@@ -1907,7 +2049,7 @@ const SupplierDetails = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {purchaseOrders.map((po: any) => {
+                            {filteredPurchaseOrders.map((po: any) => {
                               const orderTotal = calculateTotals(po.purchase_order_items || []).total;
                               return (
                                 <TableRow key={po.id} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
@@ -1922,7 +2064,7 @@ const SupplierDetails = () => {
                                   </TableCell>
                                   <TableCell className="py-3">
                                     <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(po.status))}>
-                                      {po.status || 'Registrado'}
+                                      {getStatusLabel(po.status)}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right pr-4 py-3">
@@ -1946,9 +2088,30 @@ const SupplierDetails = () => {
 
                   {/* TAB 2: ÓRDENES DE SERVICIO */}
                   <TabsContent value="ordenes-servicio" className="pt-4 space-y-3">
+                    {serviceOrders.length > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+                        <div className="text-xs text-slate-500 font-medium">
+                          Mostrando {filteredServiceOrders.length} de {serviceOrders.length} {serviceOrders.length === 1 ? 'servicio' : 'servicios'}
+                        </div>
+                        <div className="relative w-full sm:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                          <Input
+                            placeholder="Buscar por Nº, fecha, servicio o estado..."
+                            value={searchSO}
+                            onChange={(e) => setSearchSO(e.target.value)}
+                            className="pl-8 bg-slate-50 border-slate-200 rounded-xl h-9 text-xs focus:ring-procarni-primary/20 w-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {serviceOrders.length === 0 ? (
                       <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
                         No hay órdenes de servicio registradas para este proveedor.
+                      </div>
+                    ) : filteredServiceOrders.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No se encontraron órdenes de servicio que coincidan con "{searchSO}".
                       </div>
                     ) : (
                       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
@@ -1963,7 +2126,7 @@ const SupplierDetails = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {serviceOrders.map((so: any) => {
+                            {filteredServiceOrders.map((so: any) => {
                               const serviceTotal = calculateTotals([
                                 ...(so.service_order_items || []),
                                 ...(so.service_order_materials || [])
@@ -1981,7 +2144,7 @@ const SupplierDetails = () => {
                                   </TableCell>
                                   <TableCell className="py-3">
                                     <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(so.status))}>
-                                      {so.status || 'Registrado'}
+                                      {getStatusLabel(so.status)}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right pr-4 py-3">
@@ -2005,9 +2168,30 @@ const SupplierDetails = () => {
 
                   {/* TAB 3: HISTORIAL DE PRECIOS */}
                   <TabsContent value="historial-precios" className="pt-4 space-y-3">
+                    {priceAnalysisByMaterial.length > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+                        <div className="text-xs text-slate-500 font-medium">
+                          Mostrando {filteredPriceAnalysis.length} de {priceAnalysisByMaterial.length} {priceAnalysisByMaterial.length === 1 ? 'material' : 'materiales'}
+                        </div>
+                        <div className="relative w-full sm:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                          <Input
+                            placeholder="Buscar material, código o unidad..."
+                            value={searchPriceHistory}
+                            onChange={(e) => setSearchPriceHistory(e.target.value)}
+                            className="pl-8 bg-slate-50 border-slate-200 rounded-xl h-9 text-xs focus:ring-procarni-primary/20 w-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {priceAnalysisByMaterial.length === 0 ? (
                       <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
                         No hay registros de precios históricos para este proveedor.
+                      </div>
+                    ) : filteredPriceAnalysis.length === 0 ? (
+                      <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        No se encontraron materiales que coincidan con "{searchPriceHistory}".
                       </div>
                     ) : (
                       <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
@@ -2024,7 +2208,7 @@ const SupplierDetails = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {priceAnalysisByMaterial.map((m) => (
+                            {filteredPriceAnalysis.map((m) => (
                               <TableRow key={m.materialId} className="hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors">
                                 <TableCell className="font-bold text-xs text-slate-800 pl-4 py-3">{m.name}</TableCell>
                                 <TableCell className="font-mono text-xs text-slate-500 py-3">{m.unit}</TableCell>
@@ -2065,78 +2249,107 @@ const SupplierDetails = () => {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3 flex-wrap">
-                          <p className="text-xs text-gray-500 font-medium">
-                            Seleccione los materiales recurrentes para generar una nueva Orden de Compra automáticamente.
-                          </p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+                          <div className="relative w-full sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                            <Input
+                              placeholder="Buscar en más comprados..."
+                              value={searchSuggested}
+                              onChange={(e) => setSearchSuggested(e.target.value)}
+                              className="pl-8 bg-slate-50 border-slate-200 rounded-xl h-9 text-xs focus:ring-procarni-primary/20 w-full"
+                            />
+                          </div>
+
                           <Button
                             onClick={handleGenerateOCFromSuggestions}
-                            className="bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs rounded-xl h-9 px-4 shadow-md flex items-center gap-1.5 transition-all"
+                            disabled={selectedSuggestIds.size === 0}
+                            className="bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs rounded-xl h-9 px-4 shadow-md flex items-center gap-1.5 transition-all disabled:opacity-40"
                           >
                             <ShoppingCart className="h-4 w-4" />
                             <span>Generar OC ({selectedSuggestIds.size})</span>
                           </Button>
                         </div>
 
-                        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
-                          <Table>
-                            <TableHeader className="bg-slate-50/70">
-                              <TableRow className="border-b border-slate-100">
-                                <TableHead className="w-12 pl-4">
-                                  <Checkbox
-                                    checked={selectedSuggestIds.size === suggestedMaterials.length && suggestedMaterials.length > 0}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        const allIds = new Set(suggestedMaterials.map(m => m.material_id || m.material_name).filter(Boolean) as string[]);
-                                        setSelectedSuggestIds(allIds);
-                                      } else {
-                                        setSelectedSuggestIds(new Set());
+                        {filteredSuggestedMaterials.length === 0 ? (
+                          <div className="text-center py-10 text-gray-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                            No se encontraron materiales recurrentes que coincidan con "{searchSuggested}".
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/60">
+                            <Table>
+                              <TableHeader className="bg-slate-50/70">
+                                <TableRow className="border-b border-slate-100">
+                                  <TableHead className="w-12 pl-4">
+                                    <Checkbox
+                                      checked={
+                                        filteredSuggestedMaterials.length > 0 &&
+                                        filteredSuggestedMaterials.every(m => {
+                                          const key = (m.material_id || m.material_name) as string;
+                                          return selectedSuggestIds.has(key);
+                                        })
                                       }
-                                    }}
-                                  />
-                                </TableHead>
-                                <TableHead className={tableHeaderClass}>Material</TableHead>
-                                <TableHead className={tableHeaderClass}>Unidad</TableHead>
-                                <TableHead className={tableHeaderClass}>Veces Comprado</TableHead>
-                                <TableHead className={tableHeaderClass}>Último Precio ($)</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {suggestedMaterials.map((item) => {
-                                const key = (item.material_id || item.material_name) as string;
-                                const isChecked = selectedSuggestIds.has(key);
-                                return (
-                                  <TableRow
-                                    key={`suggest-${key}`}
-                                    className={cn("hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors cursor-pointer", isChecked && "bg-blue-50/20")}
-                                    onClick={() => toggleSuggestSelection(key)}
-                                  >
-                                    <TableCell className="pl-4 py-3" onClick={(e) => e.stopPropagation()}>
-                                      <Checkbox
-                                        checked={isChecked}
-                                        onCheckedChange={() => toggleSuggestSelection(key)}
-                                      />
-                                    </TableCell>
-                                    <TableCell className="font-bold text-xs text-slate-800 py-3">
-                                      {item.material_name}
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs text-slate-500 py-3">
-                                      {item.unit || 'UND'}
-                                    </TableCell>
-                                    <TableCell className="py-3">
-                                      <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-procarni-blue border-blue-200">
-                                        {item.count} {item.count === 1 ? 'orden' : 'órdenes'}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
-                                      ${(item.unit_price || 0).toFixed(4)}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          const next = new Set(selectedSuggestIds);
+                                          filteredSuggestedMaterials.forEach(m => {
+                                            const key = (m.material_id || m.material_name) as string;
+                                            if (key) next.add(key);
+                                          });
+                                          setSelectedSuggestIds(next);
+                                        } else {
+                                          const next = new Set(selectedSuggestIds);
+                                          filteredSuggestedMaterials.forEach(m => {
+                                            const key = (m.material_id || m.material_name) as string;
+                                            if (key) next.delete(key);
+                                          });
+                                          setSelectedSuggestIds(next);
+                                        }
+                                      }}
+                                    />
+                                  </TableHead>
+                                  <TableHead className={tableHeaderClass}>Material</TableHead>
+                                  <TableHead className={tableHeaderClass}>Unidad</TableHead>
+                                  <TableHead className={tableHeaderClass}>Veces Comprado</TableHead>
+                                  <TableHead className={tableHeaderClass}>Último Precio ($)</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filteredSuggestedMaterials.map((item) => {
+                                  const key = (item.material_id || item.material_name) as string;
+                                  const isChecked = selectedSuggestIds.has(key);
+                                  return (
+                                    <TableRow
+                                      key={`suggest-${key}`}
+                                      className={cn("hover:bg-slate-50/50 border-b border-slate-50 last:border-none transition-colors cursor-pointer", isChecked && "bg-blue-50/20")}
+                                      onClick={() => toggleSuggestSelection(key)}
+                                    >
+                                      <TableCell className="pl-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox
+                                          checked={isChecked}
+                                          onCheckedChange={() => toggleSuggestSelection(key)}
+                                        />
+                                      </TableCell>
+                                      <TableCell className="font-bold text-xs text-slate-800 py-3">
+                                        {item.material_name}
+                                      </TableCell>
+                                      <TableCell className="font-mono text-xs text-slate-500 py-3">
+                                        {item.unit || 'UND'}
+                                      </TableCell>
+                                      <TableCell className="py-3">
+                                        <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-procarni-blue border-blue-200">
+                                          {item.count} {item.count === 1 ? 'orden' : 'órdenes'}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="font-mono text-xs font-bold text-procarni-dark py-3">
+                                        ${(item.unit_price || 0).toFixed(4)}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
                       </div>
                     )}
                   </TabsContent>
