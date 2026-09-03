@@ -8,8 +8,22 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'Content-Disposition',
 };
 
+function cleanForWinAnsi(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text)
+    // Remove zero-width characters and invisible formatting (ZWSP, ZWNJ 0x200C, ZWJ 0x200D, BOM 0xFEFF, Bidi marks, etc.)
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E\u2060\u180E\u00AD\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    // Replace non-breaking spaces & special spaces with normal space
+    .replace(/[\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/g, ' ')
+    // Replace unsupported quotes / dashes with WinAnsi compatible ones
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2026]/g, '...');
+}
+
 function sanitizeFilename(filename: string): string {
-  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+  return cleanForWinAnsi(filename).replace(/[/\\?%*:|"<>]/g, '-');
 }
 
 // Define colores corporativos y de borde
@@ -113,7 +127,7 @@ serve(async (req: Request) => {
 
     // Helper para dibujar texto
     const drawText = (text: string, x: number, yPos: number, options: any = {}) => {
-      const safeText = String(text || 'N/A');
+      const safeText = cleanForWinAnsi(text ?? 'N/A');
       page.drawText(safeText, {
         x,
         y: yPos,

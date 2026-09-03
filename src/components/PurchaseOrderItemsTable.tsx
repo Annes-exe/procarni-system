@@ -404,21 +404,20 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
         {/* HEADER: Resumen del Ítem */}
         <AccordionTrigger className="px-5 py-3 hover:bg-gray-50/50 hover:no-underline data-[state=open]:bg-gray-50/80 data-[state=open]:border-b">
-          <div className="flex justify-between items-center w-full pr-6">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className={`h-8 w-1 rounded-full ${
+          <div className="flex justify-between items-center w-full pr-4 gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className={`h-8 w-1 shrink-0 rounded-full ${
                 !item.material_id ? 'bg-gray-300' : 
                 associatedMaterialIds.has(item.material_id) ? 'bg-procarni-primary' : 'bg-amber-500'
               }`}></div>
-              <div className="flex flex-col items-start text-left min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={`font-semibold text-sm truncate max-w-[400px] ${!item.material_name && 'text-muted-foreground italic'}`}>
+              <div className="flex flex-col items-start text-left min-w-0 flex-1">
+                <div className="flex items-center gap-2 w-full">
+                  <span className={`font-semibold text-sm truncate w-full ${!item.material_name && 'text-muted-foreground italic'}`}>
                     {item.material_name || "Seleccionar ítem..."}
                   </span>
-
                 </div>
                 {item.material_name && (
-                  <div className="flex gap-2 text-[10px] text-muted-foreground">
+                  <div className="flex gap-2 text-[10px] text-muted-foreground truncate w-full">
                     {item.quantity > 0 && <span>{item.quantity} {item.unit}</span>}
                     {item.supplier_code && <span>• Ref: {item.supplier_code}</span>}
                   </div>
@@ -426,7 +425,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 shrink-0">
               {item.is_exempt && <Badge variant="secondary" className="text-[10px] bg-orange-50 text-orange-700 hover:bg-orange-100 border-orange-200">Exento</Badge>}
               <div className="text-right">
                 <p className="text-sm font-bold text-gray-900">{currency} {totalItem.toFixed(2)}</p>

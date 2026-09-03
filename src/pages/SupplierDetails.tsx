@@ -60,8 +60,10 @@ import {
   getAllMaterialCategories,
   getPurchaseHistoryReport,
   getPriceHistoryBySupplierId,
-  getLocations
+  getLocations,
+  createMaterial
 } from '@/integrations/supabase/data';
+import { cleanInvisibleChars } from '@/utils/normalization';
 import { useSession } from '@/components/SessionContextProvider';
 import { detectLocation } from '@/utils/location-detector';
 import { isGenericRif, validateRif } from '@/utils/validators';
@@ -73,6 +75,7 @@ import { serviceOrderService } from '@/services/serviceOrderService';
 import { calculateTotals } from '@/utils/calculations';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
 import SupplierBranchesManager from '@/components/SupplierBranchesManager';
+import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { FichaTecnica, SupplierMaterialPayload } from '@/integrations/supabase/types';
 
 interface MaterialAssociation {
@@ -181,9 +184,11 @@ const SupplierDetails = () => {
   // Association Dialog States
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
   const [materialSearchQuery, setMaterialSearchQuery] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL');
   const [allCatalogMaterials, setAllCatalogMaterials] = useState<any[]>([]);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
   const [isAssociating, setIsAssociating] = useState(false);
+  const [isMaterialCreationDialogOpen, setIsMaterialCreationDialogOpen] = useState(false);
 
   // --- Data Fetching ---
   const { data: dbLocations = [] } = useQuery({
@@ -444,15 +449,20 @@ const SupplierDetails = () => {
 
     const delayDebounceFn = setTimeout(async () => {
       try {
+        const cleanedSearch = cleanInvisibleChars(materialSearchQuery).trim();
         let queryBuilder = supabase
           .from('materials')
           .select('id, name, code, category, unit')
           .eq('status', 'active')
           .order('name', { ascending: true })
-          .limit(60);
+          .limit(80);
 
-        if (materialSearchQuery.trim()) {
-          queryBuilder = queryBuilder.ilike('name', `%${materialSearchQuery.trim()}%`);
+        if (selectedCategoryFilter && selectedCategoryFilter !== 'ALL') {
+          queryBuilder = queryBuilder.eq('category', selectedCategoryFilter);
+        }
+
+        if (cleanedSearch) {
+          queryBuilder = queryBuilder.or(`name.ilike.%${cleanedSearch}%,code.ilike.%${cleanedSearch}%,category.ilike.%${cleanedSearch}%`);
         }
 
         const { data, error } = await queryBuilder;
@@ -464,7 +474,20 @@ const SupplierDetails = () => {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [materialSearchQuery, isAddMaterialOpen]);
+  }, [materialSearchQuery, selectedCategoryFilter, isAddMaterialOpen]);
+
+  const handleMaterialCreatedFromDialog = (newMaterial: any) => {
+    if (!newMaterial) return;
+    const matId = newMaterial.id || newMaterial.material_id;
+    if (matId) {
+      setSelectedMaterialIds(prev => Array.from(new Set([...prev, matId])));
+      setAllCatalogMaterials(prev => [newMaterial, ...prev.filter(m => m.id !== matId)]);
+    }
+    queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
+    queryClient.invalidateQueries({ queryKey: ['material_categories'] });
+    setIsMaterialCreationDialogOpen(false);
+    showSuccess(`Material "${newMaterial.name || ''}" vinculado exitosamente.`);
+  };
 
   const handleSaveMaterialAssociations = async () => {
     if (!supplier) return;
@@ -502,12 +525,12 @@ const SupplierDetails = () => {
         if (deleteError) throw deleteError;
       }
 
-      toast.success('Materiales vinculados actualizados exitosamente.');
+      showSuccess('Materiales vinculados actualizados exitosamente.');
       queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
       setIsAddMaterialOpen(false);
     } catch (err) {
       console.error('Error saving material associations:', err);
-      toast.error('Ocurrió un error al guardar los materiales asociados.');
+      showError('Ocurrió un error al guardar los materiales asociados.');
     } finally {
       setIsAssociating(false);
     }
@@ -520,10 +543,10 @@ const SupplierDetails = () => {
         .delete()
         .eq('id', supplierMaterialId);
       if (error) throw error;
-      toast.success('Material desvinculado del proveedor.');
+      showSuccess('Material desvinculado del proveedor.');
       queryClient.invalidateQueries({ queryKey: ['supplierDetails', id] });
     } catch (err) {
-      toast.error('No se pudo desvincular el material.');
+      showError('No se pudo desvincular el material.');
     }
   };
 
@@ -2327,36 +2350,87 @@ const SupplierDetails = () => {
       </div>
 
       {/* MODAL: ASOCIAR MATERIALES EN LOTE */}
+      {/* MODAL: ASOCIAR MATERIALES EN LOTE / CREACIÓN RÁPIDA */}
       <Dialog open={isAddMaterialOpen} onOpenChange={setIsAddMaterialOpen}>
-        <DialogContent className="max-w-md bg-white rounded-2xl shadow-2xl p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
-          <DialogHeader className="pb-4 border-b border-slate-100">
+        <DialogContent className="max-w-lg bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="pb-3 border-b border-slate-100">
             <DialogTitle className="text-lg font-black text-procarni-blue tracking-tight">
               Asociar Materiales al Proveedor
             </DialogTitle>
             <p className="text-xs text-gray-500 font-medium">
-              Vincule múltiples materiales del catálogo general a este proveedor.
+              Busque por nombre, código o categoría para vincular materiales, o cree uno nuevo al instante.
             </p>
           </DialogHeader>
 
-          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Buscar material por nombre o código..."
-                className="pl-9 bg-slate-50 border-slate-200 rounded-xl h-10 text-xs focus:ring-procarni-primary/20"
-                value={materialSearchQuery}
-                onChange={(e) => setMaterialSearchQuery(e.target.value)}
-              />
+          <div className="space-y-3 py-3 max-h-[65vh] overflow-y-auto pr-1">
+            {/* Buscador + Filtro Categoría */}
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar por nombre, código o categoría..."
+                  className="pl-9 bg-slate-50 border-slate-200 rounded-xl h-10 text-xs focus:ring-procarni-primary/20"
+                  value={materialSearchQuery}
+                  onChange={(e) => setMaterialSearchQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                    <SelectTrigger className="bg-slate-50 border-slate-200 rounded-xl h-9 text-xs">
+                      <SelectValue placeholder="Todas las categorías" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 rounded-xl">
+                      <SelectItem value="ALL" className="text-xs font-bold">Todas las Categorías</SelectItem>
+                      {categories.map((cat: any) => (
+                        <SelectItem key={cat.id} value={cat.name} className="text-xs">
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsMaterialCreationDialogOpen(true)}
+                  className="h-9 px-3 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50 text-procarni-dark shrink-0"
+                >
+                  <PlusCircle className="h-3.5 w-3.5 mr-1 text-procarni-secondary" />
+                  Crear Ítem
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-2">
+            {/* LISTADO DE MATERIALES */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-1">
+                <span>Seleccionados: {selectedMaterialIds.length}</span>
+                <span>Resultados: {allCatalogMaterials.length}</span>
+              </div>
+
               {allCatalogMaterials.length === 0 ? (
-                <p className="text-xs text-gray-400 italic text-center py-4">
-                  No se encontraron materiales.
-                </p>
+                <div className="text-center py-8 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                  <p className="text-xs text-gray-500 font-medium">
+                    No se encontraron materiales en el catálogo {selectedCategoryFilter !== 'ALL' ? `para "${selectedCategoryFilter}"` : ''}.
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsMaterialCreationDialogOpen(true)}
+                    className="h-8 text-xs font-bold bg-procarni-primary hover:bg-procarni-primary/90 text-white rounded-xl shadow-sm"
+                  >
+                    <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                    Crear nuevo material en el catálogo
+                  </Button>
+                </div>
               ) : (
                 allCatalogMaterials.map((mat) => {
                   const isChecked = selectedMaterialIds.includes(mat.id);
+                  const catColor = CATEGORY_COLORS[mat.category?.toUpperCase() || ''] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
                   return (
                     <div
                       key={`mat-item-${mat.id}`}
@@ -2368,17 +2442,23 @@ const SupplierDetails = () => {
                         }
                       }}
                       className={cn(
-                        "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border",
+                        "flex items-center justify-between p-2.5 rounded-2xl cursor-pointer transition-all border",
                         isChecked
-                          ? "bg-emerald-50/20 border-emerald-200/50"
-                          : "bg-white border-transparent hover:bg-slate-50"
+                          ? "bg-emerald-50/40 border-emerald-300 shadow-sm"
+                          : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/80"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        <Checkbox checked={isChecked} onCheckedChange={() => {}} />
-                        <div className="space-y-0.5">
-                          <p className="text-xs font-bold text-slate-800">{mat.name}</p>
-                          <p className="text-[10px] text-gray-400 font-mono">Cód: {mat.code || 'S/C'} • {mat.category || 'Sin cat.'} • {mat.unit || 'UND'}</p>
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Checkbox checked={isChecked} onCheckedChange={() => {}} className="rounded-md" />
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-800 truncate">{mat.name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-gray-400 font-mono">
+                            {mat.code && <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-bold">{mat.code}</span>}
+                            <Badge variant="outline" className={cn("text-[9px] font-bold border px-1.5 py-0", catColor.bg, catColor.text, catColor.border)}>
+                              {mat.category || 'Sin cat.'}
+                            </Badge>
+                            <span>• {mat.unit || 'UND'}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2388,21 +2468,22 @@ const SupplierDetails = () => {
             </div>
           </div>
 
-          <DialogFooter className="pt-4 border-t border-slate-100 flex gap-2">
+          <DialogFooter className="pt-3 border-t border-slate-100 flex gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => setIsAddMaterialOpen(false)}
-              className="flex-1 bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-5 rounded-xl border border-slate-200"
+              className="flex-1 bg-slate-50 hover:bg-slate-100 text-procarni-dark font-bold text-xs py-4 rounded-xl border border-slate-200"
             >
-              Cancelar
+              Cerrar
             </Button>
             <Button
               type="button"
               disabled={isAssociating}
               onClick={handleSaveMaterialAssociations}
-              className="flex-1 bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs py-5 rounded-xl shadow-md"
+              className="flex-1 bg-procarni-primary hover:bg-procarni-primary/95 text-white font-bold text-xs py-4 rounded-xl shadow-md"
             >
+              {isAssociating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               {isAssociating ? 'Guardando...' : 'Guardar Asociaciones'}
             </Button>
           </DialogFooter>
@@ -2424,6 +2505,16 @@ const SupplierDetails = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL OFICIAL: CREACIÓN DE MATERIAL */}
+      <MaterialCreationDialog
+        isOpen={isMaterialCreationDialogOpen}
+        onClose={() => setIsMaterialCreationDialogOpen(false)}
+        onMaterialCreated={handleMaterialCreatedFromDialog}
+        supplierId={supplier?.id}
+        supplierName={supplier?.name}
+        initialName={materialSearchQuery}
+      />
 
     </div>
   );

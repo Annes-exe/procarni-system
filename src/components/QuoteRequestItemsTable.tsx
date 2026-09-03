@@ -31,6 +31,7 @@ interface MaterialSearchResult {
     code: string;
     category?: string;
     unit?: string;
+    unit_id?: string;
     is_exempt?: boolean;
     specification?: string;
 }
@@ -210,27 +211,27 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
 
                 {/* HEADER: Resumen del Ítem */}
                 <AccordionTrigger className="px-5 py-3 hover:bg-gray-50/50 hover:no-underline data-[state=open]:bg-gray-50/80 data-[state=open]:border-b">
-                    <div className="flex justify-between items-center w-full pr-6">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                            <div className={`h-8 w-1 rounded-full ${item.material_name ? 'bg-procarni-primary' : 'bg-gray-300'}`}></div>
-                            <div className="flex flex-col items-start text-left min-w-0">
-                                <span className={`font-semibold text-sm truncate max-w-[400px] ${!item.material_name && 'text-muted-foreground italic'}`}>
+                    <div className="flex justify-between items-center w-full pr-4 gap-4">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`h-8 w-1 shrink-0 rounded-full ${item.material_name ? 'bg-procarni-primary' : 'bg-gray-300'}`}></div>
+                            <div className="flex flex-col items-start text-left min-w-0 flex-1">
+                                <span className={`font-semibold text-sm truncate w-full ${!item.material_name && 'text-muted-foreground italic'}`}>
                                     {item.material_name || "Seleccionar material..."}
                                 </span>
                                 {item.last_price_info && (
-                                    <span className="text-[10px] text-procarni-secondary font-medium animate-in fade-in slide-in-from-left-1">
+                                    <span className="text-[10px] text-procarni-secondary font-medium animate-in fade-in slide-in-from-left-1 truncate w-full">
                                         {item.last_price_info}
                                     </span>
                                 )}
                                 {item.material_name && (
-                                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                                    <div className="flex gap-2 text-[10px] text-muted-foreground truncate w-full">
                                         {item.quantity > 0 && <span>{item.quantity} {item.unit}</span>}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-4 shrink-0">
                             {/* Espacio para badge o estado si fuera necesario */}
                             <div className="text-right">
                                 {/* Espacio para totales si fuera necesario */}

@@ -1,8 +1,9 @@
 // src/utils/validators.ts
+import { cleanInvisibleChars } from './normalization';
 
 /**
  * Normaliza y valida un RIF venezolano.
- * Elimina guiones y espacios, fuerza mayúsculas.
+ * Elimina caracteres invisibles, guiones y espacios, fuerza mayúsculas.
  * Formato esperado: J123456789, V123456789, G123456789, E123456789, P123456789
  * @param rif El RIF a normalizar y validar.
  * @returns El RIF normalizado o null si es inválido.
@@ -10,11 +11,13 @@
 export const validateRif = (rif: string): string | null => {
   if (!rif) return null;
 
-  const trimmed = rif.trim().toUpperCase();
+  // Sanitizar caracteres invisibles y espacios raros primero
+  const cleaned = cleanInvisibleChars(rif);
+  const trimmed = cleaned.trim().toUpperCase();
   if (trimmed.startsWith('SR')) return trimmed;
 
   // Eliminar guiones, espacios y convertir a mayúsculas
-  const normalizedRif = rif.replace(/[- ]/g, '').toUpperCase();
+  const normalizedRif = cleaned.replace(/[- ]/g, '').toUpperCase();
 
   // Expresión regular para validar el formato del RIF
   // Inicia con J, V, G, E, P seguido de 8 o 9 dígitos
@@ -34,5 +37,6 @@ export const validateRif = (rif: string): string | null => {
  */
 export const isGenericRif = (rif: string): boolean => {
   if (!rif) return false;
-  return rif.trim().toUpperCase().startsWith('SR') || rif.toUpperCase().startsWith('J000000');
+  const cleaned = cleanInvisibleChars(rif).trim().toUpperCase();
+  return cleaned.startsWith('SR') || cleaned.startsWith('J000000');
 };

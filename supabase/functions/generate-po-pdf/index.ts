@@ -60,8 +60,57 @@ const LOGO_SIZE = 50;
 
 // --- UTILITY FUNCTIONS (Kept outside serve) ---
 
+function cleanForWinAnsi(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text)
+    // Remove zero-width characters and invisible formatting (ZWSP, ZWNJ 0x200C, ZWJ 0x200D, BOM 0xFEFF, Bidi marks, etc.)
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E\u2060\u180E\u00AD\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    // Replace non-breaking spaces & special spaces with normal space
+    .replace(/[\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/g, ' ')
+    // Replace unsupported quotes / dashes with WinAnsi compatible ones
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2026]/g, '...')
+    // Filter any remaining characters above 0xFF that are not supported in WinAnsi
+    .replace(/[^\x00-\x7F\xA0-\xFF]/g, (char) => {
+      const map: Record<string, string> = {
+        '€': 'EUR',
+        '™': '(TM)',
+        '©': '(C)',
+        '®': '(R)',
+        '•': '*',
+        '–': '-',
+        '—': '-',
+        '’': "'",
+        '‘': "'",
+        '“': '"',
+        '”': '"',
+        '…': '...',
+      };
+      return map[char] || '';
+    });
+}
+
+function deepCleanWinAnsi<T>(obj: T): T {
+  if (typeof obj === 'string') {
+    return cleanForWinAnsi(obj) as unknown as T;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(deepCleanWinAnsi) as unknown as T;
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      cleaned[key] = deepCleanWinAnsi(value);
+    }
+    return cleaned as T;
+  }
+  return obj;
+}
+
 function sanitizeFilename(filename: string): string {
-  return filename.replace(/[/\\?%*:|"<>]/g, '-');
+  return cleanForWinAnsi(filename).replace(/[/\\?%*:|"<>]/g, '-');
 }
 
 const calculateTotals = (items: Array<{
@@ -275,8 +324,7 @@ serve(async (req: Request) => {
     console.log(`[generate-po-pdf] Request received. Order ID: ${orderId}`);
     console.log(`[generate-po-pdf] Auth header present: ${!!authHeader}`);
 
-    // --- Data Fetching ---
-    const { data: order, error: orderError } = await supabaseClient
+    const { data: rawOrder, error: orderError } = await supabaseClient
       .from('purchase_orders')
       .select(`
         *,
@@ -287,14 +335,14 @@ serve(async (req: Request) => {
       .eq('id', orderId)
       .single();
 
-    if (orderError || !order) {
+    if (orderError || !rawOrder) {
       return new Response(JSON.stringify({ error: 'Order not found or access denied.' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { data: items, error: itemsError } = await supabaseClient
+    const { data: rawItems, error: itemsError } = await supabaseClient
       .from('purchase_order_items')
       .select('*, units_of_measure(name)')
       .eq('order_id', orderId);
@@ -306,6 +354,9 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const order = deepCleanWinAnsi(rawOrder);
+    const items = deepCleanWinAnsi(rawItems || []);
 
     // --- Update Print Date ---
     const now = new Date().toISOString();
@@ -371,7 +422,7 @@ serve(async (req: Request) => {
     // --- Core Drawing Helpers ---
 
     const drawText = (state: PDFState, text: string, x: number, yPos: number, options: any = {}) => {
-      const safeText = String(text || 'N/A');
+      const safeText = cleanForWinAnsi(text ?? 'N/A');
       state.page.drawText(safeText, {
         x,
         y: yPos,
@@ -709,8 +760,9 @@ serve(async (req: Request) => {
 
         // Helper to draw data centered vertically and right-aligned
         const drawCellData = (text: string, colIndex: number, isRightAligned: boolean = true, size: number = FONT_SIZE, fontToUse: any = font, color: any = rgb(0, 0, 0)) => {
+          const safeText = cleanForWinAnsi(text);
           const cellWidth = colWidths[colIndex];
-          const textWidth = fontToUse.widthOfTextAtSize(text, size);
+          const textWidth = fontToUse.widthOfTextAtSize(safeText, size);
 
           const verticalCenterY = finalY + requiredHeight / 2 - size / 2;
 
@@ -718,7 +770,7 @@ serve(async (req: Request) => {
             ? currentX + cellWidth - 5 - textWidth
             : currentX + 5;
 
-          drawText(state, text, xPos, verticalCenterY, { size, font: fontToUse, color });
+          drawText(state, safeText, xPos, verticalCenterY, { size, font: fontToUse, color });
           currentX += cellWidth;
         };
 
