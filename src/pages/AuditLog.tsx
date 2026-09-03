@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Clock, User, Plus, Edit, Trash, CheckCircle, XCircle, ArrowRight, Eye, EyeOff, Package, Truck, Building2, FileText, UploadCloud, Archive, ClipboardList, ChevronDown, ChevronUp, PackageCheck } from 'lucide-react';
 
 import { getAllAuditLogs } from '@/integrations/supabase/data';
+import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { Input } from '@/components/ui/input';
 import { useNavigate, Link } from 'react-router-dom';
@@ -365,6 +366,36 @@ const AuditLog = () => {
     queryFn: () => getAllAuditLogs(startDate ? `${startDate}T00:00:00Z` : undefined, endDate ? `${endDate}T23:59:59Z` : undefined),
   });
 
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['audit_profiles_list'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, username, email');
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  const profilesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    profiles.forEach((p: any) => {
+      const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || p.username || p.email;
+      if (p.id) map[p.id] = fullName;
+      if (p.email) map[p.email.toLowerCase()] = fullName;
+    });
+    return map;
+  }, [profiles]);
+
+  const getUserDisplayName = (log: AuditLogEntry): string => {
+    if (log.user_name) return log.user_name;
+    if (log.raw_details?.user_name) return log.raw_details.user_name;
+    if (log.user_id && profilesMap[log.user_id]) return profilesMap[log.user_id];
+    if (log.raw_details?.user_id && profilesMap[log.raw_details.user_id]) return profilesMap[log.raw_details.user_id];
+    if (log.user_email && profilesMap[log.user_email.toLowerCase()]) return profilesMap[log.user_email.toLowerCase()];
+    return log.user_email || 'Sistema';
+  };
+
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
     
@@ -393,7 +424,7 @@ const AuditLog = () => {
       tabFiltered = logs.filter(log => {
         const t = (log.table || '').toLowerCase();
         const a = log.action.toLowerCase();
-        return t.includes('supplier') || a.includes('supplier');
+        return t === 'suppliers' || t.includes('supplier_material') || a.includes('supplier');
       });
     } else if (activeTab === 'quotes') {
       tabFiltered = logs.filter(log => {
@@ -406,13 +437,17 @@ const AuditLog = () => {
     if (!searchTerm) return tabFiltered;
 
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return tabFiltered.filter(log =>
-      log.action.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (log.user_email && log.user_email.toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (log.table && log.table.toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (log.description && log.description.toLowerCase().includes(lowerCaseSearchTerm))
-    );
-  }, [logs, activeTab, searchTerm]);
+    return tabFiltered.filter(log => {
+      const displayName = getUserDisplayName(log).toLowerCase();
+      return (
+        log.action.toLowerCase().includes(lowerCaseSearchTerm) ||
+        displayName.includes(lowerCaseSearchTerm) ||
+        (log.user_email && log.user_email.toLowerCase().includes(lowerCaseSearchTerm)) ||
+        (log.table && log.table.toLowerCase().includes(lowerCaseSearchTerm)) ||
+        (log.description && log.description.toLowerCase().includes(lowerCaseSearchTerm))
+      );
+    });
+  }, [logs, activeTab, searchTerm, profilesMap]);
 
   if (isLoading) {
     return (
@@ -514,7 +549,7 @@ const AuditLog = () => {
       return { label: action, color: 'bg-blue-50 text-blue-700 border-blue-200/30 hover:bg-blue-50', icon: Icon };
     }
     if (isDelete) {
-      return { label: action, color: 'bg-red-50 text-red-700 border-red-200/30 hover:bg-red-50', icon: Trash };
+      return { label: action, color: 'bg-red-50 text-red-700 border-red-200/30 hover:bg-red-50', icon: Icon };
     }
 
     return { label: action, color: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-50', icon: Icon };
@@ -645,9 +680,12 @@ const AuditLog = () => {
                       </span>
                     </div>
                     <div className="text-sm space-y-2">
-                      <div className="flex items-center text-xs text-slate-500 font-medium">
-                        <User className="mr-1.5 h-3.5 w-3.5 text-slate-400 bg-slate-100 p-0.5 rounded-full" /> 
-                        <span>{log.user_email || 'Sistema'}</span>
+                      <div className="flex items-center text-xs text-slate-700 font-medium">
+                        <User className="mr-1.5 h-3.5 w-3.5 text-slate-400 bg-slate-100 p-0.5 rounded-full shrink-0" /> 
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-slate-800 truncate">{getUserDisplayName(log)}</span>
+                          {log.user_email && <span className="text-[10px] text-slate-400 font-mono truncate">{log.user_email}</span>}
+                        </div>
                       </div>
                       
                       <div className="text-slate-800 bg-slate-50/50 p-3 rounded-xl text-xs border border-slate-100">
@@ -702,10 +740,19 @@ const AuditLog = () => {
                             {formatTimestamp(log.timestamp)}
                           </div>
                         </TableCell>
-                        <TableCell className="py-3 text-xs font-semibold text-slate-700 align-top">
-                          <div className="flex items-center bg-white border border-slate-100 w-fit px-2 py-0.5 rounded-lg shadow-sm">
-                            <User className="w-3 h-3 mr-1 text-slate-400" />
-                            {log.user_email || 'Sistema'}
+                        <TableCell className="py-3 text-xs text-slate-700 align-top">
+                          <div className="flex items-start gap-1.5 bg-white border border-slate-100 p-1.5 rounded-xl shadow-xs max-w-[240px]">
+                            <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-slate-800 truncate" title={getUserDisplayName(log)}>
+                                {getUserDisplayName(log)}
+                              </span>
+                              {log.user_email && (
+                                <span className="text-[10px] text-slate-400 font-mono truncate" title={log.user_email}>
+                                  {log.user_email}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="py-3 align-top">
