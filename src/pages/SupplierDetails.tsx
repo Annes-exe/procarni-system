@@ -72,6 +72,7 @@ import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { serviceOrderService } from '@/services/serviceOrderService';
 import { calculateTotals } from '@/utils/calculations';
 import SupplierPriceHistoryDownloadButton from '@/components/SupplierPriceHistoryDownloadButton';
+import SupplierBranchesManager from '@/components/SupplierBranchesManager';
 import { FichaTecnica, SupplierMaterialPayload } from '@/integrations/supabase/types';
 
 interface MaterialAssociation {
@@ -1348,6 +1349,16 @@ const SupplierDetails = () => {
 
               </div>
             </section>
+
+            {/* 2. SEDES Y SUCURSALES DEL PROVEEDOR */}
+            {!isNew && supplier?.id && (
+              <section className="bg-white/70 backdrop-blur-xl ring-1 ring-white/60 p-6 sm:p-8 rounded-[2rem] shadow-2xl shadow-gray-200/50 space-y-6">
+                <SupplierBranchesManager
+                  supplierId={supplier.id}
+                  supplierName={name || supplier.name}
+                />
+              </section>
+            )}
           </div>
 
           {/* Right Column: Actions & Contact */}

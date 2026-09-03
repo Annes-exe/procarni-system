@@ -9,6 +9,22 @@ export type Profile = {
   updated_at: string | null;
 };
 
+export type SupplierBranch = {
+  id: string;
+  supplier_id: string;
+  name: string;
+  address: string | null;
+  state: string | null;
+  city: string | null;
+  phone: string | null;
+  phone_2: string | null;
+  email: string | null;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  user_id: string | null;
+};
+
 export type Supplier = {
   id: string;
   rif: string;
@@ -31,6 +47,7 @@ export type Supplier = {
   website: string | null;
   is_raw_material?: boolean | null;
   rubros?: string | null;
+  branches?: SupplierBranch[];
 };
 
 export type Material = {

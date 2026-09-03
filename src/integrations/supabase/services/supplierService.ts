@@ -343,7 +343,7 @@ const SupplierService = {
   getById: async (id: string): Promise<Supplier | null> => {
     const { data, error } = await supabase
       .from('suppliers')
-      .select('*, materials:supplier_materials(id, material_id, unit_id, specification, materials:materials(id, name, code, category, unit), units_of_measure(id, name))')
+      .select('*, materials:supplier_materials(id, material_id, unit_id, specification, materials:materials(id, name, code, category, unit), units_of_measure(id, name)), branches:supplier_branches(*)')
       .eq('id', id)
       .single();
 

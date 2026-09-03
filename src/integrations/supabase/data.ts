@@ -11,6 +11,10 @@ import {
   addLocation,
   updateLocation,
   deleteLocation,
+  getSupplierBranches,
+  createSupplierBranch,
+  updateSupplierBranch,
+  deleteSupplierBranch,
 } from './services';
 import {
   getAllSuppliers,
@@ -517,4 +521,8 @@ export {
   addLocation,
   updateLocation,
   deleteLocation,
+  getSupplierBranches,
+  createSupplierBranch,
+  updateSupplierBranch,
+  deleteSupplierBranch,
 };

@@ -16,3 +16,4 @@ export * from './searchService';
 export * from './unitService';
 export * from './materialCategoryService';
 export * from './locationService';
+export * from './supplierBranchService';
