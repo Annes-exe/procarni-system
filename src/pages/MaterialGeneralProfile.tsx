@@ -781,6 +781,19 @@ const MaterialGeneralProfile = () => {
         return;
       }
 
+      const isTripa = specialStructure === 'TRIPAS' || trimmedMaterialName.startsWith('TRIPAS') || trimmedMaterialName.startsWith('TRIPA');
+      const isBolsa = specialStructure === 'BOLSAS_TERMO' || trimmedMaterialName.startsWith('BOLSAS') || trimmedMaterialName.startsWith('BOLSA');
+
+      if (isTripa && !tripaMedida.trim()) {
+        toast.error('El campo Medida es obligatorio para ítems de Tripa.');
+        return;
+      }
+
+      if (isBolsa && !btMedidaValor.trim()) {
+        toast.error('El campo Medida es obligatorio para ítems de Bolsa.');
+        return;
+      }
+
       if (!isNew && selectedParentId === material.id) {
         toast.error('Un material no puede ser su propio patrón de oro.');
         return;

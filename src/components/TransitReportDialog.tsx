@@ -10,6 +10,8 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
@@ -34,6 +36,7 @@ interface TransitItem {
     status: string;
     currency: 'USD' | 'VES' | 'EUR';
     reception_status?: string | null;
+    is_raw_material?: boolean | null;
     suppliers: {
       name: string;
     } | null;
@@ -68,6 +71,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
   const { session } = useSession();
   const [items, setItems] = useState<TransitItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
   const [receptionQuantities, setReceptionQuantities] = useState<Record<string, number | string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<{ first_name: string | null; last_name: string | null } | null>(null);
@@ -113,6 +117,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
             status,
             currency,
             reception_status,
+            is_raw_material,
             suppliers (
               name
             )
@@ -274,11 +279,24 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     }
   };
 
+  const displayItems = React.useMemo(() => {
+    if (!onlyRawMaterials) return items;
+    return items.filter(item => Boolean(item.purchase_orders?.is_raw_material));
+  }, [items, onlyRawMaterials]);
+
+  const pendingItems = React.useMemo(() => {
+    return displayItems.filter(item => Number(item.received_quantity || 0) < item.quantity);
+  }, [displayItems]);
+
+  const completedItems = React.useMemo(() => {
+    return displayItems.filter(item => Number(item.received_quantity || 0) >= item.quantity);
+  }, [displayItems]);
+
   const handleExportXLSX = () => {
-    if (items.length === 0) return;
+    if (displayItems.length === 0) return;
 
     try {
-      const dataToExport: Array<Record<string, string | number>> = items.map((item) => {
+      const dataToExport: Array<Record<string, string | number>> = displayItems.map((item) => {
         const orderNum = formatSequenceNumber(
           item.purchase_orders?.sequence_number,
           item.purchase_orders?.created_at
@@ -310,7 +328,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       });
 
       const totalsByCurrency: Record<string, number> = {};
-      items.forEach(item => {
+      displayItems.forEach(item => {
         const curr = item.purchase_orders?.currency || 'USD';
         const qtyOrdered = item.quantity;
         const qtyReceived = Number(item.received_quantity || 0);
@@ -363,10 +381,10 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
   };
 
   const handleExportPDF = () => {
-    if (items.length === 0) return;
+    if (displayItems.length === 0) return;
 
     try {
-      const allFullyReceived = items.length > 0 && items.every(item => {
+      const allFullyReceived = displayItems.length > 0 && displayItems.every(item => {
         const accumulatedQty = Number(item.received_quantity || 0);
         return accumulatedQty >= item.quantity;
       });
@@ -406,9 +424,9 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       doc.setFontSize(9);
       doc.setTextColor(71, 85, 105);
       doc.text(`Órdenes Consolidadas: ${orderIds.length}`, 18, 36);
-      doc.text(`Total de Ítems: ${items.length}`, 120, 36);
+      doc.text(`Total de Ítems: ${displayItems.length}`, 120, 36);
 
-      const tableData = items.map((item) => {
+      const tableData = displayItems.map((item) => {
         const orderNum = formatSequenceNumber(
           item.purchase_orders?.sequence_number,
           item.purchase_orders?.created_at
@@ -475,7 +493,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
       const finalY = doc.lastAutoTable?.finalY || 100;
 
       const totalsByCurrency: Record<string, number> = {};
-      items.forEach(item => {
+      displayItems.forEach(item => {
         const curr = item.purchase_orders?.currency || 'USD';
         const pendingQty = Math.max(0, item.quantity - Number(item.received_quantity || 0));
         totalsByCurrency[curr] = (totalsByCurrency[curr] || 0) + (pendingQty * item.unit_price);
@@ -531,13 +549,29 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="max-w-5xl max-h-[92vh] md:max-h-[85vh] flex flex-col bg-white rounded-[2rem] border-none shadow-2xl p-4 md:p-6 ring-1 ring-black/5 overflow-y-auto md:overflow-visible">
         <DialogHeader className="pb-2">
-          <DialogTitle className="text-xl font-extrabold text-procarni-dark flex items-center gap-2">
-            <Package className="h-5 w-5 text-procarni-primary" />
-            Consolidador de Materiales y Recepción
-          </DialogTitle>
-          <DialogDescription className="text-xs italic text-gray-500 font-medium">
-            Gestiona la recepción y visualiza los materiales en tránsito de las {orderIds.length} órdenes seleccionadas.
-          </DialogDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <DialogTitle className="text-xl font-extrabold text-procarni-dark flex items-center gap-2">
+                <Package className="h-5 w-5 text-procarni-primary" />
+                Consolidador de Materiales y Recepción
+              </DialogTitle>
+              <DialogDescription className="text-xs italic text-gray-500 font-medium">
+                Gestiona la recepción y visualiza los materiales en tránsito de las {orderIds.length} órdenes seleccionadas.
+              </DialogDescription>
+            </div>
+
+            {/* Switch Materia Prima */}
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 h-8 rounded-xl shrink-0 self-start sm:self-center">
+              <Label htmlFor="dialog-raw-materials-switch" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
+                Materia Prima
+              </Label>
+              <Switch
+                id="dialog-raw-materials-switch"
+                checked={onlyRawMaterials}
+                onCheckedChange={setOnlyRawMaterials}
+              />
+            </div>
+          </div>
         </DialogHeader>
 
         {isLoading ? (
@@ -554,159 +588,60 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           <>
             <div className="flex-1 min-h-[150px] md:min-h-[300px] border border-gray-100 rounded-2xl overflow-hidden mt-2 bg-slate-50/50">
               <ScrollArea className="h-[55vh] md:h-[45vh] w-full">
-                {(() => {
-                  const pendingItems = items.filter(item => Number(item.received_quantity || 0) < item.quantity);
-                  const completedItems = items.filter(item => Number(item.received_quantity || 0) >= item.quantity);
+                <>
+                  {/* ========================================================================= */}
+                  {/* 1. PENDING ITEMS SECTION (Desktop & Mobile)                               */}
+                  {/* ========================================================================= */}
+                  
+                  {/* Subtitle / Header for Pending Items */}
+                  {pendingItems.length > 0 && (
+                    <div className="px-4 py-2 bg-amber-50/80 border-b border-amber-100/50 text-[11px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-amber-700" />
+                      <span>Materiales Pendientes de Recepción ({pendingItems.length})</span>
+                    </div>
+                  )}
 
-                  return (
-                    <>
-                      {/* ========================================================================= */}
-                      {/* 1. PENDING ITEMS SECTION (Desktop & Mobile)                               */}
-                      {/* ========================================================================= */}
-                      
-                      {/* Subtitle / Header for Pending Items */}
-                      {pendingItems.length > 0 && (
-                        <div className="px-4 py-2 bg-amber-50/80 border-b border-amber-100/50 text-[11px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                          <Truck className="h-3.5 w-3.5" />
-                          <span>Materiales Pendientes de Recepción ({pendingItems.length})</span>
-                        </div>
-                      )}
+                  {/* Desktop Table View - Pending */}
+                  <div className="hidden md:block">
+                    {pendingItems.length > 0 ? (
+                      <Table>
+                        <TableHeader className="bg-slate-100/80">
+                          <TableRow>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pendingItems.map((item) => {
+                            const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+                            const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                            const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
+                            const accumulatedQty = Number(item.received_quantity || 0);
+                            const newQty = Number(receptionQuantities[item.id] || 0);
+                            const totalProjected = accumulatedQty + newQty;
+                            const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
+                            const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
+                            const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
 
-                      {/* Desktop Table View - Pending */}
-                      <div className="hidden md:block">
-                        {pendingItems.length > 0 ? (
-                          <Table>
-                            <TableHeader className="bg-slate-100/80">
-                              <TableRow>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Acumulado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Nueva Recepción</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Progreso</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {pendingItems.map((item) => {
-                                const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                                const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                                const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
-                                const accumulatedQty = Number(item.received_quantity || 0);
-                                const newQty = Number(receptionQuantities[item.id] || 0);
-                                const totalProjected = accumulatedQty + newQty;
-                                const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
-                                const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
-                                const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
-
-                                return (
-                                  <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
-                                    <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
-                                    <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
-                                    <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono">
-                                      {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
-                                      {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                      <Input
-                                        type="text"
-                                        inputMode="decimal"
-                                        disabled={!isEditable}
-                                        placeholder={isEditable ? "0" : "Bloqueado"}
-                                        value={receptionQuantities[item.id] ?? ''}
-                                        onWheel={(e) => e.currentTarget.blur()}
-                                        onChange={(e) => {
-                                          const rawVal = e.target.value;
-                                          if (rawVal === '') {
-                                            setReceptionQuantities(prev => ({ ...prev, [item.id]: '' }));
-                                            return;
-                                          }
-                                          if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
-                                            const parsed = Number(rawVal);
-                                            if (parsed > maxAllowed) {
-                                              setReceptionQuantities(prev => ({ ...prev, [item.id]: maxAllowed }));
-                                            } else {
-                                              setReceptionQuantities(prev => ({ ...prev, [item.id]: rawVal }));
-                                            }
-                                          }
-                                        }}
-                                        className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
-                                      />
-                                    </TableCell>
-                                    <TableCell className="text-xs text-center">
-                                      <div className="flex flex-col items-center gap-1 min-w-[110px]">
-                                        <span className="font-bold font-mono text-xs">
-                                          {totalProjected} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
-                                        </span>
-                                        <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
-                                          <div className={cn("h-full rounded-full transition-all duration-300", progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary")} style={{ width: `${progressPercent}%` }} />
-                                        </div>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right font-mono font-semibold">
-                                      {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <div className="p-6 text-center text-xs text-slate-400 font-medium">No hay materiales pendientes en este lote.</div>
-                        )}
-                      </div>
-
-                      {/* Mobile Cards View - Pending */}
-                      <div className="block md:hidden p-3 space-y-3">
-                        {pendingItems.map((item) => {
-                          const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                          const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                          const accumulatedQty = Number(item.received_quantity || 0);
-                          const newQty = Number(receptionQuantities[item.id] || 0);
-                          const totalProjected = accumulatedQty + newQty;
-                          const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
-                          const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
-                          const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
-
-                          return (
-                            <div key={item.id} className="bg-white p-4 border border-gray-150 rounded-2xl shadow-sm space-y-3">
-                              <div className="flex justify-between items-start border-b border-gray-100 pb-2">
-                                <div>
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
-                                  <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
-                                  <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
-                                <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
-                                <div className="text-center">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Pedida</span>
-                                  <span className="text-xs font-bold font-mono text-slate-700">{item.quantity}</span>
-                                </div>
-                                <div className="text-center border-x border-gray-200">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Recibido</span>
-                                  <span className="text-xs font-bold font-mono text-slate-700">{accumulatedQty}</span>
-                                </div>
-                                <div className="text-center">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">P. Unitario</span>
-                                  <span className="text-xs font-bold font-mono text-slate-700">{item.purchase_orders?.currency} {item.unit_price.toFixed(2)}</span>
-                                </div>
-                              </div>
-                              <div className="flex flex-col gap-3 pt-1">
-                                <div className="flex flex-col gap-1 w-full">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Nueva Recepción</span>
+                            return (
+                              <TableRow key={item.id} className="hover:bg-slate-100/30 transition-colors">
+                                <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
+                                <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
+                                <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
+                                <TableCell className="text-xs text-center font-bold font-mono">
+                                  {item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                                </TableCell>
+                                <TableCell className="text-xs text-center font-bold font-mono bg-slate-100/30 border-x border-gray-100">
+                                  {accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span>
+                                </TableCell>
+                                <TableCell className="text-center">
                                   <Input
                                     type="text"
                                     inputMode="decimal"
@@ -729,130 +664,222 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
                                         }
                                       }
                                     }}
-                                    className="h-9 w-full text-center text-xs font-bold bg-slate-50 border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                                    className="h-8 w-24 mx-auto text-center text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
                                   />
-                                </div>
-                                <div className="flex justify-between items-center text-xs mt-1">
-                                  <span className="text-gray-500 font-medium">Proyectado:</span>
-                                  <span className="font-bold font-mono">
-                                    {totalProjected} / {item.quantity} <span className="text-[10px] text-gray-400 font-normal">({progressPercent}%)</span>
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
-                                  <div className={cn("h-full rounded-full transition-all duration-300", progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary")} style={{ width: `${progressPercent}%` }} />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* ========================================================================= */}
-                      {/* 2. COMPLETED ITEMS SECTION (Desktop & Mobile)                             */}
-                      {/* ========================================================================= */}
-
-                      {/* Subtitle / Header for Completed Items */}
-                      {completedItems.length > 0 && (
-                        <div className="px-4 py-2 bg-green-50 border-y border-green-100 text-[11px] font-black uppercase tracking-wider text-green-800 flex items-center gap-1.5 mt-6">
-                          <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                          <span>Materiales Completamente Recibidos ({completedItems.length})</span>
-                        </div>
-                      )}
-
-                      {/* Desktop Table View - Completed */}
-                      <div className="hidden md:block">
-                        {completedItems.length > 0 ? (
-                          <Table>
-                            <TableHeader className="bg-emerald-50/60">
-                              <TableRow>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Total</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Estado</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
-                                <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
+                                </TableCell>
+                                <TableCell className="text-xs text-center">
+                                  <div className="flex flex-col items-center gap-1 min-w-[110px]">
+                                    <span className="font-bold font-mono text-xs">
+                                      {totalProjected} / {item.quantity} <span className="text-[9px] text-gray-400 font-normal">({progressPercent}%)</span>
+                                    </span>
+                                    <div className="w-24 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
+                                      <div className={cn("h-full rounded-full transition-all duration-300", progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary")} style={{ width: `${progressPercent}%` }} />
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-xs text-right font-mono font-semibold">
+                                  {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
+                                </TableCell>
+                                <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
                               </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {completedItems.map((item) => {
-                                const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                                const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                                const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
-                                const accumulatedQty = Number(item.received_quantity || 0);
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="p-6 text-center text-xs text-slate-400 font-medium">No hay materiales pendientes en este lote.</div>
+                    )}
+                  </div>
 
-                                return (
-                                  <TableRow key={item.id} className="bg-green-50/20 hover:bg-green-50/30 transition-colors">
-                                    <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
-                                    <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
-                                    <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono">{item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span></TableCell>
-                                    <TableCell className="text-xs text-center font-bold font-mono bg-emerald-100/10 border-x border-gray-100">{accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span></TableCell>
-                                    <TableCell className="text-center">
-                                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                                        <Check className="h-3 w-3 shrink-0" /> Recibido
-                                      </span>
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right font-mono font-semibold">
-                                      {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        ) : null}
-                      </div>
+                  {/* Mobile Cards View - Pending */}
+                  <div className="block md:hidden p-3 space-y-3">
+                    {pendingItems.map((item) => {
+                      const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+                      const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                      const accumulatedQty = Number(item.received_quantity || 0);
+                      const newQty = Number(receptionQuantities[item.id] || 0);
+                      const totalProjected = accumulatedQty + newQty;
+                      const progressPercent = Math.min(100, Math.max(0, Math.round((totalProjected / item.quantity) * 100)));
+                      const maxAllowed = Math.max(0, item.quantity - accumulatedQty);
+                      const isEditable = item.purchase_orders?.reception_status === 'En tránsito' || item.purchase_orders?.reception_status === 'Parcial';
 
-                      {/* Mobile Cards View - Completed */}
-                      <div className="block md:hidden p-3 space-y-3 pb-24">
-                        {completedItems.map((item) => {
-                          const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
-                          const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
-                          const accumulatedQty = Number(item.received_quantity || 0);
-
-                          return (
-                            <div key={item.id} className="bg-green-50/10 p-4 border border-green-150 rounded-2xl shadow-sm space-y-3 opacity-90">
-                              <div className="flex justify-between items-start border-b border-green-100/30 pb-2">
-                                <div>
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
-                                  <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
-                                  <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
-                                </div>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
-                                  <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
-                                </div>
-                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                                  <Check className="h-3 w-3 shrink-0" /> Recibido
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 bg-green-100/10 p-2 rounded-xl border border-green-100/20">
-                                <div className="text-center">
-                                  <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Pedida</span>
-                                  <span className="text-xs font-bold font-mono text-green-800">{item.quantity}</span>
-                                </div>
-                                <div className="text-center border-l border-green-100/20">
-                                  <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Recibido Total</span>
-                                  <span className="text-xs font-bold font-mono text-green-800">{accumulatedQty}</span>
-                                </div>
-                              </div>
+                      return (
+                        <div key={item.id} className="bg-white p-4 border border-gray-150 rounded-2xl shadow-sm space-y-3">
+                          <div className="flex justify-between items-start border-b border-gray-100 pb-2">
+                            <div>
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
+                              <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
                             </div>
-                          );
-                        })}
-                        {/* Spacer to guarantee scroll clearance over fixed footer */}
-                        <div className="h-16 w-full" />
-                      </div>
-                    </>
-                  );
-                })()}
+                            <div className="text-right">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
+                              <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
+                            <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
+                            <div className="text-center">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Pedida</span>
+                              <span className="text-xs font-bold font-mono text-slate-700">{item.quantity}</span>
+                            </div>
+                            <div className="text-center border-x border-gray-200">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Recibido</span>
+                              <span className="text-xs font-bold font-mono text-slate-700">{accumulatedQty}</span>
+                            </div>
+                            <div className="text-center">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">P. Unitario</span>
+                              <span className="text-xs font-bold font-mono text-slate-700">{item.purchase_orders?.currency} {item.unit_price.toFixed(2)}</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-3 pt-1">
+                            <div className="flex flex-col gap-1 w-full">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Nueva Recepción</span>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                disabled={!isEditable}
+                                placeholder={isEditable ? "0" : "Bloqueado"}
+                                value={receptionQuantities[item.id] ?? ''}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                onChange={(e) => {
+                                  const rawVal = e.target.value;
+                                  if (rawVal === '') {
+                                    setReceptionQuantities(prev => ({ ...prev, [item.id]: '' }));
+                                    return;
+                                  }
+                                  if (/^[0-9]*\.?[0-9]*$/.test(rawVal)) {
+                                    const parsed = Number(rawVal);
+                                    if (parsed > maxAllowed) {
+                                      setReceptionQuantities(prev => ({ ...prev, [item.id]: maxAllowed }));
+                                    } else {
+                                      setReceptionQuantities(prev => ({ ...prev, [item.id]: rawVal }));
+                                    }
+                                  }
+                                }}
+                                className="h-9 w-full text-center text-xs font-bold bg-slate-50 border-gray-200 focus:ring-procarni-primary/20 rounded-xl"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center text-xs mt-1">
+                              <span className="text-gray-500 font-medium">Proyectado:</span>
+                              <span className="font-bold font-mono">
+                                {totalProjected} / {item.quantity} <span className="text-[10px] text-gray-400 font-normal">({progressPercent}%)</span>
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
+                              <div className={cn("h-full rounded-full transition-all duration-300", progressPercent === 100 ? "bg-green-600" : "bg-procarni-primary")} style={{ width: `${progressPercent}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* ========================================================================= */}
+                  {/* 2. COMPLETED ITEMS SECTION (Desktop & Mobile)                             */}
+                  {/* ========================================================================= */}
+
+                  {/* Subtitle / Header for Completed Items */}
+                  {completedItems.length > 0 && (
+                    <div className="px-4 py-2 bg-green-50 border-y border-green-100 text-[11px] font-black uppercase tracking-wider text-green-800 flex items-center gap-1.5 mt-6">
+                      <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      <span>Materiales Completamente Recibidos ({completedItems.length})</span>
+                    </div>
+                  )}
+
+                  {/* Desktop Table View - Completed */}
+                  <div className="hidden md:block">
+                    {completedItems.length > 0 ? (
+                      <Table>
+                        <TableHeader className="bg-emerald-50/60">
+                          <TableRow>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest pl-4">Orden</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Proveedor</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Material</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Solicitado</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Recibido Total</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center w-28">Estado</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">P. Unitario</TableHead>
+                            <TableHead className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right pr-4">Fecha Ent.</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {completedItems.map((item) => {
+                            const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+                            const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                            const deliveryDateStr = item.purchase_orders?.delivery_date ? new Date(item.purchase_orders.delivery_date).toLocaleDateString('es-VE') : 'No asignada';
+                            const accumulatedQty = Number(item.received_quantity || 0);
+
+                            return (
+                              <TableRow key={item.id} className="bg-green-50/20 hover:bg-green-50/30 transition-colors opacity-80">
+                                <TableCell className="font-semibold text-xs text-procarni-dark pl-4">{orderNum}</TableCell>
+                                <TableCell className="text-xs text-gray-600 font-medium max-w-[120px] truncate" title={supplierName}>{supplierName}</TableCell>
+                                <TableCell className="text-xs font-semibold text-slate-800">{item.material_name}</TableCell>
+                                <TableCell className="text-xs text-center font-bold font-mono">{item.quantity} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span></TableCell>
+                                <TableCell className="text-xs text-center font-bold font-mono bg-emerald-100/10 border-x border-gray-100">{accumulatedQty} <span className="text-[10px] text-gray-400 font-normal">{item.unit || 'UND'}</span></TableCell>
+                                <TableCell className="text-center">
+                                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
+                                    <Check className="h-3 w-3 shrink-0" /> Recibido
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-xs text-right font-mono font-semibold">
+                                  {formatCurrencyVal(item.unit_price, item.purchase_orders?.currency)}
+                                </TableCell>
+                                <TableCell className="text-xs text-right text-muted-foreground pr-4">{deliveryDateStr}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    ) : null}
+                  </div>
+
+                  {/* Mobile Cards View - Completed */}
+                  <div className="block md:hidden p-3 space-y-3 pb-24">
+                    {completedItems.map((item) => {
+                      const orderNum = formatSequenceNumber(item.purchase_orders?.sequence_number, item.purchase_orders?.created_at);
+                      const supplierName = item.purchase_orders?.suppliers?.name || 'N/A';
+                      const accumulatedQty = Number(item.received_quantity || 0);
+
+                      return (
+                        <div key={item.id} className="bg-green-50/10 p-4 border border-green-150 rounded-2xl shadow-sm space-y-3 opacity-90">
+                          <div className="flex justify-between items-start border-b border-green-100/30 pb-2">
+                            <div>
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Orden</span>
+                              <span className="text-xs font-mono font-bold text-procarni-dark">{orderNum}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Proveedor</span>
+                              <span className="text-xs text-gray-600 font-semibold block truncate max-w-[140px]">{supplierName}</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">Material</span>
+                              <span className="text-xs font-semibold text-slate-800">{item.material_name}</span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold">
+                              <Check className="h-3 w-3 shrink-0" /> Recibido
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 bg-green-50/40 p-2 rounded-xl border border-green-100/30">
+                            <div className="text-center">
+                              <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Pedida</span>
+                              <span className="text-xs font-bold font-mono text-green-800">{item.quantity}</span>
+                            </div>
+                            <div className="text-center border-l border-green-100/20">
+                              <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Recibido Total</span>
+                              <span className="text-xs font-bold font-mono text-green-800">{accumulatedQty}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Spacer to guarantee scroll clearance over fixed footer */}
+                    <div className="h-16 w-full" />
+                  </div>
+                </>
               </ScrollArea>
             </div>
 

@@ -88,7 +88,7 @@ export const purchaseOrderService = {
       } else if (statusFilter === 'Approved') {
         query = query.in('status', ['Approved', 'Credit', 'Paid', 'ToPay', 'Received']);
       } else if (statusFilter === 'Transit') {
-        query = query.eq('reception_status', 'En tránsito').neq('status', 'Archived').neq('status', 'Rejected');
+        query = query.in('reception_status', ['En tránsito', 'Parcial']).neq('status', 'Archived').neq('status', 'Rejected');
       } else if (statusFilter === 'ToPay') {
         query = query.eq('status', 'ToPay');
       } else if (statusFilter === 'Credit') {

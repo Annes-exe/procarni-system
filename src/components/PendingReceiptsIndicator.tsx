@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Package, PackageOpen, FileSpreadsheet, FileText, AlertCircle, History } from 'lucide-react';
+import { Loader2, Package, PackageOpen, FileSpreadsheet, FileText, AlertCircle, History, Check } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { ReceptionHistoryDialog } from './ReceptionHistoryDialog';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -25,6 +27,7 @@ interface PendingOrderItem {
     sequence_number: number | null;
     created_at: string | null;
     currency: string;
+    is_raw_material?: boolean | null;
     suppliers: {
       name: string;
     } | null;
@@ -44,6 +47,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [onlyRawMaterials, setOnlyRawMaterials] = useState(false);
   const [selectedIndicatorIds, setSelectedIndicatorIds] = useState<Set<string>>(new Set());
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
@@ -104,6 +108,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
             sequence_number,
             created_at,
             currency,
+            is_raw_material,
             suppliers (
               name
             )
@@ -117,14 +122,20 @@ export const PendingReceiptsIndicator: React.FC = () => {
     enabled: isOpen
   });
 
+  // Filter items based on Materia Prima switch
+  const displayItems = useMemo(() => {
+    if (!onlyRawMaterials) return items;
+    return items.filter(item => Boolean(item.purchase_orders?.is_raw_material));
+  }, [items, onlyRawMaterials]);
+
   // Calculate stats
-  const activeOrderIds = Array.from(new Set(items.map(item => item.order_id)));
-  const totalItems = items.length;
-  const missingItems = items.filter(item => Number(item.received_quantity || 0) < Number(item.quantity));
+  const activeOrderIds = Array.from(new Set(displayItems.map(item => item.order_id)));
+  const totalItems = displayItems.length;
+  const missingItems = displayItems.filter(item => Number(item.received_quantity || 0) < Number(item.quantity));
 
   let totalRequested = 0;
   let totalReceived = 0;
-  items.forEach(item => {
+  displayItems.forEach(item => {
     totalRequested += Number(item.quantity);
     totalReceived += Number(item.received_quantity || 0);
   });
@@ -135,7 +146,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
 
   // Group items by order for list display
   const ordersProgress = activeOrderIds.map(orderId => {
-    const orderItems = items.filter(item => item.order_id === orderId);
+    const orderItems = displayItems.filter(item => item.order_id === orderId);
     let req = 0;
     let rec = 0;
     orderItems.forEach(item => {
@@ -156,6 +167,17 @@ export const PendingReceiptsIndicator: React.FC = () => {
       pendingCount: orderItems.filter(item => Number(item.received_quantity || 0) < Number(item.quantity)).length
     };
   });
+
+  const areAllOrdersSelected = ordersProgress.length > 0 && ordersProgress.every(op => selectedIndicatorIds.has(op.orderId));
+
+  const handleToggleSelectAll = (e?: React.ChangeEvent<HTMLInputElement> | React.MouseEvent) => {
+    if (e) (e as any).stopPropagation?.();
+    if (areAllOrdersSelected) {
+      setSelectedIndicatorIds(new Set());
+    } else {
+      setSelectedIndicatorIds(new Set(ordersProgress.map(op => op.orderId)));
+    }
+  };
 
   // Export missing items report as Excel
   const handleExportXLSX = () => {
@@ -371,7 +393,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
       </PopoverTrigger>
       <PopoverContent className="w-[28rem] p-4 bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-3xl ring-1 ring-black/5 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
         <div className="space-y-3">
-          <div className="flex items-start justify-between gap-1">
+          <div className="flex items-start justify-between gap-1 border-b border-gray-100 pb-2.5">
             <div className="min-w-0">
               <h4 className="font-extrabold text-sm text-procarni-dark flex items-center gap-1.5 truncate">
                 <Package className="h-4 w-4 text-procarni-primary shrink-0" />
@@ -379,19 +401,34 @@ export const PendingReceiptsIndicator: React.FC = () => {
               </h4>
               <p className="text-[10px] text-gray-400 font-medium italic truncate">Estado de órdenes en tránsito/parciales</p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsHistoryOpen(true);
-              }}
-              className="h-7 px-2 text-[10px] font-bold text-slate-500 hover:text-procarni-primary hover:bg-slate-50 rounded-xl flex items-center gap-1 shrink-0 shadow-sm border border-slate-100 bg-white"
-              title="Ver historial de recepciones"
-            >
-              <History className="h-3.5 w-3.5" />
-              Historial
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Switch Materia Prima */}
+              <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 px-2 py-1 h-7 rounded-xl">
+                <Label htmlFor="popover-raw-materials-switch" className="text-[9px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none">
+                  MP
+                </Label>
+                <Switch
+                  id="popover-raw-materials-switch"
+                  checked={onlyRawMaterials}
+                  onCheckedChange={setOnlyRawMaterials}
+                  className="scale-75 origin-right"
+                />
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsHistoryOpen(true);
+                }}
+                className="h-7 px-2 text-[10px] font-bold text-slate-500 hover:text-procarni-primary hover:bg-slate-50 rounded-xl flex items-center gap-1 shrink-0 shadow-2xs border border-slate-100 bg-white"
+                title="Ver historial de recepciones"
+              >
+                <History className="h-3.5 w-3.5" />
+                Historial
+              </Button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -402,7 +439,9 @@ export const PendingReceiptsIndicator: React.FC = () => {
           ) : ordersProgress.length === 0 ? (
             <div className="py-8 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
               <Package className="h-8 w-8 text-slate-300" />
-              <span className="text-xs font-semibold">No hay órdenes en tránsito o recepción parcial.</span>
+              <span className="text-xs font-semibold">
+                {onlyRawMaterials ? 'No hay órdenes de materia prima en tránsito.' : 'No hay órdenes en tránsito o recepción parcial.'}
+              </span>
             </div>
           ) : (
             <>
@@ -429,6 +468,37 @@ export const PendingReceiptsIndicator: React.FC = () => {
               {/* Individual orders scroll list */}
               <ScrollArea className="h-72 pr-1">
                 <div className="space-y-2">
+                  {/* Seleccionar todas row */}
+                  {ordersProgress.length > 0 && (
+                    <div className="flex items-center justify-between px-2 py-1.5 bg-slate-50/90 rounded-xl border border-gray-100 text-[10px] font-bold text-slate-600 mb-1">
+                      <label 
+                        onClick={(e) => e.stopPropagation()} 
+                        className="flex items-center gap-2 cursor-pointer select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={areAllOrdersSelected}
+                          onChange={handleToggleSelectAll}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-procarni-primary focus:ring-procarni-primary/20 cursor-pointer"
+                        />
+                        <span className="uppercase tracking-wider">
+                          {areAllOrdersSelected ? 'Deseleccionar todas' : 'Seleccionar todas'} ({ordersProgress.length})
+                        </span>
+                      </label>
+                      {selectedIndicatorIds.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedIndicatorIds(new Set());
+                          }}
+                          className="text-[9px] text-procarni-primary hover:underline font-semibold"
+                        >
+                          Limpiar ({selectedIndicatorIds.size})
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {ordersProgress.map((op) => (
                     <div 

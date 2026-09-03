@@ -193,7 +193,7 @@ const PurchaseOrderManagement = () => {
       let transitQ = supabase
         .from('purchase_orders')
         .select('id', { count: 'exact', head: true })
-        .eq('reception_status', 'En tránsito')
+        .in('reception_status', ['En tránsito', 'Parcial'])
         .neq('status', 'Archived')
         .neq('status', 'Rejected');
 

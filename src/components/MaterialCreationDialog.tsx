@@ -549,6 +549,21 @@ const MaterialCreationDialog: React.FC<MaterialCreationDialogProps> = ({
         return;
       }
 
+      const isTripa = specialStructure === 'TRIPAS' || trimmedMaterialName.startsWith('TRIPAS') || trimmedMaterialName.startsWith('TRIPA');
+      const isBolsa = specialStructure === 'BOLSAS_TERMO' || trimmedMaterialName.startsWith('BOLSAS') || trimmedMaterialName.startsWith('BOLSA');
+
+      if (isTripa && !tripaMedida.trim()) {
+        showError('El campo Medida es obligatorio para ítems de Tripa.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (isBolsa && !btMedidaValor.trim()) {
+        showError('El campo Medida es obligatorio para ítems de Bolsa.');
+        setIsSubmitting(false);
+        return;
+      }
+
       if (editingMaterial && selectedParentId === editingMaterial.id) {
         showError('Un material no puede ser su propio grupo / ítem padre.');
         setIsSubmitting(false);
