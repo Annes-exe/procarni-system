@@ -127,58 +127,13 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
   ETIQUETA: { bg: 'bg-slate-100', text: 'text-procarni-dark', border: 'border-procarni-dark/20' },
 };
 
+import { translateStatus, getStatusColorClass, matchesStatusSearch } from '@/utils/statusTranslations';
+
 const PAYMENT_TERMS_OPTIONS = [
   { value: 'Contado', label: 'Contado' },
   { value: 'Crédito', label: 'Crédito' },
   { value: 'Otro', label: 'Personalizado / Otro' }
 ];
-
-const STATUS_LABELS_ES: Record<string, string> = {
-  approved: 'Aprobado',
-  pending: 'Pendiente',
-  credit: 'A Crédito',
-  paid: 'Pagado',
-  received: 'Recibido',
-  topay: 'Por Pagar',
-  rejected: 'Rechazado',
-  archived: 'Archivado',
-  draft: 'Borrador',
-};
-
-const getStatusLabel = (status?: string): string => {
-  if (!status) return 'Registrado';
-  const key = status.toLowerCase().replace(/[-_ ]/g, '');
-  return STATUS_LABELS_ES[key] || STATUS_LABELS_ES[status.toLowerCase()] || status;
-};
-
-const getStatusColor = (status?: string) => {
-  const s = status?.toLowerCase() || '';
-  if (s === 'approved' || s === 'aprobado') {
-    return 'bg-emerald-50 text-procarni-secondary border-emerald-200';
-  }
-  if (s === 'credit' || s === 'crédito' || s === 'a crédito') {
-    return 'bg-blue-50 text-procarni-blue border-blue-200';
-  }
-  if (s === 'paid' || s === 'pagado') {
-    return 'bg-green-50 text-green-700 border-green-200';
-  }
-  if (s === 'received' || s === 'recibido') {
-    return 'bg-teal-50 text-teal-700 border-teal-200';
-  }
-  if (s === 'topay' || s === 'por pagar') {
-    return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-  }
-  if (s === 'pending' || s === 'pendiente') {
-    return 'bg-amber-50 text-amber-700 border-amber-200';
-  }
-  if (s === 'rejected' || s === 'rechazado') {
-    return 'bg-red-50 text-procarni-primary border-red-200';
-  }
-  if (s === 'archived' || s === 'archivado') {
-    return 'bg-slate-100 text-slate-600 border-slate-300';
-  }
-  return 'bg-slate-50 text-slate-700 border-slate-200';
-};
 
 const SupplierDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -844,8 +799,6 @@ const SupplierDetails = () => {
       const seq = po.sequence_number ? `oc-${po.sequence_number}` : '';
       const id = String(po.id || '');
       const date = po.issue_date ? new Date(po.issue_date).toLocaleDateString() : '';
-      const rawStatus = String(po.status || '').toLowerCase();
-      const spanishStatus = getStatusLabel(po.status).toLowerCase();
       const itemsMatch = (po.purchase_order_items || []).some((it: any) =>
         (it.material_name || '').toLowerCase().includes(q)
       );
@@ -853,8 +806,7 @@ const SupplierDetails = () => {
         seq.includes(q) ||
         id.toLowerCase().includes(q) ||
         date.includes(q) ||
-        rawStatus.includes(q) ||
-        spanishStatus.includes(q) ||
+        matchesStatusSearch(po.status, q) ||
         itemsMatch
       );
     });
@@ -868,8 +820,6 @@ const SupplierDetails = () => {
       const seq = so.sequence_number ? `os-${so.sequence_number}` : '';
       const id = String(so.id || '');
       const date = so.issue_date ? new Date(so.issue_date).toLocaleDateString() : '';
-      const rawStatus = String(so.status || '').toLowerCase();
-      const spanishStatus = getStatusLabel(so.status).toLowerCase();
       const equipment = (so.equipment_name || '').toLowerCase();
       const serviceType = (so.service_type || '').toLowerCase();
       const desc = (so.detailed_service_description || '').toLowerCase();
@@ -883,8 +833,7 @@ const SupplierDetails = () => {
         seq.includes(q) ||
         id.toLowerCase().includes(q) ||
         date.includes(q) ||
-        rawStatus.includes(q) ||
-        spanishStatus.includes(q) ||
+        matchesStatusSearch(so.status, q) ||
         equipment.includes(q) ||
         serviceType.includes(q) ||
         desc.includes(q) ||
@@ -2063,8 +2012,8 @@ const SupplierDetails = () => {
                                     ${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </TableCell>
                                   <TableCell className="py-3">
-                                    <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(po.status))}>
-                                      {getStatusLabel(po.status)}
+                                    <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColorClass(po.status))}>
+                                      {translateStatus(po.status)}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right pr-4 py-3">
@@ -2143,8 +2092,8 @@ const SupplierDetails = () => {
                                     ${serviceTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </TableCell>
                                   <TableCell className="py-3">
-                                    <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColor(so.status))}>
-                                      {getStatusLabel(so.status)}
+                                    <Badge variant="outline" className={cn("text-[10px] font-bold border", getStatusColorClass(so.status))}>
+                                      {translateStatus(so.status)}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right pr-4 py-3">

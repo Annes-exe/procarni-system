@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { useDebounce } from 'use-debounce';
 import PaginationControls from '@/components/PaginationControls';
 import { Switch } from '@/components/ui/switch';
+import { translateStatus, getStatusColorClass } from '@/utils/statusTranslations';
 import { Label } from '@/components/ui/label';
 
 interface MaterialAssociation {
@@ -308,16 +309,7 @@ const SupplierManagement = () => {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'Active':
-        return 'bg-procarni-secondary text-white';
-      case 'Inactive':
-        return 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      default:
-        return 'bg-gray-100 text-gray-600';
-    }
-  };
+  const getStatusBadgeClass = getStatusColorClass;
 
   // No loading static return to allow keepPreviousData rendering
 
@@ -537,8 +529,8 @@ const SupplierManagement = () => {
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
                         <span className="text-[10px] uppercase font-bold text-slate-400">Estado:</span>
-                        <span className={cn("px-2 py-0.5 text-[10px] font-bold rounded-full", getStatusBadgeClass(supplier.status))}>
-                          {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
+                        <span className={cn("px-2 py-0.5 text-[10px] font-bold rounded-full border", getStatusBadgeClass(supplier.status))}>
+                          {translateStatus(supplier.status)}
                         </span>
                       </div>
                     </div>
@@ -661,7 +653,7 @@ const SupplierManagement = () => {
                         </TableCell>
                         <TableCell className="py-3.5">
                           <span className={cn("px-2.5 py-0.5 text-[11px] font-bold rounded-full border", getStatusBadgeClass(supplier.status))}>
-                            {supplier.status === 'Active' ? 'Activo' : 'Inactivo'}
+                            {translateStatus(supplier.status)}
                           </span>
                         </TableCell>
                         <TableCell className="text-right pr-4 py-3.5" onClick={(e) => e.stopPropagation()}>

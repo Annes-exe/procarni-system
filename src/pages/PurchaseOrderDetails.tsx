@@ -53,6 +53,7 @@ interface PurchaseOrderItem {
   materials?: {
     name: string;
   };
+  received_quantity?: number | null;
 }
 
 interface SupplierDetails {
@@ -80,6 +81,7 @@ interface PurchaseOrderDetailsData {
   company_id: string;
   companies: CompanyDetails;
   currency: 'USD' | 'VES';
+  base_currency?: string | null;
   exchange_rate?: number | null;
   paid_amount?: number | null;
   status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid';
@@ -94,18 +96,17 @@ interface PurchaseOrderDetailsData {
   custom_payment_terms?: string | null;
   credit_days?: number;
   observations?: string;
+  profiles?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
 }
 
-const STATUS_TRANSLATIONS: Record<string, string> = {
-  'Draft': 'Borrador',
-  'Approved': 'Aprobada',
-  'Credit': 'Crédito',
-  'ToPay': 'Por pagar',
-  'Paid': 'Pagada',
-  'Rejected': 'Rechazada',
-  'Archived': 'Archivada',
-  'Received': 'Aprobada',
-};
+import { ORDER_STATUS_TRANSLATIONS, getStatusColorClass } from '@/utils/statusTranslations';
+
+const STATUS_TRANSLATIONS = ORDER_STATUS_TRANSLATIONS;
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
@@ -556,20 +557,6 @@ const PurchaseOrderDetails = () => {
       case 'Rejected': return 'destructive';
       case 'Archived': return 'outline';
       default: return 'outline';
-    }
-  };
-
-  const getStatusColorClass = (status: string) => {
-    switch (status) {
-      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
-      case 'Approved':
-      case 'Received': return 'bg-green-50 text-procarni-secondary border-green-200';
-      case 'Credit': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'ToPay': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-      case 'Paid': return 'bg-teal-50 text-teal-700 border-teal-200';
-      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
-      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
-      default: return 'bg-gray-50 text-gray-500';
     }
   };
 

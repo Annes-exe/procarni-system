@@ -14,6 +14,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AuditLogEntry } from '@/integrations/supabase/services/auditLogService';
 import { useSession } from '@/components/SessionContextProvider';
+import { translateStatus } from '@/utils/statusTranslations';
 
 const fieldTranslations: Record<string, string> = {
   // General
@@ -132,8 +133,8 @@ const LogDetails = ({ log }: { log: AuditLogEntry }) => {
   // Render status change cleanly
   let statusChangeElement = null;
   if (details?.old_data?.status || details?.new_status) {
-    const oldStatus = details.old_data?.status || 'N/A';
-    const newStatus = details.new_status || details.new_data?.status || 'N/A';
+    const oldStatus = translateStatus(details.old_data?.status) || 'N/A';
+    const newStatus = translateStatus(details.new_status || details.new_data?.status) || 'N/A';
     if (oldStatus !== newStatus) {
       statusChangeElement = (
         <div className="flex items-center text-xs bg-slate-50 border border-slate-100 p-1.5 rounded-xl max-w-fit shadow-sm my-1">

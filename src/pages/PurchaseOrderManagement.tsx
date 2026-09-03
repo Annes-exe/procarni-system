@@ -37,17 +37,9 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { ORDER_STATUS_TRANSLATIONS, getStatusColorClass, translateStatus } from '@/utils/statusTranslations';
 
-const STATUS_TRANSLATIONS: Record<string, string> = {
-  'Draft': 'Borrador',
-  'Approved': 'Aprobada',
-  'Credit': 'Crédito',
-  'ToPay': 'Por pagar',
-  'Paid': 'Pagada',
-  'Rejected': 'Rechazada',
-  'Archived': 'Archivada',
-  'Received': 'Aprobada',
-};
+const STATUS_TRANSLATIONS = ORDER_STATUS_TRANSLATIONS;
 
 const formatSequenceNumber = (sequence?: number | null, dateString?: string | null): string => {
   if (!sequence) return 'N/A';
@@ -452,28 +444,7 @@ const PurchaseOrderManagement = () => {
     navigate(`/purchase-orders/edit/${orderId}`);
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'Draft':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'Approved':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'Credit':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'ToPay':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      case 'Paid':
-        return 'bg-teal-100 text-teal-800 border-teal-200';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'Archived':
-        return 'bg-gray-100 text-gray-600 border-gray-200';
-      case 'Received':
-        return 'bg-green-100 text-green-800 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-600';
-    }
-  };
+  const getStatusBadgeClass = getStatusColorClass;
 
   const renderReceptionStatusBadge = (recStatus?: string | null) => {
     if (!recStatus || recStatus === 'Ninguno') return null;

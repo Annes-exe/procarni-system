@@ -31,13 +31,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { QUOTE_STATUS_TRANSLATIONS, getStatusColorClass } from '@/utils/statusTranslations';
 
-const STATUS_TRANSLATIONS: Record<string, string> = {
-  'Draft': 'Borrador',
-  'Approved': 'Aprobada',
-  'Rejected': 'Rechazada',
-  'Archived': 'Archivada',
-};
+const STATUS_TRANSLATIONS = QUOTE_STATUS_TRANSLATIONS;
 
 const QuoteRequestDetails = () => {
   const { id } = useParams<{ id: string }>();
@@ -273,16 +269,6 @@ const QuoteRequestDetails = () => {
     setIsModalOpen(open);
     if (!open && qrViewerRef.current) {
       qrViewerRef.current.handleClose();
-    }
-  };
-
-  const getStatusColorClass = (status: string) => {
-    switch (status) {
-      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
-      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
-      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
-      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
-      default: return 'bg-gray-50 text-gray-500';
     }
   };
 

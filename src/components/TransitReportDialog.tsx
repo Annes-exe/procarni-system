@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { useSession } from '@/components/SessionContextProvider';
+import { translateStatus } from '@/utils/statusTranslations';
 
 interface TransitItem {
   id: string;
@@ -277,7 +278,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
     if (items.length === 0) return;
 
     try {
-      const dataToExport = items.map((item) => {
+      const dataToExport: Array<Record<string, string | number>> = items.map((item) => {
         const orderNum = formatSequenceNumber(
           item.purchase_orders?.sequence_number,
           item.purchase_orders?.created_at
@@ -304,7 +305,7 @@ const TransitReportDialog: React.FC<TransitReportDialogProps> = ({
           'Total Pedido': qtyOrdered * item.unit_price,
           'Total en Tránsito / Pendiente': qtyPending * item.unit_price,
           'Fecha Entrega': deliveryDateStr,
-          'Estado Orden': item.purchase_orders?.status || 'N/A',
+          'Estado Orden': translateStatus(item.purchase_orders?.status),
         };
       });
 

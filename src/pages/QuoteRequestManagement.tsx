@@ -30,14 +30,9 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QUOTE_STATUS_TRANSLATIONS, getStatusColorClass } from '@/utils/statusTranslations';
 
-const STATUS_TRANSLATIONS: Record<string, string> = {
-  'Draft': 'Borrador',
-  'Sent': 'Enviada',
-  'Approved': 'Aprobada',
-  'Rejected': 'Rechazada',
-  'Archived': 'Archivada',
-};
+const STATUS_TRANSLATIONS = QUOTE_STATUS_TRANSLATIONS;
 
 const QuoteRequestManagement = () => {
   const queryClient = useQueryClient();
@@ -318,17 +313,6 @@ const QuoteRequestManagement = () => {
       case 'Rejected': return 'destructive';
       case 'Archived': return 'outline';
       default: return 'secondary';
-    }
-  };
-
-  const getStatusColorClass = (status: string) => {
-    switch (status) {
-      case 'Draft': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'Sent': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Approved': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Rejected': return 'bg-red-100 text-red-800 border-red-200';
-      case 'Archived': return 'bg-gray-100 text-gray-600 border-gray-200';
-      default: return 'bg-gray-100 text-gray-600';
     }
   };
 

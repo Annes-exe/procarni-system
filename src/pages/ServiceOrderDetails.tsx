@@ -106,19 +106,20 @@ interface ServiceOrderDetailsData {
   paid_amount?: number | null;
   user_id: string;
   created_at: string | null;
+  created_by?: string | null;
+  profiles?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+  } | null;
   service_order_items: ServiceOrderItem[];
   service_order_materials: ServiceOrderMaterial[];
 }
 
-const STATUS_TRANSLATIONS: Record<string, string> = {
-  'Draft': 'Borrador',
-  'Approved': 'Aprobada',
-  'Credit': 'Crédito',
-  'ToPay': 'Por pagar',
-  'Paid': 'Pagada',
-  'Rejected': 'Rechazada',
-  'Archived': 'Archivada',
-};
+import { SERVICE_ORDER_STATUS_TRANSLATIONS, getStatusColorClass } from '@/utils/statusTranslations';
+
+const STATUS_TRANSLATIONS = SERVICE_ORDER_STATUS_TRANSLATIONS;
 
 const formatSequenceNumber = (sequence?: number, dateString?: string): string => {
   if (!sequence) return 'N/A';
@@ -497,19 +498,6 @@ const ServiceOrderDetails = () => {
     setIsModalOpen(open);
     if (!open && pdfViewerRef.current) {
       pdfViewerRef.current.handleClose();
-    }
-  };
-
-  const getStatusColorClass = (status: string) => {
-    switch (status) {
-      case 'Draft': return 'bg-amber-50 text-procarni-alert border-amber-200';
-      case 'Approved': return 'bg-green-50 text-procarni-secondary border-green-200';
-      case 'Credit': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'ToPay': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
-      case 'Paid': return 'bg-teal-50 text-teal-700 border-teal-200';
-      case 'Rejected': return 'bg-red-50 text-red-700 border-red-200';
-      case 'Archived': return 'bg-gray-100 text-gray-500 border-gray-200';
-      default: return 'bg-gray-50 text-gray-500';
     }
   };
 
