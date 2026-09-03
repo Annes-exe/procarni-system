@@ -1,5 +1,6 @@
 -- Migration: Unified Supplier Merge RPC
 -- Created at: 2026-09-03
+-- Updated: RIF precedence logic and safe transfer
 
 CREATE OR REPLACE FUNCTION public.merge_suppliers_unified(
     p_target_supplier_id uuid,
@@ -9,6 +10,11 @@ RETURNS void AS $$
 DECLARE
     v_source_name text;
     v_target_name text;
+    v_source_rif text;
+    v_target_rif text;
+    v_final_target_rif text;
+    v_target_is_generic boolean;
+    v_source_is_generic boolean;
     v_source_record record;
     v_target_record record;
 BEGIN
@@ -27,12 +33,32 @@ BEGIN
         RAISE EXCEPTION 'Target supplier not found';
     END IF;
     v_target_name := v_target_record.name;
+    v_target_rif := v_target_record.rif;
 
     SELECT * INTO v_source_record FROM public.suppliers WHERE id = p_source_supplier_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Source supplier not found';
     END IF;
     v_source_name := v_source_record.name;
+    v_source_rif := v_source_record.rif;
+
+    -- Evaluar si los RIFs son genéricos/placeholder ('SR' o 'J000000%')
+    v_target_is_generic := (v_target_rif IS NULL OR TRIM(v_target_rif) = '' OR v_target_rif ILIKE 'SR%' OR v_target_rif ILIKE 'J000000%');
+    v_source_is_generic := (v_source_rif IS NULL OR TRIM(v_source_rif) = '' OR v_source_rif ILIKE 'SR%' OR v_source_rif ILIKE 'J000000%');
+
+    -- Determinar RIF final del proveedor destino:
+    -- Si el destino tiene RIF placeholder 'SR' y el origen tiene un RIF real, se adopta el del origen.
+    -- En cualquier otro caso (si ambos tienen real o ambos son genéricos), prevalece el del destino.
+    IF v_target_is_generic AND NOT v_source_is_generic THEN
+        v_final_target_rif := v_source_rif;
+    ELSE
+        v_final_target_rif := v_target_rif;
+    END IF;
+
+    -- Liberar el RIF del proveedor origen para evitar violación de UNIQUE constraint
+    UPDATE public.suppliers
+    SET rif = 'SR_ARCHIVED_' || substring(p_source_supplier_id::text from 1 for 8) || '_' || floor(extract(epoch from now()))::text
+    WHERE id = p_source_supplier_id;
 
     -- 2. Re-vincular órdenes de compra
     UPDATE public.purchase_orders
@@ -89,9 +115,10 @@ BEGIN
     DELETE FROM public.supplier_materials
     WHERE supplier_id = p_source_supplier_id;
 
-    -- 10. Completar datos de contacto faltantes en el destino si el origen los tiene
+    -- 10. Completar datos de contacto y RIF en el destino
     UPDATE public.suppliers
     SET
+        rif = v_final_target_rif,
         phone = COALESCE(NULLIF(v_target_record.phone, ''), v_source_record.phone),
         phone_2 = COALESCE(NULLIF(v_target_record.phone_2, ''), v_source_record.phone_2),
         email = COALESCE(NULLIF(v_target_record.email, ''), v_source_record.email),
@@ -126,8 +153,10 @@ BEGIN
         jsonb_build_object(
             'source_supplier_id', p_source_supplier_id,
             'source_supplier_name', v_source_name,
+            'source_supplier_rif', v_source_rif,
             'target_supplier_id', p_target_supplier_id,
             'target_supplier_name', v_target_name,
+            'final_target_rif', v_final_target_rif,
             'description', 'Fusión de proveedor ' || v_source_name || ' hacia ' || v_target_name
         ),
         now()
@@ -136,5 +165,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Permiso para usuarios autenticados
 GRANT EXECUTE ON FUNCTION public.merge_suppliers_unified(uuid, uuid) TO authenticated;

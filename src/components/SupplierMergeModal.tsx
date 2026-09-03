@@ -27,6 +27,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useNavigate } from 'react-router-dom';
 
 interface SupplierMergeModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export const SupplierMergeModal: React.FC<SupplierMergeModalProps> = ({
   initialTargetSupplierId,
 }) => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [targetSupplierId, setTargetSupplierId] = useState<string>(initialTargetSupplierId || '');
   const [sourceSupplierId, setSourceSupplierId] = useState<string>(initialSourceSupplierId || '');
@@ -155,7 +157,9 @@ export const SupplierMergeModal: React.FC<SupplierMergeModalProps> = ({
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders_paginated'] });
       queryClient.invalidateQueries({ queryKey: ['quote_requests'] });
       queryClient.invalidateQueries({ queryKey: ['service_orders'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier_details', targetSupplierId] });
       onClose();
+      navigate(`/suppliers/${targetSupplierId}`);
     },
     onError: (err: any) => {
       showError(err?.message || 'Error al ejecutar la fusión.');
@@ -366,11 +370,17 @@ export const SupplierMergeModal: React.FC<SupplierMergeModalProps> = ({
                 <strong className="text-procarni-blue">"{targetSupplier.name}"</strong>.
               </li>
               <li>
+                <strong>Regla de RIF:</strong> Si el proveedor destino tiene un RIF genérico/placeholder (SR) y el origen posee un RIF real, el destino adoptará el RIF del origen. Si ambos tienen RIF, se mantiene el del destino.
+              </li>
+              <li>
                 Si el proveedor principal no tiene teléfono, correo o dirección registrados, se completarán con los datos del secundario.
               </li>
               <li>
                 El proveedor origen <strong className="text-procarni-dark">"{sourceSupplier.name}"</strong> será marcado como{' '}
                 <span className="font-bold text-amber-700">Inactivo</span> con un comentario de trazabilidad.
+              </li>
+              <li className="text-procarni-blue font-semibold">
+                Al confirmar, serás redirigido automáticamente al perfil de <strong>"{targetSupplier.name}"</strong> para verificar los cambios.
               </li>
             </ul>
           </div>
