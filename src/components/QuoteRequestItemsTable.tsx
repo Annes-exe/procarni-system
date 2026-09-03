@@ -137,42 +137,98 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     };
 
     // --- VISTA MÓVIL: TARJETAS ---
+    // --- VISTA MÓVIL: TARJETAS MODERNAS MOBILE FIRST ---
     const renderMobileItem = (item: QuoteRequestItemForm, index: number) => {
         return (
-            <div key={index} className="bg-white border rounded-lg shadow-sm p-4 space-y-4 relative mb-4">
-                <div className="flex justify-between items-start border-b pb-3">
-                    <div className="w-[85%]">
-                        <label className="text-xs font-bold text-muted-foreground uppercase mb-1 block">Material</label>
+            <div key={index} className="bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-sm hover:shadow-md transition-all p-4 space-y-3.5 relative mb-4">
+                {/* Header: Item Number & Delete */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-black text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200/60">
+                            #{index + 1}
+                        </span>
+                        <div className={`h-3 w-3 rounded-full ${
+                            !item.material_name ? 'bg-slate-300' : 'bg-procarni-secondary'
+                        }`} />
+                        {item.quantity > 0 && (
+                            <span className="text-xs font-mono font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                                {item.quantity} {item.unit || 'UND'}
+                            </span>
+                        )}
+                    </div>
+
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => onRemoveItem(index)} 
+                        className="text-slate-400 hover:text-red-600 hover:bg-red-50 h-8 w-8 rounded-xl transition-colors"
+                        title="Eliminar ítem"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {/* Material Selection / Full Name Banner */}
+                <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Material / Producto</label>
+                    
+                    {/* Full Name Display */}
+                    {item.material_name && (
+                        <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-2.5 mb-2">
+                            <h4 className="text-xs sm:text-sm font-black text-slate-900 leading-snug break-words">
+                                {item.material_name}
+                            </h4>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5 items-center">
+                                {item.category && (
+                                    <span className="text-[10px] font-semibold bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md">
+                                        {item.category}
+                                    </span>
+                                )}
+                                {item.unit && (
+                                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                                        Unidad: {item.unit}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="relative">
                         <SmartSearch
-                            placeholder="Buscar material..."
+                            placeholder={item.material_name ? "Cambiar material..." : "Buscar material..."}
                             onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
                             fetchFunction={fetchMaterials}
                             displayValue={item.material_name}
-                            className="w-full"
+                            className="w-full h-10 bg-slate-50/60 border-slate-200 rounded-xl text-xs focus:bg-white"
                             onCreateItem={(query) => {
                                 setMaterialNameToCreate(query);
                                 setActiveItemIndex(index);
                                 setIsAddMaterialDialogOpen(true);
                             }}
                         />
-                        {item.last_price_info && (
-                            <p className="text-[10px] text-procarni-secondary font-medium mt-1">
-                                {item.last_price_info}
-                            </p>
-                        )}
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => onRemoveItem(index)} className="text-destructive h-8 w-8 -mr-2">
-                        <Trash2 className="h-5 w-5" />
-                    </Button>
+                    {item.last_price_info && (
+                        <p className="text-[10px] text-procarni-secondary font-medium mt-1">
+                            {item.last_price_info}
+                        </p>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Cantidad</label>
-                        <Input type="number" value={item.quantity || ''} onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
+                        <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Cantidad</label>
+                        <Input 
+                            type="number" 
+                            min="0"
+                            value={item.quantity || ''} 
+                            onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} 
+                            className="h-10 text-xs font-mono font-bold bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white" 
+                            placeholder="0" 
+                            onWheel={(e) => e.currentTarget.blur()} 
+                        />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs text-muted-foreground">Unidad</label>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Unidad</label>
                         <Select 
                             value={item.unit_id} 
                             onValueChange={(v) => {
@@ -181,22 +237,26 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
                                 if (unit) onItemChange(index, 'unit', unit.name);
                             }}
                         >
-                            <SelectTrigger className="h-9">
-                                <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
+                            <SelectTrigger className="h-10 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white font-medium">
+                                <SelectValue placeholder={isLoadingUnits ? "..." : "Unidad"} />
                             </SelectTrigger>
-                                    <SelectContent>
-                                        {filterUnitsForCategory(item.category, units).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                                    </SelectContent>
+                            <SelectContent className="rounded-xl shadow-xl border-slate-100">
+                                {filterUnitsForCategory(item.category, units).map(u => (
+                                    <SelectItem key={u.id} value={u.id} className="text-xs">
+                                        {u.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
                         </Select>
                     </div>
                 </div>
 
                 <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Descripción / Especificaciones</label>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Descripción / Especificaciones</label>
                     <Textarea
                         value={item.description || ''}
                         onChange={(e) => onItemChange(index, 'description', e.target.value)}
-                        className="min-h-[60px] resize-none text-sm"
+                        className="min-h-[60px] resize-none text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white"
                         placeholder="Detalles adicionales..."
                     />
                 </div>
@@ -207,15 +267,18 @@ const QuoteRequestItemsTable: React.FC<QuoteRequestItemsTableProps> = ({
     // --- VISTA DESKTOP: ACORDEÓN ---
     const renderDesktopAccordionItem = (item: QuoteRequestItemForm, index: number) => {
         return (
-            <AccordionItem key={index} value={`item-${index}`} className="group border rounded-lg bg-white shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+            <AccordionItem key={index} value={`item-${index}`} className="group border border-slate-200/80 rounded-2xl bg-white shadow-xs mb-3 overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300">
 
                 {/* HEADER: Resumen del Ítem */}
-                <AccordionTrigger className="px-5 py-3 hover:bg-gray-50/50 hover:no-underline data-[state=open]:bg-gray-50/80 data-[state=open]:border-b">
-                    <div className="flex justify-between items-center w-full pr-4 gap-4">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className={`h-8 w-1 shrink-0 rounded-full ${item.material_name ? 'bg-procarni-primary' : 'bg-gray-300'}`}></div>
+                <AccordionTrigger className="px-4 sm:px-5 py-3.5 hover:bg-slate-50/60 hover:no-underline data-[state=open]:bg-slate-50/80 data-[state=open]:border-b border-slate-100">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center w-full pr-4 gap-2 sm:gap-4">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                            <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
+                                #{index + 1}
+                            </span>
+                            <div className={`h-8 w-1 shrink-0 rounded-full hidden sm:block ${item.material_name ? 'bg-procarni-primary' : 'bg-slate-300'}`}></div>
                             <div className="flex flex-col items-start text-left min-w-0 flex-1">
-                                <span className={`font-semibold text-sm truncate w-full ${!item.material_name && 'text-muted-foreground italic'}`}>
+                                <span className={`font-bold text-sm leading-snug break-words text-slate-900 ${!item.material_name && 'text-slate-400 font-normal italic'}`}>
                                     {item.material_name || "Seleccionar material..."}
                                 </span>
                                 {item.last_price_info && (

@@ -201,67 +201,138 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     return { subtotal: itemValue, discountAmount, salesAmount, itemIva, totalItem };
   };
 
-  // --- VISTA MÓVIL: TARJETAS (MANTENIDA) ---
+  // --- VISTA MÓVIL: TARJETAS MODERNAS MOBILE FIRST ---
   const renderMobileItem = (item: PurchaseOrderItemForm, index: number) => {
-    const { subtotal, itemIva, totalItem } = calculateItemTotals(item);
+    const { subtotal, itemIva, totalItem, discountAmount } = calculateItemTotals(item);
 
     return (
-      <div key={index} className="bg-white border rounded-lg shadow-sm p-4 space-y-4 relative mb-4">
-        <div className="flex justify-between items-start border-b pb-3">
-          <div className="w-[85%]">
-            <label className="text-xs font-bold text-muted-foreground uppercase mb-1 block">Producto</label>
-            <div className="relative">
-              <SmartSearch
-                placeholder={supplierId ? "Buscar material..." : "Selecciona prov."}
-                onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
-                fetchFunction={searchSupplierMaterials}
-                displayValue={item.material_name}
-                selectedId={item.material_id}
-                disabled={!supplierId}
-                className="w-full"
-                onCreateItem={(query) => {
-                  setMaterialNameToCreate(query);
-                  setIsAddMaterialDialogOpen(true);
-                }}
-              />
-              {item.material_id && !associatedMaterialIds.has(item.material_id) && (
-                <div className="mt-2 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded border border-amber-100">
-                    <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
-                    <span className="text-[10px] text-amber-700 font-medium">No asociado a este proveedor.</span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-8 text-[11px] text-amber-600 border-amber-200 hover:bg-amber-50 gap-1 font-bold"
-                    onClick={() => handleAssociateMaterial(item.material_id!, item.unit_id!, item.material_name)}
-                    disabled={isAssociating === item.material_id}
-                  >
-                    {isAssociating === item.material_id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Link className="h-3 w-3" />
-                    )}
-                    Vincular Material a Proveedor
-                  </Button>
-                </div>
-              )}
-
-            </div>
+      <div key={index} className="bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-sm hover:shadow-md transition-all p-4 space-y-3.5 relative mb-4">
+        {/* Card Header: Item Number, Total & Delete */}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs font-black text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200/60">
+              #{index + 1}
+            </span>
+            <div className={`h-3 w-3 rounded-full ${
+              !item.material_id ? 'bg-slate-300' : 
+              associatedMaterialIds.has(item.material_id) ? 'bg-procarni-secondary' : 'bg-amber-500'
+            }`} title={associatedMaterialIds.has(item.material_id || '') ? 'Asociado al proveedor' : 'No asociado'} />
+            {item.is_exempt && (
+              <Badge variant="secondary" className="text-[10px] font-bold uppercase bg-orange-50 text-orange-700 border-orange-200">
+                Exento
+              </Badge>
+            )}
           </div>
-          <Button variant="ghost" size="icon" onClick={() => onRemoveItem(index)} className="text-destructive h-8 w-8 -mr-2">
-            <Trash2 className="h-5 w-5" />
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <span className="text-sm font-black font-mono text-procarni-dark">
+                {currency} {totalItem.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onRemoveItem(index)}
+              className="text-slate-400 hover:text-red-600 hover:bg-red-50 h-8 w-8 rounded-xl transition-colors shrink-0"
+              title="Eliminar ítem"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Código Prov.</label>
-            <Input value={item.supplier_code || ''} onChange={(e) => onItemChange(index, 'supplier_code', e.target.value)} className="h-9" />
+        {/* Material Selection / Full Name Banner */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center justify-between">
+            <span>Producto / Material</span>
+            {item.material_id && item.unit_id && !associatedMaterialIds.has(item.material_id) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-[10px] text-amber-700 hover:text-amber-800 hover:bg-amber-50 gap-1 font-bold"
+                onClick={() => handleAssociateMaterial(item.material_id!, item.unit_id!, item.material_name)}
+                disabled={isAssociating === item.material_id}
+              >
+                {isAssociating === item.material_id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Link className="h-3 w-3" />
+                )}
+                Vincular
+              </Button>
+            )}
+          </label>
+
+          {/* Full Material Name Card when selected */}
+          {item.material_name && (
+            <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-2.5 mb-2">
+              <h4 className="text-xs sm:text-sm font-black text-slate-900 leading-snug break-words">
+                {item.material_name}
+              </h4>
+              <div className="flex flex-wrap gap-1.5 mt-1.5 items-center">
+                {item.category && (
+                  <span className="text-[10px] font-semibold bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md">
+                    {item.category}
+                  </span>
+                )}
+                {item.unit && (
+                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                    Unidad: {item.unit}
+                  </span>
+                )}
+                {item.supplier_code && (
+                  <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md">
+                    Ref: {item.supplier_code}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Search picker input */}
+          <div className="relative">
+            <SmartSearch
+              placeholder={supplierId ? (item.material_name ? "Cambiar material..." : "Buscar o seleccionar material...") : "Selecciona un proveedor primero"}
+              onSelect={(material) => onMaterialSelect(index, material as MaterialSearchResult)}
+              fetchFunction={searchSupplierMaterials}
+              displayValue={item.material_name}
+              selectedId={item.material_id}
+              disabled={!supplierId}
+              className="w-full h-10 bg-slate-50/60 border-slate-200 focus:bg-white rounded-xl text-xs"
+              onCreateItem={(query) => {
+                setMaterialNameToCreate(query);
+                setIsAddMaterialDialogOpen(true);
+              }}
+            />
           </div>
+
+          {item.material_id && !associatedMaterialIds.has(item.material_id) && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-xl border border-amber-200/80 text-amber-800 text-[11px] animate-in fade-in slide-in-from-top-1">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              <span>Material no vinculado a este proveedor.</span>
+            </div>
+          )}
+        </div>
+
+        {/* Quantities, Unit & Price Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Unidad</label>
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Cantidad</label>
+            <Input
+              type="number"
+              min="0"
+              value={item.quantity || ''}
+              onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+              className="h-10 text-xs font-mono font-bold bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white"
+              placeholder="0"
+              onWheel={(e) => e.currentTarget.blur()}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Unidad</label>
             <Select 
               value={item.unit_id || ''} 
               onValueChange={(v) => {
@@ -270,21 +341,24 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                 if (selectedUnit) onItemChange(index, 'unit', selectedUnit.name);
               }}
             >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder={isLoadingUnits ? "..." : "Ud."} />
+              <SelectTrigger className="h-10 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white font-medium">
+                <SelectValue placeholder={isLoadingUnits ? "..." : "Unidad"} />
               </SelectTrigger>
-              <SelectContent>
-                {filterUnitsForCategory(item.category, units).map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+              <SelectContent className="rounded-xl shadow-xl border-slate-100">
+                {filterUnitsForCategory(item.category, units).map(u => (
+                  <SelectItem key={u.id} value={u.id} className="text-xs">
+                    {u.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Cantidad</label>
-            <Input type="number" value={item.quantity || ''} onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
-          </div>
-          <div className="space-y-1">
+
+          <div className="col-span-2 space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs text-muted-foreground">Precio ({currency})</label>
+              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Precio ({currency})
+              </label>
               <div className="flex items-center gap-1">
                 <LastPriceButton
                   materialId={item.material_id}
@@ -305,7 +379,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   type="button" 
                   variant="ghost" 
                   size="sm" 
-                  className="h-5 text-[10px] px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded disabled:opacity-30"
+                  className="h-5 text-[10px] px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md font-mono disabled:opacity-30"
                   disabled={item.was_recalculated}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -315,7 +389,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                       onItemChange(index, 'was_recalculated', true);
                     }
                   }}
-                  title="Extraer IVA (dividir entre 1.16)"
+                  title="Extraer IVA (/ 1.16)"
                 >
                   / 1.16
                 </Button>
@@ -323,7 +397,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   type="button" 
                   variant="ghost" 
                   size="sm" 
-                  className="h-5 text-[10px] px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded disabled:opacity-30"
+                  className="h-5 text-[10px] px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md font-mono disabled:opacity-30"
                   disabled={!item.was_recalculated}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -333,12 +407,13 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                       onItemChange(index, 'was_recalculated', false);
                     }
                   }}
-                  title="Revertir (multiplicar por 1.16)"
+                  title="Revertir (* 1.16)"
                 >
                   * 1.16
                 </Button>
               </div>
             </div>
+
             <PriceInput 
               value={item.unit_price || 0} 
               onChange={(val) => {
@@ -347,8 +422,8 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   onItemChange(index, 'was_recalculated', false);
                 }
               }} 
-              className="h-9" 
-              placeholder="0" 
+              className="h-10 text-xs font-mono font-bold bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white" 
+              placeholder="0.00" 
             />
             <PriceAlert
               materialId={item.material_id}
@@ -359,77 +434,129 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               currentOrderId={orderId}
             />
           </div>
+        </div>
+
+        {/* Secondary fields: Code, Discount, Exemption & Notes */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Desc %</label>
-            <Input type="number" value={item.discount_percentage || ''} onChange={(e) => onItemChange(index, 'discount_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Cód. Proveedor</label>
+            <Input 
+              value={item.supplier_code || ''} 
+              onChange={(e) => onItemChange(index, 'supplier_code', e.target.value)} 
+              className="h-9 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white font-mono" 
+              placeholder="---"
+            />
           </div>
+
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Venta %</label>
-            <Input type="number" value={item.sales_percentage || ''} onChange={(e) => onItemChange(index, 'sales_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))} className="h-9" placeholder="0" onWheel={(e) => e.currentTarget.blur()} />
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Desc %</label>
+            <Input 
+              type="number" 
+              min="0"
+              max="100"
+              value={item.discount_percentage || ''} 
+              onChange={(e) => onItemChange(index, 'discount_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))} 
+              className="h-9 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white font-mono" 
+              placeholder="0" 
+              onWheel={(e) => e.currentTarget.blur()} 
+            />
+          </div>
+
+          <div className="col-span-2 sm:col-span-1 space-y-1">
+            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Exento IVA</label>
+            <div 
+              className="flex items-center justify-between bg-slate-50/80 px-3 h-9 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60 transition-colors"
+              onClick={() => onItemChange(index, 'is_exempt', !item.is_exempt)}
+            >
+              <span className="text-xs font-semibold text-slate-700 select-none">
+                {item.is_exempt ? 'Sí (Exento)' : 'No (+16% IVA)'}
+              </span>
+              <Switch 
+                checked={item.is_exempt} 
+                onCheckedChange={(c) => onItemChange(index, 'is_exempt', c)} 
+                disabled={!item.material_name} 
+                className="scale-75 origin-right data-[state=checked]:bg-orange-500"
+              />
+            </div>
           </div>
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Descripción Adicional</label>
-          <Input value={item.description || ''} onChange={(e) => onItemChange(index, 'description', e.target.value)} className="h-9" placeholder="Notas..." />
+          <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Notas / Observaciones</label>
+          <Input 
+            value={item.description || ''} 
+            onChange={(e) => onItemChange(index, 'description', e.target.value)} 
+            className="h-9 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white" 
+            placeholder="Especificaciones adicionales del ítem..." 
+          />
         </div>
 
-        <div className="bg-gray-50 p-3 rounded-md border border-gray-100 mt-2">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Exento de IVA</span>
-            <Switch checked={item.is_exempt} onCheckedChange={(c) => onItemChange(index, 'is_exempt', c)} disabled={!item.material_name} />
+        {/* Totals Summary Ticket */}
+        <div className="bg-slate-50/90 p-3 rounded-xl border border-slate-200/80 space-y-1 text-xs font-mono">
+          <div className="flex justify-between text-slate-500">
+            <span>Subtotal:</span>
+            <span>{currency} {subtotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
-          <div className="space-y-1 text-right text-sm">
-            <div className="flex justify-between text-muted-foreground"><span>Subtotal:</span> <span>{currency} {subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between h-5 items-center">
-              {!item.is_exempt ? (
-                <><span>IVA (16%):</span> <span className="text-muted-foreground">{currency} {itemIva.toFixed(2)}</span></>
-              ) : (
-                <span className="invisible">.</span>
-              )}
+          {discountAmount > 0 && (
+            <div className="flex justify-between text-red-600 font-semibold">
+              <span>Descuento ({item.discount_percentage}%):</span>
+              <span>-{currency} {discountAmount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
-            <div className="flex justify-between font-bold text-base pt-1 border-t"><span>Total:</span> <span>{currency} {totalItem.toFixed(2)}</span></div>
+          )}
+          {!item.is_exempt && (
+            <div className="flex justify-between text-slate-500">
+              <span>IVA (16%):</span>
+              <span>{currency} {itemIva.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-procarni-dark font-black text-sm pt-1.5 border-t border-slate-200">
+            <span>TOTAL ÍTEM:</span>
+            <span className="text-procarni-primary">
+              {currency} {totalItem.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
           </div>
         </div>
       </div>
     );
   };
 
-  // --- VISTA DESKTOP: GRID OPTIMIZADO PARA TABLETS ---
+  // --- VISTA DESKTOP: GRID OPTIMIZADO PARA TABLETS Y PANTALLAS GRANDES ---
   const renderDesktopAccordionItem = (item: PurchaseOrderItemForm, index: number) => {
     const { subtotal, itemIva, totalItem } = calculateItemTotals(item);
 
     return (
-      <AccordionItem key={index} value={`item-${index}`} className="group border rounded-lg bg-white shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:shadow-md hover:border-gray-300">
+      <AccordionItem key={index} value={`item-${index}`} className="group border border-slate-200/80 rounded-2xl bg-white shadow-xs mb-3 overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300">
 
-        {/* HEADER: Resumen del Ítem */}
-        <AccordionTrigger className="px-5 py-3 hover:bg-gray-50/50 hover:no-underline data-[state=open]:bg-gray-50/80 data-[state=open]:border-b">
-          <div className="flex justify-between items-center w-full pr-4 gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className={`h-8 w-1 shrink-0 rounded-full ${
-                !item.material_id ? 'bg-gray-300' : 
-                associatedMaterialIds.has(item.material_id) ? 'bg-procarni-primary' : 'bg-amber-500'
+        {/* HEADER: Resumen del Ítem con soporte multi-línea y ancho responsive */}
+        <AccordionTrigger className="px-4 sm:px-5 py-3.5 hover:bg-slate-50/60 hover:no-underline data-[state=open]:bg-slate-50/80 data-[state=open]:border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center w-full pr-4 gap-2 sm:gap-4">
+            <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+              <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
+                #{index + 1}
+              </span>
+              <div className={`h-8 w-1 shrink-0 rounded-full hidden sm:block ${
+                !item.material_id ? 'bg-slate-300' : 
+                associatedMaterialIds.has(item.material_id) ? 'bg-procarni-secondary' : 'bg-amber-500'
               }`}></div>
               <div className="flex flex-col items-start text-left min-w-0 flex-1">
-                <div className="flex items-center gap-2 w-full">
-                  <span className={`font-semibold text-sm truncate w-full ${!item.material_name && 'text-muted-foreground italic'}`}>
-                    {item.material_name || "Seleccionar ítem..."}
-                  </span>
-                </div>
+                <span className={`font-bold text-sm leading-snug break-words text-slate-900 ${!item.material_name && 'text-slate-400 font-normal italic'}`}>
+                  {item.material_name || "Seleccionar ítem / producto..."}
+                </span>
                 {item.material_name && (
-                  <div className="flex gap-2 text-[10px] text-muted-foreground truncate w-full">
-                    {item.quantity > 0 && <span>{item.quantity} {item.unit}</span>}
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500 font-mono mt-0.5">
+                    {item.quantity > 0 && <span className="font-semibold text-slate-700">{item.quantity} {item.unit || 'UND'}</span>}
+                    {item.unit_price > 0 && <span>× {currency} {item.unit_price.toFixed(2)}</span>}
                     {item.supplier_code && <span>• Ref: {item.supplier_code}</span>}
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-4 shrink-0">
-              {item.is_exempt && <Badge variant="secondary" className="text-[10px] bg-orange-50 text-orange-700 hover:bg-orange-100 border-orange-200">Exento</Badge>}
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+              {item.is_exempt && <Badge variant="secondary" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">Exento</Badge>}
               <div className="text-right">
-                <p className="text-sm font-bold text-gray-900">{currency} {totalItem.toFixed(2)}</p>
-                {!item.is_exempt && <p className="text-[10px] text-muted-foreground">+ IVA {itemIva.toFixed(2)}</p>}
+                <p className="text-sm font-black font-mono text-procarni-dark">{currency} {totalItem.toFixed(2)}</p>
+                {!item.is_exempt && <p className="text-[10px] text-slate-400 font-mono">+ IVA {itemIva.toFixed(2)}</p>}
               </div>
             </div>
           </div>

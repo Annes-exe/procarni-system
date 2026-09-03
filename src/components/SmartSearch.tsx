@@ -112,7 +112,7 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase());
 
   return (
-    <Popover modal={true} open={open && !disabled} onOpenChange={(newOpen) => {
+    <Popover modal={false} open={open && !disabled} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (newOpen) {
         // Clear query when opening to allow a fresh search immediately
@@ -124,16 +124,16 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between overflow-hidden min-w-[150px] md:min-w-[200px] lg:min-w-[250px] text-left", className)}
+          className={cn("w-full justify-between min-h-[2.5rem] h-auto py-2 px-3 text-left font-normal bg-white border-slate-200 hover:bg-slate-50 transition-all", className)}
           disabled={disabled}
         >
-          <span className="flex items-center truncate w-full mr-2">
+          <span className="flex items-center min-w-0 flex-1 mr-2">
             {icon && <span className="mr-2 shrink-0">{icon}</span>}
-            <span className="truncate">
-              {selectedItem ? selectedItem.name : placeholder}
+            <span className="text-xs font-medium text-slate-800 break-words line-clamp-2 leading-tight">
+              {selectedItem ? selectedItem.name : <span className="text-slate-400 font-normal">{placeholder}</span>}
             </span>
           </span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
