@@ -47,7 +47,7 @@ interface Supplier {
 }
 
 const GenerateQuoteRequest = () => {
-  const { session } = useSession();
+  const { session, profile, userName } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -332,12 +332,14 @@ const GenerateQuoteRequest = () => {
     setIsSubmitting(true);
 
     try {
+      const creatorName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Sistema';
       const baseOrderData = {
         company_id: companyId,
         currency: 'USD' as const,
         issue_date: issueDate,
         deadline_date: deadlineDate,
         status: 'Draft' as const,
+        created_by: creatorName,
       };
 
       const formattedItems = items.map(item => ({

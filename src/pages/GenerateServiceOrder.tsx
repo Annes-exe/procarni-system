@@ -81,7 +81,7 @@ const DESTINATION_ADDRESSES = [
 ];
 
 const GenerateServiceOrder = () => {
-  const { session } = useSession();
+  const { session, profile, userName } = useSession();
   const navigate = useNavigate();
 
   const [companyId, setCompanyId] = useState<string>('');
@@ -379,7 +379,7 @@ const GenerateServiceOrder = () => {
 
   const confirmSubmit = async () => {
     setIsReminderDialogOpen(false);
-    const creatorName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email || 'Usuario';
+    const creatorName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Sistema';
     const orderData: CreateServiceOrderInput = {
       issue_date: format(issueDate, 'yyyy-MM-dd'),
       service_date: format(serviceDate, 'yyyy-MM-dd'),

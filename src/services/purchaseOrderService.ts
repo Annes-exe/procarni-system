@@ -4,6 +4,7 @@ import { PurchaseOrder, PurchaseOrderItem } from '@/integrations/supabase/types'
 import { logAudit } from '@/integrations/supabase/services/auditLogService';
 import { showError } from '@/utils/toast';
 import { calculateTotals } from '@/utils/calculations';
+import { getCurrentUserName } from '@/utils/userUtils';
 
 // Define strict input types for creation/updating to avoid 'any'
 export type CreatePurchaseOrderInput = Omit<PurchaseOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number' | 'print_date'>;
@@ -186,6 +187,11 @@ export const purchaseOrderService = {
     },
 
     create: async (orderData: CreatePurchaseOrderInput, items: CreatePurchaseOrderItemInput[]): Promise<PurchaseOrder | null> => {
+        // Ensure static creator name is set
+        if (!orderData.created_by) {
+            orderData.created_by = await getCurrentUserName(orderData.user_id);
+        }
+
         // 1. Create Order
         const { data: newOrder, error: orderError } = await supabase
             .from('purchase_orders')
@@ -272,10 +278,17 @@ export const purchaseOrderService = {
     },
 
     update: async (id: string, updates: Partial<CreatePurchaseOrderInput>, items: CreatePurchaseOrderItemInput[]): Promise<PurchaseOrder | null> => {
+        const editorName = updates.updated_by || await getCurrentUserName();
+        const payload = {
+            ...updates,
+            updated_by: editorName,
+            updated_at: new Date().toISOString(),
+        };
+
         // 1. Update Order
         const { data: updatedOrder, error: orderError } = await supabase
             .from('purchase_orders')
-            .update(updates)
+            .update(payload)
             .eq('id', id)
             .select()
             .single();
@@ -384,7 +397,12 @@ export const purchaseOrderService = {
     },
 
     updateStatus: async (id: string, newStatus: PurchaseOrder['status']): Promise<boolean> => {
-        let updateData: any = { status: newStatus };
+        const editorName = await getCurrentUserName();
+        let updateData: any = {
+            status: newStatus,
+            updated_by: editorName,
+            updated_at: new Date().toISOString(),
+        };
 
         if (newStatus === 'Archived') {
             updateData.reception_status = 'Ninguno';

@@ -95,7 +95,7 @@ const DESTINATION_ADDRESSES = [
 const EditServiceOrder = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { session, role } = useSession();
+    const { session, role, profile, userName } = useSession();
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -452,7 +452,7 @@ const EditServiceOrder = () => {
         const toastId = showLoading('Actualizando orden...');
 
         try {
-            const userFullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email || 'Usuario';
+            const userFullName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Sistema';
             const orderData = {
                 issue_date: format(issueDate, 'yyyy-MM-dd'),
                 service_date: format(serviceDate, 'yyyy-MM-dd'),

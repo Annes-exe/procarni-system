@@ -1,9 +1,10 @@
 // src/integrations/supabase/services/quoteRequestService.ts
 
 import { supabase } from '../client';
-import { showError } from '@/utils/toast';
 import { QuoteRequest, QuoteRequestItem } from '../types';
+import { showError } from '@/utils/toast';
 import { logAudit } from './auditLogService';
+import { getCurrentUserName } from '@/utils/userUtils';
 
 const QuoteRequestService = {
   getAll: async (statusFilter?: string | string[]): Promise<QuoteRequest[]> => {
@@ -35,9 +36,15 @@ const QuoteRequestService = {
   },
 
   create: async (requestData: Omit<QuoteRequest, 'id' | 'created_at'>, items: Omit<QuoteRequestItem, 'id' | 'request_id'>[]): Promise<QuoteRequest | null> => {
+    const creatorName = (requestData as any).created_by || await getCurrentUserName(requestData.user_id);
+    const payload = {
+      ...requestData,
+      created_by: creatorName,
+    };
+
     const { data: newRequest, error: requestError } = await supabase
       .from('quote_requests')
-      .insert(requestData)
+      .insert(payload)
       .select()
       .single();
 
@@ -84,9 +91,16 @@ const QuoteRequestService = {
   },
 
   update: async (id: string, updates: Partial<Omit<QuoteRequest, 'id' | 'created_at'>>, items: Omit<QuoteRequestItem, 'id' | 'request_id'>[]): Promise<QuoteRequest | null> => {
+    const editorName = (updates as any).updated_by || await getCurrentUserName();
+    const payload = {
+      ...updates,
+      updated_by: editorName,
+      updated_at: new Date().toISOString(),
+    };
+
     const { data: updatedRequest, error: requestError } = await supabase
       .from('quote_requests')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
@@ -146,9 +160,14 @@ const QuoteRequestService = {
   },
 
   updateStatus: async (id: string, newStatus: 'Draft' | 'Archived' | 'Approved' | 'Rejected'): Promise<boolean> => {
+    const editorName = await getCurrentUserName();
     const { error } = await supabase
       .from('quote_requests')
-      .update({ status: newStatus })
+      .update({ 
+        status: newStatus,
+        updated_by: editorName,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id);
 
     if (error) {

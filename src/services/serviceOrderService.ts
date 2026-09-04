@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ServiceOrder, ServiceOrderItem, ServiceOrderMaterial } from '@/integrations/supabase/types';
 import { showError } from '@/utils/toast';
+import { getCurrentUserName } from '@/utils/userUtils';
 
 // Define strict input types
 export type CreateServiceOrderInput = Omit<ServiceOrder, 'id' | 'created_at' | 'supplier' | 'company' | 'sequence_number' | 'service_order_items' | 'service_order_materials' | 'print_date'>;
@@ -160,6 +161,7 @@ export const serviceOrderService = {
             .from('service_orders')
             .select(`
                 *,
+                profiles(first_name, last_name, username, email),
                 suppliers(*),
                 companies(*)
             `)
@@ -204,6 +206,11 @@ export const serviceOrderService = {
         items: CreateServiceOrderItemInput[],
         materials: CreateServiceOrderMaterialInput[]
     ): Promise<ServiceOrder | null> => {
+        // Ensure static creator name is set
+        if (!orderData.created_by) {
+            orderData.created_by = await getCurrentUserName(orderData.user_id);
+        }
+
         // 1. Create Order
         const { data: newOrder, error: orderError } = await supabase
             .from('service_orders')
@@ -313,10 +320,17 @@ export const serviceOrderService = {
         items: CreateServiceOrderItemInput[],
         materials: CreateServiceOrderMaterialInput[]
     ): Promise<ServiceOrder | null> => {
+        const editorName = updates.updated_by || await getCurrentUserName();
+        const payload = {
+            ...updates,
+            updated_by: editorName,
+            updated_at: new Date().toISOString(),
+        };
+
         // 1. Update Order
         const { data: updatedOrder, error: orderError } = await supabase
             .from('service_orders')
-            .update(updates)
+            .update(payload)
             .eq('id', id)
             .select()
             .single();
@@ -430,9 +444,14 @@ export const serviceOrderService = {
     },
 
     updateStatus: async (id: string, newStatus: ServiceOrder['status']): Promise<boolean> => {
+        const editorName = await getCurrentUserName();
         const { error } = await supabase
             .from('service_orders')
-            .update({ status: newStatus })
+            .update({
+                status: newStatus,
+                updated_by: editorName,
+                updated_at: new Date().toISOString()
+            })
             .eq('id', id);
 
         if (error) {

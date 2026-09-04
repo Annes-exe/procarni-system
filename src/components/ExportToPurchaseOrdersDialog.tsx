@@ -58,7 +58,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
   globalExchangeRate,
   onExportSuccess
 }) => {
-  const { session } = useSession();
+  const { session, profile, userName } = useSession();
   const [step, setStep] = useState(1);
   const queryClient = useQueryClient();
   const [isExporting, setIsExporting] = useState(false);
@@ -267,7 +267,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
           currency: orderCurrency,
           exchange_rate: localExchangeRate || null,
           status: 'Draft' as const,
-          created_by: session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email || 'Sistema',
+          created_by: userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Sistema',
           user_id: session?.user?.id,
           delivery_date: format(deliveryDate!, 'yyyy-MM-dd'),
           payment_terms: 'Contado',

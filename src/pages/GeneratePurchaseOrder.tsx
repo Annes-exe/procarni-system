@@ -33,7 +33,7 @@ interface Supplier {
 }
 
 const GeneratePurchaseOrder = () => {
-  const { session } = useSession();
+  const { session, profile, userName } = useSession();
   const { items, addItem, updateItem, removeItem, clearCart } = useShoppingCart();
   const location = useLocation();
   const navigate = useNavigate();
@@ -503,7 +503,7 @@ const GeneratePurchaseOrder = () => {
 
   const confirmSubmit = async () => {
     setIsReminderDialogOpen(false);
-    const creatorName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || userEmail || 'Usuario';
+    const creatorName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || userEmail?.split('@')[0] || 'Sistema';
     const orderData = {
       supplier_id: supplierId,
       company_id: companyId,

@@ -42,7 +42,7 @@ interface MaterialSearchResult {
 const EditQuoteRequest = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, role, isLoadingSession } = useSession();
+  const { session, role, profile, userName, isLoadingSession } = useSession();
   const isMobile = useIsMobile();
 
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
@@ -340,12 +340,15 @@ const EditQuoteRequest = () => {
     setIsSubmitting(true);
 
     try {
+      const editorName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Sistema';
       const requestData = {
         supplier_id: supplierId,
         company_id: companyId,
         currency: 'USD' as const,
         issue_date: issueDate,
         deadline_date: deadlineDate,
+        updated_by: editorName,
+        updated_at: new Date().toISOString(),
       };
 
       const formattedItems = items.map(item => ({

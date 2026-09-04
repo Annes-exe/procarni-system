@@ -378,6 +378,7 @@ export type ServiceOrderItem = {
   is_exempt: boolean;
   sales_percentage: number | null;
   discount_percentage: number | null;
+  was_recalculated?: boolean | null;
   created_at: string | null;
 };
 
@@ -386,6 +387,7 @@ export type ServiceOrderMaterial = {
   service_order_id: string;
   supplier_id: string;
   material_id: string | null;
+  material_name?: string | null;
   quantity: number;
   unit_price: number;
   tax_rate: number;
@@ -396,6 +398,7 @@ export type ServiceOrderMaterial = {
   description: string | null;
   sales_percentage: number | null;
   discount_percentage: number | null;
+  was_recalculated?: boolean | null;
   suppliers?: {
     name: string;
   };

@@ -5,6 +5,7 @@ import { showError } from '@/utils/toast';
 import { calculateTotals } from '@/utils/calculations';
 import { ServiceOrder, ServiceOrderItem, ServiceOrderMaterial } from '../types';
 import { logAudit } from './auditLogService';
+import { getCurrentUserName } from '@/utils/userUtils';
 
 const ServiceOrderService = {
   getAll: async (statusFilter: 'Active' | 'Archived' | 'Approved' = 'Active'): Promise<ServiceOrder[]> => {
@@ -98,9 +99,15 @@ const ServiceOrderService = {
   },
 
   create: async (orderData: Omit<ServiceOrder, 'id' | 'created_at' | 'sequence_number'>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[], materials?: Omit<ServiceOrderMaterial, 'id' | 'service_order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
+    const creatorName = (orderData as any).created_by || await getCurrentUserName(orderData.user_id);
+    const payload = {
+      ...orderData,
+      created_by: creatorName,
+    };
+
     const { data: newOrder, error: orderError } = await supabase
       .from('service_orders')
-      .insert(orderData)
+      .insert(payload)
       .select()
       .single();
 
@@ -150,17 +157,18 @@ const ServiceOrderService = {
       const orderMaterials = materials.map(mat => ({
         service_order_id: newOrder.id,
         supplier_id: mat.supplier_id,
-        material_id: mat.material_id,
+        material_id: mat.material_id || null,
+        material_name: mat.material_name || '',
+        supplier_code: mat.supplier_code || null,
+        description: mat.description || null,
         quantity: mat.quantity,
+        unit: mat.unit || null,
         unit_price: mat.unit_price,
         tax_rate: mat.tax_rate,
         is_exempt: mat.is_exempt,
-        supplier_code: mat.supplier_code,
-        unit: mat.unit,
-        unit_id: mat.unit_id,
-        description: mat.description,
-        sales_percentage: mat.sales_percentage,
-        discount_percentage: mat.discount_percentage,
+        sales_percentage: mat.sales_percentage || 0,
+        discount_percentage: mat.discount_percentage || 0,
+        unit_id: mat.unit_id || null,
       }));
 
       const { error: materialsError } = await supabase
@@ -203,9 +211,16 @@ const ServiceOrderService = {
   },
 
   update: async (id: string, updates: Partial<Omit<ServiceOrder, 'id' | 'created_at'>>, items: Omit<ServiceOrderItem, 'id' | 'order_id' | 'created_at'>[], materials?: Omit<ServiceOrderMaterial, 'id' | 'service_order_id' | 'created_at'>[]): Promise<ServiceOrder | null> => {
+    const editorName = (updates as any).updated_by || await getCurrentUserName();
+    const payload = {
+      ...updates,
+      updated_by: editorName,
+      updated_at: new Date().toISOString(),
+    };
+
     const { data: updatedOrder, error: orderError } = await supabase
       .from('service_orders')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
@@ -346,7 +361,12 @@ const ServiceOrderService = {
   },
 
   updateStatus: async (id: string, newStatus: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid'): Promise<boolean> => {
-    let updateData: any = { status: newStatus };
+    const editorName = await getCurrentUserName();
+    let updateData: any = {
+      status: newStatus,
+      updated_by: editorName,
+      updated_at: new Date().toISOString(),
+    };
 
     if (newStatus === 'Paid') {
       try {

@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { QuoteRequest, QuoteRequestItem } from "@/integrations/supabase/types";
+import { getCurrentUserName } from "@/utils/userUtils";
 
 export interface CreateQuoteRequestInput {
     status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived';
@@ -11,6 +12,7 @@ export interface CreateQuoteRequestInput {
     observations?: string | null;
     currency: 'USD' | 'VES';
     exchange_rate?: number | null;
+    created_by?: string | null;
 }
 
 export interface UpdateQuoteRequestInput {
@@ -24,6 +26,8 @@ export interface UpdateQuoteRequestInput {
     last_sent_at?: string | null;
     send_method?: string | null;
     pdf_url?: string | null;
+    updated_by?: string | null;
+    updated_at?: string | null;
 }
 
 export interface CreateQuoteRequestItemInput {
@@ -72,6 +76,7 @@ export const quoteRequestService = {
             .from('quote_requests')
             .select(`
         *,
+        profiles(first_name, last_name, username, email),
         suppliers(*),
         companies(*),
         quote_request_items(*)
@@ -91,7 +96,7 @@ export const quoteRequestService = {
         return { ...data, quote_request_items: itemsWithMaterials } as (QuoteRequest & {
             suppliers: any,
             companies: any,
-            quote_request_items: (QuoteRequestItem & { materials: { name: string } | null })[]
+            quote_request_items: (QuoteRequestItem & { materials: { name: string; category?: string; unit?: string; unit_id?: string | null } | null })[]
         });
     },
 
@@ -105,10 +110,11 @@ export const quoteRequestService = {
 
         const sequence_number = (lastOrder?.sequence_number || 0) + 1;
         const user_id = (await supabase.auth.getUser()).data.user?.id;
+        const creatorName = orderData.created_by || await getCurrentUserName(user_id);
 
         const { data: newOrder, error: orderError } = await supabase
             .from('quote_requests')
-            .insert([{ ...orderData, sequence_number, user_id }])
+            .insert([{ ...orderData, sequence_number, user_id, created_by: creatorName }])
             .select()
             .single();
 
@@ -151,9 +157,16 @@ export const quoteRequestService = {
     },
 
     async update(id: string, orderData: UpdateQuoteRequestInput, items?: CreateQuoteRequestItemInput[]) {
+        const editorName = orderData.updated_by || await getCurrentUserName();
+        const payload = {
+            ...orderData,
+            updated_by: editorName,
+            updated_at: new Date().toISOString(),
+        };
+
         const { error: orderError } = await supabase
             .from('quote_requests')
-            .update(orderData)
+            .update(payload)
             .eq('id', id);
 
         if (orderError) throw orderError;
@@ -204,9 +217,14 @@ export const quoteRequestService = {
     },
 
     async updateStatus(id: string, status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Archived') {
+        const editorName = await getCurrentUserName();
         const { error } = await supabase
             .from('quote_requests')
-            .update({ status })
+            .update({
+                status,
+                updated_by: editorName,
+                updated_at: new Date().toISOString()
+            })
             .eq('id', id);
 
         if (error) throw error;

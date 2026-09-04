@@ -72,7 +72,7 @@ interface Supplier {
 const EditPurchaseOrder = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { session, role, isLoadingSession } = useSession();
+  const { session, role, profile, userName, isLoadingSession } = useSession();
 
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
@@ -328,7 +328,7 @@ const EditPurchaseOrder = () => {
   const confirmSubmit = async () => {
     setIsReminderDialogOpen(false);
     setIsSubmitting(true);
-    const userFullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || userEmail || 'Usuario';
+    const userFullName = userName || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || profile?.username || session?.user?.user_metadata?.full_name || userEmail?.split('@')[0] || 'Sistema';
     const orderData = {
       supplier_id: supplierId,
       company_id: companyId,
