@@ -87,6 +87,8 @@ interface PurchaseOrderDetailsData {
   status: 'Draft' | 'Approved' | 'Rejected' | 'Archived' | 'Credit' | 'ToPay' | 'Paid';
   created_at: string;
   created_by?: string;
+  updated_at?: string | null;
+  updated_by?: string | null;
   user_id: string;
   purchase_order_items: PurchaseOrderItem[];
   issue_date?: string;
@@ -817,7 +819,7 @@ const PurchaseOrderDetails = () => {
 
       {/* PHASE 2: GENERAL INFORMATION GRID */}
       <Card className="border-none bg-white/70 backdrop-blur-xl shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-3xl p-6 mb-8 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
           {/* Company */}
           <div className="space-y-1">
             <span className={microLabelClass}>Empresa</span>
@@ -857,12 +859,31 @@ const PurchaseOrderDetails = () => {
             <p className={valueClass}>{displayPaymentTerms()}</p>
           </div>
 
-          {/* Created By */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Elaborado Por</span>
-            <p className={valueClass}>
-              {[order.profiles?.first_name, order.profiles?.last_name].filter(Boolean).join(' ').trim() || order.profiles?.username || order.created_by || '---'}
-            </p>
+          {/* Created By & Updated By */}
+          <div className="space-y-3 col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-4 pt-3 sm:pt-0">
+            <div className="space-y-0.5">
+              <span className={microLabelClass}>Elaborado Por</span>
+              <p className="text-xs font-bold text-procarni-dark leading-tight">
+                {order.created_by || [order.profiles?.first_name, order.profiles?.last_name].filter(Boolean).join(' ').trim() || order.profiles?.username || '---'}
+              </p>
+              {order.created_at && (
+                <p className="text-[10px] text-gray-400 font-mono">
+                  {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-0.5 pt-1.5 border-t border-slate-100">
+              <span className={microLabelClass}>Actualizado Por</span>
+              <p className="text-xs font-bold text-slate-700 leading-tight">
+                {order.updated_by || 'Sin modificaciones'}
+              </p>
+              {order.updated_at && (
+                <p className="text-[10px] text-gray-400 font-mono">
+                  {format(new Date(order.updated_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

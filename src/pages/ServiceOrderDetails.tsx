@@ -107,6 +107,8 @@ interface ServiceOrderDetailsData {
   user_id: string;
   created_at: string | null;
   created_by?: string | null;
+  updated_at?: string | null;
+  updated_by?: string | null;
   profiles?: {
     first_name?: string | null;
     last_name?: string | null;
@@ -807,12 +809,31 @@ const ServiceOrderDetails = () => {
             <p className={valueClass}>{displayPaymentTerms()}</p>
           </div>
 
-          {/* Elaborado Por */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Elaborado Por</span>
-            <p className={valueClass}>
-              {[order.profiles?.first_name, order.profiles?.last_name].filter(Boolean).join(' ').trim() || order.profiles?.username || order.created_by || '---'}
-            </p>
+          {/* Created By & Updated By */}
+          <div className="space-y-3 col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-4 pt-3 sm:pt-0">
+            <div className="space-y-0.5">
+              <span className={microLabelClass}>Elaborado Por</span>
+              <p className="text-xs font-bold text-procarni-dark leading-tight">
+                {order.created_by || [order.profiles?.first_name, order.profiles?.last_name].filter(Boolean).join(' ').trim() || order.profiles?.username || '---'}
+              </p>
+              {order.created_at && (
+                <p className="text-[10px] text-gray-400 font-mono">
+                  {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-0.5 pt-1.5 border-t border-slate-100">
+              <span className={microLabelClass}>Actualizado Por</span>
+              <p className="text-xs font-bold text-slate-700 leading-tight">
+                {order.updated_by || 'Sin modificaciones'}
+              </p>
+              {order.updated_at && (
+                <p className="text-[10px] text-gray-400 font-mono">
+                  {format(new Date(order.updated_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

@@ -379,8 +379,7 @@ const GenerateServiceOrder = () => {
 
   const confirmSubmit = async () => {
     setIsReminderDialogOpen(false);
-    setIsSubmitting(true);
-
+    const creatorName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email || 'Usuario';
     const orderData: CreateServiceOrderInput = {
       issue_date: format(issueDate, 'yyyy-MM-dd'),
       service_date: format(serviceDate, 'yyyy-MM-dd'),
@@ -400,6 +399,7 @@ const GenerateServiceOrder = () => {
       credit_days: creditDays,
       payment_date: null,
       paid_amount: 0,
+      created_by: creatorName,
       user_id: userId,
       requisition_number: requisitionNumber || null,
     };

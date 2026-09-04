@@ -328,6 +328,7 @@ const EditPurchaseOrder = () => {
   const confirmSubmit = async () => {
     setIsReminderDialogOpen(false);
     setIsSubmitting(true);
+    const userFullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || userEmail || 'Usuario';
     const orderData = {
       supplier_id: supplierId,
       company_id: companyId,
@@ -335,8 +336,8 @@ const EditPurchaseOrder = () => {
       currency,
       exchange_rate: exchangeRate,
       status: initialOrder.status,
-      created_by: userEmail || 'unknown',
-      user_id: userId,
+      updated_by: userFullName,
+      updated_at: new Date().toISOString(),
       issue_date: issueDate ? format(issueDate, 'yyyy-MM-dd') : undefined,
       delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
       payment_terms: paymentTerms,

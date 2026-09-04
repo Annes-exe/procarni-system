@@ -328,12 +328,19 @@ serve(async (req: Request) => {
 
     // Add Elaborado por and page numbers
     let creatorName = '';
-    if (request.profiles && (request.profiles.first_name || request.profiles.last_name)) {
+    if (request.created_by && !request.created_by.includes('@')) {
+      creatorName = request.created_by;
+    } else if (request.profiles && (request.profiles.first_name || request.profiles.last_name)) {
       creatorName = `${request.profiles.first_name || ''} ${request.profiles.last_name || ''}`.trim();
     } else if (request.profiles?.username) {
       creatorName = request.profiles.username;
     } else {
       creatorName = request.created_by || request.profiles?.email || 'Sistema';
+    }
+
+    let infoText = `Elaborado por: ${creatorName}`;
+    if (request.updated_by) {
+      infoText += `   |   Actualizado por: ${request.updated_by}`;
     }
 
     const pages = pdfDoc.getPages();
@@ -349,7 +356,7 @@ serve(async (req: Request) => {
       });
 
       // Draw Elaborado por on each page
-      pages[i].drawText(`Elaborado por: ${creatorName}`, {
+      pages[i].drawText(infoText, {
         x: margin,
         y: margin / 2,
         size: 8,

@@ -267,7 +267,7 @@ const ExportToPurchaseOrdersDialog: React.FC<ExportToPurchaseOrdersDialogProps> 
           currency: orderCurrency,
           exchange_rate: localExchangeRate || null,
           status: 'Draft' as const,
-          created_by: session?.user?.email || 'unknown',
+          created_by: session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email || 'Sistema',
           user_id: session?.user?.id,
           delivery_date: format(deliveryDate!, 'yyyy-MM-dd'),
           payment_terms: 'Contado',

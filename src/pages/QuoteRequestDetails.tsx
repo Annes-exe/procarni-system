@@ -505,12 +505,31 @@ const QuoteRequestDetails = () => {
             </p>
           </div>
 
-          {/* Created By */}
-          <div className="space-y-1">
-            <span className={microLabelClass}>Elaborado Por</span>
-            <p className={valueClass}>
-              {[request.profiles?.first_name, request.profiles?.last_name].filter(Boolean).join(' ').trim() || request.profiles?.username || request.created_by || '---'}
-            </p>
+          {/* Created By & Updated By */}
+          <div className="space-y-3 col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-4 pt-3 sm:pt-0">
+            <div className="space-y-0.5">
+              <span className={microLabelClass}>Elaborado Por</span>
+              <p className="text-xs font-bold text-procarni-dark leading-tight">
+                {request.created_by || [request.profiles?.first_name, request.profiles?.last_name].filter(Boolean).join(' ').trim() || request.profiles?.username || '---'}
+              </p>
+              {request.created_at && (
+                <p className="text-[10px] text-gray-400 font-mono">
+                  {format(new Date(request.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-0.5 pt-1.5 border-t border-slate-100">
+              <span className={microLabelClass}>Actualizado Por</span>
+              <p className="text-xs font-bold text-slate-700 leading-tight">
+                {request.updated_by || 'Sin modificaciones'}
+              </p>
+              {request.updated_at && (
+                <p className="text-[10px] text-gray-400 font-mono">
+                  {format(new Date(request.updated_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </Card>

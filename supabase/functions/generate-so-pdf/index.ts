@@ -421,7 +421,7 @@ serve(async (req: Request) => {
 
         // PDF State Management
         interface PDFState {
-            page: PDFPage;
+            page: any;
             y: number;
             width: number;
             height: number;
@@ -1112,14 +1112,21 @@ serve(async (req: Request) => {
 
             // Elaborado por (composed of first_name and last_name, or fallback to creator's username / email)
             let creatorName = '';
-            if (order.profiles && (order.profiles.first_name || order.profiles.last_name)) {
+            if (order.created_by && !order.created_by.includes('@')) {
+                creatorName = order.created_by;
+            } else if (order.profiles && (order.profiles.first_name || order.profiles.last_name)) {
                 creatorName = `${order.profiles.first_name || ''} ${order.profiles.last_name || ''}`.trim();
             } else if (order.profiles?.username) {
                 creatorName = order.profiles.username;
             } else {
                 creatorName = order.created_by || order.profiles?.email || 'Sistema';
             }
-            drawText(state, `Elaborado por: ${creatorName}`, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
+
+            let infoText = `Elaborado por: ${creatorName}`;
+            if (order.updated_by) {
+                infoText += `   |   Actualizado por: ${order.updated_by}`;
+            }
+            drawText(state, infoText, MARGIN, footerY + LINE_HEIGHT * 3, { size: 8, color: DARK_GRAY });
 
             return state;
         };

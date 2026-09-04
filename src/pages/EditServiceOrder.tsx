@@ -13,7 +13,7 @@ import {
     searchSuppliers,
     searchMaterialsBySupplier
 } from '@/integrations/supabase/data';
-import { ServiceOrder, ServiceOrderItem } from '@/integrations/supabase/types';
+import { ServiceOrder, ServiceOrderItem, Supplier, Company } from '@/integrations/supabase/types';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -52,10 +52,9 @@ interface ServiceOrderItemForm {
 }
 
 // Interface correctly matching the joined response from Supabase
-// Interface correctly matching the joined response from Supabase
-interface ServiceOrderDetailsResponse extends ServiceOrder {
-    suppliers?: { name: string };
-    companies?: { name: string };
+interface ServiceOrderDetailsResponse extends Omit<ServiceOrder, 'suppliers' | 'companies' | 'service_order_items' | 'service_order_materials'> {
+    suppliers?: { name: string } | Supplier;
+    companies?: { name: string } | Company;
     service_order_items: ServiceOrderItem[];
     service_order_materials: any[]; // We will map this to our form state
 }
@@ -453,6 +452,7 @@ const EditServiceOrder = () => {
         const toastId = showLoading('Actualizando orden...');
 
         try {
+            const userFullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || session?.user?.email || 'Usuario';
             const orderData = {
                 issue_date: format(issueDate, 'yyyy-MM-dd'),
                 service_date: format(serviceDate, 'yyyy-MM-dd'),
@@ -469,6 +469,8 @@ const EditServiceOrder = () => {
                 payment_terms: paymentTerms,
                 custom_payment_terms: customPaymentTerms || null,
                 credit_days: creditDays,
+                updated_by: userFullName,
+                updated_at: new Date().toISOString(),
                 requisition_number: requisitionNumber || null,
             };
 

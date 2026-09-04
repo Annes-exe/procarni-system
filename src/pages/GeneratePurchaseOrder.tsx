@@ -503,7 +503,7 @@ const GeneratePurchaseOrder = () => {
 
   const confirmSubmit = async () => {
     setIsReminderDialogOpen(false);
-    setIsSubmitting(true);
+    const creatorName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || userEmail || 'Usuario';
     const orderData = {
       supplier_id: supplierId,
       company_id: companyId,
@@ -511,7 +511,7 @@ const GeneratePurchaseOrder = () => {
       currency,
       exchange_rate: exchangeRate,
       status: 'Draft',
-      created_by: userEmail || 'unknown',
+      created_by: creatorName,
       user_id: userId,
       issue_date: issueDate ? format(issueDate, 'yyyy-MM-dd') : undefined,
       delivery_date: deliveryDate ? format(deliveryDate, 'yyyy-MM-dd') : undefined,
