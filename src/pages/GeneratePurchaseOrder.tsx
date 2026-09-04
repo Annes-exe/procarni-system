@@ -34,7 +34,7 @@ interface Supplier {
 
 const GeneratePurchaseOrder = () => {
   const { session, profile, userName } = useSession();
-  const { items, addItem, updateItem, removeItem, clearCart } = useShoppingCart();
+  const { items, addItem, addItems, duplicateItem, updateItem, removeItem, clearCart } = useShoppingCart();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -674,6 +674,8 @@ const GeneratePurchaseOrder = () => {
             currency={currency}
             exchangeRate={exchangeRate}
             onAddItem={handleAddItem}
+            onAddItems={addItems}
+            onDuplicateItem={duplicateItem}
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}
             onMaterialSelect={handleMaterialSelect}

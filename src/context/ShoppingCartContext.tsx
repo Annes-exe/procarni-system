@@ -20,6 +20,8 @@ interface ShoppingCartItem {
 interface ShoppingCartContextType {
   items: ShoppingCartItem[];
   addItem: (item: ShoppingCartItem) => void;
+  addItems: (items: ShoppingCartItem[]) => void;
+  duplicateItem: (index: number) => void;
   updateItem: (index: number, newItem: Partial<ShoppingCartItem>) => void;
   removeItem: (index: number) => void;
   clearCart: () => void;
@@ -32,6 +34,26 @@ export const ShoppingCartProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const addItem = (item: ShoppingCartItem) => {
     setItems((prevItems) => [...prevItems, item]);
+  };
+
+  const addItems = (newItems: ShoppingCartItem[]) => {
+    setItems((prevItems) => {
+      // If there is only one empty item, replace it
+      if (prevItems.length === 1 && !prevItems[0].material_name && (prevItems[0].quantity === 0 || !prevItems[0].quantity)) {
+        return [...newItems];
+      }
+      return [...prevItems, ...newItems];
+    });
+  };
+
+  const duplicateItem = (index: number) => {
+    setItems((prevItems) => {
+      if (index < 0 || index >= prevItems.length) return prevItems;
+      const itemToClone = { ...prevItems[index] };
+      const next = [...prevItems];
+      next.splice(index + 1, 0, itemToClone);
+      return next;
+    });
   };
 
   const updateItem = (index: number, newItem: Partial<ShoppingCartItem>) => {
@@ -49,7 +71,7 @@ export const ShoppingCartProvider: React.FC<{ children: ReactNode }> = ({ childr
   };
 
   return (
-    <ShoppingCartContext.Provider value={{ items, addItem, updateItem, removeItem, clearCart }}>
+    <ShoppingCartContext.Provider value={{ items, addItem, addItems, duplicateItem, updateItem, removeItem, clearCart }}>
       {children}
     </ShoppingCartContext.Provider>
   );

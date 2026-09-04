@@ -1,25 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PriceInput } from './PriceInput';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link, Loader2, Copy, Sparkles, Layers, ClipboardPaste, Plus } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterialsBySupplier, getAllUnits, createSupplierMaterialRelation, searchMaterials } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
+import MaterialCatalogBatchModal, { BatchItemForm, filterUnitsForCategory } from '@/components/MaterialCatalogBatchModal';
+import ClipboardImportModal from '@/components/ClipboardImportModal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { PriceAlert } from './PriceAlert';
 import { LastPriceButton } from './LastPriceButton';
 
-interface PurchaseOrderItemForm {
+export interface PurchaseOrderItemForm {
   id?: string;
   material_id?: string;
   material_name: string;
@@ -37,16 +38,16 @@ interface PurchaseOrderItemForm {
   category?: string;
 }
 
-interface MaterialSearchResult {
+export interface MaterialSearchResult {
   id: string;
   name: string;
   code: string;
   category?: string;
   unit?: string;
+  unit_id?: string;
   is_exempt?: boolean;
   specification?: string;
 }
-
 
 interface PurchaseOrderItemsTableProps {
   items: PurchaseOrderItemForm[];
@@ -56,27 +57,14 @@ interface PurchaseOrderItemsTableProps {
   exchangeRate?: number | null;
   orderId?: string | null;
   onAddItem: () => void;
+  onAddItems?: (items: PurchaseOrderItemForm[]) => void;
+  onDuplicateItem?: (index: number) => void;
   onRemoveItem: (index: number) => void;
   onItemChange: (index: number, field: keyof PurchaseOrderItemForm, value: PurchaseOrderItemForm[keyof PurchaseOrderItemForm]) => void;
   onMaterialSelect: (index: number, material: MaterialSearchResult) => void;
   hideHeader?: boolean;
   showAddButton?: boolean;
 }
-
-const filterUnitsForCategory = (categoryName: string | undefined, allUnits: any[]) => {
-  if (!categoryName) return allUnits;
-  const catUpper = categoryName.toUpperCase();
-  if (catUpper === 'SECA') {
-    return allUnits.filter(u => ['KG', 'LT', 'GR'].includes(u.name.toUpperCase()));
-  }
-  if (catUpper === 'FRESCA') {
-    return allUnits.filter(u => ['KG'].includes(u.name.toUpperCase()));
-  }
-  if (catUpper === 'EMPAQUE') {
-    return allUnits.filter(u => ['MT', 'UND'].includes(u.name.toUpperCase()));
-  }
-  return allUnits;
-};
 
 const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   items,
@@ -86,38 +74,47 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   exchangeRate,
   orderId,
   onAddItem,
+  onAddItems,
+  onDuplicateItem,
   onRemoveItem,
   onItemChange,
   onMaterialSelect,
   hideHeader = false,
   showAddButton = true,
 }) => {
-
   const { session } = useSession();
   const userId = session?.user?.id;
-  const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const isMobile = useIsMobile();
-  const [isAssociating, setIsAssociating] = useState<string | null>(null);
-  const [associatedMaterials, setAssociatedMaterials] = useState<Set<string>>(new Set());
-  const [materialNameToCreate, setMaterialNameToCreate] = useState('');
 
-  const { data: associatedMaterialIds = new Set<string>(), refetch: refetchAssociated } = useQuery({
+  const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isClipboardModalOpen, setIsClipboardModalOpen] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [isAssociating, setIsAssociating] = useState<string | null>(null);
+  const [materialNameToCreate, setMaterialNameToCreate] = useState('');
+  const [creationTargetIndex, setCreationTargetIndex] = useState<number | null>(null);
+
+  // Fetch supplier associated materials
+  const { data: supplierMaterialsList = [], refetch: refetchAssociated } = useQuery({
     queryKey: ['supplier_materials_ids', supplierId],
     queryFn: async () => {
-      if (!supplierId) return new Set<string>();
+      if (!supplierId) return [];
       const materials = await searchMaterialsBySupplier(supplierId, '');
-      const materialIds = materials.map(m => m.id);
-      setAssociatedMaterials(new Set(materialIds));
-      return new Set<string>(materialIds);
+      return materials;
     },
     enabled: !!supplierId,
   });
 
+  const associatedMaterialIds = useMemo(() => {
+    return new Set<string>(supplierMaterialsList.map((m: any) => m.id));
+  }, [supplierMaterialsList]);
 
+  // Top suggested materials for horizontal chip bar
+  const topSuggestedMaterials = useMemo(() => {
+    return supplierMaterialsList.slice(0, 8);
+  }, [supplierMaterialsList]);
 
-
-  // Sincronizar items expandidos cuando cambia la longitud de la lista (como en Solicitudes de Cotización)
+  // Sincronizar items expandidos cuando cambia la longitud de la lista
   React.useEffect(() => {
     setExpandedItems(items.map((_, i) => `item-${i}`));
   }, [items.length]);
@@ -135,7 +132,6 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
     const associated = await searchMaterialsBySupplier(supplierId, query);
     const associatedIds = new Set(associated.map(m => m.id));
-
     const all = await searchMaterials(query);
 
     const results: any[] = [];
@@ -158,9 +154,101 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     return results;
   }, [supplierId]);
 
+  // Handler for material created on the fly
   const handleMaterialAdded = (material: any) => {
-    // Lógica post-creación
     refetchAssociated();
+    if (creationTargetIndex !== null && creationTargetIndex >= 0 && creationTargetIndex < items.length) {
+      onMaterialSelect(creationTargetIndex, material);
+      setExpandedItems(prev => Array.from(new Set([...prev, `item-${creationTargetIndex}`])));
+    } else if (items.length > 0 && !items[items.length - 1].material_name) {
+      onMaterialSelect(items.length - 1, material);
+      setExpandedItems(prev => Array.from(new Set([...prev, `item-${items.length - 1}`])));
+    } else if (onAddItems) {
+      onAddItems([{
+        material_id: material.id,
+        material_name: material.name,
+        supplier_code: material.code || '',
+        quantity: 1,
+        unit_price: 0,
+        tax_rate: 0.16,
+        is_exempt: !!material.is_exempt,
+        unit: material.unit || 'UND',
+        unit_id: material.unit_id,
+        description: material.specification || '',
+        category: material.category,
+        sales_percentage: 0,
+        discount_percentage: 0,
+      }]);
+    } else {
+      onAddItem();
+    }
+    setCreationTargetIndex(null);
+    setIsAddMaterialDialogOpen(false);
+    showSuccess(`Material "${material.name}" creado y seleccionado.`);
+  };
+
+  // Handler for batch modal and clipboard import
+  const handleBatchInsert = (newItems: BatchItemForm[]) => {
+    if (onAddItems) {
+      onAddItems(newItems);
+    } else {
+      newItems.forEach(newItem => {
+        onAddItem();
+      });
+    }
+    showSuccess(`Se añadieron ${newItems.length} materiales a la orden.`);
+  };
+
+  // Handler for duplicate row
+  const handleDuplicate = (index: number) => {
+    if (onDuplicateItem) {
+      onDuplicateItem(index);
+    } else {
+      // Fallback
+      onAddItem();
+    }
+    showSuccess('Ítem duplicado exitosamente.');
+  };
+
+  // Handler for clicking a suggested chip
+  const handleAddSuggestedMaterial = (mat: any) => {
+    const validUnits = filterUnitsForCategory(mat.category, units);
+    const defaultUnit = validUnits.find((u: any) => u.name === mat.unit) || validUnits[0] || units[0];
+
+    const newItem: PurchaseOrderItemForm = {
+      material_id: mat.id,
+      material_name: mat.name,
+      supplier_code: mat.code || '',
+      quantity: 1,
+      unit_price: 0,
+      tax_rate: 0.16,
+      is_exempt: !!mat.is_exempt,
+      unit: defaultUnit?.name || mat.unit || 'UND',
+      unit_id: defaultUnit?.id || mat.unit_id || undefined,
+      description: mat.specification || '',
+      category: mat.category,
+      sales_percentage: 0,
+      discount_percentage: 0,
+    };
+
+    // If there's only 1 empty row in the table, populate it
+    if (items.length === 1 && !items[0].material_name && (items[0].quantity === 0 || !items[0].quantity)) {
+      onMaterialSelect(0, mat);
+      onItemChange(0, 'quantity', 1);
+      if (defaultUnit) {
+        onItemChange(0, 'unit', defaultUnit.name);
+        onItemChange(0, 'unit_id', defaultUnit.id);
+      }
+    } else if (onAddItems) {
+      onAddItems([newItem]);
+    } else {
+      onAddItem();
+      setTimeout(() => {
+        onMaterialSelect(items.length, mat);
+      }, 50);
+    }
+
+    showSuccess(`"${mat.name}" añadido a la orden.`);
   };
 
   const handleAssociateMaterial = async (materialId: string, unitId: string, materialName: string) => {
@@ -186,8 +274,6 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     }
   };
 
-
-
   const calculateItemTotals = (item: PurchaseOrderItemForm) => {
     const itemValue = item.quantity * item.unit_price;
     const discountRate = (item.discount_percentage ?? 0) / 100;
@@ -207,7 +293,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
     return (
       <div key={index} className="bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-sm hover:shadow-md transition-all p-4 space-y-3.5 relative mb-4">
-        {/* Card Header: Item Number, Total & Delete */}
+        {/* Card Header: Item Number, Total, Duplicate & Delete */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs font-black text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200/60">
@@ -224,13 +310,24 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="text-right">
+          <div className="flex items-center gap-1.5">
+            <div className="text-right mr-1">
               <span className="text-sm font-black font-mono text-procarni-dark">
                 {currency} {totalItem.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
             <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => handleDuplicate(index)}
+              className="text-slate-400 hover:text-procarni-primary hover:bg-red-50 h-8 w-8 rounded-xl transition-colors shrink-0"
+              title="Duplicar ítem"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
               variant="ghost"
               size="icon"
               onClick={() => onRemoveItem(index)}
@@ -302,6 +399,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               disabled={!supplierId}
               className="w-full h-10 bg-slate-50/60 border-slate-200 focus:bg-white rounded-xl text-xs"
               onCreateItem={(query) => {
+                setCreationTargetIndex(index);
                 setMaterialNameToCreate(query);
                 setIsAddMaterialDialogOpen(true);
               }}
@@ -323,6 +421,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             <Input
               type="number"
               min="0"
+              step="any"
               value={item.quantity || ''}
               onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
               className="h-10 text-xs font-mono font-bold bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white"
@@ -568,7 +667,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* --- FILA 1: DATOS CLAVE --- */}
 
-            {/* Col 1-4: BUSCADOR DIRECTO (Reemplaza Lupa) */}
+            {/* Col 1-4: BUSCADOR DIRECTO */}
             <div className="col-span-4 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex justify-between items-center">
                 <span>Producto / Material
@@ -602,6 +701,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   className={`w-full h-9 bg-white ${item.material_id && !associatedMaterialIds.has(item.material_id) ? 'border-amber-400 ring-1 ring-amber-100' : 'border-gray-200'}`}
                   icon={<Search className="h-4 w-4 text-gray-400" />}
                   onCreateItem={(query) => {
+                    setCreationTargetIndex(index);
                     setMaterialNameToCreate(query);
                     setIsAddMaterialDialogOpen(true);
                   }}
@@ -620,7 +720,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Cantidad</label>
               <Input
-                type="number" min="0"
+                type="number" min="0" step="any"
                 value={item.quantity || ''}
                 onChange={(e) => onItemChange(index, 'quantity', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                 className="h-9 font-medium border-gray-200"
@@ -750,9 +850,26 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               />
             </div>
 
-            {/* Col 12: Eliminar */}
-            <div className="col-span-1 flex items-end justify-center pb-0.5">
-              <Button variant="ghost" size="icon" onClick={() => onRemoveItem(index)} className="h-9 w-9 text-gray-400 hover:text-red-600 hover:bg-red-50">
+            {/* Col 12: Duplicar & Eliminar */}
+            <div className="col-span-1 flex items-end justify-center pb-0.5 gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDuplicate(index)}
+                className="h-9 w-9 text-slate-400 hover:text-procarni-primary hover:bg-red-50 rounded-xl"
+                title="Duplicar ítem"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onRemoveItem(index)}
+                className="h-9 w-9 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                title="Eliminar ítem"
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -765,7 +882,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* --- FILA 2: DETALLES FINANCIEROS Y NOTAS --- */}
 
-            {/* Col 1-2: Ref. (Mover aquí para liberar espacio arriba) */}
+            {/* Col 1-2: Ref. */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
                 <Hash className="w-3 h-3" /> Ref.
@@ -817,7 +934,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
               </div>
             </div>
 
-            {/* Col 5-6: Switch Exento (ALINEACIÓN CORREGIDA) */}
+            {/* Col 5-6: Switch Exento */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 block">Exento IVA</label>
               <div className="flex items-center justify-between bg-gray-50 px-2 rounded-md border border-gray-100 hover:border-gray-200 transition-colors cursor-pointer h-9 w-full" onClick={() => onItemChange(index, 'is_exempt', !item.is_exempt)}>
@@ -868,6 +985,10 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     );
   };
 
+  const existingMaterialIds = useMemo(() => {
+    return new Set(items.map(i => i.material_id).filter(Boolean) as string[]);
+  }, [items]);
+
   return (
     <div className="space-y-4">
       {!hideHeader && (
@@ -875,6 +996,87 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
             Ítems de la Orden
           </h3>
+        </div>
+      )}
+
+      {/* QUICK ACTIONS TOOLBAR */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/60 p-2.5 rounded-2xl border border-slate-200/80">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsBatchModalOpen(true)}
+            className="h-9 px-3 rounded-xl border-slate-200 bg-white hover:bg-slate-100/80 text-slate-800 text-xs font-bold shadow-xs hover:border-slate-300 gap-1.5 transition-all"
+          >
+            <Layers className="h-4 w-4 text-procarni-primary" />
+            <span>Explorar Catálogo</span>
+            {supplierMaterialsList.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-700 border-none font-mono">
+                {supplierMaterialsList.length}
+              </Badge>
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsClipboardModalOpen(true)}
+            className="h-9 px-3 rounded-xl border-slate-200 bg-white hover:bg-slate-100/80 text-slate-800 text-xs font-bold shadow-xs hover:border-slate-300 gap-1.5 transition-all"
+          >
+            <ClipboardPaste className="h-4 w-4 text-emerald-700" />
+            <span>Pegar Portapapeles</span>
+          </Button>
+        </div>
+
+        <div className="text-xs text-slate-400 font-mono pr-1">
+          {items.length} {items.length === 1 ? 'línea' : 'líneas'}
+        </div>
+      </div>
+
+      {/* SUGGESTED / FREQUENT MATERIALS CHIPS */}
+      {supplierId && topSuggestedMaterials.length > 0 && (
+        <div className="bg-white/80 border border-slate-200/80 rounded-2xl p-3 space-y-2 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600 animate-pulse" />
+              Materiales Habituales de este Proveedor
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">Clic para agregar</span>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {topSuggestedMaterials.map((mat: any) => {
+              const isAlreadyAdded = existingMaterialIds.has(mat.id);
+              return (
+                <button
+                  key={mat.id}
+                  type="button"
+                  onClick={() => handleAddSuggestedMaterial(mat)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 border select-none active:scale-95 ${
+                    isAlreadyAdded
+                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-800 shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-700 hover:border-slate-300 shadow-xs'
+                  }`}
+                  title={isAlreadyAdded ? 'Ya agregado a la orden (clic para añadir otra línea)' : 'Añadir a la orden'}
+                >
+                  <Plus className="h-3.5 w-3.5 text-procarni-primary" />
+                  <span className="truncate max-w-[180px]">{mat.name}</span>
+                  {mat.unit && (
+                    <span className="text-[10px] font-mono font-normal text-slate-400 bg-white px-1 py-0.2 rounded border border-slate-100">
+                      {mat.unit}
+                    </span>
+                  )}
+                  {isAlreadyAdded && (
+                    <Badge variant="secondary" className="text-[9px] bg-emerald-200 text-emerald-900 border-none font-bold px-1 py-0">
+                      ✓
+                    </Badge>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -918,14 +1120,38 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         </>
       )}
 
-
+      {/* MODALS */}
       <MaterialCreationDialog
         isOpen={isAddMaterialDialogOpen}
-        onClose={() => setIsAddMaterialDialogOpen(false)}
+        onClose={() => {
+          setIsAddMaterialDialogOpen(false);
+          setCreationTargetIndex(null);
+        }}
         onMaterialCreated={handleMaterialAdded}
         supplierId={supplierId}
         supplierName={supplierName}
         initialName={materialNameToCreate}
+      />
+
+      <MaterialCatalogBatchModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        supplierId={supplierId}
+        supplierName={supplierName}
+        currency={currency}
+        exchangeRate={exchangeRate}
+        existingMaterialIds={existingMaterialIds}
+        onInsertItems={handleBatchInsert}
+      />
+
+      <ClipboardImportModal
+        isOpen={isClipboardModalOpen}
+        onClose={() => setIsClipboardModalOpen(false)}
+        supplierId={supplierId}
+        supplierName={supplierName}
+        currency={currency}
+        exchangeRate={exchangeRate}
+        onInsertItems={handleBatchInsert}
       />
     </div>
   );

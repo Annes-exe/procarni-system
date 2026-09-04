@@ -179,6 +179,25 @@ const EditPurchaseOrder = () => {
     }]);
   };
 
+  const handleAddItems = (newItems: PurchaseOrderItemForm[]) => {
+    setItems((prevItems) => {
+      if (prevItems.length === 1 && !prevItems[0].material_name && (prevItems[0].quantity === 0 || !prevItems[0].quantity)) {
+        return [...newItems];
+      }
+      return [...prevItems, ...newItems];
+    });
+  };
+
+  const handleDuplicateItem = (index: number) => {
+    setItems((prevItems) => {
+      if (index < 0 || index >= prevItems.length) return prevItems;
+      const cloned = { ...prevItems[index], id: undefined };
+      const next = [...prevItems];
+      next.splice(index + 1, 0, cloned);
+      return next;
+    });
+  };
+
   const handleItemChange = (index: number, field: keyof PurchaseOrderItemForm, value: any) => {
     setItems((prevItems) =>
       prevItems.map((item, i) => (i === index ? { ...item, [field]: value } : item))
@@ -453,6 +472,8 @@ const EditPurchaseOrder = () => {
             exchangeRate={exchangeRate}
             orderId={id}
             onAddItem={handleAddItem}
+            onAddItems={handleAddItems}
+            onDuplicateItem={handleDuplicateItem}
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}
             onMaterialSelect={handleMaterialSelect}
