@@ -809,8 +809,13 @@ const ReportsAnalytics = () => {
         return materials
             .filter((m: any) => {
                 const nameMatch = normalizeString(m.name || '').includes(query);
-                const aliasMatch = m.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
-                return nameMatch || aliasMatch;
+                const codeMatch = normalizeString(m.code || '').includes(query);
+                const aliasMatch = Array.isArray(m.search_aliases)
+                    ? m.search_aliases.some((alias: string) => normalizeString(alias).includes(query))
+                    : (typeof m.search_aliases === 'string'
+                        ? normalizeString(m.search_aliases).includes(query)
+                        : false);
+                return nameMatch || codeMatch || aliasMatch;
             })
             .map((m: any) => m.id);
     }, [materials, debouncedSearchQuery]);
@@ -1002,10 +1007,15 @@ const ReportsAnalytics = () => {
             const query = normalizeString(searchQuery);
             results = results.filter((item: any) => {
                 const nameMatch = normalizeString(item.materials?.name || '').includes(query);
+                const codeMatch = normalizeString(item.materials?.code || '').includes(query);
                 const itemMaterialNameMatch = normalizeString(item.material_name || '').includes(query);
                 const supplierMatch = normalizeString(item.purchase_orders?.suppliers?.name || '').includes(query);
-                const aliasMatch = item.materials?.search_aliases?.some((alias: string) => normalizeString(alias).includes(query));
-                return nameMatch || itemMaterialNameMatch || supplierMatch || aliasMatch;
+                const aliasMatch = Array.isArray(item.materials?.search_aliases)
+                    ? item.materials.search_aliases.some((alias: string) => normalizeString(alias).includes(query))
+                    : (typeof item.materials?.search_aliases === 'string'
+                        ? normalizeString(item.materials.search_aliases).includes(query)
+                        : false);
+                return nameMatch || codeMatch || itemMaterialNameMatch || supplierMatch || aliasMatch;
             });
         }
         return results;
@@ -1251,6 +1261,11 @@ const ReportsAnalytics = () => {
                                                             {format(getPurchaseOrderDate(item), 'dd/MM/yyyy')}
                                                         </span>
                                                         <h4 className="font-bold text-procarni-dark text-sm leading-tight">{item.materials?.name || item.material_name}</h4>
+                                                        {Array.isArray(item.materials?.search_aliases) && item.materials.search_aliases.length > 0 && (
+                                                            <p className="text-[10px] text-slate-400 italic truncate max-w-[200px]" title={`Alias: ${item.materials.search_aliases.join(', ')}`}>
+                                                                Alias: {item.materials.search_aliases.join(', ')}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <Badge variant="secondary" className="text-procarni-primary bg-procarni-primary/10 font-mono font-bold text-xs rounded-xl">
                                                         #{item.purchase_orders.sequence_number || 'OC'}
@@ -1315,6 +1330,11 @@ const ReportsAnalytics = () => {
                                                     <TableCell className="py-3.5">
                                                         <div className="flex flex-col">
                                                             <span className="text-procarni-dark font-bold text-sm">{item.materials?.name || item.material_name}</span>
+                                                            {Array.isArray(item.materials?.search_aliases) && item.materials.search_aliases.length > 0 && (
+                                                                <span className="text-[10px] text-slate-400 italic truncate max-w-[250px]" title={`Alias: ${item.materials.search_aliases.join(', ')}`}>
+                                                                    Alias: {item.materials.search_aliases.join(', ')}
+                                                                </span>
+                                                            )}
                                                             <span className="text-[10px] text-slate-400 font-medium mt-0.5" title="Frecuencia de compra en el periodo">
                                                                 Comprado {materialFrequencies[item.materials?.name || item.material_name || 'Desconocido']} veces
                                                             </span>

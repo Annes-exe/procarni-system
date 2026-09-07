@@ -528,7 +528,7 @@ export const purchaseOrderService = {
           supplier_id,
           suppliers ( name, rif )
         ),
-        materials ( name, code, category, unit )
+        materials ( name, code, category, unit, search_aliases )
       `)
             .order('purchase_orders(issue_date)', { ascending: false });
 

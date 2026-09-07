@@ -394,14 +394,31 @@ export const getPurchaseHistoryReport = async ({
   }
 
   if (searchTerm) {
-    const searchPattern = `%${searchTerm}%`;
+    const trimmedTerm = searchTerm.trim();
+    const searchPattern = `%${trimmedTerm}%`;
+    const cleanTerm = trimmedTerm.toUpperCase().replace(/"/g, '\\"');
     
-    // Fetch matching master materials
-    const { data: matchedMaterials } = await supabase
+    // Fetch matching master materials (by name, code, or aliases via RPC and fallback query)
+    let materialIds: string[] = [];
+    try {
+      const { data: rpcMaterials, error: rpcErr } = await supabase.rpc('search_materials_by_substring', { search_query: trimmedTerm });
+      if (!rpcErr && rpcMaterials && Array.isArray(rpcMaterials)) {
+        materialIds = rpcMaterials.map((m: any) => m.id);
+      }
+    } catch (e) {
+      console.error('[getPurchaseHistoryReport] RPC material search error:', e);
+    }
+
+    // Direct query as fallback / supplement
+    const { data: directMatchedMaterials } = await supabase
       .from('materials')
       .select('id')
-      .ilike('name', searchPattern);
-    const materialIds = matchedMaterials?.map(m => m.id) || [];
+      .or(`name.ilike.${searchPattern},code.ilike.${searchPattern},search_aliases.cs.{"${cleanTerm}"}`);
+
+    if (directMatchedMaterials && directMatchedMaterials.length > 0) {
+      const directIds = directMatchedMaterials.map(m => m.id);
+      materialIds = Array.from(new Set([...materialIds, ...directIds]));
+    }
     
     // Fetch matching suppliers
     const { data: matchedSuppliers } = await supabase
@@ -420,7 +437,7 @@ export const getPurchaseHistoryReport = async ({
     }
     
     const orConditions: string[] = [];
-    orConditions.push(`material_name.ilike."${searchPattern}"`);
+    orConditions.push(`material_name.ilike.${searchPattern}`);
     if (materialIds.length > 0) {
       orConditions.push(`material_id.in.(${materialIds.join(',')})`);
     }
