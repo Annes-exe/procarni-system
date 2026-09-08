@@ -536,7 +536,7 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
         validItems.push({
           material_id: mat.id,
           material_name: mat.name,
-          supplier_code: mat.code || '',
+          supplier_code: '',
           quantity: l.quantity,
           unit_price: l.unitPrice || 0,
           tax_rate: 0.16,

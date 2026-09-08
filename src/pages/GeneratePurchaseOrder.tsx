@@ -402,6 +402,33 @@ const GeneratePurchaseOrder = () => {
     setSupplierName(supplier.name);
   };
 
+  const handleInvoiceHeaderDetected = (header: { supplierName?: string; rif?: string; invoiceNumber?: string; issueDate?: string }) => {
+    if (header.issueDate) {
+      try {
+        const parsedDate = new Date(header.issueDate + 'T12:00:00');
+        if (!isNaN(parsedDate.getTime())) {
+          setIssueDate(parsedDate);
+        }
+      } catch (e) {
+        console.error('Error parsing invoice date:', e);
+      }
+    }
+    if (header.invoiceNumber) {
+      setObservations(prev => {
+        const invTag = `Factura #${header.invoiceNumber}`;
+        if (prev && !prev.includes(header.invoiceNumber)) {
+          return `${prev} | ${invTag}`;
+        }
+        return prev || invTag;
+      });
+    }
+  };
+
+  const handleSupplierSelectedFromScanner = (supplier: { id: string; name: string; rif?: string }) => {
+    setSupplierId(supplier.id);
+    setSupplierName(supplier.name);
+  };
+
   const handleSupplierCreated = (supplier: Supplier) => {
     setSupplierId(supplier.id);
     setSupplierName(supplier.name);
@@ -679,6 +706,8 @@ const GeneratePurchaseOrder = () => {
             onRemoveItem={handleRemoveItem}
             onItemChange={handleItemChange}
             onMaterialSelect={handleMaterialSelect}
+            onInvoiceHeaderDetected={handleInvoiceHeaderDetected}
+            onSupplierSelected={handleSupplierSelectedFromScanner}
             hideHeader={true}
           />
           {items.length === 0 && (

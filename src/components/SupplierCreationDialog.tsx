@@ -11,12 +11,14 @@ interface SupplierCreationDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSupplierCreated: (supplier: Supplier) => void;
+  initialData?: any;
 }
 
 const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
   isOpen,
   onClose,
   onSupplierCreated,
+  initialData,
 }) => {
   const queryClient = useQueryClient();
   const { session } = useSession();
@@ -69,6 +71,7 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
         </DialogHeader>
 
         <SupplierForm
+          initialData={initialData}
           onSubmit={handleSubmitForm}
           onCancel={onClose}
           isSubmitting={isSubmitting}

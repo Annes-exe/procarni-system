@@ -4,13 +4,14 @@ import { Input } from '@/components/ui/input';
 import { PriceInput } from './PriceInput';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link, Loader2, Copy, Sparkles, Layers, ClipboardPaste, Plus } from 'lucide-react';
+import { PlusCircle, Trash2, Search, StickyNote, Hash, Calculator, AlertTriangle, Link, Loader2, Copy, Sparkles, Layers, ClipboardPaste, Plus, Camera } from 'lucide-react';
 import SmartSearch from '@/components/SmartSearch';
 import { searchMaterialsBySupplier, getAllUnits, createSupplierMaterialRelation, searchMaterials } from '@/integrations/supabase/data';
 import { useQuery } from '@tanstack/react-query';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import MaterialCatalogBatchModal, { BatchItemForm, filterUnitsForCategory } from '@/components/MaterialCatalogBatchModal';
 import ClipboardImportModal from '@/components/ClipboardImportModal';
+import { InvoiceScannerModal } from '@/components/InvoiceScannerModal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +65,8 @@ interface PurchaseOrderItemsTableProps {
   onMaterialSelect: (index: number, material: MaterialSearchResult) => void;
   hideHeader?: boolean;
   showAddButton?: boolean;
+  onInvoiceHeaderDetected?: (header: { supplierName?: string; rif?: string; invoiceNumber?: string; issueDate?: string }) => void;
+  onSupplierSelected?: (supplier: { id: string; name: string; rif?: string }) => void;
 }
 
 const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
@@ -81,6 +84,8 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   onMaterialSelect,
   hideHeader = false,
   showAddButton = true,
+  onInvoiceHeaderDetected,
+  onSupplierSelected,
 }) => {
   const { session } = useSession();
   const userId = session?.user?.id;
@@ -89,6 +94,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isClipboardModalOpen, setIsClipboardModalOpen] = useState(false);
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [isAssociating, setIsAssociating] = useState<string | null>(null);
   const [materialNameToCreate, setMaterialNameToCreate] = useState('');
@@ -167,7 +173,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
       onAddItems([{
         material_id: material.id,
         material_name: material.name,
-        supplier_code: material.code || '',
+        supplier_code: '',
         quantity: 1,
         unit_price: 0,
         tax_rate: 0.16,
@@ -187,12 +193,27 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     showSuccess(`Material "${material.name}" creado y seleccionado.`);
   };
 
-  // Handler for batch modal and clipboard import
+  // Handler for batch modal, clipboard import and invoice scanner
   const handleBatchInsert = (newItems: BatchItemForm[]) => {
+    const formattedItems: PurchaseOrderItemForm[] = newItems.map(item => ({
+      material_id: item.materialId,
+      material_name: item.materialName,
+      supplier_code: '',
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      tax_rate: item.isExempt ? 0 : 0.16,
+      is_exempt: item.isExempt,
+      unit: item.unitName || 'UND',
+      unit_id: item.unitId || undefined,
+      category: item.materialCategory,
+      sales_percentage: 0,
+      discount_percentage: 0,
+    }));
+
     if (onAddItems) {
-      onAddItems(newItems);
+      onAddItems(formattedItems);
     } else {
-      newItems.forEach(newItem => {
+      formattedItems.forEach(newItem => {
         onAddItem();
       });
     }
@@ -218,7 +239,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
     const newItem: PurchaseOrderItemForm = {
       material_id: mat.id,
       material_name: mat.name,
-      supplier_code: mat.code || '',
+      supplier_code: '',
       quantity: 1,
       unit_price: 0,
       tax_rate: 0.16,
@@ -1028,6 +1049,17 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             <ClipboardPaste className="h-4 w-4 text-emerald-700" />
             <span>Pegar Portapapeles</span>
           </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsScannerModalOpen(true)}
+            className="h-9 px-3 rounded-xl border-slate-200 bg-white hover:bg-slate-100/80 text-slate-800 text-xs font-bold shadow-xs hover:border-slate-300 gap-1.5 transition-all"
+          >
+            <Camera className="h-4 w-4 text-procarni-primary" />
+            <span>Escanear Factura</span>
+          </Button>
         </div>
 
         <div className="text-xs text-slate-400 font-mono pr-1">
@@ -1152,6 +1184,18 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
         currency={currency}
         exchangeRate={exchangeRate}
         onInsertItems={handleBatchInsert}
+      />
+
+      <InvoiceScannerModal
+        isOpen={isScannerModalOpen}
+        onClose={() => setIsScannerModalOpen(false)}
+        supplierId={supplierId}
+        supplierName={supplierName}
+        currency={currency}
+        exchangeRate={exchangeRate}
+        onInsertItems={handleBatchInsert}
+        onInvoiceHeaderDetected={onInvoiceHeaderDetected}
+        onSupplierSelected={onSupplierSelected}
       />
     </div>
   );
