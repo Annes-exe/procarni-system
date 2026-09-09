@@ -124,7 +124,12 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between min-h-[2.5rem] h-auto py-2 px-3 text-left font-normal bg-white border-slate-200 hover:bg-slate-50 transition-all", className)}
+          className={cn(
+            "w-full justify-between min-h-[2.5rem] h-auto py-2 px-3 text-left font-normal bg-white border-slate-200 hover:bg-slate-50 transition-all",
+            "focus-visible:ring-2 focus-visible:ring-procarni-primary/20 focus-visible:border-procarni-primary",
+            "aria-expanded:border-procarni-primary aria-expanded:ring-2 aria-expanded:ring-procarni-primary/20",
+            className
+          )}
           disabled={disabled}
         >
           <span className="flex items-center min-w-0 flex-1 mr-2">

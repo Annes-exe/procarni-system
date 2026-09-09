@@ -98,7 +98,25 @@
   body {
     @apply bg-background text-foreground;
   }
-  
+
+  /* Enfoque exclusivo para barras de búsqueda (borde rojo Procarni y halo rojo claro) */
+  input[type="search"]:focus-visible,
+  input[placeholder*="Buscar" i]:focus-visible,
+  input[placeholder*="buscar" i]:focus-visible,
+  input[placeholder*="Search" i]:focus-visible,
+  input[placeholder*="Cotizar" i]:focus-visible,
+  input[placeholder*="cotizar" i]:focus-visible,
+  input[placeholder*="Ej." i]:focus-visible,
+  input[placeholder*="ej." i]:focus-visible,
+  .search-input:focus-visible,
+  [data-search-input]:focus-visible {
+    border-color: #880a0a !important;
+    --tw-ring-color: rgba(136, 10, 10, 0.2) !important;
+    --tw-ring-offset-width: 0px !important;
+    box-shadow: 0 0 0 3px rgba(136, 10, 10, 0.18) !important;
+    outline: none !important;
+  }
+
   /* Utility class for alert border on cards */
   .card-alert-border {
     border-left: 4px solid hsl(var(--procarni-alert));
