@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, Edit, Link, Search, X, Loader2, Sparkles, MoreHorizontal } from 'lucide-react';
+import { Check, Edit, Link, Search, X, Loader2, Sparkles, MoreHorizontal, FileText, ExternalLink, ShoppingBag } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,34 @@ import SmartSearch from '@/components/SmartSearch';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 import { Material } from '@/integrations/supabase/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface OriginOrder {
+  orderId: string;
+  sequenceNumber: number | null;
+  issueDate: string | null;
+  createdAt: string | null;
+  status: string;
+  supplierName?: string | null;
+  type: 'PO' | 'QR';
+}
+
+const formatOrderNumber = (sequence: number | null | undefined, dateString?: string | null) => {
+  if (!sequence) return 'N/A';
+  const date = dateString ? new Date(dateString) : new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const seq = String(sequence).padStart(3, '0');
+  return `OC-${year}-${month}-${seq}`;
+};
+
+const formatQuoteNumber = (sequence: number | null | undefined, dateString?: string | null) => {
+  if (!sequence) return 'N/A';
+  const date = dateString ? new Date(dateString) : new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const seq = String(sequence).padStart(3, '0');
+  return `SC-${year}-${month}-${seq}`;
+};
 
 const MaterialApproval = () => {
   const { role, isLoadingSession } = useSession();
@@ -74,6 +102,118 @@ const MaterialApproval = () => {
       return map;
     },
     enabled: role === 'admin'
+  });
+
+  // Query purchase orders / quote requests where pending materials were used
+  const pendingMaterialIds = pendingMaterials.map(m => m.id);
+
+  const { data: materialOriginOrders = {}, isLoading: isLoadingOriginOrders } = useQuery<Record<string, OriginOrder[]>>({
+    queryKey: ['pending_materials_origin_orders', pendingMaterialIds],
+    queryFn: async () => {
+      if (pendingMaterialIds.length === 0) return {};
+
+      const map: Record<string, OriginOrder[]> = {};
+
+      // 1. Query Purchase Orders (OC)
+      const { data: poItems, error: poError } = await supabase
+        .from('purchase_order_items')
+        .select(`
+          id,
+          material_id,
+          material_name,
+          created_at,
+          order_id,
+          purchase_orders (
+            id,
+            sequence_number,
+            issue_date,
+            created_at,
+            status,
+            suppliers (
+              id,
+              name
+            )
+          )
+        `)
+        .in('material_id', pendingMaterialIds);
+
+      if (!poError && poItems) {
+        poItems.forEach((item: any) => {
+          if (!item.material_id || !item.purchase_orders) return;
+          const po = item.purchase_orders;
+          if (!map[item.material_id]) {
+            map[item.material_id] = [];
+          }
+          if (!map[item.material_id].some(o => o.orderId === po.id)) {
+            map[item.material_id].push({
+              orderId: po.id,
+              sequenceNumber: po.sequence_number,
+              issueDate: po.issue_date,
+              createdAt: po.created_at || item.created_at,
+              status: po.status,
+              supplierName: po.suppliers?.name || null,
+              type: 'PO'
+            });
+          }
+        });
+      }
+
+      // 2. Query Quote Requests (SC) for additional context
+      const { data: qrItems, error: qrError } = await supabase
+        .from('quote_request_items')
+        .select(`
+          id,
+          material_id,
+          material_name,
+          created_at,
+          request_id,
+          quote_requests (
+            id,
+            sequence_number,
+            issue_date,
+            created_at,
+            status,
+            suppliers (
+              id,
+              name
+            )
+          )
+        `)
+        .in('material_id', pendingMaterialIds);
+
+      if (!qrError && qrItems) {
+        qrItems.forEach((item: any) => {
+          if (!item.material_id || !item.quote_requests) return;
+          const qr = item.quote_requests;
+          if (!map[item.material_id]) {
+            map[item.material_id] = [];
+          }
+          if (!map[item.material_id].some(o => o.orderId === qr.id)) {
+            map[item.material_id].push({
+              orderId: qr.id,
+              sequenceNumber: qr.sequence_number,
+              issueDate: qr.issue_date,
+              createdAt: qr.created_at || item.created_at,
+              status: qr.status,
+              supplierName: qr.suppliers?.name || null,
+              type: 'QR'
+            });
+          }
+        });
+      }
+
+      // Sort chronologically (oldest first so creation/origin is first)
+      Object.keys(map).forEach(matId => {
+        map[matId].sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.issueDate || 0).getTime();
+          const dateB = new Date(b.createdAt || b.issueDate || 0).getTime();
+          return dateA - dateB;
+        });
+      });
+
+      return map;
+    },
+    enabled: role === 'admin' && pendingMaterialIds.length > 0
   });
 
   const filteredMaterials = pendingMaterials.filter(material => {
@@ -208,6 +348,7 @@ const MaterialApproval = () => {
                     <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Categoría</TableHead>
                     <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</TableHead>
                     <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca/Color</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">OC de Origen</TableHead>
                     <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Creado Por</TableHead>
                     <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Fecha</TableHead>
                     <TableHead className="text-right text-[10px] uppercase tracking-wider font-semibold text-gray-500">Acciones</TableHead>
@@ -235,6 +376,96 @@ const MaterialApproval = () => {
                         {material.brand && material.color && <br />}
                         {material.color && <span>Color: {material.color}</span>}
                         {!material.brand && !material.color && <span className="text-gray-300">-</span>}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const originOrders = materialOriginOrders[material.id] || [];
+                          if (isLoadingOriginOrders) {
+                            return <span className="text-slate-400 text-xs animate-pulse">Cargando...</span>;
+                          }
+                          if (originOrders.length === 0) {
+                            return (
+                              <span className="text-slate-400 text-xs italic">Directo / Catálogo</span>
+                            );
+                          }
+
+                          const primaryOrder = originOrders[0];
+                          const otherOrders = originOrders.slice(1);
+                          const isPO = primaryOrder.type === 'PO';
+                          const linkUrl = isPO 
+                            ? `/purchase-orders/${primaryOrder.orderId}` 
+                            : `/quote-requests/${primaryOrder.orderId}`;
+                          const displayLabel = isPO
+                            ? formatOrderNumber(primaryOrder.sequenceNumber, primaryOrder.issueDate || primaryOrder.createdAt)
+                            : formatQuoteNumber(primaryOrder.sequenceNumber, primaryOrder.issueDate || primaryOrder.createdAt);
+
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <a
+                                  href={linkUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-procarni-blue hover:bg-blue-100 hover:text-procarni-dark transition-all border border-blue-200/60 shadow-xs group/po"
+                                  title={`Abrir orden en nueva pestaña: ${displayLabel}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <FileText className="h-3.5 w-3.5 text-blue-600 group-hover/po:scale-110 transition-transform" />
+                                  <span className="font-mono font-bold">{displayLabel}</span>
+                                  <ExternalLink className="h-3 w-3 text-blue-400 group-hover/po:text-blue-600 transition-colors ml-0.5" />
+                                </a>
+
+                                {otherOrders.length > 0 && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                      <button 
+                                        type="button"
+                                        className="inline-flex items-center text-[10px] font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded-md transition-colors"
+                                        title="Ver más órdenes asociadas"
+                                      >
+                                        +{otherOrders.length} más
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Otras Órdenes / Solicitudes
+                                      </div>
+                                      {otherOrders.map((other) => {
+                                        const otherIsPO = other.type === 'PO';
+                                        const otherLink = otherIsPO ? `/purchase-orders/${other.orderId}` : `/quote-requests/${other.orderId}`;
+                                        const otherLabel = otherIsPO
+                                          ? formatOrderNumber(other.sequenceNumber, other.issueDate || other.createdAt)
+                                          : formatQuoteNumber(other.sequenceNumber, other.issueDate || other.createdAt);
+
+                                        return (
+                                          <DropdownMenuItem key={other.orderId} asChild>
+                                            <a
+                                              href={otherLink}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg cursor-pointer hover:bg-slate-50 text-slate-700 w-full"
+                                            >
+                                              <span className="font-mono font-semibold text-procarni-blue">{otherLabel}</span>
+                                              <span className="text-[10px] text-slate-400 truncate max-w-[90px]" title={other.supplierName || ''}>
+                                                {other.supplierName || '-'}
+                                              </span>
+                                            </a>
+                                          </DropdownMenuItem>
+                                        );
+                                      })}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
+
+                              {primaryOrder.supplierName && (
+                                <span className="text-[11px] text-slate-500 font-medium truncate max-w-[160px] block" title={primaryOrder.supplierName}>
+                                  {primaryOrder.supplierName}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-xs font-medium text-slate-600">
                         {material.user_id ? (creatorProfiles[material.user_id] || 'Cargando...') : 'Sistema'}
@@ -316,6 +547,21 @@ const MaterialApproval = () => {
             <DialogDescription>
               Vincular el material pendiente <strong className="text-procarni-dark">"{linkingMaterial?.name}"</strong> a un material oficial. El material pendiente se archivará y todo su historial pasará al maestro.
             </DialogDescription>
+            {linkingMaterial && materialOriginOrders[linkingMaterial.id]?.length > 0 && (
+              <div className="mt-2 bg-blue-50/80 border border-blue-200/70 rounded-xl p-2.5 flex items-center gap-2 text-xs text-slate-700">
+                <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                <span>
+                  Creado en{' '}
+                  <strong className="font-mono text-procarni-blue">
+                    {materialOriginOrders[linkingMaterial.id][0].type === 'PO' ? 'OC' : 'SC'}-
+                    {materialOriginOrders[linkingMaterial.id][0].sequenceNumber}
+                  </strong>
+                  {materialOriginOrders[linkingMaterial.id][0].supplierName && (
+                    <> ({materialOriginOrders[linkingMaterial.id][0].supplierName})</>
+                  )}
+                </span>
+              </div>
+            )}
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
