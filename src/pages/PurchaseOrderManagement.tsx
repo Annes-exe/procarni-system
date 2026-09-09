@@ -696,9 +696,6 @@ const PurchaseOrderManagement = () => {
                           {item.description && (
                             <p className="text-[11px] text-slate-500 italic mt-0.5"><span className="font-medium text-slate-400 not-italic">Nota:</span> {item.description}</p>
                           )}
-                          {item.supplier_code && (
-                            <span className="text-[10px] text-slate-400 font-mono">Cód: {item.supplier_code}</span>
-                          )}
                         </div>
                         <span className="font-mono font-bold text-procarni-dark shrink-0">
                           {lineTotal.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currency}
@@ -1214,9 +1211,6 @@ const PurchaseOrderManagement = () => {
                                                     <TableCell className="text-center font-mono text-slate-400 py-2">{idx + 1}</TableCell>
                                                     <TableCell className="py-2">
                                                       <div className="font-semibold text-slate-800">{matName}</div>
-                                                      {item.supplier_code && (
-                                                        <div className="text-[10px] text-slate-400 font-mono">Cód: {item.supplier_code}</div>
-                                                      )}
                                                     </TableCell>
                                                     <TableCell className="py-2 text-xs">
                                                       {item.description ? (

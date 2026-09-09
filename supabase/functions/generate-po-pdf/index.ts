@@ -722,13 +722,8 @@ serve(async (req: Request) => {
         // Combine material name and description for the first column
         let materialContent = String(item.material_name || '');
 
-        if (item.supplier_code || item.description) {
-          if (item.supplier_code) {
-            materialContent += `\n(Cód. Prov: ${item.supplier_code})`;
-          }
-          if (item.description) {
-            materialContent += `\n${item.description}`;
-          }
+        if (item.description) {
+          materialContent += `\n${item.description}`;
         }
 
         // Wrap the combined content for the first column (25% width, approx 20 chars per line for safety)

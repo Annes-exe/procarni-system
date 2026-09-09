@@ -925,9 +925,6 @@ const PurchaseOrderDetails = () => {
                         {item.description && (
                           <p className="text-xs text-slate-500 italic">{item.description}</p>
                         )}
-                        {item.supplier_code && (
-                          <span className="text-[10px] text-slate-400 font-mono">Cód: {item.supplier_code}</span>
-                        )}
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-[9px] uppercase text-slate-400 font-bold block">Total Ítem</span>
@@ -997,7 +994,6 @@ const PurchaseOrderDetails = () => {
                         {item.description && (
                           <span className="text-xs text-slate-500 italic truncate max-w-[300px] block mt-0.5">{item.description}</span>
                         )}
-                        <span className="text-[10px] text-slate-400 mt-1 block font-mono">Cód: {item.supplier_code || 'N/A'}</span>
                         <PriceAlert
                           materialId={item.material_id}
                           unitId={item.unit_id}

@@ -437,11 +437,6 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                     Unidad: {item.unit}
                   </span>
                 )}
-                {item.supplier_code && (
-                  <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md">
-                    Ref: {item.supplier_code}
-                  </span>
-                )}
               </div>
             </div>
           )}
@@ -593,24 +588,14 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
           </div>
         </div>
 
-        {/* Secondary fields: Code, Discount, Exemption & Notes */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Cód. Proveedor</label>
-            <Input 
-              value={item.supplier_code || ''} 
-              onChange={(e) => onItemChange(index, 'supplier_code', e.target.value)} 
-              className="h-9 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white font-mono" 
-              placeholder="---"
-            />
-          </div>
-
+        {/* Secondary fields: Discount, Exemption & Notes */}
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
           <div className="space-y-1">
             <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Desc %</label>
             <Input 
               type="number" 
-              min="0"
-              max="100"
+              min="0" 
+              max="100" 
               value={item.discount_percentage || ''} 
               onChange={(e) => onItemChange(index, 'discount_percentage', e.target.value === '' ? 0 : parseFloat(e.target.value))} 
               className="h-9 text-xs bg-slate-50/60 border-slate-200 rounded-xl focus:bg-white font-mono" 
@@ -619,14 +604,14 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             />
           </div>
 
-          <div className="col-span-2 sm:col-span-1 space-y-1">
+          <div className="space-y-1">
             <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Exento IVA</label>
             <div 
               className="flex items-center justify-between bg-slate-50/80 px-3 h-9 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60 transition-colors"
               onClick={() => onItemChange(index, 'is_exempt', !item.is_exempt)}
             >
               <span className="text-xs font-semibold text-slate-700 select-none">
-                {item.is_exempt ? 'Sí (Exento)' : 'No (+16% IVA)'}
+                {item.is_exempt ? 'Sí (Exento)' : 'No (+16%)'}
               </span>
               <Switch 
                 checked={item.is_exempt} 
@@ -703,7 +688,6 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500 font-mono mt-0.5">
                     {item.quantity > 0 && <span className="font-semibold text-slate-700">{item.quantity} {item.unit || 'UND'}</span>}
                     {item.unit_price > 0 && <span>× {currency} {item.unit_price.toFixed(2)}</span>}
-                    {item.supplier_code && <span>• Ref: {item.supplier_code}</span>}
                   </div>
                 )}
               </div>
@@ -940,20 +924,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
             {/* --- FILA 2: DETALLES FINANCIEROS Y NOTAS --- */}
 
-            {/* Col 1-2: Ref. */}
-            <div className="col-span-2 space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 flex items-center gap-1">
-                <Hash className="w-3 h-3" /> Ref.
-              </label>
-              <Input
-                value={item.supplier_code || ''}
-                onChange={(e) => onItemChange(index, 'supplier_code', e.target.value)}
-                className="h-9 bg-gray-50/50 border-gray-200 focus:bg-white text-xs"
-                placeholder="---"
-              />
-            </div>
-
-            {/* Col 3-4: Descuento */}
+            {/* Col 1-2: Descuento */}
             <div className="col-span-2 space-y-1.5">
               <label className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Desc.</label>
               <div className="relative">
