@@ -163,30 +163,56 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   // Handler for material created on the fly
   const handleMaterialAdded = (material: any) => {
     refetchAssociated();
+    const validUnits = filterUnitsForCategory(material.category, units);
+    const matchedUnit = validUnits.find((u: any) => u.id === material.unit_id || u.name === material.unit) || validUnits[0] || units[0];
+
+    const formattedItem: PurchaseOrderItemForm = {
+      material_id: material.id,
+      material_name: material.name,
+      supplier_code: material.code || '',
+      quantity: 1,
+      unit_price: 0,
+      tax_rate: 0.16,
+      is_exempt: !!material.is_exempt,
+      unit: matchedUnit ? matchedUnit.name : (material.unit || 'UND'),
+      unit_id: matchedUnit?.id || material.unit_id || undefined,
+      description: material.specification || '',
+      category: material.category,
+      sales_percentage: 0,
+      discount_percentage: 0,
+    };
+
     if (creationTargetIndex !== null && creationTargetIndex >= 0 && creationTargetIndex < items.length) {
-      onMaterialSelect(creationTargetIndex, material);
-      setExpandedItems(prev => Array.from(new Set([...prev, `item-${creationTargetIndex}`])));
-    } else if (items.length > 0 && !items[items.length - 1].material_name) {
-      onMaterialSelect(items.length - 1, material);
-      setExpandedItems(prev => Array.from(new Set([...prev, `item-${items.length - 1}`])));
-    } else if (onAddItems) {
-      onAddItems([{
-        material_id: material.id,
-        material_name: material.name,
-        supplier_code: '',
-        quantity: 1,
-        unit_price: 0,
-        tax_rate: 0.16,
-        is_exempt: !!material.is_exempt,
-        unit: material.unit || 'UND',
-        unit_id: material.unit_id,
-        description: material.specification || '',
+      onMaterialSelect(creationTargetIndex, {
+        id: material.id,
+        name: material.name,
+        code: material.code || '',
         category: material.category,
-        sales_percentage: 0,
-        discount_percentage: 0,
-      }]);
+        unit: matchedUnit ? matchedUnit.name : (material.unit || 'UND'),
+        unit_id: matchedUnit?.id || material.unit_id || undefined,
+        is_exempt: !!material.is_exempt,
+        specification: material.specification || '',
+      });
+      if (!items[creationTargetIndex].quantity || items[creationTargetIndex].quantity === 0) {
+        onItemChange(creationTargetIndex, 'quantity', 1);
+      }
+      setExpandedItems(prev => Array.from(new Set([...prev, `item-${creationTargetIndex}`])));
+    } else if (onAddItems) {
+      onAddItems([formattedItem]);
     } else {
       onAddItem();
+      setTimeout(() => {
+        onMaterialSelect(items.length, {
+          id: material.id,
+          name: material.name,
+          code: material.code || '',
+          category: material.category,
+          unit: matchedUnit ? matchedUnit.name : (material.unit || 'UND'),
+          unit_id: matchedUnit?.id || material.unit_id || undefined,
+          is_exempt: !!material.is_exempt,
+          specification: material.specification || '',
+        });
+      }, 50);
     }
     setCreationTargetIndex(null);
     setIsAddMaterialDialogOpen(false);
@@ -195,20 +221,32 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
 
   // Handler for batch modal, clipboard import and invoice scanner
   const handleBatchInsert = (newItems: BatchItemForm[]) => {
-    const formattedItems: PurchaseOrderItemForm[] = newItems.map(item => ({
-      material_id: item.materialId,
-      material_name: item.materialName,
-      supplier_code: '',
-      quantity: item.quantity,
-      unit_price: item.unitPrice,
-      tax_rate: item.isExempt ? 0 : 0.16,
-      is_exempt: item.isExempt,
-      unit: item.unitName || 'UND',
-      unit_id: item.unitId || undefined,
-      category: item.materialCategory,
-      sales_percentage: 0,
-      discount_percentage: 0,
-    }));
+    const formattedItems: PurchaseOrderItemForm[] = newItems.map(item => {
+      const isExempt = Boolean(item.is_exempt ?? item.isExempt);
+      const unitPrice = Number(item.unit_price !== undefined ? item.unit_price : (item.unitPrice !== undefined ? item.unitPrice : 0));
+      const matId = item.material_id || item.materialId;
+      const matName = item.material_name || item.materialName || '';
+      const unitName = item.unit || item.unitName || 'UND';
+      const unitId = item.unit_id || item.unitId || undefined;
+      const category = item.category || item.materialCategory;
+      const suppCode = item.supplier_code || item.materialCode || '';
+
+      return {
+        material_id: matId,
+        material_name: matName,
+        supplier_code: suppCode,
+        quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+        unit_price: unitPrice,
+        tax_rate: isExempt ? 0 : 0.16,
+        is_exempt: isExempt,
+        unit: unitName,
+        unit_id: unitId,
+        category: category,
+        description: item.description || '',
+        sales_percentage: Number(item.sales_percentage) || 0,
+        discount_percentage: Number(item.discount_percentage) || 0,
+      };
+    });
 
     if (onAddItems) {
       onAddItems(formattedItems);
@@ -234,12 +272,12 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
   // Handler for clicking a suggested chip
   const handleAddSuggestedMaterial = (mat: any) => {
     const validUnits = filterUnitsForCategory(mat.category, units);
-    const defaultUnit = validUnits.find((u: any) => u.name === mat.unit) || validUnits[0] || units[0];
+    const defaultUnit = validUnits.find((u: any) => u.name === mat.unit || u.id === mat.unit_id) || validUnits[0] || units[0];
 
     const newItem: PurchaseOrderItemForm = {
       material_id: mat.id,
       material_name: mat.name,
-      supplier_code: '',
+      supplier_code: mat.code || '',
       quantity: 1,
       unit_price: 0,
       tax_rate: 0.16,
@@ -252,16 +290,15 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
       discount_percentage: 0,
     };
 
-    // If there's only 1 empty row in the table, populate it
-    if (items.length === 1 && !items[0].material_name && (items[0].quantity === 0 || !items[0].quantity)) {
+    if (onAddItems) {
+      onAddItems([newItem]);
+    } else if (items.length === 1 && !items[0].material_name && (items[0].quantity === 0 || !items[0].quantity)) {
       onMaterialSelect(0, mat);
       onItemChange(0, 'quantity', 1);
       if (defaultUnit) {
         onItemChange(0, 'unit', defaultUnit.name);
         onItemChange(0, 'unit_id', defaultUnit.id);
       }
-    } else if (onAddItems) {
-      onAddItems([newItem]);
     } else {
       onAddItem();
       setTimeout(() => {

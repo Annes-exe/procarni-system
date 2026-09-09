@@ -357,11 +357,15 @@ const GeneratePurchaseOrder = () => {
   }, [supplierDetails]);
 
   const handleMaterialSelect = (index: number, material: any) => {
+    const validUnits = units.filter((u: any) => material.category ? true : true);
+    const matchedUnit = units.find((u: any) => u.id === material.unit_id || u.name?.toUpperCase() === material.unit?.toUpperCase());
+
     updateItem(index, {
       material_id: material.id,
       material_name: material.name,
-      unit: material.unit || (units[0]?.name || ''),
-      unit_id: material.unit_id || (units.find((u: any) => u.name === material.unit)?.id || null),
+      supplier_code: material.code || '',
+      unit: matchedUnit ? matchedUnit.name : (material.unit || (units[0]?.name || '')),
+      unit_id: matchedUnit ? matchedUnit.id : (material.unit_id || null),
       is_exempt: material.is_exempt || false,
       description: material.specification || '',
       category: material.category,

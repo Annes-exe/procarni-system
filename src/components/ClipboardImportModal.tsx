@@ -363,7 +363,8 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
     const results: ParsedLine[] = lines.map((line, idx) => {
       let cleaned = line;
       let quantity = 1;
-      let unitName = 'KG';
+      let unitName = 'UND';
+      let hasExplicitUnit = false;
       let unitPrice = 0;
       let rawMaterial = '';
 
@@ -401,6 +402,7 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
         for (const [unitKey, regex] of Object.entries(UNIT_PATTERNS)) {
           if (regex.test(cleaned)) {
             unitName = unitKey;
+            hasExplicitUnit = true;
             cleaned = cleaned.replace(regex, ' ').trim();
             break;
           }
@@ -421,6 +423,18 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
         // Clean leftover conjunctions
         cleaned = cleaned.replace(/^(de|para|x|ud|uds)\s+/i, '').trim();
         rawMaterial = cleaned;
+      }
+
+      // Check for unit pattern in rawMaterial if not detected
+      if (!hasExplicitUnit) {
+        for (const [unitKey, regex] of Object.entries(UNIT_PATTERNS)) {
+          if (regex.test(rawMaterial)) {
+            unitName = unitKey;
+            hasExplicitUnit = true;
+            rawMaterial = rawMaterial.replace(regex, ' ').trim();
+            break;
+          }
+        }
       }
 
       // 3. Find Best Matching Material from Catalog
@@ -474,9 +488,20 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
         });
       }
 
-      // If matched, verify default unit if not explicitly parsed
-      if (bestMatch && !line.match(/\b(kg|lt|und|mt|gr|caja)\b/i)) {
-        if (bestMatch.unit) unitName = bestMatch.unit;
+      // If matched, infer unit of measure from catalog material if not explicitly specified
+      if (bestMatch) {
+        if (!hasExplicitUnit) {
+          const validUnits = filterUnitsForCategory(bestMatch.category, units);
+          const defaultUnit = validUnits.find(u => u.name.toUpperCase() === (bestMatch.unit || '').toUpperCase() || u.id === bestMatch.unit_id) || validUnits[0] || units[0];
+          unitName = defaultUnit ? defaultUnit.name : (bestMatch.unit || 'UND');
+        } else {
+          const validUnits = filterUnitsForCategory(bestMatch.category, units);
+          const isCompatible = validUnits.some(u => u.name.toUpperCase() === unitName.toUpperCase());
+          if (!isCompatible) {
+            const defaultUnit = validUnits.find(u => u.name.toUpperCase() === (bestMatch.unit || '').toUpperCase() || u.id === bestMatch.unit_id) || validUnits[0];
+            if (defaultUnit) unitName = defaultUnit.name;
+          }
+        }
       }
 
       return {
@@ -507,10 +532,13 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
       setParsedLines(prev =>
         prev.map(l => {
           if (l.id === lineId) {
+            const validUnits = filterUnitsForCategory(material.category, units);
+            const defaultUnit = validUnits.find(u => u.name.toUpperCase() === (material.unit || '').toUpperCase() || u.id === material.unit_id) || validUnits[0] || units[0];
+
             return {
               ...l,
               matchedMaterial: material,
-              unitName: material.unit || l.unitName,
+              unitName: defaultUnit ? defaultUnit.name : (material.unit || l.unitName || 'UND'),
               status: 'matched',
             };
           }
@@ -531,20 +559,28 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
       if (l.matchedMaterial && l.quantity > 0) {
         const mat = l.matchedMaterial;
         const validUnits = filterUnitsForCategory(mat.category, units);
-        const matchedUnit = validUnits.find(u => u.name.toUpperCase() === l.unitName.toUpperCase()) || validUnits[0] || units[0];
+        const matchedUnit = validUnits.find(u => u.name.toUpperCase() === l.unitName.toUpperCase() || u.id === mat.unit_id) || validUnits[0] || units[0];
 
         validItems.push({
           material_id: mat.id,
           material_name: mat.name,
-          supplier_code: '',
+          materialId: mat.id,
+          materialName: mat.name,
+          supplier_code: mat.code || '',
+          materialCode: mat.code || '',
           quantity: l.quantity,
           unit_price: l.unitPrice || 0,
+          unitPrice: l.unitPrice || 0,
           tax_rate: 0.16,
           is_exempt: !!mat.is_exempt,
-          unit: matchedUnit ? matchedUnit.name : (mat.unit || l.unitName),
+          isExempt: !!mat.is_exempt,
+          unit: matchedUnit ? matchedUnit.name : (mat.unit || l.unitName || 'UND'),
+          unitName: matchedUnit ? matchedUnit.name : (mat.unit || l.unitName || 'UND'),
           unit_id: matchedUnit?.id || mat.unit_id,
+          unitId: matchedUnit?.id || mat.unit_id,
           description: mat.specification || '',
           category: mat.category,
+          materialCategory: mat.category,
           sales_percentage: 0,
           discount_percentage: 0,
         });
@@ -767,8 +803,8 @@ const ClipboardImportModal: React.FC<ClipboardImportModalProps> = ({
                             <SelectTrigger className="h-9 text-xs font-medium rounded-xl bg-slate-50 border-slate-200 font-mono">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl">
-                              {units.map((u) => (
+                            <SelectContent className="rounded-xl shadow-xl border-slate-100">
+                              {filterUnitsForCategory(line.matchedMaterial?.category, units).map((u) => (
                                 <SelectItem key={u.id} value={u.name} className="text-xs">
                                   {u.name}
                                 </SelectItem>

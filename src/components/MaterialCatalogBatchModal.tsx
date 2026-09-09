@@ -13,16 +13,24 @@ import { MaterialCategory } from '@/integrations/supabase/types';
 
 export interface BatchItemForm {
   material_id?: string;
-  material_name: string;
+  material_name?: string;
+  materialId?: string;
+  materialName?: string;
   supplier_code?: string;
+  materialCode?: string;
   quantity: number;
-  unit_price: number;
+  unit_price?: number;
+  unitPrice?: number;
   tax_rate?: number;
   is_exempt?: boolean;
+  isExempt?: boolean;
   unit?: string;
+  unitName?: string;
   unit_id?: string;
+  unitId?: string;
   description?: string;
   category?: string;
+  materialCategory?: string;
   sales_percentage?: number;
   discount_percentage?: number;
 }
@@ -223,15 +231,23 @@ const MaterialCatalogBatchModal: React.FC<MaterialCatalogBatchModalProps> = ({
         itemsToInsert.push({
           material_id: mat.id,
           material_name: mat.name,
+          materialId: mat.id,
+          materialName: mat.name,
           supplier_code: state.supplierCode || mat.code || '',
+          materialCode: state.supplierCode || mat.code || '',
           quantity: state.quantity > 0 ? state.quantity : 1,
           unit_price: state.unitPrice || 0,
+          unitPrice: state.unitPrice || 0,
           tax_rate: 0.16,
           is_exempt: state.isExempt,
+          isExempt: state.isExempt,
           unit: state.unitName,
+          unitName: state.unitName,
           unit_id: state.unitId,
+          unitId: state.unitId,
           description: state.description || mat.specification || '',
           category: mat.category,
+          materialCategory: mat.category,
           sales_percentage: 0,
           discount_percentage: 0,
         });

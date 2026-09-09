@@ -901,14 +901,22 @@ export const InvoiceScannerModal: React.FC<InvoiceScannerModalProps> = ({
         }
 
         return {
+          material_id: mat.id,
+          material_name: mat.name,
           materialId: mat.id,
           materialName: mat.name,
+          supplier_code: '',
           materialCode: '',
           materialCategory: mat.category || '',
+          category: mat.category || '',
           quantity: item.quantity,
+          unit_id: selectedUnit.id,
           unitId: selectedUnit.id,
+          unit: selectedUnit.name,
           unitName: selectedUnit.name,
+          unit_price: item.unitPrice > 0 ? item.unitPrice : (mat.last_price || mat.estimated_price || 0),
           unitPrice: item.unitPrice > 0 ? item.unitPrice : (mat.last_price || mat.estimated_price || 0),
+          is_exempt: mat.is_exempt || false,
           isExempt: mat.is_exempt || false
         };
       });

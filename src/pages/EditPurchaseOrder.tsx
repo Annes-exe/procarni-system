@@ -215,10 +215,11 @@ const EditPurchaseOrder = () => {
         ...newItems[index],
         material_id: material.id,
         material_name: material.name,
+        supplier_code: material.code || newItems[index]?.supplier_code || '',
         unit: material.unit || 'KG',
         unit_id: material.unit_id || null,
         is_exempt: material.is_exempt || false,
-        description: material.specification || '',
+        description: material.specification || newItems[index]?.description || '',
         category: material.category,
       };
       return newItems;
