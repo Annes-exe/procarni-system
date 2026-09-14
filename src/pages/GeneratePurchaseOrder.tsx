@@ -15,7 +15,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import PurchaseOrderItemsTable from '@/components/PurchaseOrderItemsTable';
 import PurchaseOrderDetailsForm from '@/components/PurchaseOrderDetailsForm';
 import { format } from 'date-fns';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import MaterialCreationDialog from '@/components/MaterialCreationDialog';
 
@@ -34,6 +34,7 @@ interface Supplier {
 
 const GeneratePurchaseOrder = () => {
   const { session, profile, userName } = useSession();
+  const queryClient = useQueryClient();
   const { items, addItem, addItems, duplicateItem, updateItem, removeItem, clearCart } = useShoppingCart();
   const location = useLocation();
   const navigate = useNavigate();
@@ -585,6 +586,13 @@ const GeneratePurchaseOrder = () => {
           showError('Advertencia: No se pudo actualizar el estado de la Solicitud de Cotización de origen.');
         }
       }
+
+      // Invalidate relevant query caches so item profile reflects new purchase data
+      queryClient.invalidateQueries({ queryKey: ['priceHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['materialDetail'] });
+      queryClient.invalidateQueries({ queryKey: ['materialPriceHistoryForWarning'] });
+      queryClient.invalidateQueries({ queryKey: ['materialPOs'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
 
       showSuccess('Orden de compra creada exitosamente.');
       clearCart();

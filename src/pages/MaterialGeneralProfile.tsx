@@ -215,14 +215,16 @@ const MaterialGeneralProfile = () => {
         const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
         const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
         const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'Manual');
+        const cur = ph.currency || 'USD';
+        const sym = cur === 'VES' ? 'Bs. ' : cur === 'EUR' ? '€' : '$';
         
         return [
           new Date(ph.recorded_at).toLocaleDateString('es-VE'),
           ph.suppliers?.name || 'Desconocido',
           displayId,
           ph.unit || material?.unit || 'KG',
-          `$ ${ph.unit_price.toFixed(4)}`,
-          ph.currency || 'USD',
+          `${sym}${ph.unit_price.toFixed(4)}`,
+          cur,
           ph.exchange_rate ? ph.exchange_rate.toFixed(2) : '-'
         ];
       });
@@ -702,10 +704,12 @@ const MaterialGeneralProfile = () => {
       return {
         timesPurchasedThisMonth: 0,
         lastCost: 0,
+        lastCurrency: 'USD',
         trend: 'stable' as const,
         lastPurchaseDate: null,
         lastSupplier: 'Ninguno',
-        demand: 'Baja'
+        demand: 'Baja',
+        purchase_order_id: null
       };
     }
 
@@ -721,6 +725,7 @@ const MaterialGeneralProfile = () => {
 
     const last = sorted[0];
     const lastCost = last.unit_price;
+    const lastCurrency = last.currency || 'USD';
     const lastPurchaseDate = last.recorded_at;
     const lastSupplier = last.suppliers?.name || 'Desconocido';
     const purchase_order_id = last.purchase_order_id;
@@ -745,6 +750,7 @@ const MaterialGeneralProfile = () => {
     return {
       timesPurchasedThisMonth: thisMonthPurchases.length,
       lastCost,
+      lastCurrency,
       trend,
       lastPurchaseDate,
       lastSupplier,
@@ -969,9 +975,9 @@ const MaterialGeneralProfile = () => {
                   <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Último Costo Registrado</p>
                   <div className="flex items-baseline gap-1 mt-1">
                     <span className="text-[36px] font-black tracking-tighter text-procarni-dark">
-                      ${fmt(purchaseStats.lastCost, 4)}
+                      {purchaseStats.lastCurrency === 'VES' ? 'Bs. ' : purchaseStats.lastCurrency === 'EUR' ? '€' : '$'}{fmt(purchaseStats.lastCost, 4)}
                     </span>
-                    <span className="text-gray-500 font-bold text-sm">USD</span>
+                    <span className="text-gray-500 font-bold text-sm">{purchaseStats.lastCurrency}</span>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">
                     Por unidad registrada: {material.unit || 'KG'}
@@ -1595,20 +1601,26 @@ const MaterialGeneralProfile = () => {
                         <p className="text-xs text-gray-400 font-medium">Sin compras registradas aún.</p>
                       </div>
                     ) : (
-                      priceHistory.slice(0, 5).map((ph: any, idx: number) => (
-                        <div key={`price-${ph.id || ph.recorded_at}-${idx}`} className="flex justify-between items-center p-4 bg-white border border-slate-200/80 rounded-2xl text-xs">
-                          <div>
-                            <p className="font-bold text-slate-800 truncate max-w-[150px]">{ph.suppliers?.name || 'Desconocido'}</p>
-                            <p className="text-[9px] text-gray-400">
-                              Ref: {ph.purchase_orders ? `OC-${new Date(ph.purchase_orders.issue_date).getFullYear()}-${String(ph.purchase_orders.sequence_number).padStart(3, '0')}` : 'Manual'}
-                            </p>
+                      priceHistory.slice(0, 5).map((ph: any, idx: number) => {
+                        const cur = ph.currency || 'USD';
+                        const sym = cur === 'VES' ? 'Bs. ' : cur === 'EUR' ? '€' : '$';
+                        return (
+                          <div key={`price-${ph.id || ph.recorded_at}-${idx}`} className="flex justify-between items-center p-4 bg-white border border-slate-200/80 rounded-2xl text-xs">
+                            <div>
+                              <p className="font-bold text-slate-800 truncate max-w-[150px]">{ph.suppliers?.name || 'Desconocido'}</p>
+                              <p className="text-[9px] text-gray-400">
+                                Ref: {ph.purchase_orders ? `OC-${new Date(ph.purchase_orders.issue_date).getFullYear()}-${String(ph.purchase_orders.sequence_number).padStart(3, '0')}` : 'Manual'}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-procarni-secondary">
+                                {sym}{fmt(ph.unit_price, 4)} <span className="text-[10px] text-gray-500 font-bold ml-0.5">{cur}</span>
+                              </p>
+                              <p className="text-[9px] text-gray-400">{new Date(ph.recorded_at).toLocaleDateString()}</p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-procarni-secondary">${fmt(ph.unit_price, 4)}</p>
-                            <p className="text-[9px] text-gray-400">{new Date(ph.recorded_at).toLocaleDateString()}</p>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </section>
@@ -1893,6 +1905,8 @@ const MaterialGeneralProfile = () => {
                                       const year = po?.issue_date ? new Date(po.issue_date).getFullYear() : new Date(ph.recorded_at).getFullYear();
                                       const month = po?.issue_date ? String(new Date(po.issue_date).getMonth() + 1).padStart(2, '0') : String(new Date(ph.recorded_at).getMonth() + 1).padStart(2, '0');
                                       const displayId = po ? `OC-${year}-${month}-${String(po.sequence_number || 0).padStart(3, '0')}` : (ph.reference_doc || 'Manual');
+                                      const cur = ph.currency || 'USD';
+                                      const sym = cur === 'VES' ? 'Bs. ' : cur === 'EUR' ? '€' : '$';
                                       return (
                                         <tr key={`history-${ph.id || ph.recorded_at}-${idx}`} className="hover:bg-slate-50/30 transition-colors">
                                           <td className="py-3 px-4 text-slate-500 font-mono">
@@ -1914,7 +1928,8 @@ const MaterialGeneralProfile = () => {
                                             )}
                                           </td>
                                           <td className="py-3 px-4 text-right font-mono">
-                                            <span className="font-extrabold text-procarni-secondary">${fmt(ph.unit_price, 4)}</span>
+                                            <span className="font-extrabold text-procarni-secondary">{sym}{fmt(ph.unit_price, 4)}</span>
+                                            <span className="text-[10px] text-gray-500 font-bold ml-1">{cur}</span>
                                             <span className="text-[9px] text-slate-400 ml-1">/ {ph.unit || material?.unit || 'KG'}</span>
                                           </td>
                                         </tr>

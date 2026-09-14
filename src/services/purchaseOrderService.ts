@@ -245,8 +245,11 @@ export const purchaseOrderService = {
                     exchange_rate: newOrder.exchange_rate,
                     purchase_order_id: newOrder.id,
                     user_id: newOrder.user_id,
-                    unit: item.unit,
-                    unit_id: item.unit_id,
+                    unit: item.unit || null,
+                    unit_id: item.unit_id || null,
+                    recorded_at: newOrder.issue_date 
+                        ? new Date(newOrder.issue_date + 'T12:00:00Z').toISOString() 
+                        : (newOrder.created_at || new Date().toISOString()),
                 }));
 
             if (priceHistoryEntries.length > 0) {
@@ -368,11 +371,18 @@ export const purchaseOrderService = {
                     exchange_rate: updatedOrder.exchange_rate,
                     purchase_order_id: updatedOrder.id,
                     user_id: updatedOrder.user_id,
-                    unit_id: item.unit_id,
+                    unit: item.unit || null,
+                    unit_id: item.unit_id || null,
+                    recorded_at: updatedOrder.issue_date 
+                        ? new Date(updatedOrder.issue_date + 'T12:00:00Z').toISOString() 
+                        : (updatedOrder.created_at || new Date().toISOString()),
                 }));
 
             if (priceHistoryEntries.length > 0) {
-                await supabase.from('price_history').insert(priceHistoryEntries);
+                const { error: insertHistoryError } = await supabase.from('price_history').insert(priceHistoryEntries);
+                if (insertHistoryError) {
+                    console.error('[purchaseOrderService.update] Price history error:', insertHistoryError);
+                }
             }
         }
 

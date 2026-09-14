@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { searchMaterialsBySupplier, searchSuppliers, searchCompanies } from '@/integrations/supabase/data'; // Removed updatePurchaseOrder, getPurchaseOrderDetails
 import { purchaseOrderService } from '@/services/purchaseOrderService';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { calculateTotals } from '@/utils/calculations';
 
@@ -72,6 +72,7 @@ interface Supplier {
 const EditPurchaseOrder = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { session, role, profile, userName, isLoadingSession } = useSession();
 
   const [companyId, setCompanyId] = useState<string>('');
@@ -397,6 +398,14 @@ const EditPurchaseOrder = () => {
     const updatedOrder = await purchaseOrderService.update(id!, orderData, items as any);
 
     if (updatedOrder) {
+      // Invalidate relevant query caches so item profile and orders immediately reflect new price and currency
+      queryClient.invalidateQueries({ queryKey: ['priceHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['materialDetail'] });
+      queryClient.invalidateQueries({ queryKey: ['materialPriceHistoryForWarning'] });
+      queryClient.invalidateQueries({ queryKey: ['materialPOs'] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrderDetails', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+
       showSuccess('Orden de compra actualizada exitosamente.');
       navigate(`/purchase-orders/${id}`);
     }
