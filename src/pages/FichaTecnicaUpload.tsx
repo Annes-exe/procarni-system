@@ -19,7 +19,7 @@ import {
   FolderOpen,
   ZoomIn,
   ZoomOut,
-  RotateCcw,
+  RotateCw,
   Image as ImageIcon
 } from 'lucide-react';
 
@@ -91,6 +91,7 @@ const FichaTecnicaUpload = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [imageZoom, setImageZoom] = useState(100);
+  const [imageRotation, setImageRotation] = useState(0);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [fichaToDelete, setFichaToDelete] = useState<any | null>(null);
 
@@ -129,6 +130,15 @@ const FichaTecnicaUpload = () => {
 
   const isImageFile = (url: string) => {
     return /\.(jpg|jpeg|png|webp)($|\?)/i.test(url) || (url.includes('/image/upload/') && !url.toLowerCase().endsWith('.pdf'));
+  };
+
+  const getPdfEmbedUrl = (url: string) => {
+    if (!url) return '';
+    const isMobileDevice = isMobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+    if (isMobileDevice && (url.startsWith('http://') || url.startsWith('https://'))) {
+      return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    return url;
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,12 +224,14 @@ const FichaTecnicaUpload = () => {
   const handleViewFicha = (url: string) => {
     setCurrentFichaUrl(url);
     setImageZoom(100);
+    setImageRotation(0);
     setIsViewerOpen(true);
   };
 
   const handleZoomIn = () => setImageZoom((prev) => Math.min(prev + 25, 300));
   const handleZoomOut = () => setImageZoom((prev) => Math.max(prev - 25, 50));
   const handleZoomReset = () => setImageZoom(100);
+  const handleRotate = () => setImageRotation((prev) => (prev + 90) % 360);
 
   const confirmDelete = (ficha: FichaTecnica) => {
     setFichaToDelete(ficha);
@@ -661,9 +673,14 @@ const FichaTecnicaUpload = () => {
                   >
                     <ZoomOut className="h-3.5 w-3.5" />
                   </Button>
-                  <span className="text-[11px] font-mono text-gray-300 px-2 min-w-[45px] text-center select-none font-semibold">
+                  <button
+                    type="button"
+                    onClick={handleZoomReset}
+                    className="text-[11px] font-mono text-gray-300 hover:text-white px-2 min-w-[45px] text-center select-none font-semibold cursor-pointer"
+                    title="Clic para restablecer zoom (100%)"
+                  >
                     {imageZoom}%
-                  </span>
+                  </button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -679,11 +696,11 @@ const FichaTecnicaUpload = () => {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={handleZoomReset}
+                    onClick={handleRotate}
                     className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded ml-0.5"
-                    title="Restablecer tamaño (100%)"
+                    title="Rotar imagen 90°"
                   >
-                    <RotateCcw className="h-3 w-3" />
+                    <RotateCw className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
@@ -711,8 +728,8 @@ const FichaTecnicaUpload = () => {
                   onDoubleClick={() => setImageZoom(prev => (prev === 100 ? 175 : 100))}
                 >
                   <div 
-                    className="transition-transform duration-150 ease-out flex items-center justify-center m-auto"
-                    style={{ transform: `scale(${imageZoom / 100})`, transformOrigin: 'center center' }}
+                    className="transition-transform duration-200 ease-out flex items-center justify-center m-auto"
+                    style={{ transform: `scale(${imageZoom / 100}) rotate(${imageRotation}deg)`, transformOrigin: 'center center' }}
                   >
                     <img
                       src={currentFichaUrl}
@@ -723,11 +740,25 @@ const FichaTecnicaUpload = () => {
                   </div>
                 </div>
               ) : (
-                <iframe
-                  src={currentFichaUrl}
-                  className="w-full flex-1 border-none"
-                  title="Visor de Ficha Técnica"
-                />
+                <div className="w-full flex-1 flex flex-col relative">
+                  <iframe
+                    src={getPdfEmbedUrl(currentFichaUrl)}
+                    className="w-full flex-1 border-none"
+                    title="Visor de Ficha Técnica"
+                  />
+                  {/* Botón flotante para abrir directamente en el visor nativo del dispositivo */}
+                  <div className="p-3 bg-gray-900 border-t border-gray-800 flex items-center justify-between sm:hidden shrink-0">
+                    <span className="text-[11px] text-gray-400">¿Deseas abrir en tu lector PDF?</span>
+                    <Button
+                      size="sm"
+                      onClick={() => window.open(currentFichaUrl, '_blank')}
+                      className="h-8 text-xs bg-procarni-primary hover:bg-procarni-primary/90 text-white rounded-lg font-bold"
+                    >
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      Visor Nativo
+                    </Button>
+                  </div>
+                </div>
               )
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">

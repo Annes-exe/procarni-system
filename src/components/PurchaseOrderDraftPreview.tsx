@@ -5,6 +5,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import PDFDownloadButton from './PDFDownloadButton'; // Importar el botón de descarga
 import { calculateTotals } from '@/utils/calculations'; // Import calculateTotals
 import { supabase } from '@/integrations/supabase/client';
+import { ExternalLink, FileText } from 'lucide-react';
 
 interface PurchaseOrderHeader {
   supplier_id: string;
@@ -238,8 +239,16 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 mb-4">
-        {/* Usar PDFDownloadButton para la descarga consistente */}
+      <div className="flex flex-wrap justify-end gap-2 mb-4">
+        {pdfUrl && (
+          <Button
+            onClick={() => window.open(pdfUrl, '_blank')}
+            className="bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold text-xs rounded-xl shadow-sm"
+          >
+            <ExternalLink className="mr-1.5 h-4 w-4" />
+            Abrir en Visor Nativo
+          </Button>
+        )}
         <PDFDownloadButton
           orderId={tempOrderId || undefined}
           fileNameGenerator={generateDownloadFileName}
@@ -253,17 +262,46 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
         </Button>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto rounded-2xl bg-slate-50 border border-slate-100 flex flex-col">
         {isLoadingPdf && (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
+          <div className="flex items-center justify-center h-full text-muted-foreground p-6">
             Cargando previsualización del PDF...
           </div>
         )}
         {pdfUrl && !isLoadingPdf && (
-          <iframe src={pdfUrl} className="w-full h-full border-none" title="PDF Preview"></iframe>
+          <>
+            <iframe src={pdfUrl} className="hidden md:block w-full h-full border-none" title="PDF Preview"></iframe>
+            <div className="flex md:hidden flex-col items-center justify-center p-6 text-center space-y-4 my-auto">
+              <div className="w-16 h-16 rounded-2xl bg-procarni-primary/10 text-procarni-primary flex items-center justify-center shadow-sm">
+                <FileText className="h-8 w-8" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-gray-900">Borrador PDF Generado</h4>
+                <p className="text-xs text-gray-500 max-w-xs mt-1">Haz clic para abrir el borrador en el visor nativo de tu teléfono o descargarlo.</p>
+              </div>
+              <div className="flex flex-col w-full gap-2 pt-2">
+                <Button
+                  onClick={() => window.open(pdfUrl, '_blank')}
+                  className="w-full h-11 bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold rounded-xl shadow-md"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Abrir en Visor Nativo
+                </Button>
+                <PDFDownloadButton
+                  orderId={tempOrderId || undefined}
+                  fileNameGenerator={generateDownloadFileName}
+                  endpoint="generate-po-pdf"
+                  label="Descargar Archivo PDF"
+                  variant="outline"
+                  className="w-full h-11 rounded-xl"
+                  disabled={isLoadingPdf || !tempOrderId}
+                />
+              </div>
+            </div>
+          </>
         )}
         {!pdfUrl && !isLoadingPdf && (
-          <div className="flex items-center justify-center h-full text-destructive">
+          <div className="flex items-center justify-center h-full text-destructive p-6">
             No se pudo generar la previsualización del PDF.
           </div>
         )}

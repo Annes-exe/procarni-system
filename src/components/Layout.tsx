@@ -167,9 +167,9 @@ const Layout = () => {
 
   if (isMobile) {
     return (
-      <div className="flex h-[100dvh] w-full flex-col font-body bg-[#F8FAFC] dark:bg-slate-950 text-foreground overflow-hidden">
+      <div className="flex min-h-[100dvh] w-full flex-col font-body bg-[#F8FAFC] dark:bg-slate-950 text-foreground">
         <MobileHeader />
-        <main ref={mainContentRef} className="flex flex-1 min-h-0 flex-col gap-6 p-4 overflow-y-auto pb-24">
+        <main ref={mainContentRef} className="flex flex-1 min-h-0 flex-col gap-6 p-4 pb-28">
           <DynamicBreadcrumbs />
           <Outlet />
         </main>

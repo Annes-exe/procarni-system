@@ -13,39 +13,43 @@ const ScrollToTopButton: React.FC<ScrollToTopButtonProps> = ({ scrollContainerRe
   // Función para manejar el desplazamiento
   const toggleVisibility = () => {
     const container = scrollContainerRef.current;
-    if (container) {
-      // Usamos scrollTop del contenedor
-      if (container.scrollTop > 300) {
-        setIsVisible(true);
-      } else {
-        setIsVisible(false);
-      }
+    const scrollY = container?.scrollTop || window.scrollY || document.documentElement.scrollTop;
+    if (scrollY > 300) {
+      setIsVisible(true);
+    } else {
+      setIsVisible(false);
     }
   };
 
   // Función para volver al inicio
   const scrollToTop = () => {
     const container = scrollContainerRef.current;
-    if (container) {
+    if (container && container.scrollTop > 0) {
       container.scrollTo({
         top: 0,
         behavior: 'smooth',
       });
     }
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
   };
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) {
-      // Escuchar el evento de desplazamiento en el contenedor específico
       container.addEventListener('scroll', toggleVisibility);
-      // Ejecutar una vez al montar para el estado inicial
-      toggleVisibility();
-      
-      return () => {
-        container.removeEventListener('scroll', toggleVisibility);
-      };
     }
+    window.addEventListener('scroll', toggleVisibility);
+    toggleVisibility();
+    
+    return () => {
+      if (container) {
+        container.removeEventListener('scroll', toggleVisibility);
+      }
+      window.removeEventListener('scroll', toggleVisibility);
+    };
   }, [scrollContainerRef]);
 
   return (

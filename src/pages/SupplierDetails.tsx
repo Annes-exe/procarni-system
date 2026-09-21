@@ -39,7 +39,7 @@ import {
   TrendingDown, Clock, ArrowUpRight, Activity, ChevronDown, ChevronRight, Package, Wrench,
   Save, AlertCircle, Trash2, Send, ExternalLink, RefreshCw, FileUp, Sparkles, Building2,
   ChevronsUpDown, ChevronLeft, Tag, MoreHorizontal, Eye,
-  ZoomIn, ZoomOut, RotateCcw, Image as ImageIcon
+  ZoomIn, ZoomOut, RotateCw, Image as ImageIcon
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -176,6 +176,7 @@ const SupplierDetails = () => {
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
   const [imageZoom, setImageZoom] = useState(100);
+  const [imageRotation, setImageRotation] = useState(0);
 
   // Tab search states
   const [searchPO, setSearchPO] = useState('');
@@ -937,9 +938,19 @@ const SupplierDetails = () => {
     return /\.(jpg|jpeg|png|webp)($|\?)/i.test(url) || (url.includes('/image/upload/') && !url.toLowerCase().endsWith('.pdf'));
   };
 
+  const getPdfEmbedUrl = (url: string) => {
+    if (!url) return '';
+    const isMobileDevice = isMobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+    if (isMobileDevice && (url.startsWith('http://') || url.startsWith('https://'))) {
+      return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    return url;
+  };
+
   const handleZoomIn = () => setImageZoom((prev) => Math.min(prev + 25, 300));
   const handleZoomOut = () => setImageZoom((prev) => Math.max(prev - 25, 50));
   const handleZoomReset = () => setImageZoom(100);
+  const handleRotate = () => setImageRotation((prev) => (prev + 90) % 360);
 
   const handleViewFicha = async (materialName: string) => {
     if (!supplier?.id) return;
@@ -948,6 +959,7 @@ const SupplierDetails = () => {
       setCurrentFichaUrl(ficha.storage_url);
       setCurrentFichaTitle(`Ficha Técnica: ${materialName}`);
       setImageZoom(100);
+      setImageRotation(0);
       setIsViewerOpen(true);
     } else {
       toast.error(`No se encontró una ficha técnica para el material "${materialName}".`);
@@ -2533,9 +2545,14 @@ const SupplierDetails = () => {
                   >
                     <ZoomOut className="h-3.5 w-3.5" />
                   </Button>
-                  <span className="text-[11px] font-mono text-gray-300 px-2 min-w-[45px] text-center select-none font-semibold">
+                  <button
+                    type="button"
+                    onClick={handleZoomReset}
+                    className="text-[11px] font-mono text-gray-300 hover:text-white px-2 min-w-[45px] text-center select-none font-semibold cursor-pointer"
+                    title="Clic para restablecer zoom (100%)"
+                  >
                     {imageZoom}%
-                  </span>
+                  </button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -2551,11 +2568,11 @@ const SupplierDetails = () => {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={handleZoomReset}
+                    onClick={handleRotate}
                     className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded ml-0.5"
-                    title="Restablecer tamaño (100%)"
+                    title="Rotar imagen 90°"
                   >
-                    <RotateCcw className="h-3 w-3" />
+                    <RotateCw className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
@@ -2583,8 +2600,8 @@ const SupplierDetails = () => {
                   onDoubleClick={() => setImageZoom(prev => (prev === 100 ? 175 : 100))}
                 >
                   <div 
-                    className="transition-transform duration-150 ease-out flex items-center justify-center m-auto"
-                    style={{ transform: `scale(${imageZoom / 100})`, transformOrigin: 'center center' }}
+                    className="transition-transform duration-200 ease-out flex items-center justify-center m-auto"
+                    style={{ transform: `scale(${imageZoom / 100}) rotate(${imageRotation}deg)`, transformOrigin: 'center center' }}
                   >
                     <img
                       src={currentFichaUrl}
@@ -2595,11 +2612,25 @@ const SupplierDetails = () => {
                   </div>
                 </div>
               ) : (
-                <iframe
-                  src={currentFichaUrl}
-                  className="w-full flex-1 border-none"
-                  title={currentFichaTitle || "PDF Viewer"}
-                />
+                <div className="w-full flex-1 flex flex-col relative">
+                  <iframe
+                    src={getPdfEmbedUrl(currentFichaUrl)}
+                    className="w-full flex-1 border-none"
+                    title={currentFichaTitle || "Visor de Ficha Técnica"}
+                  />
+                  {/* Botón flotante para abrir directamente en el visor nativo del dispositivo */}
+                  <div className="p-3 bg-gray-900 border-t border-gray-800 flex items-center justify-between sm:hidden shrink-0">
+                    <span className="text-[11px] text-gray-400">¿Deseas abrir en tu lector PDF?</span>
+                    <Button
+                      size="sm"
+                      onClick={() => window.open(currentFichaUrl, '_blank')}
+                      className="h-8 text-xs bg-procarni-primary hover:bg-procarni-primary/90 text-white rounded-lg font-bold"
+                    >
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      Visor Nativo
+                    </Button>
+                  </div>
+                </div>
               )
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
