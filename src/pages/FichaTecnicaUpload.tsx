@@ -14,7 +14,13 @@ import {
   FileUp,
   ExternalLink,
   ChevronRight,
-  Filter
+  Filter,
+  Camera,
+  FolderOpen,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Image as ImageIcon
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -75,6 +81,7 @@ const FichaTecnicaUpload = () => {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialSearchResult | null>(null);
@@ -83,6 +90,7 @@ const FichaTecnicaUpload = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
+  const [imageZoom, setImageZoom] = useState(100);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [fichaToDelete, setFichaToDelete] = useState<any | null>(null);
 
@@ -119,11 +127,16 @@ const FichaTecnicaUpload = () => {
     );
   }, [fichas, searchTerm]);
 
+  const isImageFile = (url: string) => {
+    return /\.(jpg|jpeg|png|webp)($|\?)/i.test(url) || (url.includes('/image/upload/') && !url.toLowerCase().endsWith('.pdf'));
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.type !== 'application/pdf') {
-        showError('Solo se permiten archivos PDF.');
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showError('Solo se permiten archivos PDF o imágenes (JPG, PNG, WEBP).');
         setSelectedFile(null);
         return;
       }
@@ -133,6 +146,10 @@ const FichaTecnicaUpload = () => {
 
   const triggerFileSelect = () => {
     fileInputRef.current?.click();
+  };
+
+  const triggerCameraCapture = () => {
+    cameraInputRef.current?.click();
   };
 
   const handleSupplierSelect = (supplier: Supplier) => {
@@ -183,6 +200,7 @@ const FichaTecnicaUpload = () => {
         setSelectedMaterial(null);
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
         queryClient.invalidateQueries({ queryKey: ['fichasTecnicas'] });
       }
     } catch (error: any) {
@@ -195,8 +213,13 @@ const FichaTecnicaUpload = () => {
 
   const handleViewFicha = (url: string) => {
     setCurrentFichaUrl(url);
+    setImageZoom(100);
     setIsViewerOpen(true);
   };
+
+  const handleZoomIn = () => setImageZoom((prev) => Math.min(prev + 25, 300));
+  const handleZoomOut = () => setImageZoom((prev) => Math.max(prev - 25, 50));
+  const handleZoomReset = () => setImageZoom(100);
 
   const confirmDelete = (ficha: FichaTecnica) => {
     setFichaToDelete(ficha);
@@ -260,7 +283,7 @@ const FichaTecnicaUpload = () => {
                     className="flex-1 h-9 rounded-lg border-gray-200 hover:bg-procarni-primary/5 hover:text-procarni-primary hover:border-procarni-primary/30 transition-all font-medium"
                     onClick={() => handleViewFicha(ficha.storage_url)}
                   >
-                    <Eye className="mr-2 h-4 w-4" /> Ver PDF
+                    <Eye className="mr-2 h-4 w-4" /> Ver Archivo
                   </Button>
                   <Button
                     variant="ghost"
@@ -337,8 +360,7 @@ const FichaTecnicaUpload = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 pb-20">
-      <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="w-full max-w-6xl mx-auto space-y-8 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -376,7 +398,7 @@ const FichaTecnicaUpload = () => {
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle className="text-xl text-gray-900 font-bold">Subida de Documentos</CardTitle>
-                  <CardDescription className="text-gray-500 mt-0.5">Asocia un PDF técnico a un proveedor y producto específico.</CardDescription>
+                  <CardDescription className="text-gray-500 mt-0.5">Asocia un PDF o imagen técnica a un proveedor y producto específico.</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -427,14 +449,24 @@ const FichaTecnicaUpload = () => {
 
               {/* Enhanced File Drop Zone */}
               <div className="space-y-3">
-                <Label className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">Documento Técnico (PDF)</Label>
+                <Label className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">Documento Técnico (PDF o Imagen)</Label>
                 <input
                   id="pdfFile"
                   type="file"
-                  accept="application/pdf"
+                  accept="application/pdf,image/jpeg,image/png,image/webp,image/*"
                   className="hidden"
                   onChange={handleFileChange}
                   ref={fileInputRef}
+                  disabled={isUploading}
+                />
+                <input
+                  id="cameraFile"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  ref={cameraInputRef}
                   disabled={isUploading}
                 />
 
@@ -442,7 +474,7 @@ const FichaTecnicaUpload = () => {
                   onClick={triggerFileSelect}
                   className={cn(
                     "relative group cursor-pointer transition-all duration-500 overflow-hidden",
-                    "border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center gap-4 text-center",
+                    "border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center gap-4 text-center",
                     selectedFile
                       ? "border-procarni-secondary bg-procarni-secondary/5"
                       : "border-gray-200 bg-gray-50/50 hover:bg-white hover:border-procarni-primary/40 hover:shadow-xl hover:shadow-procarni-primary/5"
@@ -462,10 +494,10 @@ const FichaTecnicaUpload = () => {
                       "text-lg font-bold transition-colors",
                       selectedFile ? "text-procarni-secondary" : "text-gray-700 group-hover:text-procarni-primary"
                     )}>
-                      {selectedFile ? "¡Archivo Listo!" : "Haz clic para seleccionar"}
+                      {selectedFile ? "¡Archivo Listo!" : "Haz clic para seleccionar o tomar foto"}
                     </h5>
                     <p className="text-sm text-gray-400 mt-1">
-                      {selectedFile ? selectedFile.name : "Solo se admiten archivos PDF técnicos"}
+                      {selectedFile ? selectedFile.name : "Admite archivos PDF o imágenes (JPG, PNG, WEBP)"}
                     </p>
                   </div>
 
@@ -473,6 +505,32 @@ const FichaTecnicaUpload = () => {
                   <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <FileText className="h-32 w-32 -mr-8 -mt-8 rotate-12" />
                   </div>
+                </div>
+
+                {/* Acciones directas para Archivo y Cámara (Solo iconos en mobile) */}
+                <div className="flex gap-3 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={triggerFileSelect}
+                    disabled={isUploading}
+                    className="flex-1 h-11 rounded-xl border-gray-200 text-gray-700 hover:bg-gray-100 font-semibold text-xs transition-all flex items-center justify-center gap-2"
+                    title="Seleccionar Archivo / PDF / Galería"
+                  >
+                    <FolderOpen className="h-5 w-5 text-procarni-primary shrink-0" />
+                    <span className="hidden sm:inline">Archivos / PDF / Galería</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={triggerCameraCapture}
+                    disabled={isUploading}
+                    className="flex-1 h-11 rounded-xl border-gray-200 text-gray-700 hover:bg-gray-100 font-semibold text-xs transition-all flex items-center justify-center gap-2"
+                    title="Tomar Foto con Cámara"
+                  >
+                    <Camera className="h-5 w-5 text-procarni-secondary shrink-0" />
+                    <span className="hidden sm:inline">Tomar Foto con Cámara</span>
+                  </Button>
                 </div>
               </div>
 
@@ -570,46 +628,113 @@ const FichaTecnicaUpload = () => {
             {renderFichasTable()}
           </div>
         </div>
-      </div>
 
-      {/* Modern PDF Viewer Dialog */}
+      {/* Ultra-Slim Modern Viewer Dialog */}
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] p-0 overflow-hidden rounded-3xl border-none shadow-2xl bg-gray-900">
-          <DialogHeader className="p-4 bg-white/10 backdrop-blur-xl border-b border-white/10 flex-row items-center justify-between space-y-0">
-            <div>
-              <DialogTitle className="text-lg text-white font-bold flex items-center gap-2">
-                <FileText className="h-5 w-5 text-procarni-secondary" />
+        <DialogContent className="max-w-[98vw] lg:max-w-7xl h-[96vh] p-0 overflow-hidden rounded-2xl border-none shadow-2xl bg-gray-950 flex flex-col text-white">
+          {/* Ultra-Compact Header */}
+          <DialogHeader className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex-row items-center justify-between space-y-0 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0 pr-4">
+              <div className="w-7 h-7 rounded-lg bg-procarni-primary/20 text-procarni-primary flex items-center justify-center shrink-0">
+                {isImageFile(currentFichaUrl) ? <ImageIcon className="h-4 w-4 text-emerald-400" /> : <FileText className="h-4 w-4 text-red-400" />}
+              </div>
+              <DialogTitle className="text-sm font-bold text-gray-200 truncate">
                 Visor de Ficha Técnica
               </DialogTitle>
-              <DialogDescription className="text-gray-400 mt-0">Documento certificado y verificado.</DialogDescription>
+              <Badge variant="outline" className="hidden sm:inline-flex text-[10px] font-mono border-gray-700 text-gray-400 py-0 h-5">
+                {isImageFile(currentFichaUrl) ? 'IMAGEN' : 'PDF'}
+              </Badge>
             </div>
-          </DialogHeader>
-          <div className="flex-1 w-full h-full bg-[#323639] relative group">
-            {currentFichaUrl ? (
-              <iframe
-                src={currentFichaUrl}
-                className="w-full h-full border-none"
-                title="PDF Viewer"
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                <div className="w-12 h-12 rounded-full border-4 border-white/20 border-t-white animate-spin" />
-                <p className="text-white/60 font-medium">Cargando documento...</p>
-              </div>
-            )}
 
-            {/* Quick Actions overlay for the viewer */}
-            <div className="absolute bottom-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            {/* Quick Actions Header Toolbar */}
+            <div className="flex items-center gap-1.5 mr-6">
+              {isImageFile(currentFichaUrl) && (
+                <div className="flex items-center bg-gray-800 rounded-lg p-0.5 border border-gray-700">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomOut}
+                    disabled={imageZoom <= 50}
+                    className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded"
+                    title="Alejar (-25%)"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="text-[11px] font-mono text-gray-300 px-2 min-w-[45px] text-center select-none font-semibold">
+                    {imageZoom}%
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomIn}
+                    disabled={imageZoom >= 300}
+                    className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded"
+                    title="Acercar (+25%)"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomReset}
+                    className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded ml-0.5"
+                    title="Restablecer tamaño (100%)"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
               <Button
                 asChild
-                className="rounded-full bg-white text-gray-900 hover:bg-procarni-secondary hover:text-white transition-colors h-12 font-bold px-6 shadow-2xl"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-xs text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg border border-gray-700"
               >
                 <a href={currentFichaUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Abrir en pestaña nueva
+                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                  <span className="hidden sm:inline">Abrir pestaña</span>
                 </a>
               </Button>
             </div>
+          </DialogHeader>
+
+          {/* Viewer Area */}
+          <div className="flex-1 w-full h-full min-h-0 bg-gray-950 relative overflow-hidden flex flex-col">
+            {currentFichaUrl ? (
+              isImageFile(currentFichaUrl) ? (
+                <div 
+                  className="w-full flex-1 overflow-auto p-4 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                  onDoubleClick={() => setImageZoom(prev => (prev === 100 ? 175 : 100))}
+                >
+                  <div 
+                    className="transition-transform duration-150 ease-out flex items-center justify-center m-auto"
+                    style={{ transform: `scale(${imageZoom / 100})`, transformOrigin: 'center center' }}
+                  >
+                    <img
+                      src={currentFichaUrl}
+                      alt="Ficha Técnica"
+                      className="max-w-[85vw] max-h-[85vh] object-contain rounded shadow-2xl select-none"
+                      draggable={false}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  src={currentFichaUrl}
+                  className="w-full flex-1 border-none"
+                  title="Visor de Ficha Técnica"
+                />
+              )
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <p className="text-white/60 text-xs">Cargando documento...</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

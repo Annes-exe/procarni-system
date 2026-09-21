@@ -38,7 +38,8 @@ import {
   Mail, Globe, MapPin, CreditCard, Calendar, Loader2, Search, AlertTriangle, TrendingUp,
   TrendingDown, Clock, ArrowUpRight, Activity, ChevronDown, ChevronRight, Package, Wrench,
   Save, AlertCircle, Trash2, Send, ExternalLink, RefreshCw, FileUp, Sparkles, Building2,
-  ChevronsUpDown, ChevronLeft, Tag, MoreHorizontal, Eye
+  ChevronsUpDown, ChevronLeft, Tag, MoreHorizontal, Eye,
+  ZoomIn, ZoomOut, RotateCcw, Image as ImageIcon
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -174,6 +175,7 @@ const SupplierDetails = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [currentFichaUrl, setCurrentFichaUrl] = useState('');
   const [currentFichaTitle, setCurrentFichaTitle] = useState('');
+  const [imageZoom, setImageZoom] = useState(100);
 
   // Tab search states
   const [searchPO, setSearchPO] = useState('');
@@ -931,12 +933,21 @@ const SupplierDetails = () => {
     return digitsOnly;
   };
 
+  const isImageFile = (url: string) => {
+    return /\.(jpg|jpeg|png|webp)($|\?)/i.test(url) || (url.includes('/image/upload/') && !url.toLowerCase().endsWith('.pdf'));
+  };
+
+  const handleZoomIn = () => setImageZoom((prev) => Math.min(prev + 25, 300));
+  const handleZoomOut = () => setImageZoom((prev) => Math.max(prev - 25, 50));
+  const handleZoomReset = () => setImageZoom(100);
+
   const handleViewFicha = async (materialName: string) => {
     if (!supplier?.id) return;
     const ficha: FichaTecnica | null = await getFichaTecnicaBySupplierAndProduct(supplier.id, materialName);
     if (ficha && ficha.storage_url) {
       setCurrentFichaUrl(ficha.storage_url);
       setCurrentFichaTitle(`Ficha Técnica: ${materialName}`);
+      setImageZoom(100);
       setIsViewerOpen(true);
     } else {
       toast.error(`No se encontró una ficha técnica para el material "${materialName}".`);
@@ -2492,15 +2503,109 @@ const SupplierDetails = () => {
 
       {/* MODAL: VISOR DE FICHA TÉCNICA */}
       <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-5xl h-[95vh] flex flex-col bg-white rounded-3xl p-6">
-          <DialogHeader className="pb-3 border-b border-slate-100">
-            <DialogTitle className="text-lg font-black text-procarni-blue">{currentFichaTitle}</DialogTitle>
+        <DialogContent className="max-w-[98vw] lg:max-w-7xl h-[96vh] p-0 overflow-hidden rounded-2xl border-none shadow-2xl bg-gray-950 flex flex-col text-white">
+          {/* Ultra-Compact Header */}
+          <DialogHeader className="px-4 py-2.5 bg-gray-900 border-b border-gray-800 flex-row items-center justify-between space-y-0 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0 pr-4">
+              <div className="w-7 h-7 rounded-lg bg-procarni-primary/20 text-procarni-primary flex items-center justify-center shrink-0">
+                {isImageFile(currentFichaUrl) ? <ImageIcon className="h-4 w-4 text-emerald-400" /> : <FileText className="h-4 w-4 text-red-400" />}
+              </div>
+              <DialogTitle className="text-sm font-bold text-gray-200 truncate">
+                {currentFichaTitle || 'Visor de Ficha Técnica'}
+              </DialogTitle>
+              <Badge variant="outline" className="hidden sm:inline-flex text-[10px] font-mono border-gray-700 text-gray-400 py-0 h-5">
+                {isImageFile(currentFichaUrl) ? 'IMAGEN' : 'PDF'}
+              </Badge>
+            </div>
+
+            {/* Quick Actions Header Toolbar */}
+            <div className="flex items-center gap-1.5 mr-6">
+              {isImageFile(currentFichaUrl) && (
+                <div className="flex items-center bg-gray-800 rounded-lg p-0.5 border border-gray-700">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomOut}
+                    disabled={imageZoom <= 50}
+                    className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded"
+                    title="Alejar (-25%)"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="text-[11px] font-mono text-gray-300 px-2 min-w-[45px] text-center select-none font-semibold">
+                    {imageZoom}%
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomIn}
+                    disabled={imageZoom >= 300}
+                    className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded"
+                    title="Acercar (+25%)"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleZoomReset}
+                    className="h-7 w-7 text-gray-300 hover:text-white hover:bg-gray-700 rounded ml-0.5"
+                    title="Restablecer tamaño (100%)"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2.5 text-xs text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg border border-gray-700"
+              >
+                <a href={currentFichaUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                  <span className="hidden sm:inline">Abrir pestaña</span>
+                </a>
+              </Button>
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto rounded-2xl bg-slate-50 border border-slate-100 mt-2">
+
+          {/* Viewer Area */}
+          <div className="flex-1 w-full h-full min-h-0 bg-gray-950 relative overflow-hidden flex flex-col">
             {currentFichaUrl ? (
-              <iframe src={currentFichaUrl} className="w-full h-full border-none" title="PDF Viewer" />
+              isImageFile(currentFichaUrl) ? (
+                <div 
+                  className="w-full flex-1 overflow-auto p-4 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                  onDoubleClick={() => setImageZoom(prev => (prev === 100 ? 175 : 100))}
+                >
+                  <div 
+                    className="transition-transform duration-150 ease-out flex items-center justify-center m-auto"
+                    style={{ transform: `scale(${imageZoom / 100})`, transformOrigin: 'center center' }}
+                  >
+                    <img
+                      src={currentFichaUrl}
+                      alt={currentFichaTitle || "Ficha Técnica"}
+                      className="max-w-[85vw] max-h-[85vh] object-contain rounded shadow-2xl select-none"
+                      draggable={false}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  src={currentFichaUrl}
+                  className="w-full flex-1 border-none"
+                  title={currentFichaTitle || "PDF Viewer"}
+                />
+              )
             ) : (
-              <div className="text-center text-destructive py-10">No se pudo cargar el documento.</div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <p className="text-white/60 text-xs">Cargando documento...</p>
+              </div>
             )}
           </div>
         </DialogContent>
