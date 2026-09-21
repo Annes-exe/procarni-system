@@ -229,79 +229,71 @@ const PurchaseOrderDraftPreview: React.FC<PurchaseOrderDraftPreviewProps> = ({ o
 
   return (
     <div className="flex flex-col h-full">
-      {/* Totals Display */}
-      <div className="flex justify-end items-center mb-4 gap-4 text-sm">
-        <div className="flex flex-col items-end">
-          <span className="font-semibold">Total: {orderData.currency} {totals.total.toFixed(2)}</span>
+      {/* Totals & Actions */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3 shrink-0">
+        <div className="flex items-center gap-3 text-xs sm:text-sm">
+          <span className="font-semibold text-gray-700">Total: {orderData.currency} {totals.total.toFixed(2)}</span>
           {totalInUSD && (
-            <span className="font-bold text-blue-600">USD {totalInUSD}</span>
+            <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">USD {totalInUSD}</span>
           )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {pdfUrl && (
+            <Button
+              onClick={() => window.open(pdfUrl, '_blank')}
+              className="bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold text-xs rounded-xl shadow-sm h-8"
+              title="Abrir en visor del dispositivo para imprimir o compartir"
+            >
+              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+              Visor Nativo
+            </Button>
+          )}
+          <PDFDownloadButton
+            orderId={tempOrderId || undefined}
+            fileNameGenerator={generateDownloadFileName}
+            endpoint="generate-po-pdf"
+            label="Descargar PDF"
+            variant="outline"
+            className="h-8 text-xs font-semibold rounded-xl"
+            disabled={isLoadingPdf || !tempOrderId}
+          />
+          <Button onClick={handleClose} variant="outline" className="h-8 text-xs font-semibold rounded-xl">
+            Cerrar
+          </Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 mb-4">
-        {pdfUrl && (
-          <Button
-            onClick={() => window.open(pdfUrl, '_blank')}
-            className="bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold text-xs rounded-xl shadow-sm"
-          >
-            <ExternalLink className="mr-1.5 h-4 w-4" />
-            Abrir en Visor Nativo
-          </Button>
-        )}
-        <PDFDownloadButton
-          orderId={tempOrderId || undefined}
-          fileNameGenerator={generateDownloadFileName}
-          endpoint="generate-po-pdf"
-          label="Descargar PDF"
-          variant="outline"
-          disabled={isLoadingPdf || !tempOrderId}
-        />
-        <Button onClick={handleClose} variant="outline">
-          Cerrar
-        </Button>
-      </div>
-
-      <div className="flex-1 overflow-auto rounded-2xl bg-slate-50 border border-slate-100 flex flex-col">
+      <div className="flex-1 overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 flex flex-col min-h-0 relative">
         {isLoadingPdf && (
-          <div className="flex items-center justify-center h-full text-muted-foreground p-6">
-            Cargando previsualización del PDF...
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+            <p className="text-xs">Cargando previsualización del PDF...</p>
           </div>
         )}
         {pdfUrl && !isLoadingPdf && (
-          <>
-            <iframe src={pdfUrl} className="hidden md:block w-full h-full border-none" title="PDF Preview"></iframe>
-            <div className="flex md:hidden flex-col items-center justify-center p-6 text-center space-y-4 my-auto">
-              <div className="w-16 h-16 rounded-2xl bg-procarni-primary/10 text-procarni-primary flex items-center justify-center shadow-sm">
-                <FileText className="h-8 w-8" />
-              </div>
-              <div>
-                <h4 className="text-base font-bold text-gray-900">Borrador PDF Generado</h4>
-                <p className="text-xs text-gray-500 max-w-xs mt-1">Haz clic para abrir el borrador en el visor nativo de tu teléfono o descargarlo.</p>
-              </div>
-              <div className="flex flex-col w-full gap-2 pt-2">
-                <Button
-                  onClick={() => window.open(pdfUrl, '_blank')}
-                  className="w-full h-11 bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold rounded-xl shadow-md"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Abrir en Visor Nativo
-                </Button>
-                <PDFDownloadButton
-                  orderId={tempOrderId || undefined}
-                  fileNameGenerator={generateDownloadFileName}
-                  endpoint="generate-po-pdf"
-                  label="Descargar Archivo PDF"
-                  variant="outline"
-                  className="w-full h-11 rounded-xl"
-                  disabled={isLoadingPdf || !tempOrderId}
-                />
-              </div>
+          <div className="w-full flex-1 flex flex-col h-full min-h-0 relative">
+            <iframe
+              src={pdfUrl}
+              className="w-full flex-1 border-none min-h-0 bg-white"
+              title="PDF Preview"
+            />
+            {/* Quick action bar on mobile */}
+            <div className="p-2 bg-gray-900 border-t border-gray-800 flex items-center justify-between sm:hidden shrink-0">
+              <span className="text-[11px] text-gray-400">¿Deseas imprimir o compartir?</span>
+              <Button
+                size="sm"
+                onClick={() => window.open(pdfUrl, '_blank')}
+                className="h-7 text-xs bg-procarni-primary hover:bg-procarni-primary/90 text-white rounded-lg font-bold px-2.5"
+              >
+                <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                Visor Nativo
+              </Button>
             </div>
-          </>
+          </div>
         )}
         {!pdfUrl && !isLoadingPdf && (
-          <div className="flex items-center justify-center h-full text-destructive p-6">
+          <div className="flex items-center justify-center h-full text-red-400 p-6 text-sm">
             No se pudo generar la previsualización del PDF.
           </div>
         )}

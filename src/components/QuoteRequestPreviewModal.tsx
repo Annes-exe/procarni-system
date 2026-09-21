@@ -113,14 +113,15 @@ const QuoteRequestPreviewModal = React.forwardRef<QuoteRequestPreviewModalRef, Q
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-wrap justify-end gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 w-full justify-end mb-3 shrink-0">
         {pdfUrl && (
           <Button
             onClick={() => window.open(pdfUrl, '_blank')}
-            className="bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold text-xs rounded-xl shadow-sm"
+            className="bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold text-xs rounded-xl shadow-sm h-8"
+            title="Abrir en visor del dispositivo para imprimir o compartir"
           >
-            <ExternalLink className="mr-1.5 h-4 w-4" />
-            Abrir en Visor Nativo
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+            Visor Nativo
           </Button>
         )}
         <PDFDownloadButton
@@ -129,57 +130,44 @@ const QuoteRequestPreviewModal = React.forwardRef<QuoteRequestPreviewModalRef, Q
           endpoint="generate-qr-pdf"
           label="Descargar PDF"
           variant="outline"
+          className="h-8 text-xs font-semibold rounded-xl"
           disabled={isLoadingPdf}
         />
-        <Button onClick={handleClose} variant="outline">
+        <Button onClick={handleClose} variant="outline" className="h-8 text-xs font-semibold rounded-xl">
           Cerrar
         </Button>
       </div>
 
-      <div className="flex-1 overflow-auto rounded-2xl bg-slate-50 border border-slate-100 flex flex-col">
+      <div className="flex-1 overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 flex flex-col min-h-0 relative">
         {isLoadingPdf && (
-          <div className="flex items-center justify-center h-full text-muted-foreground p-6">
-            Cargando previsualización del PDF...
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+            <p className="text-xs">Cargando previsualización del PDF...</p>
           </div>
         )}
         {pdfUrl && !isLoadingPdf && (
-          <>
+          <div className="w-full flex-1 flex flex-col h-full min-h-0 relative">
             <iframe
               src={pdfUrl}
-              className="hidden md:block w-full h-full border-none"
+              className="w-full flex-1 border-none min-h-0 bg-white"
               title="PDF Preview"
-            ></iframe>
-            <div className="flex md:hidden flex-col items-center justify-center p-6 text-center space-y-4 my-auto">
-              <div className="w-16 h-16 rounded-2xl bg-procarni-primary/10 text-procarni-primary flex items-center justify-center shadow-sm">
-                <FileText className="h-8 w-8" />
-              </div>
-              <div>
-                <h4 className="text-base font-bold text-gray-900">Cotización PDF Generada</h4>
-                <p className="text-xs text-gray-500 max-w-xs mt-1">Haz clic para abrir el documento en el visor nativo de tu teléfono o descargarlo.</p>
-              </div>
-              <div className="flex flex-col w-full gap-2 pt-2">
-                <Button
-                  onClick={() => window.open(pdfUrl, '_blank')}
-                  className="w-full h-11 bg-procarni-primary hover:bg-procarni-primary/90 text-white font-bold rounded-xl shadow-md"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Abrir en Visor Nativo
-                </Button>
-                <PDFDownloadButton
-                  requestId={requestId}
-                  fileName={fileName}
-                  endpoint="generate-qr-pdf"
-                  label="Descargar Archivo PDF"
-                  variant="outline"
-                  className="w-full h-11 rounded-xl"
-                  disabled={isLoadingPdf}
-                />
-              </div>
+            />
+            {/* Quick action bar on mobile */}
+            <div className="p-2 bg-gray-900 border-t border-gray-800 flex items-center justify-between sm:hidden shrink-0">
+              <span className="text-[11px] text-gray-400">¿Deseas imprimir o compartir?</span>
+              <Button
+                size="sm"
+                onClick={() => window.open(pdfUrl, '_blank')}
+                className="h-7 text-xs bg-procarni-primary hover:bg-procarni-primary/90 text-white rounded-lg font-bold px-2.5"
+              >
+                <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                Visor Nativo
+              </Button>
             </div>
-          </>
+          </div>
         )}
         {!pdfUrl && !isLoadingPdf && (
-          <div className="flex items-center justify-center h-full text-destructive p-6">
+          <div className="flex items-center justify-center h-full text-red-400 p-6 text-sm">
             No se pudo generar la previsualización del PDF.
           </div>
         )}
