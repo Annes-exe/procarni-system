@@ -351,44 +351,46 @@ const supplierFormSchema = z.object({
   rubros: z.string().optional().nullable(),
 });
 
-type SupplierFormValues = z.infer<typeof supplierFormSchema>;
+export type SupplierFormValues = z.infer<typeof supplierFormSchema>;
 
-interface SupplierFormProps {
-  initialData?: {
+export interface SupplierFormInitialData {
+  id?: string;
+  code?: string;
+  rif?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  phone_2?: string;
+  instagram?: string;
+  website?: string;
+  address?: string;
+  city?: string | null;
+  state?: string | null;
+  payment_terms?: 'Contado' | 'Crédito' | 'Otro';
+  custom_payment_terms?: string | null;
+  credit_days?: number;
+  status?: string;
+  alert_comment?: string | null;
+  rubros?: string | null;
+  materials?: Array<{
     id?: string;
-    code?: string;
-    rif: string;
-    name: string;
-    email?: string;
-    phone?: string;
-    phone_2?: string;
-    instagram?: string;
-    website?: string;
-    address?: string;
-    city?: string | null;
-    state?: string | null;
-    payment_terms: 'Contado' | 'Crédito' | 'Otro';
-    custom_payment_terms?: string | null;
-    credit_days: number;
-    status: string;
-    alert_comment?: string | null;
-    rubros?: string | null;
-    materials?: Array<{
-      id?: string;
-      material_id: string;
-      unit_id?: string | null;
-      specification?: string;
-      materials?: {
-        id: string;
-        name: string;
-        category?: string;
-      };
-      units_of_measure?: {
-        id: string;
-        name: string;
-      };
-    }>;
-  };
+    material_id: string;
+    unit_id?: string | null;
+    specification?: string;
+    materials?: {
+      id: string;
+      name: string;
+      category?: string;
+    };
+    units_of_measure?: {
+      id: string;
+      name: string;
+    };
+  }>;
+}
+
+export interface SupplierFormProps {
+  initialData?: SupplierFormInitialData;
   onSubmit: (data: SupplierFormValues) => void;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -501,7 +503,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
         address: initialData.address || '',
         city: initialData.city || '',
         state: initialData.state || '',
-        payment_terms: initialData.payment_terms,
+        payment_terms: initialData.payment_terms || 'Contado',
         custom_payment_terms: initialData.custom_payment_terms || '',
         credit_days: initialData.credit_days || 0,
         status: initialData.status || 'Active', // Changed to English

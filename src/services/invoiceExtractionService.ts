@@ -167,6 +167,11 @@ export function sanitizeParsedInvoice(data: any): ExtractedInvoiceSchema {
 export function getGeminiApiKey(customApiKey?: string): string | undefined {
   if (customApiKey) return customApiKey;
 
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const stored = window.localStorage.getItem('gemini_api_key') || window.localStorage.getItem('GOOGLE_AI_API_KEY');
+    if (stored && stored.trim() !== '') return stored.trim();
+  }
+
   if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
     const viteKey =
       (import.meta as any).env.VITE_GOOGLE_AI_API_KEY ||

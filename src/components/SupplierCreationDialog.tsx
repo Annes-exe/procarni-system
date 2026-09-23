@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import SupplierForm from '@/components/SupplierForm';
+import SupplierForm, { SupplierFormValues, SupplierFormInitialData } from '@/components/SupplierForm';
 import { createSupplier } from '@/integrations/supabase/data';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
 import { Supplier } from '@/integrations/supabase/types';
 
-interface SupplierCreationDialogProps {
+export interface SupplierCreationDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSupplierCreated: (supplier: Supplier) => void;
-  initialData?: any;
+  initialData?: SupplierFormInitialData;
 }
 
 const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
@@ -24,7 +24,7 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
   const { session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmitForm = async (data: any) => {
+  const handleSubmitForm = async (data: SupplierFormValues) => {
     if (!session?.user?.id) {
       showError('Usuario no autenticado. No se puede realizar la operación.');
       return;
@@ -33,10 +33,10 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
     setIsSubmitting(true);
     try {
       const { materials, ...supplierData } = data;
-      const materialsPayload = materials?.map((mat: any) => ({
+      const materialsPayload = materials?.map((mat) => ({
         material_id: mat.material_id,
-        specification: mat.specification,
-        unit_id: mat.unit_id,
+        specification: mat.specification || '',
+        unit_id: mat.unit_id || null,
       })) || [];
 
       const newSupplier = await createSupplier(
@@ -48,13 +48,15 @@ const SupplierCreationDialog: React.FC<SupplierCreationDialogProps> = ({
         queryClient.invalidateQueries({ queryKey: ['suppliers_paginated'] });
         queryClient.invalidateQueries({ queryKey: ['suppliers'] });
         queryClient.invalidateQueries({ queryKey: ['allSuppliers'] });
+        queryClient.invalidateQueries({ queryKey: ['suppliers_smart_search'] });
         showSuccess(`Proveedor "${newSupplier.name}" creado exitosamente.`);
         onSupplierCreated(newSupplier as Supplier);
         onClose();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[SupplierCreationDialog] Error:', error);
-      showError(error.message || 'Error al crear el proveedor.');
+      const errorMsg = error instanceof Error ? error.message : 'Error al crear el proveedor.';
+      showError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
