@@ -76,33 +76,22 @@ export interface SearchExecutionTelemetry {
 
 // Modelos oficiales y verificados de Google AI Studio v1beta
 const GEMINI_MODELS = [
-  'gemini-3.6-flash',
   'gemini-3.5-flash-lite',
-  'gemini-3.7-flash',
-  'gemini-flash-latest',
+  'gemini-3.6-flash',
   'gemini-flash-lite-latest',
-  'gemini-pro-latest',
-  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.7-flash',
   'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-pro-latest',
 ];
 
-// Modelos Groq activos
-const GROQ_MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'deepseek-r1-distill-llama-70b',
-  'llama-3.2-11b-vision-preview',
-  'llama-3.2-3b-preview',
-  'llama-3.2-1b-preview',
-];
-
-// Modelos OpenRouter (DeepSeek prioritario)
+// Modelos OpenRouter (DeepSeek y Llama con enrutamiento de hardware a Groq/Cerebras)
 const OPENROUTER_MODELS = [
   'deepseek/deepseek-chat',
-  'deepseek/deepseek-r1:free',
   'meta-llama/llama-3.3-70b-instruct',
+  'deepseek/deepseek-r1:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
   'openrouter/free',
 ];
 
@@ -189,27 +178,6 @@ function getAllGeminiApiKeys(customApiKey?: string): string[] {
   return keys;
 }
 
-function getGroqApiKey(customKey?: string): string | undefined {
-  const custom = cleanSecret(customKey);
-  if (custom) return custom;
-
-  try {
-    const envObj = Deno.env.toObject();
-    for (const [key, value] of Object.entries(envObj)) {
-      if (key.toUpperCase().includes('GROQ')) {
-        const cleaned = cleanSecret(value);
-        if (cleaned) return cleaned;
-      }
-    }
-  } catch {
-    // fallback
-  }
-
-  return (
-    cleanSecret(Deno.env.get('GROQ_API_KEY')) ||
-    cleanSecret(Deno.env.get('VITE_GROQ_API_KEY'))
-  );
-}
 
 function getOpenRouterApiKey(customKey?: string): string | undefined {
   const custom = cleanSecret(customKey);
@@ -516,81 +484,6 @@ async function callGeminiAi(
   throw lastError || new Error('No se pudo obtener respuesta de Google Gemini.');
 }
 
-async function callGroqAi(
-  fullPrompt: string,
-  apiKey: string,
-  stepsLog: StepLogItem[] = []
-): Promise<{ text: string; model: string }> {
-  let lastError: Error | null = null;
-  for (const model of GROQ_MODELS) {
-    const modelStart = Date.now();
-    try {
-      const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: fullPrompt }],
-          temperature: 0.2,
-        }),
-      }, 4000);
-
-      const durationMs = Date.now() - modelStart;
-
-      if (!response.ok) {
-        const errText = await response.text();
-        let parsedErrMsg = errText;
-        try {
-          const errObj = JSON.parse(errText);
-          if (errObj.error?.message) {
-            parsedErrMsg = errObj.error.message;
-          }
-        } catch {
-          // raw
-        }
-
-        lastError = new Error(`Groq [${response.status} - ${model}]: ${parsedErrMsg}`);
-        stepsLog.push({
-          step: 'Groq Attempt',
-          timestamp: new Date().toISOString(),
-          status: 'warn',
-          message: `Groq ${model} status ${response.status}: ${parsedErrMsg.slice(0, 120)}`,
-          durationMs,
-        });
-        continue;
-      }
-
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (text) {
-        stepsLog.push({
-          step: 'Groq Success',
-          timestamp: new Date().toISOString(),
-          status: 'ok',
-          message: `Respuesta exitosa de Groq (${model}) en ${durationMs}ms`,
-          durationMs,
-        });
-        return { text, model: `Groq (${model})` };
-      }
-    } catch (err: unknown) {
-      const durationMs = Date.now() - modelStart;
-      const msg = err instanceof Error ? err.message : String(err);
-      lastError = err instanceof Error ? err : new Error(msg);
-      stepsLog.push({
-        step: 'Groq Error',
-        timestamp: new Date().toISOString(),
-        status: 'warn',
-        message: `Error en Groq ${model}: ${msg}`,
-        durationMs,
-      });
-    }
-  }
-  throw lastError || new Error('No se pudo obtener respuesta de Groq.');
-}
-
 async function callOpenRouterAi(
   fullPrompt: string,
   apiKey: string,
@@ -610,10 +503,14 @@ async function callOpenRouterAi(
         },
         body: JSON.stringify({
           model,
+          provider: {
+            order: ['Groq', 'Cerebras', 'DeepInfra', 'Together'],
+            allow_fallbacks: true,
+          },
           messages: [{ role: 'user', content: fullPrompt }],
           temperature: 0.2,
         }),
-      }, 5000);
+      }, 7000);
 
       const durationMs = Date.now() - modelStart;
 
@@ -913,13 +810,11 @@ serve(async (req: Request) => {
 
     // 2. Extracción de claves (Priorizando claves personalizadas pasadas por el cliente)
     const geminiKeys = getAllGeminiApiKeys(customGeminiKey || customApiKey);
-    const groqKey = getGroqApiKey(customGroqKey || customApiKey);
     const openRouterKey = getOpenRouterApiKey(customOpenRouterKey || customApiKey);
     const serperKey = getSerperApiKey(customSerperKey || customApiKey);
 
     const keyPoolStats = {
       geminiKeysCount: geminiKeys.length,
-      hasGroqKey: Boolean(groqKey),
       hasOpenRouterKey: Boolean(openRouterKey),
       hasSerperKey: Boolean(serperKey),
     };
@@ -928,7 +823,7 @@ serve(async (req: Request) => {
       step: 'Key Pool Inspection',
       timestamp: new Date().toISOString(),
       status: 'info',
-      message: `Claves disponibles: Gemini (${geminiKeys.length} claves en pool${customGeminiKey ? ' [Personalizada activa]' : ''}), Groq (${keyPoolStats.hasGroqKey ? (customGroqKey ? 'Personalizada' : 'Pool Servidor') : 'No'}), OpenRouter (${keyPoolStats.hasOpenRouterKey ? (customOpenRouterKey ? 'Personalizada' : 'Pool Servidor') : 'No'}), Serper (${keyPoolStats.hasSerperKey ? 'Activa' : 'No'})`,
+      message: `Claves disponibles: Gemini (${geminiKeys.length} claves en pool${customGeminiKey ? ' [Personalizada activa]' : ''}), OpenRouter (${keyPoolStats.hasOpenRouterKey ? (customOpenRouterKey ? 'Personalizada' : 'Pool Servidor') : 'No'}), Serper (${keyPoolStats.hasSerperKey ? 'Activa' : 'No'})`,
     });
 
     let rawOutput: { text: string; model: string } | null = null;
@@ -937,16 +832,12 @@ serve(async (req: Request) => {
     const aiStart = Date.now();
 
     // 3. Definición del orden de ejecución estricto según la selección del usuario
-    const providersToTry: Array<'gemini' | 'groq' | 'openrouter'> = [];
-    if (selectedProvider === 'groq') {
-      providersToTry.push('groq', 'gemini', 'openrouter');
-    } else if (selectedProvider === 'openrouter') {
-      providersToTry.push('openrouter', 'gemini', 'groq');
-    } else if (selectedProvider === 'gemini') {
-      providersToTry.push('gemini', 'groq', 'openrouter');
+    const providersToTry: Array<'gemini' | 'openrouter'> = [];
+    if (selectedProvider === 'openrouter') {
+      providersToTry.push('openrouter', 'gemini');
     } else {
-      // 'auto' cascade: Gemini -> Groq -> OpenRouter
-      providersToTry.push('gemini', 'groq', 'openrouter');
+      // 'auto' o 'gemini': Gemini -> OpenRouter
+      providersToTry.push('gemini', 'openrouter');
     }
 
     // 4. Ejecución en cascada con prioridad estricta
@@ -968,21 +859,6 @@ serve(async (req: Request) => {
             message: 'Sin claves de Google Gemini configuradas para este intento.',
           });
         }
-      } else if (p === 'groq') {
-        if (groqKey) {
-          try {
-            rawOutput = await callGroqAi(fullStrictPrompt, groqKey, stepsLog);
-          } catch (err) {
-            errorsAcc.push(`Groq: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        } else {
-          stepsLog.push({
-            step: 'Groq Skip',
-            timestamp: new Date().toISOString(),
-            status: 'info',
-            message: 'Sin clave de Groq configurada para este intento.',
-          });
-        }
       } else if (p === 'openrouter') {
         if (openRouterKey) {
           try {
@@ -1002,9 +878,9 @@ serve(async (req: Request) => {
     }
 
     if (!rawOutput) {
-      if (geminiKeys.length === 0 && !groqKey && !openRouterKey) {
+      if (geminiKeys.length === 0 && !openRouterKey) {
         return new Response(JSON.stringify({
-          error: 'No se encontraron claves de IA disponibles. Configura tus claves en el modal o en los secretos de Supabase.',
+          error: 'No se encontraron claves de IA disponibles. Configura GOOGLE_AI_API_KEY u OPENROUTER_API_KEY en Supabase o en el modal.',
           stepsLog,
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

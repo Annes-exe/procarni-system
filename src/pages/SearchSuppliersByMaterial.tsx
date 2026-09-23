@@ -32,10 +32,6 @@ import {
   saveCustomGeminiApiKey,
   removeCustomGeminiApiKey,
   getAllGeminiApiKeys,
-  getCustomGroqApiKey,
-  saveCustomGroqApiKey,
-  removeCustomGroqApiKey,
-  getGroqApiKey,
   getCustomOpenRouterApiKey,
   saveCustomOpenRouterApiKey,
   removeCustomOpenRouterApiKey,
@@ -125,12 +121,10 @@ const SearchSuppliersByMaterial: React.FC = () => {
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProviderType>(() => getAiProviderPreference());
   const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState<boolean>(false);
   const [customKeyInput, setCustomKeyInput] = useState<string>('');
-  const [customGroqInput, setCustomGroqInput] = useState<string>('');
   const [customOpenRouterInput, setCustomOpenRouterInput] = useState<string>('');
   const [customSerperInput, setCustomSerperInput] = useState<string>('');
 
   const [activeGeminiStatus, setActiveGeminiStatus] = useState<string>('');
-  const [activeGroqStatus, setActiveGroqStatus] = useState<string>('');
   const [activeOpenRouterStatus, setActiveOpenRouterStatus] = useState<string>('');
   const [activeSerperStatus, setActiveSerperStatus] = useState<string>('');
 
@@ -236,16 +230,6 @@ const SearchSuppliersByMaterial: React.FC = () => {
       }
     }
 
-    // Groq
-    const customGroq = getCustomGroqApiKey();
-    if (customGroq) {
-      setActiveGroqStatus(`${getLocalHint(customGroq)} (Personalizada en navegador)`);
-    } else if (getGroqApiKey()) {
-      setActiveGroqStatus('API key predeterminada (lista y activa)');
-    } else {
-      setActiveGroqStatus('No configurada');
-    }
-
     // OpenRouter
     const customOr = getCustomOpenRouterApiKey();
     if (customOr) {
@@ -283,10 +267,6 @@ const SearchSuppliersByMaterial: React.FC = () => {
       saveCustomGeminiApiKey(customKeyInput.trim());
       showSuccess('Clave(s) Gemini API guardada(s) con éxito.');
     }
-    if (customGroqInput.trim()) {
-      saveCustomGroqApiKey(customGroqInput.trim());
-      showSuccess('Clave Groq API guardada con éxito.');
-    }
     if (customOpenRouterInput.trim()) {
       saveCustomOpenRouterApiKey(customOpenRouterInput.trim());
       showSuccess('Clave OpenRouter API guardada con éxito.');
@@ -294,7 +274,6 @@ const SearchSuppliersByMaterial: React.FC = () => {
     setIsApiKeyDialogOpen(false);
     setCustomSerperInput('');
     setCustomKeyInput('');
-    setCustomGroqInput('');
     setCustomOpenRouterInput('');
   };
 
@@ -1596,60 +1575,16 @@ const SearchSuppliersByMaterial: React.FC = () => {
                     ✨ Google Gemini (Flash 3.6 & 3.5 Lite) [Recomendado]
                   </SelectItem>
                   <SelectItem value="auto" className="text-xs font-semibold text-emerald-800">
-                    ⚡ Auto-Cascade (Gemini + Groq + OpenRouter)
-                  </SelectItem>
-                  <SelectItem value="groq" className="text-xs font-semibold text-orange-700">
-                    🚀 Groq (Llama 3.3 & DeepSeek Distill - Ultra Rápido)
+                    ⚡ Auto-Cascade (Gemini + OpenRouter)
                   </SelectItem>
                   <SelectItem value="openrouter" className="text-xs font-semibold text-purple-700">
-                    🌐 OpenRouter (DeepSeek Chat & Llama 3.3)
+                    🌐 OpenRouter (DeepSeek V3 / Llama 3.3 sobre Groq)
                   </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-gray-500 leading-normal">
                 El motor de IA analiza los fragmentos de Google y extrae el JSON limpio con teléfonos venezolanos, WhatsApp y productos.
               </p>
-            </div>
-
-            {/* Groq API Key */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-orange-800 flex items-center gap-1.5">
-                  <span>Clave Groq API (Llama 3.3 70B)</span>
-                  <Badge className="bg-orange-100 text-orange-800 border-none text-[9px] py-0 px-1.5">Ultra Rápido</Badge>
-                </label>
-                <a
-                  href="https://console.groq.com/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-procarni-primary hover:underline font-semibold inline-flex items-center gap-0.5"
-                >
-                  Obtener Gratis <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-              </div>
-              <Input
-                type="password"
-                placeholder="gsk_..."
-                value={customGroqInput}
-                onChange={(e) => setCustomGroqInput(e.target.value)}
-                className="h-9 text-xs font-mono rounded-xl bg-gray-50 border-gray-200"
-              />
-              <div className="flex justify-between items-center text-[10px] text-gray-400">
-                <span>Estado: <strong className="text-gray-600">{activeGroqStatus}</strong></span>
-                {getCustomGroqApiKey() && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      removeCustomGroqApiKey();
-                      setActiveGroqStatus(getGroqApiKey() ? 'API key predeterminada (lista y activa)' : 'No configurada');
-                      showSuccess('Clave Groq local eliminada.');
-                    }}
-                    className="text-red-500 hover:underline"
-                  >
-                    Borrar
-                  </button>
-                )}
-              </div>
             </div>
 
             {/* Google Gemini API Key */}
@@ -1698,8 +1633,8 @@ const SearchSuppliersByMaterial: React.FC = () => {
             <div className="space-y-1.5 pt-2 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
-                  <span>Clave OpenRouter API (Último Recurso)</span>
-                  <Badge className="bg-purple-100 text-purple-800 border-none text-[9px] py-0 px-1.5">DeepSeek / Llama</Badge>
+                  <span>Clave OpenRouter API (DeepSeek / Llama sobre Groq)</span>
+                  <Badge className="bg-purple-100 text-purple-800 border-none text-[9px] py-0 px-1.5">DeepSeek V3 / Groq LPU</Badge>
                 </label>
                 <a
                   href="https://openrouter.ai/keys"
@@ -1752,7 +1687,6 @@ const SearchSuppliersByMaterial: React.FC = () => {
               onClick={() => {
                 removeCustomSerperApiKey();
                 removeCustomGeminiApiKey();
-                removeCustomGroqApiKey();
                 removeCustomOpenRouterApiKey();
                 showSuccess('Todas las claves personalizadas fueron restablecidas.');
                 setIsApiKeyDialogOpen(false);

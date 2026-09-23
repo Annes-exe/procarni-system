@@ -1,7 +1,7 @@
 import { getGeminiApiKey } from '@/services/invoiceExtractionService';
 import { supabase } from '@/integrations/supabase/client';
 
-export type AiProviderType = 'auto' | 'gemini' | 'groq' | 'openrouter';
+export type AiProviderType = 'auto' | 'gemini' | 'openrouter';
 
 export interface WebSupplierCandidate {
   id: string;
@@ -164,31 +164,21 @@ FORMATO DE SALIDA (ÚNICAMENTE ARRAY JSON VÁLIDO, SIN TEXTO ADICIONAL):
 }
 
 const GEMINI_FREE_MODELS = [
-  'gemini-3.6-flash',
   'gemini-3.5-flash-lite',
-  'gemini-3.7-flash',
-  'gemini-flash-latest',
+  'gemini-3.6-flash',
   'gemini-flash-lite-latest',
-  'gemini-pro-latest',
-  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.7-flash',
   'gemini-2.5-flash-lite',
-];
-
-const GROQ_MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'deepseek-r1-distill-llama-70b',
-  'llama-3.2-11b-vision-preview',
-  'llama-3.2-3b-preview',
-  'llama-3.2-1b-preview',
+  'gemini-2.5-flash',
+  'gemini-pro-latest',
 ];
 
 const OPENROUTER_ACTIVE_MODELS = [
   'deepseek/deepseek-chat',
-  'deepseek/deepseek-r1:free',
   'meta-llama/llama-3.3-70b-instruct',
+  'deepseek/deepseek-r1:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
   'openrouter/free',
 ];
 
@@ -390,7 +380,7 @@ export function saveAiProviderPreference(provider: AiProviderType): void {
 export function getAiProviderPreference(): AiProviderType {
   if (typeof window !== 'undefined' && window.localStorage) {
     const stored = window.localStorage.getItem('ai_provider_preference') as AiProviderType | null;
-    if (stored && ['auto', 'gemini', 'groq', 'openrouter'].includes(stored)) {
+    if (stored && ['auto', 'gemini', 'openrouter'].includes(stored)) {
       return stored;
     }
   }
@@ -633,55 +623,12 @@ async function callGeminiAi(fullPrompt: string, apiKeys: string | string[]): Pro
   throw lastError || new Error('No se pudo obtener respuesta de Google Gemini.');
 }
 
-async function callGroqAi(fullPrompt: string, apiKey: string): Promise<{ text: string; model: string }> {
-  let lastError: Error | null = null;
-
-  for (const model of GROQ_MODELS) {
-    try {
-      console.log(`📡 [GroqAI] Consultando modelo ${model}...`);
-      const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'user', content: fullPrompt },
-          ],
-          temperature: 0.1,
-        }),
-      }, 7000);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`⚠️ [GroqAI] Modelo ${model} respondió status ${response.status}: ${errText}. Probando siguiente...`);
-        lastError = new Error(`Groq [${response.status}]: ${errText}`);
-        continue;
-      }
-
-      const data: OpenAiApiResponse = await response.json();
-      const text = data.choices?.[0]?.message?.content;
-      if (text) {
-        return { text, model: `Groq (${model})` };
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`⚠️ [GroqAI] Error en modelo ${model}:`, msg);
-      lastError = err instanceof Error ? err : new Error(msg);
-    }
-  }
-
-  throw lastError || new Error('No se pudo obtener respuesta de Groq.');
-}
-
 async function callOpenRouterAi(fullPrompt: string, apiKey: string): Promise<{ text: string; model: string }> {
   let lastError: Error | null = null;
 
   for (const model of OPENROUTER_ACTIVE_MODELS) {
     try {
-      console.log(`📡 [OpenRouterAI] Consultando modelo ${model}...`);
+      console.log(`📡 [OpenRouterAI] Consultando modelo ${model} (con enrutamiento Groq/Cerebras)...`);
       const response = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -692,12 +639,16 @@ async function callOpenRouterAi(fullPrompt: string, apiKey: string): Promise<{ t
         },
         body: JSON.stringify({
           model,
+          provider: {
+            order: ['Groq', 'Cerebras', 'DeepInfra', 'Together'],
+            allow_fallbacks: true,
+          },
           messages: [
             { role: 'user', content: fullPrompt },
           ],
           temperature: 0.1,
         }),
-      }, 6000);
+      }, 7000);
 
       if (!response.ok) {
         const errText = await response.text();
@@ -735,7 +686,6 @@ export async function searchWebSuppliers({
 }: SearchWebSuppliersParams): Promise<WebSupplierCandidate[]> {
   const chosenProvider = provider || getAiProviderPreference();
   const customGemini = getCustomGeminiApiKey();
-  const customGroq = getCustomGroqApiKey();
   const customOpenRouter = getCustomOpenRouterApiKey();
   const customSerper = getCustomSerperApiKey();
 
@@ -749,7 +699,6 @@ export async function searchWebSuppliers({
         provider: chosenProvider,
         customApiKey,
         customGeminiKey: customGemini || undefined,
-        customGroqKey: customGroq || undefined,
         customOpenRouterKey: customOpenRouter || undefined,
         customSerperKey: customSerper || undefined,
       },
@@ -768,7 +717,7 @@ export async function searchWebSuppliers({
         );
         console.log(`🤖 %cMotor IA Activo:%c ${model}`, 'color: #16a34a; font-weight: bold;', 'color: inherit;');
         console.log(
-          `🔑 %cSecretos en Servidor (Supabase):%c Gemini (${telemetry.keyPoolStats?.geminiKeysCount || 0} claves en pool) | Groq (${telemetry.keyPoolStats?.hasGroqKey ? '✅' : '❌'}) | OpenRouter (${telemetry.keyPoolStats?.hasOpenRouterKey ? '✅' : '❌'}) | Serper (${telemetry.keyPoolStats?.hasSerperKey ? '✅' : '❌'})`,
+          `🔑 %cSecretos en Servidor (Supabase):%c Gemini (${telemetry.keyPoolStats?.geminiKeysCount || 0} claves en pool) | OpenRouter (${telemetry.keyPoolStats?.hasOpenRouterKey ? '✅' : '❌'}) | Serper (${telemetry.keyPoolStats?.hasSerperKey ? '✅' : '❌'})`,
           'color: #880a0a; font-weight: bold;',
           'color: inherit;'
         );
@@ -857,26 +806,18 @@ export async function searchWebSuppliers({
 
   // 3. Identificar claves disponibles
   const geminiKeys = getAllGeminiApiKeys(customApiKey);
-  const groqKey = getGroqApiKey(customApiKey);
   const openRouterKey = getOpenRouterApiKey(customApiKey);
 
   let rawOutput: { text: string; model: string } | null = null;
   const errorsAcc: string[] = [];
 
-  // 4. Ejecución del proveedor preferido (Gemini por defecto como solicitó el usuario)
+  // 4. Ejecución del proveedor preferido
   if (selectedProvider === 'gemini' && geminiKeys.length > 0) {
     try {
       rawOutput = await callGeminiAi(fullStrictPrompt, geminiKeys);
     } catch (err) {
       errorsAcc.push(`Gemini: ${err instanceof Error ? err.message : String(err)}`);
       console.warn('⚠️ [WebSupplierSearch] Gemini falló, intentando auto-fallback...');
-    }
-  } else if (selectedProvider === 'groq' && groqKey) {
-    try {
-      rawOutput = await callGroqAi(fullStrictPrompt, groqKey);
-    } catch (err) {
-      errorsAcc.push(`Groq: ${err instanceof Error ? err.message : String(err)}`);
-      console.warn('⚠️ [WebSupplierSearch] Groq falló, intentando auto-fallback...');
     }
   } else if (selectedProvider === 'openrouter' && openRouterKey) {
     try {
@@ -889,7 +830,7 @@ export async function searchWebSuppliers({
 
   // 5. Auto-Cascading Fallback si el preferido falló o si estamos en modo 'auto'
   if (!rawOutput) {
-    // 1er intento prioritario: Gemini (Google AI Studio, pool de claves)
+    // 1er intento prioritario: Gemini
     if (geminiKeys.length > 0 && selectedProvider !== 'gemini') {
       try {
         rawOutput = await callGeminiAi(fullStrictPrompt, geminiKeys);
@@ -898,16 +839,7 @@ export async function searchWebSuppliers({
       }
     }
 
-    // 2do intento: Groq
-    if (!rawOutput && groqKey && selectedProvider !== 'groq') {
-      try {
-        rawOutput = await callGroqAi(fullStrictPrompt, groqKey);
-      } catch (err) {
-        errorsAcc.push(`Groq Fallback: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    // 3er intento: OpenRouter
+    // 2do intento: OpenRouter
     if (!rawOutput && openRouterKey && selectedProvider !== 'openrouter') {
       try {
         rawOutput = await callOpenRouterAi(fullStrictPrompt, openRouterKey);
@@ -918,9 +850,9 @@ export async function searchWebSuppliers({
 
     // Si aún no hay salida y ninguna clave estaba configurada
     if (!rawOutput) {
-      if (geminiKeys.length === 0 && !groqKey && !openRouterKey) {
+      if (geminiKeys.length === 0 && !openRouterKey) {
         throw new Error(
-          'No hay ninguna clave de IA configurada ni en los secretos de Supabase ni localmente. Ingresa tu API Key de Gemini, Groq u OpenRouter en el botón de Configuración (icono de llave).'
+          'No hay ninguna clave de IA configurada ni en los secretos de Supabase ni localmente. Ingresa tu API Key de Gemini u OpenRouter en el botón de Configuración (icono de llave).'
         );
       }
       throw new Error(`Error en los motores de IA: ${errorsAcc.join(' | ')}`);
