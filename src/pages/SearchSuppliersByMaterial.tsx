@@ -28,6 +28,10 @@ import {
   saveCustomSerperApiKey,
   removeCustomSerperApiKey,
   getSerperApiKey,
+  getCustomApifyApiKey,
+  saveCustomApifyApiKey,
+  removeCustomApifyApiKey,
+  getApifyApiKey,
   getCustomGeminiApiKey,
   saveCustomGeminiApiKey,
   removeCustomGeminiApiKey,
@@ -123,10 +127,12 @@ const SearchSuppliersByMaterial: React.FC = () => {
   const [customKeyInput, setCustomKeyInput] = useState<string>('');
   const [customOpenRouterInput, setCustomOpenRouterInput] = useState<string>('');
   const [customSerperInput, setCustomSerperInput] = useState<string>('');
+  const [customApifyInput, setCustomApifyInput] = useState<string>('');
 
   const [activeGeminiStatus, setActiveGeminiStatus] = useState<string>('');
   const [activeOpenRouterStatus, setActiveOpenRouterStatus] = useState<string>('');
   const [activeSerperStatus, setActiveSerperStatus] = useState<string>('');
+  const [activeApifyStatus, setActiveApifyStatus] = useState<string>('');
 
   // Supplier Creation Dialog State
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState<boolean>(false);
@@ -217,6 +223,16 @@ const SearchSuppliersByMaterial: React.FC = () => {
       setActiveSerperStatus('No configurada (Recomendada para Google)');
     }
 
+    // Apify (Google Places & Search Fallback)
+    const customApify = getCustomApifyApiKey();
+    if (customApify) {
+      setActiveApifyStatus(`${getLocalHint(customApify)} (Personalizada en navegador)`);
+    } else if (getApifyApiKey()) {
+      setActiveApifyStatus('API key predeterminada (lista y activa)');
+    } else {
+      setActiveApifyStatus('No configurada (Opcional para Google Places y Respaldo)');
+    }
+
     // Gemini
     const customGemini = getCustomGeminiApiKey();
     if (customGemini) {
@@ -263,6 +279,10 @@ const SearchSuppliersByMaterial: React.FC = () => {
       saveCustomSerperApiKey(customSerperInput.trim());
       showSuccess('Clave Serper.dev (Google Search) guardada con éxito.');
     }
+    if (customApifyInput.trim()) {
+      saveCustomApifyApiKey(customApifyInput.trim());
+      showSuccess('Clave Apify API guardada con éxito.');
+    }
     if (customKeyInput.trim()) {
       saveCustomGeminiApiKey(customKeyInput.trim());
       showSuccess('Clave(s) Gemini API guardada(s) con éxito.');
@@ -273,6 +293,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
     }
     setIsApiKeyDialogOpen(false);
     setCustomSerperInput('');
+    setCustomApifyInput('');
     setCustomKeyInput('');
     setCustomOpenRouterInput('');
   };
@@ -1008,11 +1029,9 @@ const SearchSuppliersByMaterial: React.FC = () => {
                 <span className="text-gray-300">•</span>
                 <span className="inline-flex items-center text-[10px] font-bold text-procarni-blue bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
                   {selectedAiProvider === 'auto'
-                    ? '⚡ Modo Auto (Groq / Gemini / OpenRouter)'
-                    : selectedAiProvider === 'groq'
-                    ? '⚡ Groq (Llama 3.3 70B)'
+                    ? '⚡ Modo Auto (Gemini / OpenRouter)'
                     : selectedAiProvider === 'openrouter'
-                    ? '⚡ OpenRouter (Free)'
+                    ? '⚡ OpenRouter (DeepSeek / Llama)'
                     : '⚡ Google Gemini (Flash)'}
                 </span>
               </div>
@@ -1087,18 +1106,18 @@ const SearchSuppliersByMaterial: React.FC = () => {
             <div className="space-y-8">
               {/* SECCIÓN A: PROVEEDORES REGISTRADOS (CON BADGE VERDE) */}
               <div className="space-y-3 bg-emerald-50/40 p-4 rounded-3xl border border-emerald-200/70">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-600 text-white border-none font-bold text-xs py-1 px-2.5 shadow-sm">
-                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-1">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <Badge className="bg-emerald-600 text-white border-none font-bold text-[11px] sm:text-xs py-1 px-2 sm:px-2.5 shadow-sm">
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1 shrink-0" />
                       Sección A: Proveedores Registrados ({matchingInternalSuppliers.length})
                     </Badge>
-                    <span className="text-xs text-gray-600 font-medium">
+                    <span className="text-[11px] sm:text-xs text-gray-600 font-medium">
                       Coincidencias en base de datos de Procarni
                     </span>
                   </div>
                   {matchingInternalSuppliers.length > 0 && (
-                    <span className="text-[11px] text-emerald-800 font-semibold">
+                    <span className="text-[10px] sm:text-[11px] text-emerald-800 font-semibold">
                       Disponibles para cotización u O/C inmediata
                     </span>
                   )}
@@ -1184,19 +1203,20 @@ const SearchSuppliersByMaterial: React.FC = () => {
 
               {/* SECCIÓN B: NUEVOS PROSPECTOS WEB (CON BADGE AZUL Y 1-CLICK REGISTRATION) */}
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-blue-600 text-white border-none font-bold text-xs py-1 px-2.5 shadow-sm">
-                      <Globe className="h-3.5 w-3.5 mr-1" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-1">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <Badge className="bg-blue-600 text-white border-none font-bold text-[11px] sm:text-xs py-1 px-2 sm:px-2.5 shadow-sm">
+                      <Globe className="h-3.5 w-3.5 mr-1 shrink-0" />
                       Sección B: Nuevos Prospectos Web ({webCandidates.length})
                     </Badge>
-                    <span className="text-xs text-gray-500 font-medium">
+                    <span className="text-[11px] sm:text-xs text-gray-500 font-medium">
                       Google Search ({selectedRegion}) estructurado con IA
                     </span>
                   </div>
                   {webCandidates.length > 0 && (
-                    <span className="text-[11px] text-blue-800 font-semibold">
-                      Haz clic en "Registrar Proveedor con 1-Click" para guardar en Procarni
+                    <span className="text-[10px] sm:text-[11px] text-blue-800 font-semibold">
+                      <span className="hidden sm:inline">Haz clic en "Registrar Proveedor con 1-Click" para guardar en Procarni</span>
+                      <span className="inline sm:hidden">Toca "Registrar" para guardar en catálogo Procarni</span>
                     </span>
                   )}
                 </div>
@@ -1393,10 +1413,11 @@ const SearchSuppliersByMaterial: React.FC = () => {
                               type="button"
                               size="sm"
                               onClick={() => handleOpenRegisterCandidate(candidate)}
-                              className="flex-1 h-9 text-xs font-bold bg-procarni-primary hover:bg-red-800 text-white shadow-2xs gap-1.5"
+                              className="flex-1 h-9 text-xs font-bold bg-procarni-primary hover:bg-red-800 text-white shadow-2xs gap-1.5 min-w-0"
                             >
-                              <UserPlus className="h-3.5 w-3.5" />
-                              Registrar Proveedor con 1-Click
+                              <UserPlus className="h-3.5 w-3.5 shrink-0" />
+                              <span className="hidden sm:inline">Registrar Proveedor con 1-Click</span>
+                              <span className="inline sm:hidden truncate">Registrar 1-Click</span>
                             </Button>
                           </CardFooter>
                         </Card>
@@ -1513,7 +1534,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
                   <Globe className="h-4 w-4 text-blue-700" />
-                  <span>Capa 1: Buscador Web Serper.dev (Google Venezuela)</span>
+                  <span>Capa 1.A: Buscador Web Serper.dev (Google Venezuela)</span>
                 </label>
                 <Badge className="bg-blue-600 text-white border-none text-[9px] py-0 px-2 font-bold">
                   Buscador de Verdad
@@ -1558,6 +1579,56 @@ const SearchSuppliersByMaterial: React.FC = () => {
               </div>
             </div>
 
+            {/* Capa 1.B: Apify (Google Places & Respaldo Search Scraper) */}
+            <div className="space-y-2 bg-amber-50/70 p-4 rounded-2xl border border-amber-200/80">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                  <Compass className="h-4 w-4 text-amber-700" />
+                  <span>Capa 1.B: Apify (Google Places & Buscador Respaldo)</span>
+                </label>
+                <Badge className="bg-amber-600 text-white border-none text-[9px] py-0 px-2 font-bold">
+                  Locales Físicos + Fallback
+                </Badge>
+              </div>
+              <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                Extrae empresas físicas en zonas industriales de Venezuela (Maracay, Valencia, Caracas, etc.) con teléfonos locales y actúa de respaldo automático si Serper se agota.
+              </p>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-amber-800 font-semibold">API Token de Apify:</span>
+                <a
+                  href="https://console.apify.com/account/integrations"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-procarni-primary hover:underline font-bold inline-flex items-center gap-0.5"
+                >
+                  Obtener Token en Apify Console <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+              <Input
+                type="password"
+                placeholder="apify_api_..."
+                value={customApifyInput}
+                onChange={(e) => setCustomApifyInput(e.target.value)}
+                className="h-9 text-xs font-mono rounded-xl bg-white border-amber-200"
+              />
+              <div className="flex justify-between items-center text-[10px] text-gray-500 pt-0.5">
+                <span>Estado: <strong className="text-gray-700">{activeApifyStatus}</strong></span>
+                {getCustomApifyApiKey() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeCustomApifyApiKey();
+                      setActiveApifyStatus(getApifyApiKey() ? 'API key predeterminada (lista y activa)' : 'No configurada (Opcional para Google Places y Respaldo)');
+                      showSuccess('Clave Apify local eliminada.');
+                    }}
+                    className="text-red-500 hover:underline font-semibold"
+                  >
+                    Borrar
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Capa 2: Selector de Motor de IA */}
             <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <label className="text-[10px] font-bold uppercase tracking-wider text-procarni-dark block">
@@ -1578,7 +1649,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
                     ⚡ Auto-Cascade (Gemini + OpenRouter)
                   </SelectItem>
                   <SelectItem value="openrouter" className="text-xs font-semibold text-purple-700">
-                    🌐 OpenRouter (DeepSeek V3 / Llama 3.3 sobre Groq)
+                    🌐 OpenRouter (DeepSeek V3 / Llama 3.3)
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -1633,8 +1704,8 @@ const SearchSuppliersByMaterial: React.FC = () => {
             <div className="space-y-1.5 pt-2 border-t border-gray-100">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
-                  <span>Clave OpenRouter API (DeepSeek / Llama sobre Groq)</span>
-                  <Badge className="bg-purple-100 text-purple-800 border-none text-[9px] py-0 px-1.5">DeepSeek V3 / Groq LPU</Badge>
+                  <span>Clave OpenRouter API (DeepSeek / Llama)</span>
+                  <Badge className="bg-purple-100 text-purple-800 border-none text-[9px] py-0 px-1.5">DeepSeek V3 / Llama 3.3</Badge>
                 </label>
                 <a
                   href="https://openrouter.ai/keys"
@@ -1686,6 +1757,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
               size="sm"
               onClick={() => {
                 removeCustomSerperApiKey();
+                removeCustomApifyApiKey();
                 removeCustomGeminiApiKey();
                 removeCustomOpenRouterApiKey();
                 showSuccess('Todas las claves personalizadas fueron restablecidas.');

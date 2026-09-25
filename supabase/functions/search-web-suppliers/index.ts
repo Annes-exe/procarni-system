@@ -12,6 +12,17 @@ interface WebSearchResult {
   url: string;
 }
 
+interface GooglePlacesResult {
+  title: string;
+  category?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  website?: string;
+  url?: string;
+}
+
 interface RawWebSupplierItem {
   name?: string;
   rif?: string;
@@ -62,6 +73,8 @@ export interface SearchExecutionTelemetry {
   queriesExecuted: string[];
   snippetsFound: number;
   snippets: WebSearchResult[];
+  placesFound?: number;
+  places?: GooglePlacesResult[];
   selectedProvider: string;
   modelUsed: string;
   keyPoolStats: {
@@ -69,6 +82,7 @@ export interface SearchExecutionTelemetry {
     hasGroqKey: boolean;
     hasOpenRouterKey: boolean;
     hasSerperKey: boolean;
+    hasApifyKey: boolean;
   };
   stepsLog: StepLogItem[];
   rawAiResponseSnippet?: string;
@@ -114,20 +128,51 @@ function cleanSecret(val?: string | null): string | undefined {
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
+function getEnvRecord(): Record<string, string> {
+  try {
+    const envAny = Deno.env as unknown as { toObject?: () => Record<string, string> };
+    if (typeof envAny?.toObject === 'function') {
+      return envAny.toObject();
+    }
+  } catch {
+    // fallback
+  }
+  return {};
+}
+
+function getApifyApiToken(customKey?: string): string | undefined {
+  const custom = cleanSecret(customKey);
+  if (custom) return custom;
+
+  const envObj = getEnvRecord();
+  for (const [key, value] of Object.entries(envObj)) {
+    if (typeof value === 'string' && key.toUpperCase().includes('APIFY')) {
+      const cleaned = cleanSecret(value);
+      if (cleaned) return cleaned;
+    }
+  }
+
+  return (
+    cleanSecret(Deno.env.get('VITE_APIFY_API_KEY')) ||
+    cleanSecret(Deno.env.get('APIFY_API_KEY')) ||
+    cleanSecret(Deno.env.get('APIFY_API_TOKEN')) ||
+    cleanSecret(Deno.env.get('APIFY_TOKEN')) ||
+    cleanSecret(Deno.env.get('VITE_APIFY_API_TOKEN')) ||
+    cleanSecret(Deno.env.get('VITE_APIFY_TOKEN')) ||
+    cleanSecret(Deno.env.get('APIFY_KEY'))
+  );
+}
+
 function getSerperApiKey(customKey?: string): string | undefined {
   const custom = cleanSecret(customKey);
   if (custom) return custom;
 
-  try {
-    const envObj = Deno.env.toObject();
-    for (const [key, value] of Object.entries(envObj)) {
-      if (key.toUpperCase().includes('SERPER')) {
-        const cleaned = cleanSecret(value);
-        if (cleaned) return cleaned;
-      }
+  const envObj = getEnvRecord();
+  for (const [key, value] of Object.entries(envObj)) {
+    if (typeof value === 'string' && key.toUpperCase().includes('SERPER')) {
+      const cleaned = cleanSecret(value);
+      if (cleaned) return cleaned;
     }
-  } catch {
-    // fallback
   }
 
   return (
@@ -154,45 +199,39 @@ function getAllGeminiApiKeys(customApiKey?: string): string[] {
 
   addKey(customApiKey);
 
-  try {
-    const envObj = Deno.env.toObject();
-    for (const [key, value] of Object.entries(envObj)) {
-      const uKey = key.toUpperCase();
-      if (
-        uKey.includes('GEMINI') ||
-        uKey.includes('GOOGLE_AI') ||
-        uKey.includes('GOOGLE_API')
-      ) {
-        addKey(value);
-      }
+  const envObj = getEnvRecord();
+  for (const [key, value] of Object.entries(envObj)) {
+    const uKey = key.toUpperCase();
+    if (
+      (uKey.includes('GEMINI') ||
+       uKey.includes('GOOGLE_AI') ||
+       uKey.includes('GOOGLE_API')) &&
+      typeof value === 'string'
+    ) {
+      addKey(value);
     }
-  } catch {
-    addKey(Deno.env.get('GOOGLE_AI_API_KEY'));
-    addKey(Deno.env.get('GOOGLE_AI_API_KEY_1'));
-    addKey(Deno.env.get('GOOGLE_AI_API_KEY_2'));
-    addKey(Deno.env.get('GOOGLE_AI_API_KEY_3'));
-    addKey(Deno.env.get('VITE_GOOGLE_AI_API_KEY'));
-    addKey(Deno.env.get('GEMINI_API_KEY'));
   }
+
+  addKey(Deno.env.get('GOOGLE_AI_API_KEY'));
+  addKey(Deno.env.get('GOOGLE_AI_API_KEY_1'));
+  addKey(Deno.env.get('GOOGLE_AI_API_KEY_2'));
+  addKey(Deno.env.get('GOOGLE_AI_API_KEY_3'));
+  addKey(Deno.env.get('VITE_GOOGLE_AI_API_KEY'));
+  addKey(Deno.env.get('GEMINI_API_KEY'));
 
   return keys;
 }
-
 
 function getOpenRouterApiKey(customKey?: string): string | undefined {
   const custom = cleanSecret(customKey);
   if (custom) return custom;
 
-  try {
-    const envObj = Deno.env.toObject();
-    for (const [key, value] of Object.entries(envObj)) {
-      if (key.toUpperCase().includes('OPENROUTER')) {
-        const cleaned = cleanSecret(value);
-        if (cleaned) return cleaned;
-      }
+  const envObj = getEnvRecord();
+  for (const [key, value] of Object.entries(envObj)) {
+    if (typeof value === 'string' && key.toUpperCase().includes('OPENROUTER')) {
+      const cleaned = cleanSecret(value);
+      if (cleaned) return cleaned;
     }
-  } catch {
-    // fallback
   }
 
   return (
@@ -201,133 +240,564 @@ function getOpenRouterApiKey(customKey?: string): string | undefined {
   );
 }
 
-async function fetchRealWebResults(
-  searchTerm: string,
-  region: string,
-  customSerperKey?: string,
-  stepsLog: StepLogItem[] = [],
-  queriesExecuted: string[] = []
-): Promise<WebSearchResult[]> {
-  const serperKey = getSerperApiKey(customSerperKey);
-  const cleanSearchTerm = searchTerm.replace(/["']/g, '').trim();
-  const results: WebSearchResult[] = [];
+function buildRegionSearchQueries(searchTerm: string, region: string): { googleQueries: string[]; locationQuery: string; placesQuery: string } {
+  const clean = searchTerm.replace(/["']/g, '').trim();
+  const r = (region || '').toLowerCase();
 
-  if (serperKey) {
-    const queries = [
-      `${cleanSearchTerm} proveedores distribuidores venezuela`,
-      `${cleanSearchTerm} empresas venezuela`,
-      `${cleanSearchTerm} venta venezuela`,
-    ];
+  if (r.includes('aragua') && !r.includes('eje central')) {
+    return {
+      googleQueries: [
+        `${clean} comprar maracay`,
+        `${clean} venta maracay aragua`,
+        `${clean} distribuidores maracay`,
+      ],
+      locationQuery: 'Maracay, Aragua, Venezuela',
+      placesQuery: `${clean} Maracay`,
+    };
+  }
 
+  if (r.includes('carabobo')) {
+    return {
+      googleQueries: [
+        `${clean} comprar valencia`,
+        `${clean} venta valencia carabobo`,
+        `${clean} distribuidores valencia`,
+      ],
+      locationQuery: 'Valencia, Carabobo, Venezuela',
+      placesQuery: `${clean} Valencia`,
+    };
+  }
+
+  if (r.includes('caracas') || r.includes('capital') || r.includes('miranda')) {
+    return {
+      googleQueries: [
+        `${clean} comprar caracas`,
+        `${clean} venta caracas`,
+        `${clean} distribuidores caracas`,
+      ],
+      locationQuery: 'Caracas, Venezuela',
+      placesQuery: `${clean} Caracas`,
+    };
+  }
+
+  if (r.includes('lara') || r.includes('barquisimeto')) {
+    return {
+      googleQueries: [
+        `${clean} comprar barquisimeto`,
+        `${clean} venta barquisimeto lara`,
+        `${clean} distribuidores barquisimeto`,
+      ],
+      locationQuery: 'Barquisimeto, Lara, Venezuela',
+      placesQuery: `${clean} Barquisimeto`,
+    };
+  }
+
+  if (r.includes('zulia') || r.includes('maracaibo')) {
+    return {
+      googleQueries: [
+        `${clean} comprar maracaibo`,
+        `${clean} venta maracaibo zulia`,
+        `${clean} distribuidores maracaibo`,
+      ],
+      locationQuery: 'Maracaibo, Zulia, Venezuela',
+      placesQuery: `${clean} Maracaibo`,
+    };
+  }
+
+  if (r.includes('oriente') || r.includes('anzoategui') || r.includes('monagas')) {
+    return {
+      googleQueries: [
+        `${clean} comprar barcelona puerto la cruz`,
+        `${clean} venta anzoategui`,
+        `${clean} distribuidores oriente venezuela`,
+      ],
+      locationQuery: 'Barcelona, Anzoátegui, Venezuela',
+      placesQuery: `${clean} Barcelona Venezuela`,
+    };
+  }
+
+  // Eje Central (Aragua, Carabobo, Caracas, Lara)
+  return {
+    googleQueries: [
+      `${clean} comprar maracay`,
+      `${clean} comprar valencia`,
+      `${clean} venta caracas`,
+      `${clean} distribuidores venezuela`,
+    ],
+    locationQuery: 'Maracay, Valencia, Caracas, Venezuela',
+    placesQuery: `${clean} Valencia`,
+  };
+}
+
+async function fetchSerperGooglePlaces(
+  query: string,
+  serperKey: string,
+  stepsLog: StepLogItem[] = []
+): Promise<GooglePlacesResult[]> {
+  const searchStart = Date.now();
+  const places: GooglePlacesResult[] = [];
+
+  try {
     stepsLog.push({
-      step: 'Serper Crawler',
+      step: 'Serper Places Init',
       timestamp: new Date().toISOString(),
       status: 'info',
-      message: `Iniciando rastreo Google Venezuela con Serper API (${queries.length} variantes)`,
+      message: `Extrayendo Google Places con Serper para: "${query}" (gl: 've')`,
     });
 
-    for (const query of queries) {
-      queriesExecuted.push(query);
-      const queryStart = Date.now();
-      try {
-        const serperRes = await fetchWithTimeout('https://google.serper.dev/search', {
-          method: 'POST',
-          headers: {
-            'X-API-KEY': serperKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            q: query,
-            gl: 've',
-            hl: 'es',
-            num: 10,
-          }),
-        }, 5000);
+    const response = await fetchWithTimeout(
+      'https://google.serper.dev/places',
+      {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': serperKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          q: query,
+          gl: 've',
+          hl: 'es',
+        }),
+      },
+      4500
+    );
 
-        const durationMs = Date.now() - queryStart;
+    const durationMs = Date.now() - searchStart;
 
-        if (serperRes.ok) {
-          const serperData = await serperRes.json();
-          let count = 0;
-          if (Array.isArray(serperData.organic)) {
-            for (const item of serperData.organic) {
-              if (item.link && !results.some((r) => r.url === item.link)) {
-                results.push({
-                  title: item.title || 'Resultado Google',
-                  snippet: item.snippet || '',
-                  url: item.link || '',
-                });
-                count++;
-              }
-            }
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.places)) {
+        for (const item of data.places.slice(0, 6)) {
+          if (item.title) {
+            places.push({
+              title: item.title,
+              category: item.category || undefined,
+              address: item.address || undefined,
+              phone: item.phoneNumber || undefined,
+              website: item.website || undefined,
+              url: item.cid ? `https://maps.google.com/?cid=${item.cid}` : undefined,
+            });
           }
-          stepsLog.push({
-            step: 'Serper Query OK',
-            timestamp: new Date().toISOString(),
-            status: 'ok',
-            message: `"${query}" -> ${count} resultados orgánicos nuevos (${durationMs}ms)`,
-            durationMs,
-          });
-        } else {
-          const errStatus = serperRes.status;
-          stepsLog.push({
-            step: 'Serper Query Status',
-            timestamp: new Date().toISOString(),
-            status: 'warn',
-            message: `Status ${errStatus} para "${query}" (${durationMs}ms)`,
-            durationMs,
-          });
         }
-
-        if (results.length >= 6) break;
-      } catch (serperErr) {
-        const durationMs = Date.now() - queryStart;
-        stepsLog.push({
-          step: 'Serper Error',
-          timestamp: new Date().toISOString(),
-          status: 'warn',
-          message: `Error consultando Serper: ${serperErr instanceof Error ? serperErr.message : String(serperErr)}`,
-          durationMs,
-        });
       }
+
+      stepsLog.push({
+        step: 'Serper Places OK',
+        timestamp: new Date().toISOString(),
+        status: 'ok',
+        message: `Serper Places finalizado: ${places.length} locales comerciales detectados (${durationMs}ms)`,
+        durationMs,
+      });
+    } else {
+      stepsLog.push({
+        step: 'Serper Places Status',
+        timestamp: new Date().toISOString(),
+        status: 'warn',
+        message: `Serper Places status ${response.status} (${durationMs}ms)`,
+        durationMs,
+      });
     }
-  } else {
+  } catch (err: unknown) {
+    const durationMs = Date.now() - searchStart;
+    const msg = err instanceof Error ? err.message : String(err);
     stepsLog.push({
-      step: 'Serper Skip',
+      step: 'Serper Places Error',
+      timestamp: new Date().toISOString(),
+      status: 'warn',
+      message: `Error consultando Serper Places: ${msg} (${durationMs}ms)`,
+      durationMs,
+    });
+  }
+
+  return places;
+}
+
+async function fetchApifyGooglePlaces(
+  searchTerm: string,
+  region: string,
+  apifyToken: string,
+  stepsLog: StepLogItem[] = []
+): Promise<GooglePlacesResult[]> {
+  const cleanSearchTerm = searchTerm.replace(/["']/g, '').trim();
+  const searchStart = Date.now();
+  const places: GooglePlacesResult[] = [];
+  const { googleQueries, locationQuery } = buildRegionSearchQueries(cleanSearchTerm, region);
+
+  try {
+    stepsLog.push({
+      step: 'Apify Places Init',
       timestamp: new Date().toISOString(),
       status: 'info',
-      message: 'No hay SERPER_API_KEY configurada. Se utilizará síntesis con conocimiento industrial de IA.',
+      message: `Iniciando extracción Google Places para: "${cleanSearchTerm}" en "${locationQuery}"`,
+    });
+
+    const endpoint = `https://api.apify.com/v2/acts/compass~google-maps-extractor/run-sync-get-dataset-items?token=${apifyToken}&timeout=12`;
+    const payload = {
+      searchStringsArray: [cleanSearchTerm],
+      locationQuery,
+      maxCrawledPlacesPerSearch: 4,
+      language: 'es',
+      scrapeSocialMediaProfiles: {
+        facebooks: false,
+        instagrams: false,
+        youtubes: false,
+        tiktoks: false,
+        twitters: false,
+      },
+      maximumLeadsEnrichmentRecords: 0,
+    };
+
+    const response = await fetchWithTimeout(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }, 15000);
+
+    const durationMs = Date.now() - searchStart;
+
+    if (response.ok) {
+      const items = await response.json();
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const name = item.title || item.name;
+          if (name) {
+            places.push({
+              title: name,
+              category: item.categoryName || item.category || undefined,
+              address: item.address || item.street || undefined,
+              city: item.city || undefined,
+              state: item.state || undefined,
+              phone: item.phone || item.phoneUnformatted || undefined,
+              website: item.website || undefined,
+              url: item.url || item.placeUrl || undefined,
+            });
+          }
+        }
+      }
+
+      stepsLog.push({
+        step: 'Apify Places OK',
+        timestamp: new Date().toISOString(),
+        status: 'ok',
+        message: `Google Places finalizado: ${places.length} establecimientos detectados (${durationMs}ms)`,
+        durationMs,
+      });
+    } else {
+      const errBody = await response.text().catch(() => '');
+      let detailMsg = `Status ${response.status}`;
+      try {
+        const parsed = JSON.parse(errBody);
+        if (parsed.error?.message) detailMsg += `: ${parsed.error.message}`;
+      } catch {
+        if (errBody) detailMsg += `: ${errBody.slice(0, 150)}`;
+      }
+
+      stepsLog.push({
+        step: 'Apify Places Status',
+        timestamp: new Date().toISOString(),
+        status: 'warn',
+        message: `Apify Places Actor respondió ${detailMsg} (${durationMs}ms)`,
+        durationMs,
+      });
+    }
+  } catch (err: unknown) {
+    const durationMs = Date.now() - searchStart;
+    const msg = err instanceof Error ? err.message : String(err);
+    stepsLog.push({
+      step: 'Apify Places Skip',
+      timestamp: new Date().toISOString(),
+      status: 'warn',
+      message: `Consulta Google Places omitida o con timeout: ${msg} (${durationMs}ms)`,
+      durationMs,
+    });
+  }
+
+  return places;
+}
+
+async function fetchApifyGoogleSearch(
+  searchTerm: string,
+  region: string,
+  apifyToken: string,
+  stepsLog: StepLogItem[] = []
+): Promise<WebSearchResult[]> {
+  const cleanSearchTerm = searchTerm.replace(/["']/g, '').trim();
+  const searchStart = Date.now();
+  const results: WebSearchResult[] = [];
+  const { googleQueries } = buildRegionSearchQueries(cleanSearchTerm, region);
+
+  try {
+    stepsLog.push({
+      step: 'Apify Google Search Init',
+      timestamp: new Date().toISOString(),
+      status: 'info',
+      message: `Ejecutando Google Search Scraper de respaldo (Apify) para: "${googleQueries[0]}"`,
+    });
+
+    const endpoint = `https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=10`;
+    const payload = {
+      queries: googleQueries.slice(0, 2).join('\n'),
+      maxPagesPerQuery: 1,
+      resultsPerPage: 8,
+      countryCode: 've',
+      languageCode: 'es',
+    };
+
+    const response = await fetchWithTimeout(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }, 12000);
+
+    const durationMs = Date.now() - searchStart;
+
+    if (response.ok) {
+      const items = await response.json();
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (Array.isArray(item.organicResults)) {
+            for (const org of item.organicResults) {
+              if (org.url && !results.some((r) => r.url === org.url)) {
+                results.push({
+                  title: org.title || 'Resultado Google',
+                  snippet: org.description || org.snippet || '',
+                  url: org.url || '',
+                });
+              }
+            }
+          } else if (item.url && (item.title || item.description || item.snippet)) {
+            if (!results.some((r) => r.url === item.url)) {
+              results.push({
+                title: item.title || 'Resultado Google',
+                snippet: item.description || item.snippet || '',
+                url: item.url || '',
+              });
+            }
+          }
+        }
+      }
+
+      stepsLog.push({
+        step: 'Apify Google Search OK',
+        timestamp: new Date().toISOString(),
+        status: 'ok',
+        message: `Google Search Scraper (Apify) completado: ${results.length} resultados orgánicos (${durationMs}ms)`,
+        durationMs,
+      });
+    } else {
+      stepsLog.push({
+        step: 'Apify Google Search Status',
+        timestamp: new Date().toISOString(),
+        status: 'warn',
+        message: `Apify Google Search status ${response.status} (${durationMs}ms)`,
+        durationMs,
+      });
+    }
+  } catch (err: unknown) {
+    const durationMs = Date.now() - searchStart;
+    const msg = err instanceof Error ? err.message : String(err);
+    stepsLog.push({
+      step: 'Apify Google Search Error',
+      timestamp: new Date().toISOString(),
+      status: 'warn',
+      message: `Error en Apify Google Search Scraper: ${msg} (${durationMs}ms)`,
+      durationMs,
     });
   }
 
   return results;
 }
 
+async function fetchRealWebAndPlacesResults(
+  searchTerm: string,
+  region: string,
+  customSerperKey?: string,
+  customApifyToken?: string,
+  stepsLog: StepLogItem[] = [],
+  queriesExecuted: string[] = []
+): Promise<{ webSnippets: WebSearchResult[]; places: GooglePlacesResult[] }> {
+  const serperKey = getSerperApiKey(customSerperKey);
+  const apifyToken = getApifyApiToken(customApifyToken);
+  const cleanSearchTerm = searchTerm.replace(/["']/g, '').trim();
+  const { googleQueries, placesQuery } = buildRegionSearchQueries(cleanSearchTerm, region);
+
+  // 1. Rastreo orgánico (Serper con fallback automático a Apify Search Scraper)
+  const organicPromise = (async (): Promise<WebSearchResult[]> => {
+    const organicResults: WebSearchResult[] = [];
+
+    if (serperKey) {
+      stepsLog.push({
+        step: 'Serper Crawler',
+        timestamp: new Date().toISOString(),
+        status: 'info',
+        message: `Iniciando rastreo Google Venezuela con Serper API (${googleQueries.length} variantes comerciales)`,
+      });
+
+      for (const query of googleQueries) {
+        queriesExecuted.push(query);
+        const queryStart = Date.now();
+        try {
+          const serperRes = await fetchWithTimeout(
+            'https://google.serper.dev/search',
+            {
+              method: 'POST',
+              headers: {
+                'X-API-KEY': serperKey,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                q: query,
+                gl: 've',
+                hl: 'es',
+                num: 10,
+              }),
+            },
+            4000
+          );
+
+          const durationMs = Date.now() - queryStart;
+
+          if (serperRes.ok) {
+            const serperData = await serperRes.json();
+            let count = 0;
+            if (Array.isArray(serperData.organic)) {
+              for (const item of serperData.organic) {
+                if (item.link && !organicResults.some((r) => r.url === item.link)) {
+                  organicResults.push({
+                    title: item.title || 'Resultado Google',
+                    snippet: item.snippet || '',
+                    url: item.link || '',
+                  });
+                  count++;
+                }
+              }
+            }
+            stepsLog.push({
+              step: 'Serper Query OK',
+              timestamp: new Date().toISOString(),
+              status: 'ok',
+              message: `"${query}" -> ${count} resultados orgánicos nuevos (${durationMs}ms)`,
+              durationMs,
+            });
+          } else {
+            stepsLog.push({
+              step: 'Serper Query Status',
+              timestamp: new Date().toISOString(),
+              status: 'warn',
+              message: `Status ${serperRes.status} para "${query}" (${durationMs}ms)`,
+              durationMs,
+            });
+          }
+
+          if (organicResults.length >= 6) break;
+        } catch (serperErr) {
+          const durationMs = Date.now() - queryStart;
+          stepsLog.push({
+            step: 'Serper Error',
+            timestamp: new Date().toISOString(),
+            status: 'warn',
+            message: `Error consultando Serper: ${serperErr instanceof Error ? serperErr.message : String(serperErr)}`,
+            durationMs,
+          });
+        }
+      }
+    } else {
+      stepsLog.push({
+        step: 'Serper Skip',
+        timestamp: new Date().toISOString(),
+        status: 'info',
+        message: 'No hay SERPER_API_KEY configurada.',
+      });
+    }
+
+    // Fallback: Si Serper no entregó resultados y tenemos token de Apify, activar Apify Google Search Scraper
+    if (organicResults.length === 0 && apifyToken) {
+      stepsLog.push({
+        step: 'Apify Search Fallback',
+        timestamp: new Date().toISOString(),
+        status: 'info',
+        message: 'Activando Apify Google Search Scraper como motor de búsqueda orgánico de respaldo.',
+      });
+      const apifySearchResults = await fetchApifyGoogleSearch(cleanSearchTerm, region, apifyToken, stepsLog);
+      return apifySearchResults;
+    }
+
+    return organicResults;
+  })();
+
+  // 2. Rastreo de Locales Comerciales B2B (Serper Places ultrarrápido con fallback a Apify)
+  const placesPromise = (async (): Promise<GooglePlacesResult[]> => {
+    // Intento 1: Serper Places (Sub-segundo, ~400ms con teléfonos locales y direcciones)
+    if (serperKey) {
+      const serperPlaces = await fetchSerperGooglePlaces(placesQuery, serperKey, stepsLog);
+      if (serperPlaces.length > 0) {
+        return serperPlaces;
+      }
+    }
+
+    // Intento 2 (Fallback): Apify Places si Serper no devolvió resultados y hay token Apify
+    if (apifyToken) {
+      return await fetchApifyGooglePlaces(cleanSearchTerm, region, apifyToken, stepsLog);
+    }
+
+    stepsLog.push({
+      step: 'Places Skip',
+      timestamp: new Date().toISOString(),
+      status: 'info',
+      message: 'No hay SERPER_API_KEY ni APIFY_TOKEN para rastrear locales de Google Maps.',
+    });
+    return [];
+  })();
+
+  // Ejecución ultra-rápida y concurrente
+  const [organicSettled, placesSettled] = await Promise.allSettled([organicPromise, placesPromise]);
+
+  const webSnippets = organicSettled.status === 'fulfilled' ? organicSettled.value : [];
+  const places = placesSettled.status === 'fulfilled' ? placesSettled.value : [];
+
+  return { webSnippets, places };
+}
+
 function buildSupplierExtractionPrompt(
   searchTerm: string,
   region: string,
-  liveWebSnippets: WebSearchResult[]
+  liveWebSnippets: WebSearchResult[],
+  placesResults: GooglePlacesResult[] = []
 ): string {
   const hasSnippets = liveWebSnippets.length > 0;
+  const hasPlaces = placesResults.length > 0;
+
+  let contextBlocks = '';
+
+  if (hasPlaces) {
+    const placesText = placesResults
+      .map(
+        (p, i) =>
+          `[LOCAL GOOGLE PLACES ${i + 1}]\nNombre: ${p.title}\nCategoría: ${p.category || 'Empresa / Distribuidor'}\nDirección: ${p.address || p.city || 'Venezuela'}\nTeléfono: ${p.phone || 'No especificado'}\nSitio Web: ${p.website || p.url || 'No especificado'}`
+      )
+      .join('\n\n');
+    contextBlocks += `\n\nESTABLECIMIENTOS COMERCIALES GOOGLE PLACES DETECTADOS EN VENEZUELA:\n${placesText}`;
+  }
 
   if (hasSnippets) {
     const webSnippetsText = liveWebSnippets
-      .map((s, i) => `[RESULTADO ${i + 1}]\nTítulo: ${s.title}\nURL: ${s.url}\nContenido: ${s.snippet}`)
+      .map((s, i) => `[RESULTADO WEB ${i + 1}]\nTítulo: ${s.title}\nURL: ${s.url}\nContenido: ${s.snippet}`)
       .join('\n\n');
+    contextBlocks += `\n\nRESULTADOS DE BÚSQUEDA WEB ORGÁNICA:\n${webSnippetsText}`;
+  }
 
+  if (hasSnippets || hasPlaces) {
     return `Eres un experto asistente de abastecimiento y compras para Procarni en Venezuela.
-Tu objetivo es analizar los siguientes RESULTADOS DE BÚSQUEDA WEB REALES y extraer todas las empresas, comercializadoras, distribuidoras, fábricas o tiendas B2B en Venezuela que suministren o puedan suministrar "${searchTerm}".
+Tu objetivo es analizar los siguientes DATOS DE BÚSQUEDA WEB REALES Y LOCALES GOOGLE PLACES para extraer todas las empresas, comercializadoras, distribuidoras, fábricas o tiendas B2B en Venezuela que suministren o puedan suministrar "${searchTerm}".
 
 UBICACIÓN PREFERENTE: ${region} (Venezuela).
-
-RESULTADOS DE BÚSQUEDA WEB:
-${webSnippetsText}
+${contextBlocks}
 
 INSTRUCCIONES:
-1. Extrae cada empresa o distribuidor en Venezuela mencionado o relacionado con "${searchTerm}".
+1. Extrae cada empresa o distribuidor en Venezuela mencionado o relacionado con "${searchTerm}". Prioriza los establecimientos verificados de Google Places si están presentes.
 2. Identifica el nombre comercial de la empresa.
 3. Ubicación: Identifica la ciudad y estado en Venezuela (ej. Maracay/Aragua, Valencia/Carabobo, Caracas/Miranda, Barquisimeto/Lara, etc.). Si no se detalla ciudad, coloca "Venezuela".
-4. Contactos: Extrae RIF, teléfonos (0241, 0243, 0212, 0414, 0424, 0412, etc.), WhatsApp, correos, página web o Instagram si aparecen explícitamente o infiérelos del texto. Si no aparecen, coloca null.
+4. Contactos: Extrae RIF, teléfonos verificados (0241, 0243, 0212, 0414, 0424, 0412, etc.), WhatsApp, correos, página web o Instagram si aparecen explícitamente o infiérelos del texto. Si no aparecen, coloca null.
 5. Si los resultados web contienen pocos proveedores directos, complementa con empresas y distribuidoras reconocidas del sector comercial e industrial en Venezuela que suministren "${searchTerm}".
 
 FORMATO DE SALIDA (ÚNICAMENTE ARRAY JSON VÁLIDO, SIN TEXTO ADICIONAL):
@@ -685,12 +1155,13 @@ function processAiOutput(
   textOutput: string,
   liveWebSnippets: WebSearchResult[],
   searchTerm = '',
-  modelUsed = ''
+  modelUsed = '',
+  placesResults: GooglePlacesResult[] = []
 ): WebSupplierCandidate[] {
   const parsedItems = parseSuppliersJson(textOutput);
   const venezuelanItems = parsedItems.filter((item) => !isForeignCompany(item));
 
-  return venezuelanItems.map((item, index) => {
+  const candidates: WebSupplierCandidate[] = venezuelanItems.map((item, index) => {
     const id = `web-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`;
     const cleanProducts: string[] = Array.isArray(item.products_detected)
       ? item.products_detected.filter((p): p is string => typeof p === 'string' && p.trim().toLowerCase() !== 'null')
@@ -714,19 +1185,33 @@ function processAiOutput(
       }
     }
 
+    for (const place of placesResults) {
+      if (place.website && !allSourcesMap.has(place.website)) {
+        allSourcesMap.set(place.website, { title: place.title || 'Sitio Web', url: place.website });
+      } else if (place.url && !allSourcesMap.has(place.url)) {
+        allSourcesMap.set(place.url, { title: place.title || 'Google Maps', url: place.url });
+      }
+    }
+
     for (const snippet of liveWebSnippets) {
       if (snippet.url && !allSourcesMap.has(snippet.url)) {
         allSourcesMap.set(snippet.url, { title: snippet.title, url: snippet.url });
       }
     }
 
-    const city = cleanField(item.city);
-    const state = inferVenezuelanState(city, cleanField(item.state));
-    const phone = cleanField(item.phone);
+    const normName = (item.name || '').toLowerCase().trim();
+    const matchingPlace = placesResults.find((p) => {
+      const pTitle = (p.title || '').toLowerCase().trim();
+      return (pTitle.length > 3 && normName.includes(pTitle)) || (normName.length > 3 && pTitle.includes(normName));
+    });
+
+    const city = cleanField(item.city) || (matchingPlace?.city ? cleanField(matchingPlace.city) : undefined);
+    const state = inferVenezuelanState(city, cleanField(item.state) || matchingPlace?.state);
+    const phone = cleanField(item.phone) || cleanField(matchingPlace?.phone);
     const phone2 = cleanField(item.phone_2);
     const whatsapp = cleanField(item.whatsapp) || phone;
     const email = cleanField(item.email);
-    const website = cleanField(item.website);
+    const website = cleanField(item.website) || cleanField(matchingPlace?.website);
     const instagram = cleanField(item.instagram);
 
     return {
@@ -747,6 +1232,47 @@ function processAiOutput(
       ai_provider: modelUsed,
     };
   });
+
+  // Si hay locales verificados de Google Places que no hayan sido incluidos aún por el LLM, agregarlos como candidatos verificados
+  const existingNames = new Set<string>(candidates.map((c) => c.name.toLowerCase().trim()));
+  const extraPlacesCandidates: WebSupplierCandidate[] = [];
+
+  for (const place of placesResults) {
+    const pName = (place.title || '').toLowerCase().trim();
+    if (!pName) continue;
+    const alreadyExists = Array.from(existingNames).some(
+      (e: string) => (e.length > 3 && pName.includes(e)) || (pName.length > 3 && e.includes(pName))
+    );
+
+    if (!alreadyExists && candidates.length + extraPlacesCandidates.length < 10) {
+      existingNames.add(pName);
+      const id = `web-place-${Date.now()}-${extraPlacesCandidates.length}-${Math.random().toString(36).substring(2, 6)}`;
+      const pSources: Array<{ title: string; url: string }> = [];
+      if (place.website) pSources.push({ title: place.title, url: place.website });
+      if (place.url) pSources.push({ title: 'Google Maps', url: place.url });
+
+      const pCity = cleanField(place.city) || (place.address ? cleanField(place.address.split(',')[1] || place.address.split(',')[0]) : undefined);
+
+      extraPlacesCandidates.push({
+        id,
+        name: place.title.trim(),
+        rif: 'SR',
+        city: pCity,
+        state: inferVenezuelanState(pCity, place.state),
+        phone: cleanField(place.phone),
+        whatsapp: cleanField(place.phone),
+        email: undefined,
+        website: cleanField(place.website),
+        instagram: undefined,
+        summary: `Local comercial verificado en Google Maps (${place.category || 'Proveedor / Distribuidor'}). Dirección: ${place.address || 'Venezuela'}.`,
+        products_detected: [searchTerm],
+        source_urls: pSources.slice(0, 2),
+        ai_provider: `${modelUsed} + Google Places`,
+      });
+    }
+  }
+
+  return [...candidates, ...extraPlacesCandidates];
 }
 
 serve(async (req: Request) => {
@@ -777,6 +1303,7 @@ serve(async (req: Request) => {
       customGroqKey,
       customOpenRouterKey,
       customSerperKey,
+      customApifyKey,
     } = body;
 
     const selectedProvider = (provider || 'auto').toLowerCase();
@@ -795,35 +1322,39 @@ serve(async (req: Request) => {
       });
     }
 
-    // 1. Rastreo web en vivo
+    // 1. Rastreo web y Google Places en vivo (Paralelo)
     const searchStart = Date.now();
-    const liveWebSnippets = await fetchRealWebResults(
+    const { webSnippets: liveWebSnippets, places: placesResults } = await fetchRealWebAndPlacesResults(
       searchTerm,
       region,
       customSerperKey || customApiKey,
+      customApifyKey || customApiKey,
       stepsLog,
       queriesExecuted
     );
     const searchDurationMs = Date.now() - searchStart;
 
-    const fullStrictPrompt = buildSupplierExtractionPrompt(searchTerm, region, liveWebSnippets);
+    const fullStrictPrompt = buildSupplierExtractionPrompt(searchTerm, region, liveWebSnippets, placesResults);
 
     // 2. Extracción de claves (Priorizando claves personalizadas pasadas por el cliente)
     const geminiKeys = getAllGeminiApiKeys(customGeminiKey || customApiKey);
     const openRouterKey = getOpenRouterApiKey(customOpenRouterKey || customApiKey);
     const serperKey = getSerperApiKey(customSerperKey || customApiKey);
+    const apifyToken = getApifyApiToken(customApifyKey || customApiKey);
 
     const keyPoolStats = {
       geminiKeysCount: geminiKeys.length,
+      hasGroqKey: false,
       hasOpenRouterKey: Boolean(openRouterKey),
       hasSerperKey: Boolean(serperKey),
+      hasApifyKey: Boolean(apifyToken),
     };
 
     stepsLog.push({
       step: 'Key Pool Inspection',
       timestamp: new Date().toISOString(),
       status: 'info',
-      message: `Claves disponibles: Gemini (${geminiKeys.length} claves en pool${customGeminiKey ? ' [Personalizada activa]' : ''}), OpenRouter (${keyPoolStats.hasOpenRouterKey ? (customOpenRouterKey ? 'Personalizada' : 'Pool Servidor') : 'No'}), Serper (${keyPoolStats.hasSerperKey ? 'Activa' : 'No'})`,
+      message: `Claves disponibles: Gemini (${geminiKeys.length} claves en pool${customGeminiKey ? ' [Personalizada]' : ''}), OpenRouter (${keyPoolStats.hasOpenRouterKey ? '✅' : '❌'}), Serper (${keyPoolStats.hasSerperKey ? '✅' : '❌'}), Apify (${keyPoolStats.hasApifyKey ? (customApifyKey ? 'Personalizada' : 'Pool Servidor') : '❌'})`,
     });
 
     let rawOutput: { text: string; model: string } | null = null;
@@ -899,7 +1430,7 @@ serve(async (req: Request) => {
     const aiDurationMs = Date.now() - aiStart;
     const totalDurationMs = Date.now() - startTime;
 
-    const candidates = processAiOutput(rawOutput.text, liveWebSnippets, searchTerm, rawOutput.model);
+    const candidates = processAiOutput(rawOutput.text, liveWebSnippets, searchTerm, rawOutput.model, placesResults);
 
     const telemetry: SearchExecutionTelemetry = {
       startTime: new Date(startTime).toISOString(),
@@ -909,6 +1440,8 @@ serve(async (req: Request) => {
       queriesExecuted,
       snippetsFound: liveWebSnippets.length,
       snippets: liveWebSnippets,
+      placesFound: placesResults.length,
+      places: placesResults,
       selectedProvider,
       modelUsed: rawOutput.model,
       keyPoolStats,

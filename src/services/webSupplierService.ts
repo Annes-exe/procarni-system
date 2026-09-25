@@ -27,6 +27,7 @@ export interface SearchWebSuppliersParams {
   region?: string;
   provider?: AiProviderType;
   customApiKey?: string;
+  customApifyKey?: string;
 }
 
 interface GeminiCandidate {
@@ -349,6 +350,43 @@ export function getSerperApiKey(customKey?: string): string | undefined {
 export function removeCustomSerperApiKey(): void {
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.removeItem('serper_api_key');
+  }
+}
+
+export function saveCustomApifyApiKey(key: string): void {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('apify_api_key', key.trim());
+  }
+}
+
+export function getCustomApifyApiKey(): string | null {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage.getItem('apify_api_key');
+  }
+  return null;
+}
+
+export function getApifyApiKey(customKey?: string): string | undefined {
+  if (customKey && customKey.trim()) return customKey.trim();
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const stored = window.localStorage.getItem('apify_api_key');
+    if (stored && stored.trim()) return stored.trim();
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    const env = import.meta.env as Record<string, string | undefined>;
+    const envKey =
+      env.VITE_APIFY_API_KEY ||
+      env.VITE_APIFY_API_TOKEN ||
+      env.VITE_APIFY_TOKEN ||
+      env.VITE_APIFY_KEY;
+    if (envKey && envKey.trim()) return envKey.trim();
+  }
+  return undefined;
+}
+
+export function removeCustomApifyApiKey(): void {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem('apify_api_key');
   }
 }
 
@@ -683,11 +721,13 @@ export async function searchWebSuppliers({
   region = 'Eje Central (Aragua, Carabobo, Caracas, Lara)',
   provider,
   customApiKey,
+  customApifyKey,
 }: SearchWebSuppliersParams): Promise<WebSupplierCandidate[]> {
   const chosenProvider = provider || getAiProviderPreference();
   const customGemini = getCustomGeminiApiKey();
   const customOpenRouter = getCustomOpenRouterApiKey();
   const customSerper = getCustomSerperApiKey();
+  const customApify = customApifyKey || getCustomApifyApiKey();
 
   // 1. Invocar Función Serverless Segura en Supabase Edge Functions (100% privado y seguro)
   try {
@@ -701,6 +741,7 @@ export async function searchWebSuppliers({
         customGeminiKey: customGemini || undefined,
         customOpenRouterKey: customOpenRouter || undefined,
         customSerperKey: customSerper || undefined,
+        customApifyKey: customApify || undefined,
       },
     });
 
@@ -711,19 +752,34 @@ export async function searchWebSuppliers({
       console.group(`🔎 [Procarni Web Intelligence] Búsqueda: "${searchTerm}" (${region})`);
       if (telemetry) {
         console.log(
-          `⏱️ %cTiempo Total: ${telemetry.totalDurationMs}ms%c | Google Serper: ${telemetry.searchDurationMs}ms | Motor IA: ${telemetry.aiDurationMs}ms`,
+          `⏱️ %cTiempo Total: ${telemetry.totalDurationMs}ms%c | Scraper Web/Places: ${telemetry.searchDurationMs}ms | Motor IA: ${telemetry.aiDurationMs}ms`,
           'color: #0284c7; font-weight: bold;',
           'color: inherit;'
         );
         console.log(`🤖 %cMotor IA Activo:%c ${model}`, 'color: #16a34a; font-weight: bold;', 'color: inherit;');
         console.log(
-          `🔑 %cSecretos en Servidor (Supabase):%c Gemini (${telemetry.keyPoolStats?.geminiKeysCount || 0} claves en pool) | OpenRouter (${telemetry.keyPoolStats?.hasOpenRouterKey ? '✅' : '❌'}) | Serper (${telemetry.keyPoolStats?.hasSerperKey ? '✅' : '❌'})`,
+          `🔑 %cSecretos en Servidor (Supabase):%c Gemini (${telemetry.keyPoolStats?.geminiKeysCount || 0} claves en pool) | OpenRouter (${telemetry.keyPoolStats?.hasOpenRouterKey ? '✅' : '❌'}) | Serper (${telemetry.keyPoolStats?.hasSerperKey ? '✅' : '❌'}) | Apify (${telemetry.keyPoolStats?.hasApifyKey ? '✅' : '❌'})`,
           'color: #880a0a; font-weight: bold;',
           'color: inherit;'
         );
 
         if (telemetry.queriesExecuted && telemetry.queriesExecuted.length > 0) {
-          console.log(`📡 Consultas Google enviadas:`, telemetry.queriesExecuted);
+          console.log(`📡 Consultas enviadas:`, telemetry.queriesExecuted);
+        }
+
+        if (telemetry.places && telemetry.places.length > 0) {
+          console.groupCollapsed(`📍 Locales Comerciales Google Places detectados (${telemetry.placesFound || telemetry.places.length})`);
+          console.table(
+            telemetry.places.map((p: { title: string; category?: string; address?: string; phone?: string; website?: string }, idx: number) => ({
+              '#': idx + 1,
+              Nombre: p.title,
+              Categoría: p.category || 'N/A',
+              Dirección: p.address || 'Venezuela',
+              Teléfono: p.phone || 'N/A',
+              Web: p.website || 'N/A',
+            }))
+          );
+          console.groupEnd();
         }
 
         if (telemetry.snippets && telemetry.snippets.length > 0) {
