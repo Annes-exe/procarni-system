@@ -149,6 +149,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
   const {
     data: suppliers = [],
     isLoading: isLoadingSuppliers,
+    refetch,
   } = useQuery<SmartSupplierResult[]>({
     queryKey: ['suppliers_smart_search', searchTerm, selectedCategory],
     queryFn: async () => {
@@ -475,8 +476,8 @@ const SearchSuppliersByMaterial: React.FC = () => {
       const searchSummary = searchTerm
         ? `Búsqueda: "${searchTerm}"`
         : selectedCategory !== 'all'
-        ? `Categoría: ${selectedCategory}`
-        : 'Todos los proveedores activos';
+          ? `Categoría: ${selectedCategory}`
+          : 'Todos los proveedores activos';
 
       doc.text(searchSummary, 14, 29);
       const cityFilterText = selectedCity === 'all' ? 'Todas las ciudades' : `Ciudad: ${selectedCity}`;
@@ -1031,8 +1032,8 @@ const SearchSuppliersByMaterial: React.FC = () => {
                   {selectedAiProvider === 'auto'
                     ? '⚡ Modo Auto (Gemini / OpenRouter)'
                     : selectedAiProvider === 'openrouter'
-                    ? '⚡ OpenRouter (DeepSeek / Llama)'
-                    : '⚡ Google Gemini (Flash)'}
+                      ? '⚡ OpenRouter (DeepSeek / Llama)'
+                      : '⚡ Google Gemini (Flash)'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
