@@ -7,7 +7,7 @@ import {
   ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
   BarChart3, ChevronDown, Home, Warehouse, Download, Wrench,
   Package, Layers, CreditCard, CheckCircle, FileSpreadsheet, PieChart,
-  ClipboardList
+  ClipboardList, BellRing
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { m, AnimatePresence } from 'framer-motion';

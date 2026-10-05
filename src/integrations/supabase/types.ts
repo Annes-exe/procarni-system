@@ -484,4 +484,41 @@ export type Requisition = {
   created_at: string;
   user_id: string;
   profiles?: { first_name: string | null; last_name: string | null } | null;
+};
+
+// --- TYPES FOR PURCHASE REMINDERS ---
+export type PurchaseReminder = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  reminder_type: 'material_purchase' | 'management_task';
+  priority: 'baja' | 'media' | 'alta' | 'urgente';
+  due_date: string | null;
+  status: 'pending' | 'completed' | 'cancelled';
+  material_id: string | null;
+  material_name: string | null;
+  supplier_id: string | null;
+  quantity: number | null;
+  unit_id: string | null;
+  unit_name: string | null;
+  estimated_price: number | null;
+  currency: 'USD' | 'VES' | 'EUR';
+  purchase_order_id: string | null;
+  is_recurring?: boolean | null;
+  recurrence_interval?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom' | null;
+  recurrence_days?: number | null;
+  last_completed_at?: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  materials?: Material | null;
+  suppliers?: Supplier | null;
+  units_of_measure?: UnitOfMeasure | null;
+  purchase_orders?: PurchaseOrder | null;
+  profiles?: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+  } | null;
 };

@@ -10,6 +10,7 @@ import ScrollToTopButton from './ScrollToTopButton';
 import { DynamicBreadcrumbs } from './DynamicBreadcrumbs';
 import NotificationBell from './NotificationBell';
 import { PendingReceiptsIndicator } from './PendingReceiptsIndicator';
+import { PurchaseRemindersIndicator } from './PurchaseRemindersIndicator';
 import CurrencyCalculator from './CurrencyCalculator';
 import GlobalSearch from './GlobalSearch';
 import { 
@@ -20,6 +21,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useSession } from './SessionContextProvider';
 import { notificationService } from '@/integrations/supabase/services/notificationService';
+import { showDueRemindersToast } from '@/utils/toast';
 import { format, nextSunday, isSunday } from 'date-fns';
 import { m } from "framer-motion";
 
@@ -117,6 +119,77 @@ const Layout = () => {
     }
   }, [role, session, supabase]);
 
+  // Ref to prevent duplicate reminder notifications
+  const remindersCheckedRef = useRef(false);
+
+  useEffect(() => {
+    if (session?.user && supabase && !remindersCheckedRef.current) {
+      remindersCheckedRef.current = true;
+
+      const checkDueReminders = async () => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 800));
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+          const { data: dueReminders } = await supabase
+            .from('purchase_reminders')
+            .select('id, title, material_name, reminder_type, due_date, is_recurring')
+            .eq('user_id', session.user.id)
+            .eq('status', 'pending')
+            .lte('due_date', `${todayStr}T23:59:59Z`);
+
+          if (dueReminders && dueReminders.length > 0) {
+            // Notificación Toast central al iniciar la ventana
+            const firstTitle = dueReminders[0].material_name
+              ? `${dueReminders[0].material_name} (${dueReminders[0].title})`
+              : dueReminders[0].title;
+
+            showDueRemindersToast(
+              dueReminders.length,
+              firstTitle,
+              () => navigate('/purchase-reminders')
+            );
+
+            for (const reminder of dueReminders) {
+              const notifTitle = reminder.is_recurring 
+                ? '⏰ Compra Programada Recurrente' 
+                : '⏰ Recordatorio de Compra Pendiente';
+
+              const notifMessage = reminder.material_name 
+                ? `Hoy vence la compra de "${reminder.material_name}": ${reminder.title}`
+                : `Hoy vence la tarea: "${reminder.title}"`;
+
+              // Check if already notified today
+              const { data: existingNotif } = await supabase
+                .from('notifications')
+                .select('id')
+                .eq('user_id', session.user.id)
+                .eq('title', notifTitle)
+                .like('message', `%${reminder.title}%`)
+                .gte('created_at', `${todayStr}T00:00:00Z`)
+                .limit(1);
+
+              if (!existingNotif || existingNotif.length === 0) {
+                await notificationService.createNotification({
+                  title: notifTitle,
+                  message: notifMessage,
+                  type: 'reminder',
+                  user_id: session.user.id
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error al verificar recordatorios programados:', e);
+          remindersCheckedRef.current = false;
+        }
+      };
+
+      checkDueReminders();
+    }
+  }, [session, supabase]);
+
+
   const MobileHeader = () => (
     <header className="sticky top-0 z-50 flex h-16 items-center gap-4 bg-white/70 backdrop-blur-lg px-4 shadow-sm border-none ring-1 ring-black/5 mx-4 mt-4 rounded-2xl">
       <Sheet>
@@ -158,6 +231,7 @@ const Layout = () => {
             <Search className="h-5 w-5" />
           </Button>
           <CurrencyCalculator />
+          <PurchaseRemindersIndicator />
           <PendingReceiptsIndicator />
           <NotificationBell />
         </div>
@@ -263,6 +337,7 @@ const Layout = () => {
               </button>
             </div>
             <CurrencyCalculator />
+            <PurchaseRemindersIndicator />
             <PendingReceiptsIndicator />
             <NotificationBell />
             <div className="h-6 w-px bg-border/60 mx-1"></div>

@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { showError, showSuccess } from '@/utils/toast';
-import { User, Bell, BellOff, Edit } from 'lucide-react';
+import { User, Bell, BellOff, Edit, CalendarClock } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface UserDropdownProps {
@@ -132,6 +132,13 @@ const UserDropdown = ({ showText = false }: UserDropdownProps) => {
           >
             <Edit className="h-4 w-4" />
             Editar Perfil
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onClick={() => navigate('/purchase-reminders')}
+            className="cursor-pointer flex items-center gap-2"
+          >
+            <CalendarClock className="h-4 w-4 text-procarni-primary" />
+            Mis Recordatorios
           </DropdownMenuItem>
           <DropdownMenuSeparator />
 

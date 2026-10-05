@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, Info, ShoppingCart, PlusCircle } from 'lucide-react
 import { showError, showSuccess, showSupplierAlert, dismissToast } from '@/utils/toast';
 import { searchSuppliers, searchCompanies, searchMaterialsBySupplier, getSupplierDetails, updateQuoteRequestStatus, getAllUnits, createSupplierMaterialRelation, searchMaterials } from '@/integrations/supabase/data';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
+import { purchaseReminderService } from '@/integrations/supabase/services/purchaseReminderService';
 
 
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -251,6 +252,40 @@ const GeneratePurchaseOrder = () => {
           });
         });
         showSuccess('Ítems sugeridos frecuentes precargados.');
+      }
+      // 5. Handle Direct Navigation from Purchase Reminder
+      else if (location.state?.fromReminder) {
+        const reminder = location.state.fromReminder;
+        if (reminder.supplier_id || reminder.suppliers) {
+          setSupplierId(reminder.supplier_id || reminder.suppliers?.id || '');
+          setSupplierName(reminder.suppliers?.name || '');
+        }
+        if (reminder.currency) {
+          setCurrency(reminder.currency);
+          if (reminder.currency === 'EUR') setBaseCurrency('EUR');
+          else setBaseCurrency('USD');
+        }
+        setObservations(`Generado desde recordatorio: "${reminder.title}"`);
+
+        clearCart();
+
+        if (reminder.material_name || reminder.material_id) {
+          addItem({
+            material_id: reminder.material_id || undefined,
+            material_name: reminder.material_name || reminder.title,
+            supplier_code: '',
+            quantity: reminder.quantity || 1,
+            unit_price: reminder.estimated_price || 0,
+            tax_rate: 0.16,
+            is_exempt: false,
+            unit: reminder.unit_name || reminder.units_of_measure?.name || (units[0]?.name || 'UND'),
+            unit_id: reminder.unit_id || undefined,
+            description: reminder.description || `Recordatorio: ${reminder.title}`,
+            sales_percentage: 0,
+            discount_percentage: 0,
+          });
+        }
+        showSuccess(`Datos precargados desde el recordatorio: "${reminder.title}"`);
       }
     };
 
@@ -584,6 +619,16 @@ const GeneratePurchaseOrder = () => {
           console.log(`Quote Request ${quoteRequest.id} approved successfully.`);
         } else {
           showError('Advertencia: No se pudo actualizar el estado de la Solicitud de Cotización de origen.');
+        }
+      }
+
+      // Link and complete Reminder if PO was generated from one
+      if (location.state?.fromReminder?.id) {
+        try {
+          await purchaseReminderService.linkPurchaseOrder(location.state.fromReminder.id, createdOrder.id);
+          queryClient.invalidateQueries({ queryKey: ['purchase_reminders'] });
+        } catch (e) {
+          console.error("Error linking purchase reminder:", e);
         }
       }
 
