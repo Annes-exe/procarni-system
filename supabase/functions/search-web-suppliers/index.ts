@@ -88,15 +88,15 @@ export interface SearchExecutionTelemetry {
   rawAiResponseSnippet?: string;
 }
 
-// Modelos oficiales y verificados de Google AI Studio v1beta
+// Modelos oficiales y verificados de Google AI Studio v1beta (Priorizando los más estables y de baja latencia)
 const GEMINI_MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
   'gemini-3.5-flash-lite',
   'gemini-3.6-flash',
   'gemini-flash-lite-latest',
   'gemini-flash-latest',
   'gemini-3.7-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-flash',
   'gemini-pro-latest',
 ];
 
@@ -652,7 +652,7 @@ async function fetchRealWebAndPlacesResults(
                 num: 10,
               }),
             },
-            4000
+            5000
           );
 
           const durationMs = Date.now() - queryStart;
@@ -862,8 +862,10 @@ async function callGeminiAi(
 
   const invalidKeys = new Set<string>();
   let lastError: Error | null = null;
+  let consecutive503Count = 0;
 
   for (const model of GEMINI_MODELS) {
+    if (consecutive503Count >= 3) break;
     let modelNotFound = false;
 
     for (let kIdx = 0; kIdx < apiKeys.length; kIdx++) {
@@ -914,6 +916,19 @@ async function callGeminiAi(
           // Si la clave es inválida (400 API_KEY_INVALID o 403), descartar esta clave para los siguientes modelos
           if (response.status === 400 || response.status === 403 || parsedErrMsg.includes('API_KEY_INVALID')) {
             invalidKeys.add(apiKey);
+          }
+
+          if (response.status === 503) {
+            consecutive503Count++;
+            if (consecutive503Count >= 3) {
+              stepsLog.push({
+                step: 'Gemini 503 Fast-Fallback',
+                timestamp: new Date().toISOString(),
+                status: 'warn',
+                message: 'Google Gemini presenta alta demanda generalizada (503). Conmutando de inmediato a proveedor de respaldo.',
+              });
+              break;
+            }
           }
 
           if (response.status === 404) {

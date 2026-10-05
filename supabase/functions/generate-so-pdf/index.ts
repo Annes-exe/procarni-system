@@ -578,8 +578,6 @@ serve(async (req: Request) => {
             drawText(state, 'ORDEN DE SERVICIO', titleX, state.y, { font: boldFont, size: 16, color: PROC_RED });
 
             drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
-
-            drawText(state, `Nº: ${formattedSequence}`, titleX, state.y - LINE_HEIGHT * 2, { font: boldFont, size: 10 });
             
             const docDate = order.issue_date || order.created_at;
             let docDateFormatted = '';
