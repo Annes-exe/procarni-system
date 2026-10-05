@@ -1,12 +1,11 @@
 import { m } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2, AlertCircle, Calendar, ArrowRight, ShieldAlert, CreditCard, BellRing } from 'lucide-react';
+import { Clock, Users, Zap, FilePlus, ClipboardPlus, BarChart2, AlertCircle, Calendar, ArrowRight, ShieldAlert, CreditCard } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllSuppliers } from '@/integrations/supabase/data';
 import { PurchaseOrder, Supplier } from '@/integrations/supabase/types';
 import { purchaseOrderService } from '@/services/purchaseOrderService';
-import { purchaseReminderService } from '@/integrations/supabase/services/purchaseReminderService';
 import { useNavigate } from 'react-router-dom';
 import SearchSuppliersWidget from '@/components/SearchSuppliersWidget';
 import { supabase } from '@/integrations/supabase/client';
@@ -61,15 +60,7 @@ const SearchManagement = () => {
 
   const totalSuppliersCount = suppliers?.length || 0;
 
-  // 3. Fetch User Purchase Reminders
-  const { data: reminders = [], isLoading: isLoadingReminders } = useQuery({
-    queryKey: ['purchase_reminders'],
-    queryFn: () => purchaseReminderService.getReminders(),
-  });
-
-  const pendingRemindersCount = reminders.filter((r) => r.status === 'pending').length;
-
-  // 4. Fetch Orders "Por Pagar"
+  // 3. Fetch Orders "Por Pagar"
   const { data: toPayOrders, isLoading: isLoadingToPay } = useQuery({
     queryKey: ['toPayOrders'],
     queryFn: async () => {
@@ -124,13 +115,6 @@ const SearchManagement = () => {
       path: "/purchase-order-management"
     },
     {
-      title: "Recordatorios de Compras",
-      value: isLoadingReminders ? "Cargando..." : pendingRemindersCount,
-      icon: BellRing,
-      description: "Pendientes y compras por gestionar.",
-      path: "/purchase-reminders"
-    },
-    {
       title: "Proveedores Totales",
       value: isLoadingSuppliers ? "Cargando..." : totalSuppliersCount,
       icon: Users,
@@ -156,7 +140,7 @@ const SearchManagement = () => {
         <p className="text-[13px] text-gray-500 font-medium italic">Gestión integral de compras y servicios para Procarni</p>
       </m.div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2">
         {kpis.map((kpi, index) => (
           <m.div key={index} variants={itemVariants}>
             <Card
@@ -213,22 +197,6 @@ const SearchManagement = () => {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/purchase-reminders')}
-                className="w-full justify-start h-[4.5rem] px-6 rounded-2xl bg-white/5 hover:bg-white/10 border-none group/btn transition-all duration-300"
-              >
-                <div className="flex items-center w-full">
-                  <div className="bg-gradient-to-br from-procarni-primary to-procarni-secondary p-3 rounded-xl shadow-lg shadow-procarni-primary/20 group-hover/btn:scale-110 transition-transform">
-                    <BellRing className="h-[18px] w-[18px] text-white" />
-                  </div>
-                  <div className="ml-5 text-left">
-                    <span className="font-extrabold text-white block text-[15px]">Recordatorios de Compras</span>
-                    <span className="text-[11px] text-white/40 font-medium">Gestionar pendientes y generar OC</span>
-                  </div>
-                </div>
-              </Button>
-
               <Button
                 variant="ghost"
                 onClick={() => navigate('/generate-po')}
