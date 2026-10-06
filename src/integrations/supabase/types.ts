@@ -521,4 +521,17 @@ export type PurchaseReminder = {
     last_name: string | null;
     email: string | null;
   } | null;
-};
+};
+
+// --- TYPES FOR CENTRALIZED EXCHANGE RATES ---
+export type ExchangeRate = {
+  id: string;
+  rate_date: string;
+  currency: 'USD' | 'EUR';
+  rate: number;
+  source: string;
+  effective_date?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+

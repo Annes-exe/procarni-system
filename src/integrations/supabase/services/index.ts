@@ -18,3 +18,4 @@ export * from './materialCategoryService';
 export * from './locationService';
 export * from './supplierBranchService';
 export * from './purchaseReminderService';
+export * from './exchangeRateService';
