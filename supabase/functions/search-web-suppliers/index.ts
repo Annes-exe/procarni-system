@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,6 +87,9 @@ export interface SearchExecutionTelemetry {
   };
   stepsLog: StepLogItem[];
   rawAiResponseSnippet?: string;
+  fromCache?: boolean;
+  cacheHitCount?: number;
+  cacheExpiresAt?: string;
 }
 
 // Modelos oficiales y verificados de Google AI Studio v1beta (Priorizando los más estables y de baja latencia)
@@ -219,7 +223,12 @@ function getAllGeminiApiKeys(customApiKey?: string): string[] {
   addKey(Deno.env.get('VITE_GOOGLE_AI_API_KEY'));
   addKey(Deno.env.get('GEMINI_API_KEY'));
 
-  return keys;
+  // Priorizar al inicio las claves oficiales que empiezan con 'AIza' (máxima compatibilidad sin errores 400)
+  return keys.sort((a, b) => {
+    const aIsOfficial = a.startsWith('AIza') ? 1 : 0;
+    const bIsOfficial = b.startsWith('AIza') ? 1 : 0;
+    return bIsOfficial - aIsOfficial;
+  });
 }
 
 function getOpenRouterApiKey(customKey?: string): string | undefined {
@@ -630,11 +639,14 @@ async function fetchRealWebAndPlacesResults(
         step: 'Serper Crawler',
         timestamp: new Date().toISOString(),
         status: 'info',
-        message: `Iniciando rastreo Google Venezuela con Serper API (${googleQueries.length} variantes comerciales)`,
+        message: `Iniciando rastreo concurrente Google Venezuela con Serper API (${googleQueries.length} variantes)`,
       });
 
-      for (const query of googleQueries) {
-        queriesExecuted.push(query);
+      // Ejecución paralela concurrente de las consultas para respuesta ultra-rápida (<1.5s)
+      const selectedQueries = googleQueries.slice(0, 3);
+      selectedQueries.forEach((q) => queriesExecuted.push(q));
+
+      const queryPromises = selectedQueries.map(async (query) => {
         const queryStart = Date.now();
         try {
           const serperRes = await fetchWithTimeout(
@@ -649,26 +661,24 @@ async function fetchRealWebAndPlacesResults(
                 q: query,
                 gl: 've',
                 hl: 'es',
-                num: 10,
+                num: 8,
               }),
             },
-            5000
+            3500
           );
 
           const durationMs = Date.now() - queryStart;
-
           if (serperRes.ok) {
             const serperData = await serperRes.json();
-            let count = 0;
+            const items: WebSearchResult[] = [];
             if (Array.isArray(serperData.organic)) {
               for (const item of serperData.organic) {
-                if (item.link && !organicResults.some((r) => r.url === item.link)) {
-                  organicResults.push({
+                if (item.link) {
+                  items.push({
                     title: item.title || 'Resultado Google',
                     snippet: item.snippet || '',
                     url: item.link || '',
                   });
-                  count++;
                 }
               }
             }
@@ -676,29 +686,32 @@ async function fetchRealWebAndPlacesResults(
               step: 'Serper Query OK',
               timestamp: new Date().toISOString(),
               status: 'ok',
-              message: `"${query}" -> ${count} resultados orgánicos nuevos (${durationMs}ms)`,
+              message: `"${query}" -> ${items.length} resultados orgánicos (${durationMs}ms)`,
               durationMs,
             });
-          } else {
-            stepsLog.push({
-              step: 'Serper Query Status',
-              timestamp: new Date().toISOString(),
-              status: 'warn',
-              message: `Status ${serperRes.status} para "${query}" (${durationMs}ms)`,
-              durationMs,
-            });
+            return items;
           }
-
-          if (organicResults.length >= 6) break;
         } catch (serperErr) {
           const durationMs = Date.now() - queryStart;
           stepsLog.push({
             step: 'Serper Error',
             timestamp: new Date().toISOString(),
             status: 'warn',
-            message: `Error consultando Serper: ${serperErr instanceof Error ? serperErr.message : String(serperErr)}`,
+            message: `Error en consulta paralela "${query}": ${serperErr instanceof Error ? serperErr.message : String(serperErr)}`,
             durationMs,
           });
+        }
+        return [];
+      });
+
+      const settledResults = await Promise.allSettled(queryPromises);
+      for (const res of settledResults) {
+        if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+          for (const item of res.value) {
+            if (item.url && !organicResults.some((r) => r.url === item.url)) {
+              organicResults.push(item);
+            }
+          }
         }
       }
     } else {
@@ -1290,6 +1303,12 @@ function processAiOutput(
   return [...candidates, ...extraPlacesCandidates];
 }
 
+function generateQueryKey(searchTerm: string, region: string): string {
+  const normTerm = searchTerm.toLowerCase().trim().replace(/\s+/g, ' ');
+  const normRegion = (region || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  return `${normTerm}:::${normRegion}`;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders, status: 200 });
@@ -1313,6 +1332,7 @@ serve(async (req: Request) => {
       category,
       region = 'Eje Central (Aragua, Carabobo, Caracas, Lara)',
       provider = 'auto',
+      forceRefresh = false,
       customApiKey,
       customGeminiKey,
       customGroqKey,
@@ -1327,7 +1347,7 @@ serve(async (req: Request) => {
       step: 'Request Inbound',
       timestamp: new Date().toISOString(),
       status: 'info',
-      message: `Búsqueda iniciada para: "${searchTerm}" | Región: "${region}" | Proveedor prioritario: "${selectedProvider}"`,
+      message: `Búsqueda iniciada para: "${searchTerm}" | Región: "${region}" | Proveedor prioritario: "${selectedProvider}"${forceRefresh ? ' [Forzar Actualización en Vivo]' : ''}`,
     });
 
     if (!searchTerm || typeof searchTerm !== 'string' || !searchTerm.trim()) {
@@ -1335,6 +1355,62 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
+    }
+
+    // Inicializar cliente Supabase para gestión de caché persistente (10 días)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || '';
+    const supabaseClient = (supabaseUrl && supabaseServiceKey)
+      ? createClient(supabaseUrl, supabaseServiceKey)
+      : null;
+
+    const queryKey = generateQueryKey(searchTerm, region);
+    const nowIso = new Date().toISOString();
+
+    // 0. Comprobar Caché si no se forzó actualización
+    if (!forceRefresh && supabaseClient) {
+      try {
+        const { data: cachedRow, error: cacheErr } = await supabaseClient
+          .from('web_search_cache')
+          .select('*')
+          .eq('query_key', queryKey)
+          .gt('expires_at', nowIso)
+          .maybeSingle();
+
+        if (!cacheErr && cachedRow && Array.isArray(cachedRow.candidates) && cachedRow.candidates.length > 0) {
+          const newHitCount = (cachedRow.hit_count || 1) + 1;
+          const cachedDurationMs = Date.now() - startTime;
+
+          // Actualizar contador de visitas de forma asíncrona
+          supabaseClient
+            .from('web_search_cache')
+            .update({ hit_count: newHitCount, updated_at: nowIso })
+            .eq('id', cachedRow.id)
+            .then(() => {})
+            .catch(() => {});
+
+          const cachedTelemetry: SearchExecutionTelemetry = {
+            ...(cachedRow.telemetry || {}),
+            startTime: new Date(startTime).toISOString(),
+            totalDurationMs: cachedDurationMs,
+            fromCache: true,
+            cacheHitCount: newHitCount,
+            cacheExpiresAt: cachedRow.expires_at,
+          };
+
+          return new Response(JSON.stringify({
+            candidates: cachedRow.candidates,
+            model: `${cachedRow.telemetry?.modelUsed || 'Caché Corporativo'} (⚡ Servido desde Caché)`,
+            telemetry: cachedTelemetry,
+            fromCache: true,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          });
+        }
+      } catch (cacheLookupErr) {
+        console.warn('⚠️ [Cache Lookup Warning]:', cacheLookupErr);
+      }
     }
 
     // 1. Rastreo web y Google Places en vivo (Paralelo)
@@ -1462,9 +1538,32 @@ serve(async (req: Request) => {
       keyPoolStats,
       stepsLog,
       rawAiResponseSnippet: rawOutput.text.slice(0, 300) + '...',
+      fromCache: false,
     };
 
-    return new Response(JSON.stringify({ candidates, model: rawOutput.model, telemetry }), {
+    // Guardar en caché persistente (10 días de vigencia)
+    if (supabaseClient && candidates.length > 0) {
+      try {
+        const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+        await supabaseClient
+          .from('web_search_cache')
+          .upsert({
+            query_key: queryKey,
+            search_term: searchTerm.trim(),
+            region: region.trim(),
+            category: category || null,
+            candidates,
+            telemetry,
+            hit_count: 1,
+            updated_at: nowIso,
+            expires_at: expiresAt,
+          }, { onConflict: 'query_key' });
+      } catch (cacheSaveErr) {
+        console.warn('⚠️ [Cache Save Warning]:', cacheSaveErr);
+      }
+    }
+
+    return new Response(JSON.stringify({ candidates, model: rawOutput.model, telemetry, fromCache: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });

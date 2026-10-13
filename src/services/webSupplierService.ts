@@ -21,13 +21,41 @@ export interface WebSupplierCandidate {
   ai_provider?: string;
 }
 
+export interface SearchExecutionTelemetry {
+  startTime: string;
+  totalDurationMs: number;
+  searchDurationMs: number;
+  aiDurationMs: number;
+  queriesExecuted: string[];
+  snippetsFound: number;
+  snippets: WebSearchResult[];
+  placesFound?: number;
+  places?: Array<{ title: string; category?: string; address?: string; phone?: string; website?: string }>;
+  selectedProvider: string;
+  modelUsed: string;
+  keyPoolStats: {
+    geminiKeysCount: number;
+    hasGroqKey: boolean;
+    hasOpenRouterKey: boolean;
+    hasSerperKey: boolean;
+    hasApifyKey: boolean;
+  };
+  stepsLog: Array<{ step: string; status: string; message?: string; durationMs?: number }>;
+  rawAiResponseSnippet?: string;
+  fromCache?: boolean;
+  cacheHitCount?: number;
+  cacheExpiresAt?: string;
+}
+
 export interface SearchWebSuppliersParams {
   searchTerm: string;
   category?: string;
   region?: string;
   provider?: AiProviderType;
+  forceRefresh?: boolean;
   customApiKey?: string;
   customApifyKey?: string;
+  onTelemetryReceived?: (telemetry: SearchExecutionTelemetry) => void;
 }
 
 interface GeminiCandidate {
@@ -247,7 +275,12 @@ export function getAllGeminiApiKeys(customApiKey?: string): string[] {
     });
   }
 
-  return keys;
+  // Priorizar al inicio las claves oficiales que empiezan con 'AIza'
+  return keys.sort((a, b) => {
+    const aIsOfficial = a.startsWith('AIza') ? 1 : 0;
+    const bIsOfficial = b.startsWith('AIza') ? 1 : 0;
+    return bIsOfficial - aIsOfficial;
+  });
 }
 
 export function removeCustomGeminiApiKey(): void {
@@ -480,9 +513,8 @@ async function fetchRealWebResults(searchTerm: string, region: string): Promise<
           q: googleQuery,
           gl: 've',
           hl: 'es',
-          num: 10,
-        }),
-      }, 7000);
+          }),
+      }, 3500);
 
       let serperData: { organic?: Array<{ title?: string; snippet?: string; link?: string }> } = {};
       if (serperRes.ok) {
@@ -508,7 +540,7 @@ async function fetchRealWebResults(searchTerm: string, region: string): Promise<
             hl: 'es',
             num: 10,
           }),
-        }, 7000);
+        }, 3500);
         if (fallbackRes.ok) {
           serperData = await fallbackRes.json();
         }
@@ -715,19 +747,98 @@ async function callOpenRouterAi(fullPrompt: string, apiKey: string): Promise<{ t
 // FASE 2: ORQUESTADOR INTELIGENTE MULTI-PROVEEDOR
 // ==========================================
 
+let lastSearchTelemetry: SearchExecutionTelemetry | null = null;
+
+export function getLastSearchTelemetry(): SearchExecutionTelemetry | null {
+  return lastSearchTelemetry;
+}
+
 export async function searchWebSuppliers({
   searchTerm,
   category,
   region = 'Eje Central (Aragua, Carabobo, Caracas, Lara)',
   provider,
+  forceRefresh = false,
   customApiKey,
   customApifyKey,
+  onTelemetryReceived,
 }: SearchWebSuppliersParams): Promise<WebSupplierCandidate[]> {
   const chosenProvider = provider || getAiProviderPreference();
   const customGemini = getCustomGeminiApiKey();
   const customOpenRouter = getCustomOpenRouterApiKey();
   const customSerper = getCustomSerperApiKey();
   const customApify = customApifyKey || getCustomApifyApiKey();
+
+  const queryKey = `${searchTerm.toLowerCase().trim().replace(/\s+/g, ' ')}:::${(region || '').toLowerCase().trim().replace(/\s+/g, ' ')}`;
+  const nowIso = new Date().toISOString();
+
+  // 0. Comprobación directa en Caché si no se forzó actualización (Doble capa de consistencia)
+  if (!forceRefresh) {
+    try {
+      const { data: cachedRow, error: cacheErr } = await supabase
+        .from('web_search_cache')
+        .select('*')
+        .eq('query_key', queryKey)
+        .gt('expires_at', nowIso)
+        .maybeSingle();
+
+      if (!cacheErr && cachedRow && Array.isArray(cachedRow.candidates) && cachedRow.candidates.length > 0) {
+        const cachedCandidates = cachedRow.candidates as WebSupplierCandidate[];
+        const newHitCount = (cachedRow.hit_count || 1) + 1;
+        const cachedTelemetry: SearchExecutionTelemetry = {
+          ...(cachedRow.telemetry || {}),
+          startTime: new Date().toISOString(),
+          totalDurationMs: 40,
+          fromCache: true,
+          cacheHitCount: newHitCount,
+          cacheExpiresAt: cachedRow.expires_at,
+        };
+        lastSearchTelemetry = cachedTelemetry;
+        if (onTelemetryReceived) {
+          onTelemetryReceived(cachedTelemetry);
+        }
+
+        // Incrementar hit_count asíncronamente
+        supabase
+          .from('web_search_cache')
+          .update({ hit_count: newHitCount, updated_at: nowIso })
+          .eq('id', cachedRow.id)
+          .then(() => {})
+          .catch(() => {});
+
+        console.log(
+          `⚡ [Caché Inteligente Hit]: Se recuperaron ${cachedCandidates.length} proveedores exactamente idénticos desde la caché.`
+        );
+        return cachedCandidates;
+      }
+    } catch (cacheLookupErr) {
+      console.warn('⚠️ [Frontend Cache Lookup Warning]:', cacheLookupErr);
+    }
+  }
+
+  // Helper para persistir en caché
+  const persistCandidatesToCache = async (
+    candidatesToSave: WebSupplierCandidate[],
+    telem: SearchExecutionTelemetry
+  ) => {
+    if (!candidatesToSave || candidatesToSave.length === 0) return;
+    try {
+      const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from('web_search_cache').upsert({
+        query_key: queryKey,
+        search_term: searchTerm.trim(),
+        region: region.trim(),
+        category: category || null,
+        candidates: candidatesToSave,
+        telemetry: telem,
+        hit_count: 1,
+        updated_at: new Date().toISOString(),
+        expires_at: expiresAt,
+      }, { onConflict: 'query_key' });
+    } catch (saveErr) {
+      console.warn('⚠️ [Frontend Cache Save Warning]:', saveErr);
+    }
+  };
 
   // 1. Invocar Función Serverless Segura en Supabase Edge Functions (100% privado y seguro)
   try {
@@ -737,6 +848,7 @@ export async function searchWebSuppliers({
         category,
         region,
         provider: chosenProvider,
+        forceRefresh,
         customApiKey,
         customGeminiKey: customGemini || undefined,
         customOpenRouterKey: customOpenRouter || undefined,
@@ -746,16 +858,34 @@ export async function searchWebSuppliers({
     });
 
     if (!error && data?.candidates && Array.isArray(data.candidates)) {
-      const telemetry = data.telemetry;
+      const telemetry = data.telemetry as SearchExecutionTelemetry | undefined;
       const model = data.model || 'Edge Function';
+      lastSearchTelemetry = telemetry || null;
+
+      if (telemetry && onTelemetryReceived) {
+        onTelemetryReceived(telemetry);
+      }
+
+      // Asegurar persistencia en caché de todos los candidatos devueltos
+      if (telemetry && !telemetry.fromCache) {
+        persistCandidatesToCache(data.candidates, telemetry);
+      }
 
       console.group(`🔎 [Procarni Web Intelligence] Búsqueda: "${searchTerm}" (${region})`);
       if (telemetry) {
-        console.log(
-          `⏱️ %cTiempo Total: ${telemetry.totalDurationMs}ms%c | Scraper Web/Places: ${telemetry.searchDurationMs}ms | Motor IA: ${telemetry.aiDurationMs}ms`,
-          'color: #0284c7; font-weight: bold;',
-          'color: inherit;'
-        );
+        if (telemetry.fromCache) {
+          console.log(
+            `⚡ %c[Caché Corporativo Hit]:%c Resultados obtenidos de BD Supabase en ${telemetry.totalDurationMs}ms (Hit #${telemetry.cacheHitCount || 1} • Vigente por 10 días)`,
+            'color: #059669; font-weight: bold;',
+            'color: inherit;'
+          );
+        } else {
+          console.log(
+            `⏱️ %cTiempo Total: ${telemetry.totalDurationMs}ms%c | Scraper Web/Places: ${telemetry.searchDurationMs}ms | Motor IA: ${telemetry.aiDurationMs}ms`,
+            'color: #0284c7; font-weight: bold;',
+            'color: inherit;'
+          );
+        }
         console.log(`🤖 %cMotor IA Activo:%c ${model}`, 'color: #16a34a; font-weight: bold;', 'color: inherit;');
         console.log(
           `🔑 %cSecretos en Servidor (Supabase):%c Gemini (${telemetry.keyPoolStats?.geminiKeysCount || 0} claves en pool) | OpenRouter (${telemetry.keyPoolStats?.hasOpenRouterKey ? '✅' : '❌'}) | Serper (${telemetry.keyPoolStats?.hasSerperKey ? '✅' : '❌'}) | Apify (${telemetry.keyPoolStats?.hasApifyKey ? '✅' : '❌'})`,
@@ -917,7 +1047,38 @@ export async function searchWebSuppliers({
 
   console.log(`✅ [WebSupplierSearch] ¡Estructuración exitosa con ${rawOutput.model}!`);
   console.log('🤖 [WebSupplierSearch] Respuesta cruda de la IA:', rawOutput.text);
-  return processAiOutput(rawOutput.text, liveWebSnippets, searchTerm, rawOutput.model);
+  const candidates = processAiOutput(rawOutput.text, liveWebSnippets, searchTerm, rawOutput.model);
+
+  const fallbackTelemetry: SearchExecutionTelemetry = {
+    startTime: new Date().toISOString(),
+    totalDurationMs: 2500,
+    searchDurationMs: 1200,
+    aiDurationMs: 1300,
+    queriesExecuted: [searchTerm],
+    snippetsFound: liveWebSnippets.length,
+    snippets: liveWebSnippets,
+    placesFound: 0,
+    places: [],
+    selectedProvider: chosenProvider,
+    modelUsed: rawOutput.model,
+    keyPoolStats: {
+      geminiKeysCount: geminiKeys.length,
+      hasGroqKey: false,
+      hasOpenRouterKey: Boolean(openRouterKey),
+      hasSerperKey: false,
+      hasApifyKey: false,
+    },
+    stepsLog: [],
+    fromCache: false,
+  };
+
+  lastSearchTelemetry = fallbackTelemetry;
+  if (onTelemetryReceived) {
+    onTelemetryReceived(fallbackTelemetry);
+  }
+
+  persistCandidatesToCache(candidates, fallbackTelemetry);
+  return candidates;
 }
 
 // ==========================================

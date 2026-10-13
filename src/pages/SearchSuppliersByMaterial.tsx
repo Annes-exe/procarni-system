@@ -24,6 +24,7 @@ import {
   searchWebSuppliers,
   WebSupplierCandidate,
   AiProviderType,
+  SearchExecutionTelemetry,
   getCustomSerperApiKey,
   saveCustomSerperApiKey,
   removeCustomSerperApiKey,
@@ -120,6 +121,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
   const [hasSearchedWeb, setHasSearchedWeb] = useState<boolean>(false);
   const [webSearchError, setWebSearchError] = useState<string | null>(null);
   const [loadingStepIndex, setLoadingStepIndex] = useState<number>(0);
+  const [webSearchTelemetry, setWebSearchTelemetry] = useState<SearchExecutionTelemetry | null>(null);
 
   // Multi-Provider & API Key Management State
   const [selectedAiProvider, setSelectedAiProvider] = useState<AiProviderType>(() => getAiProviderPreference());
@@ -299,8 +301,12 @@ const SearchSuppliersByMaterial: React.FC = () => {
     setCustomOpenRouterInput('');
   };
 
-  // Execute Web Search with Multi-Provider AI
-  const handleExecuteWebSearch = async (termToSearch?: string, regionOverride?: string) => {
+  // Execute Web Search with Multi-Provider AI (con soporte para bypass de caché)
+  const handleExecuteWebSearch = async (
+    termToSearch?: string,
+    regionOverride?: string,
+    forceRefresh = false
+  ) => {
     const query = (termToSearch !== undefined ? termToSearch : webSearchTerm).trim();
     const regionToUse = regionOverride || selectedRegion;
     if (!query) {
@@ -318,6 +324,10 @@ const SearchSuppliersByMaterial: React.FC = () => {
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         region: regionToUse,
         provider: selectedAiProvider,
+        forceRefresh,
+        onTelemetryReceived: (telemetry) => {
+          setWebSearchTelemetry(telemetry);
+        },
       });
 
       setWebCandidates(candidates);
@@ -999,25 +1009,39 @@ const SearchSuppliersByMaterial: React.FC = () => {
                 </Select>
               </div>
 
-              {/* Search Action Button */}
-              <Button
-                type="button"
-                onClick={() => handleExecuteWebSearch()}
-                disabled={isSearchingWeb || !webSearchTerm.trim()}
-                className="h-11 px-6 bg-procarni-primary hover:bg-red-800 text-white font-bold text-xs rounded-xl shadow-md gap-2 shrink-0 transition-all hover:scale-[1.01] active:scale-[0.99]"
-              >
-                {isSearchingWeb ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                    <span>Rastreando Mercado...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 text-amber-300" />
-                    <span>Rastrear con IA</span>
-                  </>
-                )}
-              </Button>
+              {/* Search Action Buttons */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  onClick={() => handleExecuteWebSearch(undefined, undefined, false)}
+                  disabled={isSearchingWeb || !webSearchTerm.trim()}
+                  className="h-11 px-6 bg-procarni-primary hover:bg-red-800 text-white font-bold text-xs rounded-xl shadow-md gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  {isSearchingWeb ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Rastreando Mercado...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 text-amber-300" />
+                      <span>Rastrear con IA</span>
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleExecuteWebSearch(undefined, undefined, true)}
+                  disabled={isSearchingWeb || !webSearchTerm.trim()}
+                  title="Forzar rastreo en vivo (ignorar caché de 10 días)"
+                  className="h-11 w-11 rounded-xl border-gray-200 text-gray-600 hover:text-procarni-primary hover:bg-gray-50 shadow-2xs"
+                >
+                  <RefreshCw className={cn("h-4 w-4", isSearchingWeb && "animate-spin")} />
+                </Button>
+              </div>
             </div>
 
             {/* AI Grounding & Multi-Provider Status Notice */}
@@ -1105,6 +1129,63 @@ const SearchSuppliersByMaterial: React.FC = () => {
           {/* CONSOLIDATED HYBRID VIEW: SECCIÓN A & SECCIÓN B */}
           {!isSearchingWeb && hasSearchedWeb && (
             <div className="space-y-8">
+              {/* CACHE STATUS BANNER (10-DAY INTELLIGENT CACHE) */}
+              {webSearchTelemetry?.fromCache ? (
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-700 shrink-0">
+                      <Zap className="h-5 w-5 text-emerald-600 fill-emerald-600/20" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-gray-900">
+                          Respuesta Ultrarrápida desde Memoria Caché Inteligente
+                        </span>
+                        <Badge variant="outline" className="text-[10px] bg-white text-emerald-700 border-emerald-300 font-semibold h-5">
+                          {webSearchTelemetry.durationMs ? `${webSearchTelemetry.durationMs}ms` : '<100ms'}
+                        </Badge>
+                        {webSearchTelemetry.cacheHitCount && webSearchTelemetry.cacheHitCount > 1 && (
+                          <Badge variant="secondary" className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold h-5">
+                            {webSearchTelemetry.cacheHitCount} consultas optimizadas
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-600 font-medium">
+                        Datos almacenados con vigencia de 10 días para ahorrar cuota de API y maximizar velocidad.
+                        {webSearchTelemetry.cacheExpiresAt && (
+                          <span className="text-gray-500 ml-1">
+                            (Expira: {new Date(webSearchTelemetry.cacheExpiresAt).toLocaleDateString()})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExecuteWebSearch(undefined, undefined, true)}
+                    className="h-8 text-xs font-bold border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50 rounded-xl gap-1.5 shrink-0 shadow-2xs"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>Actualizar en vivo</span>
+                  </Button>
+                </div>
+              ) : webSearchTelemetry && !webSearchTelemetry.fromCache ? (
+                <div className="bg-slate-50 border border-slate-200/80 px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    <span>
+                      Rastreo en vivo completado ({webSearchTelemetry.durationMs ? `${(webSearchTelemetry.durationMs / 1000).toFixed(1)}s` : 'OK'}). Resultado guardado en caché inteligente por 10 días.
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-medium hidden sm:inline">
+                    Próximas consultas responderán instantáneamente
+                  </span>
+                </div>
+              ) : null}
+
               {/* SECCIÓN A: PROVEEDORES REGISTRADOS (CON BADGE VERDE) */}
               <div className="space-y-3 bg-emerald-50/40 p-4 rounded-3xl border border-emerald-200/70">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-1">
