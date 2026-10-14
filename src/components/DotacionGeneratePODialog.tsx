@@ -15,13 +15,15 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DotacionCalculationResult, GeneratedPurchaseOrderLink } from '@/types/dotacion';
 import { Company, Supplier } from '@/integrations/supabase/types';
-import { purchaseOrderService, CreatePurchaseOrderItemInput } from '@/services/purchaseOrderService';
+import { purchaseOrderService, CreatePurchaseOrderItemInput, CreatePurchaseOrderInput } from '@/services/purchaseOrderService';
 import { dotacionSnapshotService } from '@/services/dotacionSnapshotService';
 import { getAllCompanies } from '@/integrations/supabase/services/companyService';
 import { getAllSuppliers } from '@/integrations/supabase/services/supplierService';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
-import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck } from 'lucide-react';
+import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck, ChevronsUpDown, Search } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 
@@ -57,6 +59,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [companies, setCompanies] = useState<Company[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
+  const [supplierComboboxOpen, setSupplierComboboxOpen] = useState<boolean>(false);
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   const [deliveryDate, setDeliveryDate] = useState<string>(format(addDays(new Date(), 3), 'yyyy-MM-dd'));
@@ -93,6 +96,35 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
 
   // Target company data from calculation
   const targetCompanyCalc = selectedCompanyId === 'pc' ? result.pc : result.ma;
+
+  // Selected supplier object
+  const selectedSupplier = useMemo(
+    () => suppliers.find((s) => s.id === selectedSupplierId),
+    [suppliers, selectedSupplierId]
+  );
+
+  // Helper to format presentation and total calculation for items
+  const getItemPresentation = (productId: string, quantity: number) => {
+    const itemCalc = targetCompanyCalc.items.find((it) => it.productId === productId);
+    const unitsPerPkg = itemCalc ? itemCalc.unitsPerPackage : 1;
+    const totalUnits = unitsPerPkg * quantity;
+
+    let unitText = 'und';
+    if (productId === 'arroz' || productId === 'azucar' || productId === 'harina') {
+      unitText = 'kg';
+    } else if (productId === 'papel') {
+      unitText = 'rollos';
+    } else if (productId === 'jabon') {
+      unitText = 'barras';
+    }
+
+    return {
+      unitsPerPkg,
+      unitText,
+      totalUnits,
+      label: `Presentación: ${unitsPerPkg} ${unitText}/bulto · Total: ${totalUnits} ${unitText}`,
+    };
+  };
 
   // Resolve matching Company record from database
   const targetCompanyRecord = useMemo(() => {
@@ -194,21 +226,24 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
         quote_request_id: null,
       };
 
-      const itemsPayload: CreatePurchaseOrderItemInput[] = selectedItems.map((row) => ({
-        material_name: row.materialName,
-        quantity: row.quantity,
-        unit: row.unit,
-        unit_price: row.unitPrice,
-        tax_rate: row.isExempt ? 0 : 0.16,
-        is_exempt: row.isExempt,
-        supplier_code: null,
-        description: `Dotación quincenal - ${row.quantity} bultos`,
-        unit_id: null,
-        material_id: null,
-        sales_percentage: 0,
-        discount_percentage: 0,
-        was_recalculated: false,
-      }));
+      const itemsPayload: CreatePurchaseOrderItemInput[] = selectedItems.map((row) => {
+        const pres = getItemPresentation(row.productId, row.quantity);
+        return {
+          material_name: row.materialName,
+          quantity: row.quantity,
+          unit: row.unit,
+          unit_price: row.unitPrice,
+          tax_rate: row.isExempt ? 0 : 0.16,
+          is_exempt: row.isExempt,
+          supplier_code: null,
+          description: pres.label,
+          unit_id: null,
+          material_id: null,
+          sales_percentage: 0,
+          discount_percentage: 0,
+          was_recalculated: false,
+        };
+      });
 
       // Create PO in database
       const createdOrder = await purchaseOrderService.create(orderData as unknown as CreatePurchaseOrderInput, itemsPayload);
@@ -250,7 +285,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl lg:max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-red-100 text-procarni-primary">
@@ -349,7 +384,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                         : 'border-slate-200 hover:border-slate-300 bg-white'
                     }`}
                   >
-                    <span className="text-[10px] uppercase font-bold text-procarni-secondary block">Empresa Aliada</span>
+                    <span className="text-[10px] uppercase font-bold text-procarni-secondary block">Empresa Principal</span>
                     <span className="text-xs font-extrabold text-slate-900 block truncate">Montano Antilia</span>
                     <span className="text-[11px] font-mono text-slate-500 font-bold mt-1 block">
                       {result.ma.totalBultos} bultos
@@ -358,23 +393,59 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                 </div>
               </div>
 
-              {/* Proveedor Selector */}
+              {/* Proveedor Selector (Combobox con barra de búsqueda) */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Proveedor de Alimentos / Aseo
                 </Label>
-                <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
-                  <SelectTrigger className="h-10 text-xs">
-                    <SelectValue placeholder="Seleccionar proveedor..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id} className="text-xs">
-                        {s.name} ({s.rif || 'S/R'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={supplierComboboxOpen} onOpenChange={setSupplierComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={supplierComboboxOpen}
+                      className="w-full justify-between h-10 text-xs bg-white font-normal border-slate-200 hover:bg-slate-50 text-slate-800"
+                    >
+                      <span className="truncate">
+                        {selectedSupplier
+                          ? `${selectedSupplier.name} (${selectedSupplier.rif || 'S/R'})`
+                          : 'Buscar y seleccionar proveedor...'}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100]" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar proveedor por nombre o RIF..." className="h-9 text-xs" />
+                      <CommandList className="max-h-60 overflow-y-auto">
+                        <CommandEmpty className="py-3 text-center text-xs text-slate-500">
+                          No se encontraron proveedores.
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {suppliers.map((s) => (
+                            <CommandItem
+                              key={s.id}
+                              value={`${s.name} ${s.rif || ''}`}
+                              onSelect={() => {
+                                setSelectedSupplierId(s.id);
+                                setSupplierComboboxOpen(false);
+                              }}
+                              className="text-xs cursor-pointer flex items-center justify-between py-2 px-3 hover:bg-slate-100"
+                            >
+                              <div className="flex flex-col min-w-0 pr-2">
+                                <span className="font-semibold text-slate-800 truncate">{s.name}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">{s.rif || 'Sin RIF'}</span>
+                              </div>
+                              {selectedSupplierId === s.id && (
+                                <Check className="h-4 w-4 text-procarni-primary shrink-0" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <p className="text-[10px] text-slate-500">
                   Proveedor registrado al cual se le adjudicará el pedido.
                 </p>
@@ -433,54 +504,60 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                   {itemRows.filter((r) => r.selected).length} de {itemRows.length} ítems seleccionados
                 </span>
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
                       <TableHead className="w-10 text-center">Sel.</TableHead>
-                      <TableHead>Insumo</TableHead>
+                      <TableHead>Insumo y Presentación</TableHead>
                       <TableHead className="text-center w-28">Cant. (Bultos)</TableHead>
                       <TableHead className="text-center w-28">P. Unit ({currency})</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="text-xs divide-y divide-slate-100">
-                    {itemRows.map((row, idx) => (
-                      <TableRow key={row.productId} className={row.selected ? 'bg-white' : 'opacity-40 bg-slate-50'}>
-                        <TableCell className="text-center">
-                          <input
-                            type="checkbox"
-                            checked={row.selected}
-                            onChange={() => handleToggleItem(idx)}
-                            className="rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-4 h-4 cursor-pointer"
-                          />
-                        </TableCell>
-                        <TableCell className="font-semibold text-slate-800">
-                          {row.materialName}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.quantity}
-                            disabled={!row.selected}
-                            onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value) || 0)}
-                            className="h-7 w-20 mx-auto text-center font-mono text-xs"
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={row.unitPrice}
-                            disabled={!row.selected}
-                            onChange={(e) => handlePriceChange(idx, parseFloat(e.target.value) || 0)}
-                            placeholder="0.00"
-                            className="h-7 w-24 mx-auto text-center font-mono text-xs"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {itemRows.map((row, idx) => {
+                      const pres = getItemPresentation(row.productId, row.quantity);
+                      return (
+                        <TableRow key={row.productId} className={row.selected ? 'bg-white' : 'opacity-40 bg-slate-50'}>
+                          <TableCell className="text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.selected}
+                              onChange={() => handleToggleItem(idx)}
+                              className="rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-4 h-4 cursor-pointer"
+                            />
+                          </TableCell>
+                          <TableCell className="py-2.5">
+                            <span className="font-bold text-slate-800 block text-xs">{row.materialName}</span>
+                            <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                              {pres.label}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.quantity}
+                              disabled={!row.selected}
+                              onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value) || 0)}
+                              className="h-7 w-20 mx-auto text-center font-mono text-xs"
+                            />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={row.unitPrice}
+                              disabled={!row.selected}
+                              onChange={(e) => handlePriceChange(idx, parseFloat(e.target.value) || 0)}
+                              placeholder="0.00"
+                              className="h-7 w-24 mx-auto text-center font-mono text-xs"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

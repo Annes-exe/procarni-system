@@ -184,6 +184,13 @@ export default function DotacionQuincenal() {
 
   // --- ADJUSTMENT HANDLERS ---
   const handleModifyAdjustment = (productId: string, company: 'pc' | 'ma', delta: number) => {
+    // Bloquear decrementos si la cantidad de bultos a comprar ya está en 0
+    const companyItems = company === 'pc' ? result.pc.items : result.ma.items;
+    const currentItem = companyItems.find((x) => x.productId === productId);
+    if (delta < 0 && currentItem && currentItem.bultosToBuy <= 0) {
+      return;
+    }
+
     setAdjustments((prev) => {
       const current = prev[productId] || { pc: 0, ma: 0 };
       const currentVal = current[company] || 0;
@@ -1204,9 +1211,10 @@ export default function DotacionQuincenal() {
                             <div className="inline-flex items-center gap-1 bg-blue-50/80 px-2 py-1 rounded-xl border border-blue-200/80 shrink-0">
                               <button
                                 type="button"
+                                disabled={item.pcBultos <= 0}
                                 onClick={() => handleModifyAdjustment(item.productId, 'pc', -1)}
-                                className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-blue-100 text-procarni-blue font-bold shadow-xs active:scale-90"
-                                title="Restar 1 bulto a PC"
+                                className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-blue-100 text-procarni-blue font-bold shadow-xs active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                                title={item.pcBultos <= 0 ? 'No se puede reducir por debajo de 0' : 'Restar 1 bulto a PC'}
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
@@ -1242,9 +1250,10 @@ export default function DotacionQuincenal() {
                             <div className="inline-flex items-center gap-1 bg-emerald-50/80 px-2 py-1 rounded-xl border border-emerald-200/80 shrink-0">
                               <button
                                 type="button"
+                                disabled={item.maBultos <= 0}
                                 onClick={() => handleModifyAdjustment(item.productId, 'ma', -1)}
-                                className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-emerald-100 text-procarni-secondary font-bold shadow-xs active:scale-90"
-                                title="Restar 1 bulto a MA"
+                                className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-emerald-100 text-procarni-secondary font-bold shadow-xs active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white"
+                                title={item.maBultos <= 0 ? 'No se puede reducir por debajo de 0' : 'Restar 1 bulto a MA'}
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
@@ -1358,8 +1367,10 @@ export default function DotacionQuincenal() {
                           <div className="inline-flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
                             <button
                               type="button"
+                              disabled={item.bultosToBuy <= 0}
                               onClick={() => handleModifyAdjustment(item.productId, 'pc', -1)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-blue hover:bg-slate-100"
+                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-blue hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              title={item.bultosToBuy <= 0 ? 'No se puede reducir por debajo de 0' : 'Restar 1 bulto a PC'}
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -1370,6 +1381,7 @@ export default function DotacionQuincenal() {
                               type="button"
                               onClick={() => handleModifyAdjustment(item.productId, 'pc', +1)}
                               className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-blue hover:bg-slate-100"
+                              title="Sumar 1 bulto a PC"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -1446,8 +1458,10 @@ export default function DotacionQuincenal() {
                           <div className="inline-flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
                             <button
                               type="button"
+                              disabled={item.bultosToBuy <= 0}
                               onClick={() => handleModifyAdjustment(item.productId, 'ma', -1)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-secondary hover:bg-slate-100"
+                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-secondary hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              title={item.bultosToBuy <= 0 ? 'No se puede reducir por debajo de 0' : 'Restar 1 bulto a MA'}
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -1458,6 +1472,7 @@ export default function DotacionQuincenal() {
                               type="button"
                               onClick={() => handleModifyAdjustment(item.productId, 'ma', +1)}
                               className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-secondary hover:bg-slate-100"
+                              title="Sumar 1 bulto a MA"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
