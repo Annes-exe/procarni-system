@@ -347,95 +347,103 @@ export default function DotacionQuincenal() {
   };
 
   return (
-    <div className="min-w-0 max-w-7xl mx-auto p-4 md:p-8 space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="w-full max-w-7xl mx-auto px-0 sm:px-4 md:px-8 py-1 sm:py-4 space-y-3.5 sm:space-y-6 pb-20 min-w-0 overflow-x-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
       {/* TOP ACTIONS & BREADCRUMBS */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <DynamicBreadcrumbs />
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Cargar Ejemplo */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLoadExample}
-            title="Cargar datos de ejemplo de la especificación"
-            className="h-9 text-xs font-semibold text-slate-500 hover:text-procarni-dark"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-slate-400" />
-            Cargar Ejemplo
-          </Button>
+      <div className="flex flex-col gap-2.5 sm:gap-4 sm:flex-row sm:items-center sm:justify-between min-w-0">
+        <div className="hidden sm:block">
+          <DynamicBreadcrumbs />
+        </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0 w-full sm:w-auto">
+          {/* Secondary Actions Group (Scrollable on small mobile) */}
+          <div className="w-full sm:w-auto max-w-full min-w-0 overflow-x-auto pb-0.5 sm:pb-0 no-scrollbar">
+            <div className="flex items-center gap-1.5 w-max sm:w-auto">
+              {/* Cargar Ejemplo */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLoadExample}
+                title="Cargar datos de ejemplo de la especificación"
+                className="h-8 sm:h-9 text-[11px] sm:text-xs font-semibold text-slate-500 hover:text-procarni-dark shrink-0 px-2 sm:px-3"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                Cargar Ejemplo
+              </Button>
 
-          {/* Reset a Cero Imaginario */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleResetToZero}
-            className="h-9 text-xs border-slate-300 hover:bg-slate-100 font-semibold text-slate-700"
-          >
-            <RotateCcw className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-            Reestablecer Valores (0)
-          </Button>
+              {/* Reset a Cero Imaginario */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetToZero}
+                className="h-8 sm:h-9 text-[11px] sm:text-xs border-slate-300 hover:bg-slate-100 font-semibold text-slate-700 shrink-0 px-2 sm:px-3"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                Reestablecer (0)
+              </Button>
 
-          {/* Snapshot Save */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSaveSnapshot}
-            className="h-9 text-xs font-semibold border-slate-300 hover:bg-slate-100 text-slate-700"
-          >
-            <Bookmark className="w-3.5 h-3.5 mr-1.5 text-procarni-blue" />
-            Guardar Snapshot
-          </Button>
+              {/* Snapshot Save */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveSnapshot}
+                className="h-8 sm:h-9 text-[11px] sm:text-xs font-semibold border-slate-300 hover:bg-slate-100 text-slate-700 shrink-0 px-2 sm:px-3"
+              >
+                <Bookmark className="w-3.5 h-3.5 mr-1 text-procarni-blue" />
+                Guardar Snapshot
+              </Button>
+            </div>
+          </div>
 
-          {/* Generate PO */}
-          <Button
-            size="sm"
-            onClick={() => setIsPODialogOpen(true)}
-            className="h-9 text-xs font-bold bg-procarni-secondary hover:bg-[#0b4606] text-white shadow-sm transition-transform active:scale-95"
-          >
-            <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
-            Generar OC
-          </Button>
+          {/* Primary Mobile-First Actions */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+            <Button
+              size="sm"
+              onClick={() => setIsPODialogOpen(true)}
+              className="h-9 text-xs font-bold bg-procarni-secondary hover:bg-[#0b4606] text-white shadow-sm transition-transform active:scale-95 w-full sm:w-auto px-3"
+            >
+              <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
+              Generar OC
+            </Button>
 
-          {/* Export Official PDF */}
-          <Button
-            size="sm"
-            onClick={handleExportPDF}
-            className="h-9 text-xs font-bold bg-procarni-primary hover:bg-[#6e0808] text-white shadow-sm transition-transform active:scale-95"
-          >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            PDF Procarni
-          </Button>
+            <Button
+              size="sm"
+              onClick={handleExportPDF}
+              className="h-9 text-xs font-bold bg-procarni-primary hover:bg-[#6e0808] text-white shadow-sm transition-transform active:scale-95 w-full sm:w-auto px-3"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              PDF Procarni
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* HEADER HERO SECTION */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-procarni-blue via-[#23355d] to-[#16223e] p-6 md:p-8 text-white shadow-xl">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-semibold border border-white/20">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+      <div className="relative overflow-hidden rounded-xl sm:rounded-3xl bg-gradient-to-r from-procarni-blue via-[#23355d] to-[#16223e] p-3.5 sm:p-6 md:p-8 text-white shadow-xl min-w-0">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="space-y-1.5 sm:space-y-2 min-w-0">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-white text-[10px] sm:text-xs font-semibold border border-white/20">
+              <Sparkles className="w-3 h-3 text-amber-300" />
               <span>Módulo de Compras & Dotación Quincenal</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <h1 className="text-lg sm:text-2xl md:text-3xl font-extrabold tracking-tight leading-tight">
               Cálculo y Distribución de Dotación Quincenal
             </h1>
-            <p className="text-sm text-slate-300 font-normal max-w-2xl leading-relaxed">
+            <p className="text-[11px] sm:text-sm text-slate-300 font-normal max-w-2xl leading-relaxed">
               Planificación mensual de dotación de alimentos y aseo para{' '}
               <strong className="text-white font-semibold">Productos Cárnicos</strong> y{' '}
-              <strong className="text-white font-semibold">Montano Antilia</strong>. Ingresa las existencias físicas y
-              nómina, y ajusta dinámicamente los bultos a comprar según la necesidad real.
+              <strong className="text-white font-semibold">Montano Antilia</strong>. Ingresa existencias físicas y
+              nómina, y ajusta dinámicamente los bultos a comprar.
             </p>
           </div>
 
           {/* PERÍODO SELECTOR CARD */}
-          <div className="flex flex-col gap-2.5 bg-white/15 p-4 rounded-2xl border border-white/20 min-w-[280px]">
-            <span className="text-[10px] uppercase font-bold text-slate-300 tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-amber-300" />
+          <div className="flex flex-col gap-2 bg-white/15 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-white/20 w-full md:w-auto md:min-w-[280px]">
+            <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-300 tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-3 h-3 text-amber-300" />
               Selección de Período y Quincena
             </span>
 
             {/* Mes y Año */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
               <Select value={selectedMonth.toString()} onValueChange={(val) => setSelectedMonth(parseInt(val))}>
                 <SelectTrigger className="h-8 text-xs bg-white/90 text-slate-900 border-none font-semibold">
                   <SelectValue />
@@ -464,11 +472,11 @@ export default function DotacionQuincenal() {
             </div>
 
             {/* Quincena Switcher */}
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               <button
                 type="button"
                 onClick={() => setQuincena('primera')}
-                className={`py-1.5 px-2 text-xs font-bold rounded-lg transition-all text-center ${quincena === 'primera'
+                className={`h-8 sm:h-auto py-1 sm:py-1.5 px-2 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center ${quincena === 'primera'
                   ? 'bg-white text-procarni-dark shadow-sm'
                   : 'bg-white/10 text-white hover:bg-white/20'
                   }`}
@@ -478,13 +486,13 @@ export default function DotacionQuincenal() {
               <button
                 type="button"
                 onClick={() => setQuincena('segunda')}
-                className={`py-1.5 px-2 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 ${quincena === 'segunda'
+                className={`h-8 sm:h-auto py-1 sm:py-1.5 px-2 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 ${quincena === 'segunda'
                   ? 'bg-procarni-primary text-white shadow-sm ring-1 ring-white/50'
                   : 'bg-white/10 text-white hover:bg-white/20'
                   }`}
               >
                 <span>2.ª Qna (Día 30)</span>
-                <span className="text-[9px] px-1 py-0.2 rounded bg-black/30 uppercase tracking-tighter">Jabón</span>
+                <span className="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-black/30 uppercase tracking-tighter">Jabón</span>
               </button>
             </div>
           </div>
@@ -492,94 +500,94 @@ export default function DotacionQuincenal() {
       </div>
 
       {/* KPI STAT CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 min-w-0">
         {/* Total Bultos Global */}
-        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-4 md:p-5">
+        <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
                 Total Bultos Compra
               </span>
-              <div className="p-2 rounded-xl bg-red-50 text-procarni-primary">
-                <Package className="w-5 h-5" />
+              <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-red-50 text-procarni-primary shrink-0">
+                <Package className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold font-mono text-procarni-primary">
+            <div className="mt-1.5 sm:mt-3 flex items-baseline gap-1 sm:gap-2">
+              <span className="text-xl sm:text-3xl font-extrabold font-mono text-procarni-primary">
                 {result.totalGlobalBultos}
               </span>
-              <span className="text-xs text-slate-500 font-medium">bultos globales</span>
+              <span className="text-[10px] sm:text-xs text-slate-500 font-medium">bultos</span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 font-medium truncate">
+            <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-slate-400 font-medium truncate">
               {result.periodLabel}
             </p>
           </CardContent>
         </Card>
 
         {/* Bultos PC */}
-        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-4 md:p-5">
+        <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
                 Productos Cárnicos
               </span>
-              <div className="p-2 rounded-xl bg-blue-50 text-procarni-blue">
-                <Building2 className="w-5 h-5" />
+              <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-blue-50 text-procarni-blue shrink-0">
+                <Building2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold font-mono text-procarni-dark">
+            <div className="mt-1.5 sm:mt-3 flex items-baseline gap-1 sm:gap-2">
+              <span className="text-xl sm:text-3xl font-extrabold font-mono text-procarni-dark">
                 {result.pc.totalBultos}
               </span>
-              <span className="text-xs text-slate-500 font-medium">bultos</span>
+              <span className="text-[10px] sm:text-xs text-slate-500 font-medium">bultos</span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 font-medium">
-              {result.pc.employees} colaboradores en nómina
+            <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-slate-400 font-medium truncate">
+              {result.pc.employees} colaboradores
             </p>
           </CardContent>
         </Card>
 
         {/* Bultos MA */}
-        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-4 md:p-5">
+        <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
                 Montano Antilia
               </span>
-              <div className="p-2 rounded-xl bg-emerald-50 text-procarni-secondary">
-                <Building2 className="w-5 h-5" />
+              <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-50 text-procarni-secondary shrink-0">
+                <Building2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold font-mono text-procarni-dark">
+            <div className="mt-1.5 sm:mt-3 flex items-baseline gap-1 sm:gap-2">
+              <span className="text-xl sm:text-3xl font-extrabold font-mono text-procarni-dark">
                 {result.ma.totalBultos}
               </span>
-              <span className="text-xs text-slate-500 font-medium">bultos</span>
+              <span className="text-[10px] sm:text-xs text-slate-500 font-medium">bultos</span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 font-medium">
-              {result.ma.employees} colaboradores en nómina
+            <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-slate-400 font-medium truncate">
+              {result.ma.employees} colaboradores
             </p>
           </CardContent>
         </Card>
 
         {/* Total Combos */}
-        <Card className="bg-white border-slate-200 shadow-sm rounded-2xl">
-          <CardContent className="p-4 md:p-5">
+        <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">
                 Nómina Total Quincena
               </span>
-              <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                <Users className="w-5 h-5" />
+              <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-amber-50 text-amber-700 shrink-0">
+                <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
               </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold font-mono text-procarni-dark">
+            <div className="mt-1.5 sm:mt-3 flex items-baseline gap-1 sm:gap-2">
+              <span className="text-xl sm:text-3xl font-extrabold font-mono text-procarni-dark">
                 {result.totalEmployees}
               </span>
-              <span className="text-xs text-slate-500 font-medium">combos</span>
+              <span className="text-[10px] sm:text-xs text-slate-500 font-medium">combos</span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 font-medium">
+            <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-slate-400 font-medium truncate">
               PC: {result.pc.employees} + MA: {result.ma.employees}
             </p>
           </CardContent>
@@ -587,33 +595,33 @@ export default function DotacionQuincenal() {
       </div>
 
       {/* INPUTS PANEL: COLABORADORES POR QUINCENA & STOCK CONSOLIDADO EN ALMACÉN */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-6 min-w-0">
         {/* COLABORADORES POR EMPRESA (VARIABLE POR QUINCENA - 0 IMAGINARIO EN ESPERA DE INGRESO) */}
-        <Card className="lg:col-span-4 bg-white border-slate-200 shadow-sm rounded-2xl flex flex-col justify-between">
+        <Card className="lg:col-span-4 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl flex flex-col justify-between min-w-0">
           <div>
-            <CardHeader className="pb-3">
+            <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <Users className="w-4 h-4 text-procarni-blue" />
-                  <CardTitle className="text-sm font-bold text-procarni-dark uppercase tracking-wider">
+                  <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider">
                     Colaboradores por Empresa
                   </CardTitle>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-slate-600 bg-slate-50">
+                <Badge variant="outline" className="text-[9px] sm:text-[10px] text-slate-600 bg-slate-50">
                   {quincena === 'primera' ? '1.ª Qna' : '2.ª Qna'}
                 </Badge>
               </div>
-              <CardDescription className="text-xs text-slate-500">
+              <CardDescription className="text-[11px] sm:text-xs text-slate-500">
                 Cantidad de combos a repartir en esta quincena. Ingresa el número de colaboradores.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-1">
-              <div className="space-y-1.5">
+            <CardContent className="p-3 sm:p-6 pt-0 sm:pt-1 space-y-3 sm:space-y-4">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="pc-emp" className="text-xs font-semibold text-slate-700">
                     Productos Cárnicos (PC)
                   </Label>
-                  <span className="text-[10px] text-slate-400 font-mono">Combos individuales</span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">Combos individuales</span>
                 </div>
                 <Input
                   id="pc-emp"
@@ -622,16 +630,16 @@ export default function DotacionQuincenal() {
                   value={employeesPC === 0 ? '' : employeesPC}
                   placeholder="0"
                   onChange={(e) => setEmployeesPC(parseInt(e.target.value) || 0)}
-                  className="h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                  className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="ma-emp" className="text-xs font-semibold text-slate-700">
                     Montano Antilia (MA)
                   </Label>
-                  <span className="text-[10px] text-slate-400 font-mono">Combos individuales</span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">Combos individuales</span>
                 </div>
                 <Input
                   id="ma-emp"
@@ -640,16 +648,16 @@ export default function DotacionQuincenal() {
                   value={employeesMA === 0 ? '' : employeesMA}
                   placeholder="0"
                   onChange={(e) => setEmployeesMA(parseInt(e.target.value) || 0)}
-                  className="h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                  className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                 />
               </div>
             </CardContent>
           </div>
 
-          <div className="p-4 pt-0">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+          <div className="p-3 pt-0 sm:p-4 sm:pt-0">
+            <div className="p-2.5 sm:p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
               <span className="text-xs font-medium text-slate-500">Total Nómina Activa:</span>
-              <span className="text-sm font-mono font-bold text-procarni-dark">
+              <span className="text-xs sm:text-sm font-mono font-bold text-procarni-dark">
                 {employeesPC + employeesMA} colaboradores
               </span>
             </div>
@@ -657,25 +665,258 @@ export default function DotacionQuincenal() {
         </Card>
 
         {/* EXISTENCIAS EN ALMACÉN DE DOTACIÓN (CONSOLIDADO, 0 IMAGINARIO EN ESPERA DE INGRESO) */}
-        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm rounded-2xl">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-procarni-primary" />
-                <CardTitle className="text-sm font-bold text-procarni-dark uppercase tracking-wider">
-                  Existencias en Almacén de Dotación (Stock Consolidado)
+        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
+          <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex flex-row items-center justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Package className="w-4 h-4 text-procarni-primary shrink-0" />
+                <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider truncate">
+                  Existencias en Almacén (Stock)
                 </CardTitle>
               </div>
-              <CardDescription className="text-xs text-slate-500">
-                Inventario físico global disponible. Registra bultos completos y/o unidades o kg sueltos existentes.
+              <CardDescription className="text-[11px] sm:text-xs text-slate-500 truncate">
+                Inventario físico global deducible. Registra bultos y/o sueltos.
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="text-[10px] bg-red-50 text-procarni-primary font-bold">
+            <Badge variant="secondary" className="text-[9px] sm:text-[10px] bg-red-50 text-procarni-primary font-bold shrink-0">
               Descuento Global
             </Badge>
           </CardHeader>
-          <CardContent className="pt-1">
-            <div className="overflow-x-auto">
+          <CardContent className="p-2.5 sm:p-6 pt-0 sm:pt-1">
+            {/* MOBILE STACKED CARDS (< md) - No horizontal scroll, touch-friendly inputs */}
+            <div className="block md:hidden space-y-2.5">
+              {/* Harina Pan Card */}
+              <div className="p-2.5 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">Harina Pan</span>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] font-mono text-slate-600 bg-white">
+                    20 und/bulto
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-procarni-blue tracking-wider">
+                      Bultos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.harina.bultos === 0 ? '' : stock.harina.bultos}
+                      placeholder="0"
+                      onChange={(e) => updateStock('harina', 'bultos', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-amber-700 tracking-wider">
+                      Kg Sueltos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.harina.looseUnits === 0 ? '' : stock.harina.looseUnits}
+                      placeholder="0"
+                      onChange={(e) => updateStock('harina', 'looseUnits', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
+                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
+                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                    {stock.harina.bultos * presentations.harinaUnitsPerPackage + stock.harina.looseUnits} kg
+                  </span>
+                </div>
+              </div>
+
+              {/* Arroz Mary Card */}
+              <div className="p-2.5 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">Arroz Mary Superior</span>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] font-mono text-slate-600 bg-white">
+                    24 und/bulto
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-procarni-blue tracking-wider">
+                      Bultos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.arroz.bultos === 0 ? '' : stock.arroz.bultos}
+                      placeholder="0"
+                      onChange={(e) => updateStock('arroz', 'bultos', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-amber-700 tracking-wider">
+                      Kg Sueltos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.arroz.looseUnits === 0 ? '' : stock.arroz.looseUnits}
+                      placeholder="0"
+                      onChange={(e) => updateStock('arroz', 'looseUnits', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
+                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
+                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                    {stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg
+                  </span>
+                </div>
+              </div>
+
+              {/* Azúcar Konfit Card */}
+              <div className="p-2.5 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">Azúcar Konfit</span>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] font-mono text-slate-600 bg-white">
+                    20 und/bulto
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-procarni-blue tracking-wider">
+                      Bultos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.azucar.bultos === 0 ? '' : stock.azucar.bultos}
+                      placeholder="0"
+                      onChange={(e) => updateStock('azucar', 'bultos', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-amber-700 tracking-wider">
+                      Kg Sueltos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.azucar.looseUnits === 0 ? '' : stock.azucar.looseUnits}
+                      placeholder="0"
+                      onChange={(e) => updateStock('azucar', 'looseUnits', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
+                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
+                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                    {stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg
+                  </span>
+                </div>
+              </div>
+
+              {/* Papel Higiénico Card */}
+              <div className="p-2.5 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">Papel Higiénico Caricia</span>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] font-mono text-slate-600 bg-white">
+                    48 und/bulto
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-procarni-blue tracking-wider">
+                      Bultos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.papel.bultos === 0 ? '' : stock.papel.bultos}
+                      placeholder="0"
+                      onChange={(e) => updateStock('papel', 'bultos', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-amber-700 tracking-wider">
+                      Rollos Sueltos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={stock.papel.looseUnits === 0 ? '' : stock.papel.looseUnits}
+                      placeholder="0"
+                      onChange={(e) => updateStock('papel', 'looseUnits', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
+                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
+                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                    {stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos
+                  </span>
+                </div>
+              </div>
+
+              {/* Jabón en Barra Card */}
+              <div className={`p-2.5 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 ${quincena === 'primera' ? 'opacity-40' : ''}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm block">Jabón en Barra</span>
+                    {quincena === 'primera' && (
+                      <span className="text-[9px] text-slate-400 font-normal">Exclusivo 2.ª Quincena</span>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] font-mono text-slate-600 bg-white">
+                    44 und/bulto
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-procarni-blue tracking-wider">
+                      Bultos
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      disabled={quincena === 'primera'}
+                      value={stock.jabon.bultos === 0 ? '' : stock.jabon.bultos}
+                      placeholder="0"
+                      onChange={(e) => updateStock('jabon', 'bultos', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300 disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <Label className="text-[9px] uppercase font-bold text-amber-700 tracking-wider">
+                      Barras Sueltas
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      disabled={quincena === 'primera'}
+                      value={stock.jabon.looseUnits === 0 ? '' : stock.jabon.looseUnits}
+                      placeholder="0"
+                      onChange={(e) => updateStock('jabon', 'looseUnits', parseInt(e.target.value) || 0)}
+                      className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300 disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
+                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
+                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                    {quincena === 'segunda'
+                      ? `${stock.jabon.bultos * presentations.jabonUnitsPerPackage + stock.jabon.looseUnits} barras`
+                      : '0'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* DESKTOP TABLE (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400">
@@ -1034,41 +1275,44 @@ export default function DotacionQuincenal() {
       </div>
 
       {/* RESULTS TABS VIEW WITH DYNAMIC MANUAL ADJUSTMENT CONTROLS */}
-      <Tabs defaultValue="consolidado" className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-2">
-          <TabsList className="bg-slate-100 p-1 rounded-xl">
-            <TabsTrigger value="consolidado" className="text-xs font-bold px-3 py-1.5 rounded-lg">
-              Consolidado Global ({result.totalGlobalBultos} bultos)
-            </TabsTrigger>
-            <TabsTrigger value="pc" className="text-xs font-bold px-3 py-1.5 rounded-lg">
-              Productos Cárnicos ({result.pc.totalBultos} bultos)
-            </TabsTrigger>
-            <TabsTrigger value="ma" className="text-xs font-bold px-3 py-1.5 rounded-lg">
-              Montano Antilia ({result.ma.totalBultos} bultos)
-            </TabsTrigger>
-            <TabsTrigger value="mensajes" className="text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-              <span>Mensajes Pedido</span>
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] bg-procarni-primary/10 text-procarni-primary font-bold">
-                WhatsApp
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="historial" className="text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-              <History className="w-3.5 h-3.5" />
-              <span>Historial Snapshots</span>
-              {snapshots.length > 0 && (
-                <Badge variant="secondary" className="px-1.5 py-0 text-[10px] bg-slate-200 text-slate-800 font-bold">
-                  {snapshots.length}
+      <Tabs defaultValue="consolidado" className="w-full max-w-full min-w-0 space-y-3.5 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200 pb-2 min-w-0">
+          {/* Scrollable TabsList for Mobile */}
+          <div className="w-full max-w-full min-w-0 overflow-x-auto no-scrollbar">
+            <TabsList className="bg-slate-100 p-1 rounded-xl inline-flex min-w-max h-auto min-h-[38px]">
+              <TabsTrigger value="consolidado" className="text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0">
+                Consolidado ({result.totalGlobalBultos} b)
+              </TabsTrigger>
+              <TabsTrigger value="pc" className="text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0">
+                PC ({result.pc.totalBultos} b)
+              </TabsTrigger>
+              <TabsTrigger value="ma" className="text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0">
+                MA ({result.ma.totalBultos} b)
+              </TabsTrigger>
+              <TabsTrigger value="mensajes" className="text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0">
+                <span>Mensajes</span>
+                <Badge variant="secondary" className="px-1 py-0 text-[9px] bg-procarni-primary/10 text-procarni-primary font-bold">
+                  WhatsApp
                 </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+              </TabsTrigger>
+              <TabsTrigger value="historial" className="text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0">
+                <History className="w-3 h-3" />
+                <span>Historial</span>
+                {snapshots.length > 0 && (
+                  <Badge variant="secondary" className="px-1 py-0 text-[9px] bg-slate-200 text-slate-800 font-bold">
+                    {snapshots.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {Object.keys(adjustments).some((k) => adjustments[k].pc !== 0 || adjustments[k].ma !== 0) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleResetAdjustments}
-              className="h-7 text-xs text-amber-700 hover:bg-amber-50 font-semibold"
+              className="h-8 sm:h-7 text-xs text-amber-700 hover:bg-amber-50 font-semibold self-start sm:self-auto shrink-0"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
               Restablecer Ajustes Manuales
@@ -1077,32 +1321,32 @@ export default function DotacionQuincenal() {
         </div>
 
         {/* TAB 1: CONSOLIDADO GLOBAL WITH DYNAMIC ADJUSTMENT CONTROLS */}
-        <TabsContent value="consolidado" className="space-y-4 mt-0">
-          <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-            <div className="p-4 bg-slate-50/60 border-b border-slate-200/80 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-extrabold text-procarni-dark flex items-center gap-2">
-                  <span>Resumen Consolidado de Requerimientos de Compra</span>
-                  <Badge variant="outline" className="text-[10px] text-slate-600 font-normal">
-                    Ajustable dinámicamente (+ / -)
+        <TabsContent value="consolidado" className="space-y-4 mt-0 min-w-0">
+          <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl overflow-hidden min-w-0">
+            <div className="p-3 sm:p-4 bg-slate-50/60 border-b border-slate-200/80 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-extrabold text-procarni-dark flex items-center gap-1.5 flex-wrap">
+                  <span>Resumen Consolidado de Compra</span>
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] text-slate-600 font-normal">
+                    Ajustable (+ / -)
                   </Badge>
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Ajusta libremente los bultos a comprar para cada empresa según sobrantes compartidos o necesidades específicas.
+                <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+                  Ajusta libremente los bultos a comprar para cada empresa.
                 </p>
               </div>
-              <Badge className="bg-procarni-primary text-white font-mono font-bold text-xs">
-                {result.totalGlobalBultos} Bultos Totales
+              <Badge className="bg-procarni-primary text-white font-mono font-bold text-[11px] sm:text-xs shrink-0">
+                {result.totalGlobalBultos} Bultos
               </Badge>
             </div>
 
             {/* Banner Informativo Adiciones Fijas en Consolidado */}
-            <div className="mx-4 mt-3 p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-start sm:items-center gap-2.5">
+            <div className="m-2.5 sm:mx-4 sm:mt-3 p-2.5 sm:p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-wrap items-center justify-between gap-2.5 text-xs min-w-0">
+              <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
                 <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5 sm:mt-0" />
-                <div>
-                  <span className="font-bold text-slate-900">Adiciones Fijas Operativas:</span>
-                  <span className="text-slate-600 ml-1.5 leading-relaxed">
+                <div className="min-w-0 flex-1 text-[11px] sm:text-xs">
+                  <span className="font-bold text-slate-900 block sm:inline">Adiciones Fijas Operativas:</span>
+                  <span className="text-slate-600 sm:ml-1.5 leading-relaxed break-words">
                     <strong>Comedor:</strong> +{comedor.kgPerDay * comedor.days} kg Arroz &nbsp;|&nbsp; 
                     <strong>Finca:</strong> +{finca.bultosHarina} bulto{finca.bultosHarina > 1 ? 's' : ''} Harina ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und) &nbsp;|&nbsp; 
                     <strong>Papel Planta:</strong> +{papelUsoDiarioBultos} bulto ({papelUsoDiarioBultos * presentations.papelUnitsPerPackage} und) &nbsp;|&nbsp; 
@@ -1110,7 +1354,7 @@ export default function DotacionQuincenal() {
                   </span>
                 </div>
               </div>
-              <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 font-mono font-medium text-[11px] shrink-0">
+              <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 font-mono font-medium text-[10px] sm:text-[11px] shrink-0">
                 Total Adiciones: +{
                   (employeesPC + employeesMA > 0)
                     ? result.globalItems.filter((x) => x.includedInPeriod).reduce((acc, x) => acc + x.totalFixedUnits, 0)
@@ -1119,7 +1363,219 @@ export default function DotacionQuincenal() {
               </Badge>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* MOBILE STACKED CARDS (< md) - No horizontal scroll, touch-friendly inputs */}
+            <div className="block md:hidden p-2.5 sm:p-4 space-y-3 sm:space-y-4">
+              {result.globalItems.map((item) => {
+                if (!item.includedInPeriod) {
+                  return (
+                    <div key={item.productId} className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 opacity-40">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-500 text-xs sm:text-sm">{item.productName}</span>
+                        <span className="text-[9px] sm:text-[10px] font-mono text-slate-400">{item.unitsPerPackage} und/bulto</span>
+                      </div>
+                      <p className="text-[11px] italic text-slate-400 mt-1">Exclusivo para la 2.ª Quincena (Día 30)</p>
+                    </div>
+                  );
+                }
+
+                const pcCalcItem = result.pc.items.find((x) => x.productId === item.productId);
+                const maCalcItem = result.ma.items.find((x) => x.productId === item.productId);
+
+                return (
+                  <div
+                    key={item.productId}
+                    className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 bg-white shadow-xs space-y-2.5 sm:space-y-3"
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">{item.productName}</h4>
+                        <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">{item.brandDetail}</span>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] sm:text-[10px] font-mono text-slate-600 bg-slate-50 shrink-0">
+                        {item.unitsPerPackage} und/bulto
+                      </Badge>
+                    </div>
+
+                    {/* Dynamic Status Badges */}
+                    {item.hasSurplusOverlap && (
+                      <div className="p-2 rounded-lg bg-amber-50 text-amber-900 text-[11px] font-semibold border border-amber-200/80 flex items-center gap-1.5">
+                        <span>💡</span>
+                        <span className="leading-tight">{item.statusMessage || `Excedente: Puedes reducir ${item.surplusBultosCount} bulto en PC o MA`}</span>
+                      </div>
+                    )}
+                    {item.hasDeficitAlert && (
+                      <div className="p-2 rounded-lg bg-red-50 text-procarni-primary text-[11px] font-bold border border-red-200/80 flex items-center gap-1.5">
+                        <span>⚠️</span>
+                        <span className="leading-tight">{item.statusMessage || `Atención: Faltante de ${item.deficitBultosCount} bulto(s)`}</span>
+                      </div>
+                    )}
+                    {!item.hasSurplusOverlap && !item.hasDeficitAlert && (item.pcAdjustment !== 0 || item.maAdjustment !== 0) && (
+                      <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-[11px] font-medium border border-emerald-200/60 flex items-center gap-1.5">
+                        <span>✓</span>
+                        <span>Dotación balanceada exacta</span>
+                      </div>
+                    )}
+
+                    {/* Breakdown row: Combos | Adición Fija | Stock */}
+                    <div className="grid grid-cols-3 gap-1.5 py-1.5 px-2.5 bg-slate-50 rounded-lg text-center text-xs">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Combos</span>
+                        <span className="font-mono font-semibold text-slate-800 text-[11px] sm:text-xs">{item.totalComboUnits} und</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-emerald-700 block">Fijo</span>
+                        <span className="font-mono font-semibold text-emerald-800 text-[11px] sm:text-xs">
+                          {item.totalFixedUnits > 0 ? `+${item.totalFixedUnits} ${item.productId === 'arroz' ? 'kg' : 'und'}` : '-'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-amber-700 block">Stock</span>
+                        <span className="font-mono font-semibold text-amber-800 text-[11px] sm:text-xs">
+                          {item.totalStockDeductedUnits > 0 ? `-${item.totalStockDeductedUnits}` : '0'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Interactive Steppers: PC & MA */}
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      {/* Bultos PC Stepper */}
+                      <div className="p-2 rounded-lg sm:rounded-xl bg-blue-50/60 border border-blue-200/80 flex flex-col items-center justify-between space-y-1.5">
+                        <span className="text-[9px] sm:text-[10px] uppercase font-bold text-procarni-blue tracking-wider">
+                          Bultos PC
+                        </span>
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <button
+                            type="button"
+                            disabled={item.pcBultos <= 0}
+                            onClick={() => handleModifyAdjustment(item.productId, 'pc', -1)}
+                            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white hover:bg-blue-100 text-procarni-blue font-bold shadow-xs active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Restar 1 bulto a PC"
+                          >
+                            <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                          <span className="font-mono font-extrabold text-procarni-blue text-base sm:text-lg min-w-[22px] sm:min-w-[28px] text-center">
+                            {item.pcBultos}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleModifyAdjustment(item.productId, 'pc', +1)}
+                            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white hover:bg-blue-100 text-procarni-blue font-bold shadow-xs active:scale-95"
+                            title="Sumar 1 bulto a PC"
+                          >
+                            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        </div>
+                        <div className="text-[9px] sm:text-[10px] font-mono text-slate-500 text-center min-h-[14px]">
+                          {item.pcAdjustment !== 0 ? (
+                            <span className="text-amber-700 font-semibold">
+                              {item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj.
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">calc: {pcCalcItem?.calculatedBultos}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bultos MA Stepper */}
+                      <div className="p-2 rounded-lg sm:rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col items-center justify-between space-y-1.5">
+                        <span className="text-[9px] sm:text-[10px] uppercase font-bold text-procarni-secondary tracking-wider">
+                          Bultos MA
+                        </span>
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <button
+                            type="button"
+                            disabled={item.maBultos <= 0}
+                            onClick={() => handleModifyAdjustment(item.productId, 'ma', -1)}
+                            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white hover:bg-emerald-100 text-procarni-secondary font-bold shadow-xs active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Restar 1 bulto a MA"
+                          >
+                            <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                          <span className="font-mono font-extrabold text-procarni-secondary text-base sm:text-lg min-w-[22px] sm:min-w-[28px] text-center">
+                            {item.maBultos}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleModifyAdjustment(item.productId, 'ma', +1)}
+                            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white hover:bg-emerald-100 text-procarni-secondary font-bold shadow-xs active:scale-95"
+                            title="Sumar 1 bulto a MA"
+                          >
+                            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        </div>
+                        <div className="text-[9px] sm:text-[10px] font-mono text-slate-500 text-center min-h-[14px]">
+                          {item.maAdjustment !== 0 ? (
+                            <span className="text-amber-700 font-semibold">
+                              {item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj.
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">calc: {maCalcItem?.calculatedBultos}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Total a Comprar & Buffer Row */}
+                    <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-red-50/80 border border-red-200/80">
+                      <div>
+                        <span className="text-[9px] sm:text-[10px] uppercase font-bold text-procarni-primary block tracking-wider">
+                          Total a Comprar
+                        </span>
+                        <span className="font-mono font-extrabold text-procarni-primary text-base sm:text-lg leading-tight">
+                          {item.globalBultosToBuy} bultos
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                          Buffer Sobrante
+                        </span>
+                        <span className="font-mono font-bold text-slate-700 text-[11px] sm:text-xs">
+                          {item.netSurplusUnits >= 0 ? `+${item.netSurplusUnits}` : item.netSurplusUnits} und
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Mobile Totals Summary Card */}
+              <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-900 text-white space-y-2.5">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs uppercase font-extrabold tracking-wider text-slate-300">
+                    Totales Consolidados
+                  </span>
+                  <Badge className="bg-procarni-primary text-white font-mono text-xs">
+                    {result.totalGlobalBultos} Bultos Totales
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-slate-400">Combos:</span>
+                    <span className="font-mono font-bold text-slate-200">
+                      {result.globalItems.filter((x) => x.includedInPeriod).reduce((acc, x) => acc + x.totalComboUnits, 0)} und
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-slate-400">Fijo:</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      +{result.globalItems.filter((x) => x.includedInPeriod).reduce((acc, x) => acc + x.totalFixedUnits, 0)} und
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-slate-400">Bultos PC:</span>
+                    <span className="font-mono font-bold text-blue-300">{result.pc.totalBultos} b</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-white/5">
+                    <span className="text-slate-400">Bultos MA:</span>
+                    <span className="font-mono font-bold text-emerald-300">{result.ma.totalBultos} b</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* DESKTOP TABLE (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500">
@@ -1334,65 +1790,65 @@ export default function DotacionQuincenal() {
         </TabsContent>
 
         {/* TAB 2: PRODUCTOS CÁRNICOS (PC) */}
-        <TabsContent value="pc" className="space-y-4 mt-0">
-          <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-            <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-extrabold text-procarni-blue">
+        <TabsContent value="pc" className="space-y-4 mt-0 min-w-0">
+          <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl overflow-hidden min-w-0">
+            <div className="p-3 sm:p-4 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-extrabold text-procarni-blue truncate">
                   Empresa Productos Cárnicos (PC) — {result.pc.employees} combos
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] sm:text-xs text-slate-500 truncate">
                   Desglose analítico paso a paso de los requerimientos individuales.
                 </p>
               </div>
-              <Badge className="bg-procarni-blue text-white font-mono font-bold">
+              <Badge className="bg-procarni-blue text-white font-mono font-bold text-xs shrink-0">
                 {result.pc.totalBultos} Bultos
               </Badge>
             </div>
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-2.5 sm:p-4 space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4">
                 {result.pc.items
                   .filter((item) => item.includedInPeriod)
                   .map((item) => (
                     <div
                       key={item.productId}
-                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 hover:border-slate-300 transition-colors"
+                      className="p-3 sm:p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 hover:border-slate-300 transition-colors"
                     >
-                      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                        <div>
-                          <span className="font-bold text-slate-900 text-sm">{item.productName}</span>
-                          <span className="text-[11px] text-slate-400 block">{item.brandDetail}</span>
+                      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm block truncate">{item.productName}</span>
+                          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">{item.brandDetail}</span>
                         </div>
-                        <div className="text-right flex items-center gap-2">
-                          <div className="inline-flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                        <div className="text-right flex items-center gap-1.5 shrink-0">
+                          <div className="inline-flex items-center gap-1 bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 shadow-xs">
                             <button
                               type="button"
                               disabled={item.bultosToBuy <= 0}
                               onClick={() => handleModifyAdjustment(item.productId, 'pc', -1)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-blue hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-md bg-slate-50 hover:bg-blue-100 text-slate-700 hover:text-procarni-blue font-bold active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                               title={item.bultosToBuy <= 0 ? 'No se puede reducir por debajo de 0' : 'Restar 1 bulto a PC'}
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-base font-mono font-extrabold text-procarni-blue min-w-[20px] text-center">
+                            <span className="text-sm sm:text-base font-mono font-extrabold text-procarni-blue min-w-[20px] sm:min-w-[24px] text-center">
                               {item.bultosToBuy}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleModifyAdjustment(item.productId, 'pc', +1)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-blue hover:bg-slate-100"
+                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-md bg-slate-50 hover:bg-blue-100 text-slate-700 hover:text-procarni-blue font-bold active:scale-95"
                               title="Sumar 1 bulto a PC"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
-                          <span className="text-xs font-semibold text-slate-600 font-mono">bultos</span>
+                          <span className="text-[11px] font-semibold text-slate-600 font-mono hidden sm:inline">bultos</span>
                         </div>
                       </div>
 
-                      <div className="text-xs space-y-1 text-slate-600 pt-1">
+                      <div className="text-[11px] sm:text-xs space-y-1 text-slate-600 pt-1">
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Combos Colaboradores ({result.pc.employees} × {item.unitsPerCombo}):</span>
+                          <span className="text-slate-500">Combos ({result.pc.employees} × {item.unitsPerCombo}):</span>
                           <span className="font-mono font-medium">{item.comboUnitsNeeded} und</span>
                         </div>
                         {item.fixedAdditionUnits > 0 && (
@@ -1403,16 +1859,16 @@ export default function DotacionQuincenal() {
                         )}
                         {item.stockDeductionUnits > 0 && (
                           <div className="flex justify-between text-amber-700">
-                            <span>Deducción Stock Almacén ({item.stockDeductionDetail}):</span>
+                            <span>Deducción Stock ({item.stockDeductionDetail}):</span>
                             <span className="font-mono font-semibold">-{item.stockDeductionUnits} und</span>
                           </div>
                         )}
                         <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1">
-                          <span>Necesidad Neta a Comprar:</span>
-                          <span className="font-mono">{item.netUnitsNeeded} und (calc: {item.calculatedBultos} bultos)</span>
+                          <span>Necesidad Neta:</span>
+                          <span className="font-mono">{item.netUnitsNeeded} und (calc: {item.calculatedBultos} b)</span>
                         </div>
                         {item.optimizationNote && (
-                          <div className="p-2 bg-amber-50 text-amber-800 rounded-lg text-[11px] font-medium border border-amber-200/60 mt-2">
+                          <div className="p-2 bg-amber-50 text-amber-800 rounded-lg text-[10px] sm:text-[11px] font-medium border border-amber-200/60 mt-2">
                             {item.optimizationNote}
                           </div>
                         )}
@@ -1425,65 +1881,65 @@ export default function DotacionQuincenal() {
         </TabsContent>
 
         {/* TAB 3: MONTANO ANTILIA (MA) */}
-        <TabsContent value="ma" className="space-y-4 mt-0">
-          <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-            <div className="p-4 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-extrabold text-procarni-secondary">
+        <TabsContent value="ma" className="space-y-4 mt-0 min-w-0">
+          <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl overflow-hidden min-w-0">
+            <div className="p-3 sm:p-4 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-extrabold text-procarni-secondary truncate">
                   Empresa Montano Antilia (MA) — {result.ma.employees} combos
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] sm:text-xs text-slate-500 truncate">
                   Desglose analítico paso a paso de los requerimientos individuales.
                 </p>
               </div>
-              <Badge className="bg-procarni-secondary text-white font-mono font-bold">
+              <Badge className="bg-procarni-secondary text-white font-mono font-bold text-xs shrink-0">
                 {result.ma.totalBultos} Bultos
               </Badge>
             </div>
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-2.5 sm:p-4 space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4">
                 {result.ma.items
                   .filter((item) => item.includedInPeriod)
                   .map((item) => (
                     <div
                       key={item.productId}
-                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 hover:border-slate-300 transition-colors"
+                      className="p-3 sm:p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 hover:border-slate-300 transition-colors"
                     >
-                      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                        <div>
-                          <span className="font-bold text-slate-900 text-sm">{item.productName}</span>
-                          <span className="text-[11px] text-slate-400 block">{item.brandDetail}</span>
+                      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm block truncate">{item.productName}</span>
+                          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">{item.brandDetail}</span>
                         </div>
-                        <div className="text-right flex items-center gap-2">
-                          <div className="inline-flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                        <div className="text-right flex items-center gap-1.5 shrink-0">
+                          <div className="inline-flex items-center gap-1 bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 shadow-xs">
                             <button
                               type="button"
                               disabled={item.bultosToBuy <= 0}
                               onClick={() => handleModifyAdjustment(item.productId, 'ma', -1)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-secondary hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-md bg-slate-50 hover:bg-emerald-100 text-slate-700 hover:text-procarni-secondary font-bold active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                               title={item.bultosToBuy <= 0 ? 'No se puede reducir por debajo de 0' : 'Restar 1 bulto a MA'}
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="text-base font-mono font-extrabold text-procarni-secondary min-w-[20px] text-center">
+                            <span className="text-sm sm:text-base font-mono font-extrabold text-procarni-secondary min-w-[20px] sm:min-w-[24px] text-center">
                               {item.bultosToBuy}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleModifyAdjustment(item.productId, 'ma', +1)}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-procarni-secondary hover:bg-slate-100"
+                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-md bg-slate-50 hover:bg-emerald-100 text-slate-700 hover:text-procarni-secondary font-bold active:scale-95"
                               title="Sumar 1 bulto a MA"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
-                          <span className="text-xs font-semibold text-slate-600 font-mono">bultos</span>
+                          <span className="text-[11px] font-semibold text-slate-600 font-mono hidden sm:inline">bultos</span>
                         </div>
                       </div>
 
-                      <div className="text-xs space-y-1 text-slate-600 pt-1">
+                      <div className="text-[11px] sm:text-xs space-y-1 text-slate-600 pt-1">
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Combos Colaboradores ({result.ma.employees} × {item.unitsPerCombo}):</span>
+                          <span className="text-slate-500">Combos ({result.ma.employees} × {item.unitsPerCombo}):</span>
                           <span className="font-mono font-medium">{item.comboUnitsNeeded} und</span>
                         </div>
                         {item.fixedAdditionUnits > 0 && (
@@ -1494,16 +1950,16 @@ export default function DotacionQuincenal() {
                         )}
                         {item.stockDeductionUnits > 0 && (
                           <div className="flex justify-between text-amber-700">
-                            <span>Deducción Stock Almacén ({item.stockDeductionDetail}):</span>
+                            <span>Deducción Stock ({item.stockDeductionDetail}):</span>
                             <span className="font-mono font-semibold">-{item.stockDeductionUnits} und</span>
                           </div>
                         )}
                         <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1">
-                          <span>Necesidad Neta a Comprar:</span>
-                          <span className="font-mono">{item.netUnitsNeeded} und (calc: {item.calculatedBultos} bultos)</span>
+                          <span>Necesidad Neta:</span>
+                          <span className="font-mono">{item.netUnitsNeeded} und (calc: {item.calculatedBultos} b)</span>
                         </div>
                         {item.optimizationNote && (
-                          <div className="p-2 bg-amber-50 text-amber-800 rounded-lg text-[11px] font-medium border border-amber-200/60 mt-2">
+                          <div className="p-2 bg-amber-50 text-amber-800 rounded-lg text-[10px] sm:text-[11px] font-medium border border-amber-200/60 mt-2">
                             {item.optimizationNote}
                           </div>
                         )}
@@ -1554,7 +2010,7 @@ export default function DotacionQuincenal() {
                   onClick={() =>
                     handleCopyText(result.formattedMessages.maMessage, 'Mensaje Montano Antilia', 'ma')
                   }
-                  className="text-xs font-semibold bg-procarni-secondary hover:bg-[#0b4606] text-white"
+                  className="w-full sm:w-auto h-11 sm:h-9 text-xs font-semibold bg-procarni-secondary hover:bg-[#0b4606] text-white"
                 >
                   {copiedKey === 'ma' ? (
                     <>
@@ -1597,7 +2053,7 @@ export default function DotacionQuincenal() {
                   onClick={() =>
                     handleCopyText(result.formattedMessages.pcMessage, 'Mensaje Productos Cárnicos', 'pc')
                   }
-                  className="text-xs font-semibold bg-procarni-blue hover:bg-[#141f38] text-white"
+                  className="w-full sm:w-auto h-11 sm:h-9 text-xs font-semibold bg-procarni-blue hover:bg-[#141f38] text-white"
                 >
                   {copiedKey === 'pc' ? (
                     <>
@@ -1639,7 +2095,7 @@ export default function DotacionQuincenal() {
                 onClick={() =>
                   handleCopyText(result.formattedMessages.globalMessage, 'Mensaje Consolidado Global', 'global')
                 }
-                className="text-xs font-semibold bg-procarni-primary hover:bg-[#6e0808] text-white"
+                className="w-full sm:w-auto h-11 sm:h-9 text-xs font-semibold bg-procarni-primary hover:bg-[#6e0808] text-white"
               >
                 {copiedKey === 'global' ? (
                   <>
@@ -1673,7 +2129,7 @@ export default function DotacionQuincenal() {
                 variant="outline"
                 size="sm"
                 onClick={loadSnapshots}
-                className="h-8 text-xs text-slate-600"
+                className="h-10 sm:h-8 text-xs text-slate-600 shrink-0"
               >
                 <RefreshCw className="w-3 h-3 mr-1.5" />
                 Actualizar
@@ -1689,104 +2145,208 @@ export default function DotacionQuincenal() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
-                      <TableHead>Nombre / Período</TableHead>
-                      <TableHead className="text-center">Fecha Guardado</TableHead>
-                      <TableHead className="text-center">Nómina (Combos)</TableHead>
-                      <TableHead className="text-center">Total Bultos</TableHead>
-                      <TableHead className="text-center">Órdenes de Compra</TableHead>
-                      <TableHead className="text-center">Creado Por</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="text-xs divide-y divide-slate-100">
-                    {snapshots.map((s) => (
-                      <TableRow
-                        key={s.id}
-                        className={activeSnapshotId === s.id ? 'bg-blue-50/40' : 'hover:bg-slate-50/60'}
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2">
+              <>
+                {/* MOBILE STACKED SNAPSHOT CARDS (< md) */}
+                <div className="block md:hidden p-2.5 sm:p-4 space-y-2.5 sm:space-y-3">
+                  {snapshots.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border space-y-2.5 transition-colors ${
+                        activeSnapshotId === s.id
+                          ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-400/30'
+                          : 'bg-white border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {activeSnapshotId === s.id && (
-                              <Badge className="bg-blue-600 text-white text-[9px] px-1.5 py-0">Activo</Badge>
+                              <Badge className="bg-blue-600 text-white text-[8px] sm:text-[9px] px-1.5 py-0 shrink-0">
+                                Activo
+                              </Badge>
                             )}
-                            <span className="font-bold text-slate-900">{s.name}</span>
+                            <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">{s.name}</span>
                           </div>
-                          <span className="text-[11px] text-slate-400 block font-mono">
+                          <span className="text-[10px] sm:text-[11px] text-slate-400 font-mono block mt-0.5">
                             PC: {s.employeesPC} | MA: {s.employeesMA} combos
                           </span>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-slate-600">
-                          {format(new Date(s.createdAt), "dd/MM/yyyy HH:mm", { locale: es })}
-                        </TableCell>
-                        <TableCell className="text-center font-mono font-medium">
-                          {s.totalEmployees} colaboradores
-                        </TableCell>
-                        <TableCell className="text-center font-mono font-extrabold text-procarni-primary">
+                        </div>
+                        <Badge className="bg-procarni-primary text-white font-mono text-[11px] sm:text-xs shrink-0">
                           {s.result.totalGlobalBultos} bultos
-                        </TableCell>
-                        <TableCell className="text-center">
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 text-xs py-1.5 px-2.5 bg-slate-50 rounded-lg">
+                        <div>
+                          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Guardado</span>
+                          <span className="font-mono text-slate-700 text-[11px] sm:text-xs">
+                            {format(new Date(s.createdAt), "dd/MM/yy HH:mm", { locale: es })}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Nómina</span>
+                          <span className="font-mono text-slate-700 text-[11px] sm:text-xs">
+                            {s.totalEmployees} colab.
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Creador</span>
+                          <span className="text-slate-700 truncate block text-[11px] sm:text-xs">{s.createdBy}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block">Órdenes OC</span>
                           {s.generatedPurchaseOrders && s.generatedPurchaseOrders.length > 0 ? (
-                            <div className="flex flex-col gap-1 items-center">
+                            <div className="flex flex-wrap gap-1 mt-0.5">
                               {s.generatedPurchaseOrders.map((po, idx) => (
                                 <button
                                   key={idx}
                                   type="button"
                                   onClick={() => navigate(`/purchase-orders/${po.orderId}`)}
-                                  className="inline-flex items-center gap-1 text-[11px] text-procarni-blue hover:underline font-mono"
+                                  className="inline-flex items-center gap-1 text-[10px] text-procarni-blue hover:underline font-mono"
                                 >
-                                  <span>OC {po.sequenceNumber || po.orderId.slice(0, 6)} ({po.companyName.split(' ')[0]})</span>
+                                  <span>OC {po.sequenceNumber || po.orderId.slice(0, 5)}</span>
                                   <ExternalLink className="w-2.5 h-2.5" />
                                 </button>
                               ))}
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic text-[11px]">Ninguna</span>
+                            <span className="text-slate-400 italic text-[10px] sm:text-[11px]">Ninguna</span>
                           )}
-                        </TableCell>
-                        <TableCell className="text-center text-slate-600">
-                          {s.createdBy}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleLoadSnapshot(s)}
-                              title="Cargar snapshot en la calculadora"
-                              className="h-8 text-xs text-procarni-blue hover:bg-blue-50 font-semibold"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                              Cargar
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => generateDotacionPDF(s.result, s.createdBy)}
-                              title="Descargar PDF de este snapshot"
-                              className="h-8 text-xs text-procarni-primary hover:bg-red-50"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteSnapshot(s.id, s.name)}
-                              title="Eliminar snapshot"
-                              className="h-8 text-xs text-slate-400 hover:text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 sm:gap-2 pt-1 border-t border-slate-100">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleLoadSnapshot(s)}
+                          className="h-9 text-xs text-procarni-blue hover:bg-blue-50 font-semibold flex-1 border-blue-200"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                          Cargar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => generateDotacionPDF(s.result, s.createdBy)}
+                          className="h-9 text-xs text-procarni-primary hover:bg-red-50 font-semibold flex-1 border-red-200"
+                        >
+                          <Download className="w-3.5 h-3.5 mr-1" />
+                          PDF
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteSnapshot(s.id, s.name)}
+                          className="h-9 text-xs text-slate-400 hover:text-red-600 hover:bg-red-50 px-2.5 shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* DESKTOP TABLE (>= md) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
+                        <TableHead>Nombre / Período</TableHead>
+                        <TableHead className="text-center">Fecha Guardado</TableHead>
+                        <TableHead className="text-center">Nómina (Combos)</TableHead>
+                        <TableHead className="text-center">Total Bultos</TableHead>
+                        <TableHead className="text-center">Órdenes de Compra</TableHead>
+                        <TableHead className="text-center">Creado Por</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody className="text-xs divide-y divide-slate-100">
+                      {snapshots.map((s) => (
+                        <TableRow
+                          key={s.id}
+                          className={activeSnapshotId === s.id ? 'bg-blue-50/40' : 'hover:bg-slate-50/60'}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {activeSnapshotId === s.id && (
+                                <Badge className="bg-blue-600 text-white text-[9px] px-1.5 py-0">Activo</Badge>
+                              )}
+                              <span className="font-bold text-slate-900">{s.name}</span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 block font-mono">
+                              PC: {s.employeesPC} | MA: {s.employeesMA} combos
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-slate-600">
+                            {format(new Date(s.createdAt), "dd/MM/yyyy HH:mm", { locale: es })}
+                          </TableCell>
+                          <TableCell className="text-center font-mono font-medium">
+                            {s.totalEmployees} colaboradores
+                          </TableCell>
+                          <TableCell className="text-center font-mono font-extrabold text-procarni-primary">
+                            {s.result.totalGlobalBultos} bultos
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {s.generatedPurchaseOrders && s.generatedPurchaseOrders.length > 0 ? (
+                              <div className="flex flex-col gap-1 items-center">
+                                {s.generatedPurchaseOrders.map((po, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => navigate(`/purchase-orders/${po.orderId}`)}
+                                    className="inline-flex items-center gap-1 text-[11px] text-procarni-blue hover:underline font-mono"
+                                  >
+                                    <span>OC {po.sequenceNumber || po.orderId.slice(0, 6)} ({po.companyName.split(' ')[0]})</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">Ninguna</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center text-slate-600">
+                            {s.createdBy}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleLoadSnapshot(s)}
+                                title="Cargar snapshot en la calculadora"
+                                className="h-8 text-xs text-procarni-blue hover:bg-blue-50 font-semibold"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                                Cargar
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => generateDotacionPDF(s.result, s.createdBy)}
+                                title="Descargar PDF de este snapshot"
+                                className="h-8 text-xs text-procarni-primary hover:bg-red-50"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteSnapshot(s.id, s.name)}
+                                title="Eliminar snapshot"
+                                className="h-8 text-xs text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </Card>
         </TabsContent>

@@ -285,7 +285,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl lg:max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-3.5 sm:p-6">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-red-100 text-procarni-primary">
@@ -453,11 +453,11 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
             </div>
 
             {/* Condiciones Comerciales */}
-            <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
               <div>
                 <Label className="text-[10px] font-bold text-slate-500 uppercase">Moneda</Label>
                 <Select value={currency} onValueChange={(val) => setCurrency(val as 'USD' | 'VES' | 'EUR')}>
-                  <SelectTrigger className="h-8 text-xs mt-1 bg-white">
+                  <SelectTrigger className="h-10 sm:h-8 text-xs mt-1 bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -471,7 +471,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               <div>
                 <Label className="text-[10px] font-bold text-slate-500 uppercase">Condición Pago</Label>
                 <Select value={paymentTerms} onValueChange={setPaymentTerms}>
-                  <SelectTrigger className="h-8 text-xs mt-1 bg-white">
+                  <SelectTrigger className="h-10 sm:h-8 text-xs mt-1 bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -489,12 +489,12 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                   type="date"
                   value={deliveryDate}
                   onChange={(e) => setDeliveryDate(e.target.value)}
-                  className="h-8 text-xs mt-1 bg-white"
+                  className="h-10 sm:h-8 text-xs mt-1 bg-white"
                 />
               </div>
             </div>
 
-            {/* Tabla de Insumos Pre-cargados */}
+            {/* Insumos a Incluir en la Orden */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -504,7 +504,70 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                   {itemRows.filter((r) => r.selected).length} de {itemRows.length} ítems seleccionados
                 </span>
               </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+
+              {/* MOBILE STACKED CARDS (< md) */}
+              <div className="block md:hidden space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                {itemRows.map((row, idx) => {
+                  const pres = getItemPresentation(row.productId, row.quantity);
+                  return (
+                    <div
+                      key={row.productId}
+                      className={`p-3 rounded-xl border transition-all ${
+                        row.selected ? 'bg-white border-slate-300 shadow-xs' : 'bg-slate-50/70 border-slate-200 opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={row.selected}
+                          onChange={() => handleToggleItem(idx)}
+                          className="mt-0.5 rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-5 h-5 cursor-pointer shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-slate-900 text-xs block truncate">{row.materialName}</span>
+                          <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                            {pres.label}
+                          </span>
+                        </div>
+                      </div>
+
+                      {row.selected && (
+                        <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2 border-t border-slate-100">
+                          <div>
+                            <Label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Cant. (Bultos)
+                            </Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={row.quantity}
+                              onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value) || 0)}
+                              className="h-10 text-center font-mono font-bold text-sm mt-1 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              P. Unit ({currency})
+                            </Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={row.unitPrice}
+                              onChange={(e) => handlePriceChange(idx, parseFloat(e.target.value) || 0)}
+                              placeholder="0.00"
+                              className="h-10 text-center font-mono font-bold text-sm mt-1 bg-white"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP TABLE (>= md) */}
+              <div className="hidden md:block border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
@@ -572,14 +635,14 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                 id="obs"
                 value={observations}
                 onChange={(e) => setObservations(e.target.value)}
-                className="h-8 text-xs"
+                className="h-10 sm:h-8 text-xs"
                 placeholder="Observaciones adicionales..."
               />
             </div>
           </div>
         )}
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className="pt-3 flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
           {!createdOrderLink && (
             <>
               <Button
@@ -587,7 +650,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                 size="sm"
                 onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
-                className="text-xs"
+                className="w-full sm:w-auto h-11 sm:h-9 text-xs"
               >
                 Cancelar
               </Button>
@@ -595,7 +658,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                 size="sm"
                 onClick={handleCreateOrder}
                 disabled={isSubmitting || isLoadingMeta}
-                className="text-xs font-bold bg-procarni-primary hover:bg-[#6e0808] text-white"
+                className="w-full sm:w-auto h-11 sm:h-9 text-xs font-bold bg-procarni-primary hover:bg-[#6e0808] text-white"
               >
                 {isSubmitting ? (
                   <>
