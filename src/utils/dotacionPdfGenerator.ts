@@ -26,41 +26,31 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
   // --- HEADER SECTION (Procarni System Standard) ---
   let y = margin;
 
-  // Left: Company Brand & Identity
-  doc.setTextColor(...PROC_RED);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('PRODUCTOS CÁRNICOS, C.A. & MONTANO ANTILIA, C.A.', margin, y + 4);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  // Left: Brand Identifier (as shown in the sample)
   doc.setTextColor(...PROC_BLUE);
-  doc.text('SISTEMA INTEGRAL DE COMPRAS E INVENTARIOS | PROCARNI SYSTEM', margin, y + 9);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...TEXT_MUTED);
-  doc.text('R.I.F. J-30813958-0 / J-40019283-1  |  Dirección de Cadena de Suministro', margin, y + 13);
-
-  // Right: Document Metadata
-  const rightX = pageWidth - margin;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(...PROC_RED);
-  doc.text('RELACIÓN DE CÁLCULO DE DOTACIÓN', rightX, y + 4, { align: 'right' });
+  doc.setFontSize(20);
+  doc.text('PROCARNI', margin, y + 6);
 
-  const controlNumber = `DOT-${result.year}-${String(result.month).padStart(2, '0')}-${result.quincena === 'primera' ? 'Q1' : 'Q2'}`;
+  doc.setTextColor(...PROC_RED);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.setTextColor(...TEXT_DARK);
-  doc.text(`Nº Control: ${controlNumber}`, rightX, y + 9, { align: 'right' });
+  doc.text('SYSTEM', margin, y + 10.5);
+
+  // Right: Document Title & Metadata
+  const rightX = pageWidth - margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...PROC_BLUE);
+  doc.text('Reporte de Cálculo de Dotación', rightX, y + 4, { align: 'right' });
 
   const now = new Date();
-  const printDateStr = format(now, 'dd/MM/yyyy HH:mm', { locale: es });
+  const printDateStr = format(now, 'dd/MM/yyyy', { locale: es });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(...TEXT_MUTED);
-  doc.text(`Emisión: ${format(now, 'dd/MM/yyyy', { locale: es })}  |  Impresión: ${printDateStr}`, rightX, y + 13, { align: 'right' });
+  doc.text(`Periodo: ${result.periodLabel}`, rightX, y + 8.5, { align: 'right' });
+  doc.text(`Fecha Emisión: ${printDateStr}`, rightX, y + 12.5, { align: 'right' });
 
   y += 16;
 
@@ -142,33 +132,27 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
         `${it.unitsPerPackage} und/bulto`,
         '-',
         '-',
-        '-',
         'Exclusivo 2.ª Quincena (Día 30)',
-        '-',
       ];
     }
 
-    const pcItem = result.pc.items.find((x) => x.productId === it.productId);
-    const maItem = result.ma.items.find((x) => x.productId === it.productId);
-
+    const unitLabel = it.productId === 'arroz' || it.productId === 'azucar' || it.productId === 'harina' ? 'kg' : (it.productId === 'papel' ? 'rollos' : (it.productId === 'jabon' ? 'barras' : 'und'));
     const bultosLabel = it.stockBultos > 0 ? `${it.stockBultos} bulto${it.stockBultos > 1 ? 's' : ''}` : '0 bultos';
-    const looseUnitLabel = it.productId === 'azucar' ? 'kg' : 'und';
-    const looseLabel = it.stockLooseUnits > 0 ? `${it.stockLooseUnits} ${looseUnitLabel}` : '0 sueltas';
+    const looseLabel = it.stockLooseUnits > 0 ? `${it.stockLooseUnits} ${unitLabel}` : '0';
+    const totalDeductedLabel = it.totalStockDeductedUnits > 0 ? `${it.totalStockDeductedUnits} ${unitLabel}` : '0';
 
     return [
       it.productName,
-      `${it.unitsPerPackage} und/bulto`,
+      `${it.unitsPerPackage} ${unitLabel}/bulto`,
       bultosLabel,
       looseLabel,
-      it.totalStockDeductedUnits > 0 ? `${it.totalStockDeductedUnits} und` : '0 und',
-      pcItem?.stockDeductionDetail || '0',
-      maItem?.stockDeductionDetail || '0',
+      totalDeductedLabel,
     ];
   });
 
   autoTable(doc, {
     startY: y,
-    head: [['Insumo', 'Presentación', 'Bultos Stock', 'Und/Kg Sueltos', 'Total Deducido', 'Deducción PC', 'Deducción MA']],
+    head: [['Insumo / Rubro', 'Presentación', 'Bultos Stock', 'Und / Kg Sueltos', 'Total Deducido']],
     body: stockTableRows,
     theme: 'grid',
     headStyles: {
@@ -179,13 +163,11 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       halign: 'center',
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 46 },
-      1: { halign: 'center', cellWidth: 24 },
-      2: { halign: 'center', cellWidth: 22 },
-      3: { halign: 'center', cellWidth: 22 },
-      4: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 22 },
-      5: { halign: 'center', cellWidth: 23 },
-      6: { halign: 'center', cellWidth: 23 },
+      0: { fontStyle: 'bold', cellWidth: 62 },
+      1: { halign: 'center', cellWidth: 30 },
+      2: { halign: 'center', cellWidth: 30 },
+      3: { halign: 'center', cellWidth: 30 },
+      4: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 30 },
     },
     styles: {
       fontSize: 7.5,
@@ -198,7 +180,7 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
     didParseCell: (data) => {
       // Style disabled period rows softly
       const rawRow = stockTableRows[data.row.index];
-      if (rawRow && rawRow[5] === 'Exclusivo 2.ª Quincena (Día 30)') {
+      if (rawRow && rawRow[4] === 'Exclusivo 2.ª Quincena (Día 30)') {
         data.cell.styles.textColor = TEXT_MUTED;
         data.cell.styles.fontStyle = 'italic';
       }
@@ -260,36 +242,6 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
     ];
   });
 
-  // Totals Row
-  const totalCombosAll = result.globalItems
-    .filter((it) => it.includedInPeriod)
-    .reduce((acc, it) => acc + it.totalComboUnits, 0);
-
-  const totalFixedAll = result.globalItems
-    .filter((it) => it.includedInPeriod)
-    .reduce((acc, it) => acc + it.totalFixedUnits, 0);
-
-  const totalStockAll = result.globalItems
-    .filter((it) => it.includedInPeriod)
-    .reduce((acc, it) => acc + it.totalStockDeductedUnits, 0);
-
-  const totalUnitsAll = result.globalItems
-    .filter((it) => it.includedInPeriod)
-    .reduce((acc, it) => acc + it.totalUnitsPurchased, 0);
-
-  purchaseRows.push([
-    'TOTAL BULTOS A COMPRAR',
-    '-',
-    `${totalCombosAll.toLocaleString('es-VE')} und`,
-    totalFixedAll > 0 ? `+${totalFixedAll} und (Fijo)` : '-',
-    totalStockAll > 0 ? `-${totalStockAll} und` : '0',
-    `${result.pc.totalBultos} bultos`,
-    `${result.ma.totalBultos} bultos`,
-    `${result.totalGlobalBultos} bultos`,
-    `${totalUnitsAll.toLocaleString('es-VE')} und`,
-    '-',
-  ]);
-
   autoTable(doc, {
     startY: y,
     head: [['Insumo / Rubro', 'Presentación', 'Combos', 'Adiciones Fijas', 'Stock', 'Bultos PC', 'Bultos MA', 'Total Bultos', 'Total Und', 'Buffer']],
@@ -323,10 +275,16 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       fillColor: LIGHT_ROW,
     },
     didParseCell: (data) => {
-      if (data.row.index === purchaseRows.length - 1) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [254, 242, 242]; // soft red highlight
-        data.cell.styles.textColor = PROC_RED;
+      // Resaltar en rojo la columna 'Total Bultos' (índice 7)
+      if (data.column.index === 7) {
+        if (data.section === 'head') {
+          data.cell.styles.fillColor = PROC_RED;
+          data.cell.styles.textColor = [255, 255, 255];
+        } else if (data.section === 'body') {
+          data.cell.styles.fillColor = [254, 242, 242]; // fondo suave rojizo
+          data.cell.styles.textColor = PROC_RED; // texto rojo negrita
+          data.cell.styles.fontStyle = 'bold';
+        }
       }
     },
   });
@@ -405,37 +363,34 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
   const finalY3 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || 240;
 
   // Check if signatures fit on current page or require page break
-  let sigY = finalY3 + 12;
-  if (sigY + 20 > pageHeight - 15) {
+  let sigY = finalY3 + 14;
+  if (sigY + 22 > pageHeight - 15) {
     doc.addPage();
     sigY = margin + 15;
   }
 
-  // --- SIGNATURES SECTION ---
-  const sigWidth = 50;
-  const sig1X = margin + 4;
-  const sig2X = margin + (contentWidth - sigWidth) / 2;
-  const sig3X = pageWidth - margin - sigWidth - 4;
+  // --- SIGNATURES SECTION (2 Firmas centradas y balanceadas) ---
+  const sigWidth = 65;
+  const sigGap = contentWidth - sigWidth * 2;
+  const sig1X = margin + sigGap / 3;
+  const sig2X = margin + sigWidth + (sigGap / 3) * 2;
 
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.4);
   doc.line(sig1X, sigY, sig1X + sigWidth, sigY);
   doc.line(sig2X, sigY, sig2X + sigWidth, sigY);
-  doc.line(sig3X, sigY, sig3X + sigWidth, sigY);
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...PROC_BLUE);
-  doc.text(emittedBy ? `Elaborado por: ${emittedBy}` : 'Elaborado por: Almacén y Dotación', sig1X + sigWidth / 2, sigY + 4, { align: 'center' });
-  doc.text('Revisado por: Jefe de Almacén', sig2X + sigWidth / 2, sigY + 4, { align: 'center' });
-  doc.text('Aprobado por: Gerencia de Compras', sig3X + sigWidth / 2, sigY + 4, { align: 'center' });
+  doc.text(emittedBy ? `Elaborado por: ${emittedBy}` : 'Elaborado por', sig1X + sigWidth / 2, sigY + 4.5, { align: 'center' });
+  doc.text('Aprobado por Gerencia', sig2X + sigWidth / 2, sigY + 4.5, { align: 'center' });
 
-  doc.setFontSize(6.5);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('Firma y Sello', sig1X + sigWidth / 2, sigY + 8, { align: 'center' });
-  doc.text('Firma y Sello', sig2X + sigWidth / 2, sigY + 8, { align: 'center' });
-  doc.text('Firma y Sello', sig3X + sigWidth / 2, sigY + 8, { align: 'center' });
+  doc.text('Firma', sig1X + sigWidth / 2, sigY + 8.5, { align: 'center' });
+  doc.text('Firma', sig2X + sigWidth / 2, sigY + 8.5, { align: 'center' });
 
   // --- MULTI-PAGE RUNNING FOOTER ---
   const pageCount = (doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
