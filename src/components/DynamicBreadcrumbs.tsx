@@ -26,6 +26,7 @@ const routeMap: Record<string, { label: string; parent?: string }> = {
     '/price-matrix': { label: 'Matriz de Proveedores', parent: '/quote-comparison-management' },
     '/search-suppliers-by-material': { label: 'Búsqueda de Proveedores' },
     '/group-management': { label: 'Gestión de Grupos', parent: '/settings' },
+    '/dotacion-quincenal': { label: 'Dotación Quincenal' },
 };
 
 export const DynamicBreadcrumbs = () => {

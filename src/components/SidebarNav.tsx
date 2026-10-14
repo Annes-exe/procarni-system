@@ -7,7 +7,7 @@ import {
   ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
   BarChart3, ChevronDown, Home, Warehouse, Download, Wrench,
   Package, Layers, CreditCard, CheckCircle, FileSpreadsheet, PieChart,
-  ClipboardList, BellRing
+  ClipboardList, BellRing, CalendarDays
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { m, AnimatePresence } from 'framer-motion';
@@ -27,6 +27,7 @@ const navItems = [
       { to: '/service-order-management', icon: <Wrench className="h-5 w-5" />, label: 'Órdenes de Servicio' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },
       { to: '/requisitions', icon: <ClipboardList className="h-5 w-5" />, label: 'Requisiciones' },
+      { to: '/dotacion-quincenal', icon: <CalendarDays className="h-5 w-5" />, label: 'Dotación Quincenal' },
     ]
   },
   {

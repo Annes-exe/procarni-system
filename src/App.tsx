@@ -46,6 +46,7 @@ import MaterialGeneralProfile from "./pages/MaterialGeneralProfile";
 import RequisitionsManagement from "./pages/RequisitionsManagement";
 import PrintRequisition from "./pages/PrintRequisition";
 import PurchaseReminders from "./pages/PurchaseReminders";
+import DotacionQuincenal from "./pages/DotacionQuincenal";
 
 import { LazyMotion, domAnimation } from "framer-motion";
 
@@ -105,6 +106,7 @@ const App = () => (
                   <Route path="/payment-reminders" element={<PaymentRemindersDashboard />} />
                   <Route path="/purchase-reminders" element={<PurchaseReminders />} />
                   <Route path="/requisitions" element={<RequisitionsManagement />} />
+                  <Route path="/dotacion-quincenal" element={<DotacionQuincenal />} />
                 </Route>
                 <Route path="/requisitions/print/:id" element={<PrintRequisition />} />
                 <Route path="*" element={<NotFound />} />
