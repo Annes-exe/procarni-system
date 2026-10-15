@@ -315,6 +315,13 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       const maBultosText = ma
         ? `${ma.bultosToBuy} bultos${ma.manualAdjustment !== 0 ? ` (${ma.manualAdjustment > 0 ? `+${ma.manualAdjustment}` : ma.manualAdjustment} aj.)` : ''}`
         : '0 bultos';
+      const formatBufferText = (itemCalc: typeof pc) => {
+        if (!itemCalc) return '0 und';
+        if (itemCalc.optimizationNote) return itemCalc.optimizationNote;
+        if (itemCalc.surplusUnits === 0) return 'Exacto';
+        if (itemCalc.surplusUnits > 0) return `+${itemCalc.surplusUnits} und buffer`;
+        return `${itemCalc.surplusUnits} und (compensado)`;
+      };
 
       detailRows.push([
         it.productName,
@@ -324,7 +331,7 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
         pc?.stockDeductionUnits ? `-${pc.stockDeductionUnits} und` : '0',
         `${pc?.netUnitsNeeded || 0} und (calc: ${pc?.calculatedBultos || 0} b)`,
         pcBultosText,
-        pc?.optimizationNote || (pc?.surplusUnits ? `+${pc.surplusUnits} und buffer` : 'Exacto'),
+        formatBufferText(pc),
       ]);
 
       detailRows.push([
@@ -335,7 +342,7 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
         ma?.stockDeductionUnits ? `-${ma.stockDeductionUnits} und` : '0',
         `${ma?.netUnitsNeeded || 0} und (calc: ${ma?.calculatedBultos || 0} b)`,
         maBultosText,
-        ma?.optimizationNote || (ma?.surplusUnits ? `+${ma.surplusUnits} und buffer` : 'Exacto'),
+        formatBufferText(ma),
       ]);
     });
 
