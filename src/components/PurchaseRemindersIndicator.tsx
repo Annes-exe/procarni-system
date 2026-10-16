@@ -77,11 +77,20 @@ export const PurchaseRemindersIndicator: React.FC = () => {
   // Handle Generate PO from Popover
   const handleGeneratePo = (reminder: PurchaseReminder) => {
     setIsOpen(false);
-    navigate('/generate-po', {
-      state: {
-        fromReminder: reminder,
-        supplier: reminder.suppliers || (reminder.supplier_id ? { id: reminder.supplier_id, name: '' } : undefined),
-        suggestedItems: reminder.material_name ? [
+    
+    const suggestedItems = reminder.items && reminder.items.length > 0
+      ? reminder.items.map((it) => ({
+          material_id: it.material_id || undefined,
+          material_name: it.material_name,
+          quantity: it.quantity || 1,
+          unit: it.unit_name || reminder.unit_name || reminder.units_of_measure?.name || 'UND',
+          unit_id: it.unit_id || undefined,
+          unit_price: it.estimated_price || 0,
+          tax_rate: 0.16,
+          is_exempt: false,
+          description: reminder.description || `Recordatorio: ${reminder.title}`
+        }))
+      : reminder.material_name ? [
           {
             material_id: reminder.material_id || undefined,
             material_name: reminder.material_name,
@@ -93,7 +102,13 @@ export const PurchaseRemindersIndicator: React.FC = () => {
             is_exempt: false,
             description: reminder.description || `Recordatorio: ${reminder.title}`
           }
-        ] : undefined
+        ] : undefined;
+
+    navigate('/generate-po', {
+      state: {
+        fromReminder: reminder,
+        supplier: reminder.suppliers || (reminder.supplier_id ? { id: reminder.supplier_id, name: '' } : undefined),
+        suggestedItems
       }
     });
   };
@@ -265,10 +280,15 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                     return (
                       <div
                         key={reminder.id}
+                        onClick={() => {
+                          setIsOpen(false);
+                          navigate('/purchase-reminders');
+                        }}
                         className={cn(
-                          "p-2.5 border border-gray-100 hover:bg-slate-50/80 rounded-2xl transition-all space-y-1.5 relative group",
+                          "p-2.5 border border-gray-100 hover:bg-slate-50/80 rounded-2xl transition-all space-y-1.5 relative group cursor-pointer hover:border-procarni-primary/30 hover:shadow-xs",
                           isCompleted && "opacity-60 bg-gray-50/50"
                         )}
+                        title="Hacer clic para abrir en el panel de recordatorios"
                       >
                         {/* Row 1: Priority dot, Title, Recurrence badge, Date badge, Check */}
                         <div className="flex items-start justify-between gap-2">
@@ -298,7 +318,10 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                             {getDueDateLabel(reminder.due_date)}
                             <button
                               type="button"
-                              onClick={() => toggleMutation.mutate(reminder)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMutation.mutate(reminder);
+                              }}
                               className={cn(
                                 "w-6 h-6 rounded-lg border flex items-center justify-center transition-all",
                                 isCompleted
@@ -319,14 +342,21 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                         </div>
 
                         {/* Row 2 (if purchase): Material / Supplier info & Generar OC button */}
-                        {isPurchase && (reminder.material_name || reminder.supplier_id) && (
+                        {isPurchase && (reminder.material_name || reminder.supplier_id || (reminder.items && reminder.items.length > 0)) && (
                           <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80 text-[11px]">
                             <div className="flex items-center gap-1.5 text-gray-600 truncate min-w-0">
                               <Package className="w-3 h-3 text-procarni-primary shrink-0" />
                               <span className="font-semibold truncate">
-                                {reminder.material_name}
+                                {reminder.items && reminder.items.length > 0 
+                                  ? reminder.items[0].material_name 
+                                  : reminder.material_name}
                               </span>
-                              {reminder.quantity ? (
+                              {reminder.items && reminder.items.length > 1 && (
+                                <span className="text-[9px] font-bold text-procarni-blue bg-blue-50 border border-blue-200/60 px-1.5 py-0.2 rounded shrink-0">
+                                  +{reminder.items.length - 1} más
+                                </span>
+                              )}
+                              {reminder.quantity && (!reminder.items || reminder.items.length <= 1) ? (
                                 <span className="font-mono text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">
                                   {reminder.quantity} {reminder.unit_name || 'UND'}
                                 </span>
@@ -337,7 +367,10 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                             {!reminder.purchase_order_id ? (
                               <Button
                                 size="sm"
-                                onClick={() => handleGeneratePo(reminder)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGeneratePo(reminder);
+                                }}
                                 className="h-6 px-2 text-[10px] font-bold rounded-lg bg-procarni-primary hover:bg-procarni-primary/90 text-white flex items-center gap-1 shrink-0"
                               >
                                 <ShoppingCart className="w-3 h-3" />
@@ -346,7 +379,8 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setIsOpen(false);
                                   navigate(`/purchase-orders/${reminder.purchase_order_id}`);
                                 }}

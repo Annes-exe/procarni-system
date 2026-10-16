@@ -143,11 +143,19 @@ const PurchaseReminders: React.FC = () => {
 
   // Handle "Generar OC" Action
   const handleGeneratePoFromReminder = (reminder: PurchaseReminder) => {
-    navigate('/generate-po', {
-      state: {
-        fromReminder: reminder,
-        supplier: reminder.suppliers || (reminder.supplier_id ? { id: reminder.supplier_id, name: '' } : undefined),
-        suggestedItems: reminder.material_name ? [
+    const suggestedItems = reminder.items && reminder.items.length > 0
+      ? reminder.items.map((it) => ({
+          material_id: it.material_id || undefined,
+          material_name: it.material_name,
+          quantity: it.quantity || 1,
+          unit: it.unit_name || reminder.unit_name || reminder.units_of_measure?.name || 'UND',
+          unit_id: it.unit_id || undefined,
+          unit_price: it.estimated_price || 0,
+          tax_rate: 0.16,
+          is_exempt: false,
+          description: reminder.description || `Recordatorio: ${reminder.title}`
+        }))
+      : reminder.material_name ? [
           {
             material_id: reminder.material_id || undefined,
             material_name: reminder.material_name,
@@ -159,7 +167,13 @@ const PurchaseReminders: React.FC = () => {
             is_exempt: false,
             description: reminder.description || `Recordatorio: ${reminder.title}`
           }
-        ] : undefined
+        ] : undefined;
+
+    navigate('/generate-po', {
+      state: {
+        fromReminder: reminder,
+        supplier: reminder.suppliers || (reminder.supplier_id ? { id: reminder.supplier_id, name: '' } : undefined),
+        suggestedItems
       }
     });
   };
@@ -583,9 +597,22 @@ const PurchaseReminders: React.FC = () => {
                       </div>
 
                       {/* Material Purchase Details Block */}
-                      {reminder.reminder_type === 'material_purchase' && (reminder.material_name || reminder.supplier_id) && (
+                      {reminder.reminder_type === 'material_purchase' && (reminder.material_name || reminder.supplier_id || (reminder.items && reminder.items.length > 0)) && (
                         <div className="p-3.5 rounded-2xl bg-gray-50/80 border border-gray-100 space-y-2 mb-4">
-                          {reminder.material_name && (
+                          {reminder.items && reminder.items.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {reminder.items.map((it, idx) => (
+                                <div key={it.id || idx} className="flex items-center justify-between text-xs py-0.5 border-b border-gray-100/60 last:border-b-0">
+                                  <span className="font-semibold text-gray-700 truncate max-w-[190px]" title={it.material_name}>
+                                    {it.material_name}
+                                  </span>
+                                  <span className="font-mono font-bold text-procarni-dark bg-white px-2 py-0.5 rounded-lg border text-[10px] shrink-0">
+                                    {it.quantity ?? 1} {it.unit_name || reminder.units_of_measure?.name || 'UND'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : reminder.material_name ? (
                             <div className="flex items-center justify-between text-xs">
                               <span className="font-semibold text-gray-700 truncate max-w-[180px]">
                                 {reminder.material_name}
@@ -594,10 +621,10 @@ const PurchaseReminders: React.FC = () => {
                                 {reminder.quantity ?? 1} {reminder.unit_name || reminder.units_of_measure?.name || 'UND'}
                               </span>
                             </div>
-                          )}
+                          ) : null}
 
                           {reminder.suppliers?.name && (
-                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 truncate">
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 truncate pt-1 border-t border-gray-100">
                               <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                               <span className="truncate">{reminder.suppliers.name}</span>
                             </div>

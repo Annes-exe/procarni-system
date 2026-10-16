@@ -269,7 +269,25 @@ const GeneratePurchaseOrder = () => {
 
         clearCart();
 
-        if (reminder.material_name || reminder.material_id) {
+        if (Array.isArray(reminder.items) && reminder.items.length > 0) {
+          reminder.items.forEach((item: any) => {
+            const unitObj = units.find((u: any) => u.id === item.unit_id || u.name?.toLowerCase() === item.unit_name?.toLowerCase());
+            addItem({
+              material_id: item.material_id || undefined,
+              material_name: item.material_name || reminder.title,
+              supplier_code: '',
+              quantity: item.quantity || 1,
+              unit_price: item.estimated_price || 0,
+              tax_rate: 0.16,
+              is_exempt: false,
+              unit: item.unit_name || unitObj?.name || (units[0]?.name || 'UND'),
+              unit_id: item.unit_id || unitObj?.id || undefined,
+              description: reminder.description || `Recordatorio: ${reminder.title}`,
+              sales_percentage: 0,
+              discount_percentage: 0,
+            });
+          });
+        } else if (reminder.material_name || reminder.material_id) {
           addItem({
             material_id: reminder.material_id || undefined,
             material_name: reminder.material_name || reminder.title,

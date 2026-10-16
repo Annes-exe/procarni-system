@@ -31,15 +31,27 @@ import {
   Sparkles,
   Loader2,
   Repeat,
-  RotateCw
+  RotateCw,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAllUnits, searchMaterials, searchSuppliers } from '@/integrations/supabase/data';
 import SmartSearch from '@/components/SmartSearch';
 import { purchaseReminderService, CreatePurchaseReminderPayload } from '@/integrations/supabase/services/purchaseReminderService';
-import { PurchaseReminder } from '@/integrations/supabase/types';
+import { PurchaseReminder, PurchaseReminderItem } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 import { showError } from '@/utils/toast';
+
+interface DialogItemRow {
+  tempId: string;
+  material_id?: string | null;
+  material_name: string;
+  quantity: number | '';
+  unit_id?: string;
+  unit_name: string;
+  estimated_price?: number | '';
+}
 
 interface PurchaseReminderDialogProps {
   open: boolean;
@@ -81,15 +93,12 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
   const [recurrenceInterval, setRecurrenceInterval] = useState<'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom'>('weekly');
   const [recurrenceDays, setRecurrenceDays] = useState<number | ''>(7);
 
-  // Material / Purchase Fields
-  const [materialId, setMaterialId] = useState<string | null>(null);
-  const [materialName, setMaterialName] = useState('');
+  // Items State (Multi-Item Support)
+  const [items, setItems] = useState<DialogItemRow[]>([]);
+
+  // Supplier & Currency
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [supplierName, setSupplierName] = useState('');
-  const [quantity, setQuantity] = useState<number | ''>(1);
-  const [unitId, setUnitId] = useState<string>('');
-  const [unitName, setUnitName] = useState<string>('UND');
-  const [estimatedPrice, setEstimatedPrice] = useState<number | ''>('');
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -111,15 +120,41 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
         setIsRecurring(Boolean(reminderToEdit.is_recurring));
         setRecurrenceInterval(reminderToEdit.recurrence_interval || 'weekly');
         setRecurrenceDays(reminderToEdit.recurrence_days ?? 7);
-        setMaterialId(reminderToEdit.material_id || null);
-        setMaterialName(reminderToEdit.material_name || '');
         setSupplierId(reminderToEdit.supplier_id || null);
         setSupplierName(reminderToEdit.suppliers?.name || '');
-        setQuantity(reminderToEdit.quantity ?? 1);
-        setUnitId(reminderToEdit.unit_id || '');
-        setUnitName(reminderToEdit.unit_name || 'UND');
-        setEstimatedPrice(reminderToEdit.estimated_price ?? '');
         setCurrency(reminderToEdit.currency || 'USD');
+
+        if (Array.isArray(reminderToEdit.items) && reminderToEdit.items.length > 0) {
+          setItems(reminderToEdit.items.map((it, idx) => ({
+            tempId: it.id || `edit-item-${idx}-${Date.now()}`,
+            material_id: it.material_id || null,
+            material_name: it.material_name || '',
+            quantity: it.quantity ?? 1,
+            unit_id: it.unit_id || '',
+            unit_name: it.unit_name || 'UND',
+            estimated_price: it.estimated_price ?? ''
+          })));
+        } else if (reminderToEdit.material_name || reminderToEdit.material_id) {
+          setItems([{
+            tempId: 'edit-initial',
+            material_id: reminderToEdit.material_id || null,
+            material_name: reminderToEdit.material_name || '',
+            quantity: reminderToEdit.quantity ?? 1,
+            unit_id: reminderToEdit.unit_id || '',
+            unit_name: reminderToEdit.unit_name || 'UND',
+            estimated_price: reminderToEdit.estimated_price ?? ''
+          }]);
+        } else {
+          setItems([{
+            tempId: 'initial',
+            material_id: null,
+            material_name: '',
+            quantity: 1,
+            unit_id: units[0]?.id || '',
+            unit_name: units[0]?.name || 'UND',
+            estimated_price: ''
+          }]);
+        }
       } else {
         setReminderType('material_purchase');
         setTitle(defaultMaterial ? `Comprar ${defaultMaterial.name}` : '');
@@ -133,46 +168,93 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
         tomorrow.setDate(tomorrow.getDate() + 1);
         setDueDate(tomorrow.toISOString().split('T')[0]);
 
-        setMaterialId(defaultMaterial?.id || null);
-        setMaterialName(defaultMaterial?.name || '');
         setSupplierId(defaultSupplier?.id || null);
         setSupplierName(defaultSupplier?.name || '');
-        setQuantity(1);
-        
-        const initialUnit = defaultMaterial?.unit_id 
-          ? defaultMaterial.unit_id 
-          : units.length > 0 ? units[0].id : '';
-        const initialUnitName = defaultMaterial?.unit 
-          ? defaultMaterial.unit 
-          : units.length > 0 ? units[0].name : 'UND';
-
-        setUnitId(initialUnit);
-        setUnitName(initialUnitName);
-        setEstimatedPrice('');
         setCurrency('USD');
+
+        const initialUnitId = defaultMaterial?.unit_id || (units.length > 0 ? units[0].id : '');
+        const initialUnitName = defaultMaterial?.unit || (units.length > 0 ? units[0].name : 'UND');
+
+        setItems([{
+          tempId: 'new-initial',
+          material_id: defaultMaterial?.id || null,
+          material_name: defaultMaterial?.name || '',
+          quantity: 1,
+          unit_id: initialUnitId,
+          unit_name: initialUnitName,
+          estimated_price: ''
+        }]);
       }
     }
   }, [open, reminderToEdit, defaultMaterial, defaultSupplier, units]);
 
-  // Handle Material Selection from SmartSearch
-  const handleMaterialSelect = (item: any) => {
-    setMaterialId(item.id);
-    setMaterialName(item.name);
-    
-    // Auto title if empty or default
+  // Suggest title based on items
+  const updateTitleSuggestion = (updatedItems: DialogItemRow[]) => {
+    const named = updatedItems.map(i => i.material_name.trim()).filter(Boolean);
+    if (named.length === 0) return;
     if (!title || title.startsWith('Comprar ')) {
-      setTitle(`Comprar ${item.name}`);
+      if (named.length === 1) {
+        setTitle(`Comprar ${named[0]}`);
+      } else if (named.length === 2) {
+        setTitle(`Comprar ${named[0]} y ${named[1]}`);
+      } else {
+        setTitle(`Comprar ${named[0]} (+${named.length - 1} más)`);
+      }
+    }
+  };
+
+  // Add Item Row
+  const handleAddItem = () => {
+    const defaultUnit = units.length > 0 ? units[0] : null;
+    setItems(prev => [
+      ...prev,
+      {
+        tempId: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        material_id: null,
+        material_name: '',
+        quantity: 1,
+        unit_id: defaultUnit?.id || '',
+        unit_name: defaultUnit?.name || 'UND',
+        estimated_price: ''
+      }
+    ]);
+  };
+
+  // Remove Item Row
+  const handleRemoveItem = (tempId: string) => {
+    if (items.length <= 1) return;
+    setItems(prev => prev.filter(i => i.tempId !== tempId));
+  };
+
+  // Update Item Row
+  const handleUpdateItem = (tempId: string, updates: Partial<DialogItemRow>) => {
+    setItems(prev => {
+      const next = prev.map(i => i.tempId === tempId ? { ...i, ...updates } : i);
+      if ('material_name' in updates) {
+        updateTitleSuggestion(next);
+      }
+      return next;
+    });
+  };
+
+  // Handle Material Selection from SmartSearch for a specific item row
+  const handleItemMaterialSelect = (tempId: string, mat: any) => {
+    let uId = mat.unit_id || '';
+    let uName = mat.unit || 'UND';
+    if (mat.unit_id) {
+      const foundUnit = units.find((u: any) => u.id === mat.unit_id);
+      if (foundUnit) uName = foundUnit.name;
+    } else if (mat.unit) {
+      const foundUnit = units.find((u: any) => u.name.toLowerCase() === mat.unit.toLowerCase());
+      if (foundUnit) uId = foundUnit.id;
     }
 
-    if (item.unit_id) {
-      setUnitId(item.unit_id);
-      const foundUnit = units.find((u: any) => u.id === item.unit_id);
-      if (foundUnit) setUnitName(foundUnit.name);
-    } else if (item.unit) {
-      setUnitName(item.unit);
-      const foundUnit = units.find((u: any) => u.name.toLowerCase() === item.unit.toLowerCase());
-      if (foundUnit) setUnitId(foundUnit.id);
-    }
+    handleUpdateItem(tempId, {
+      material_id: mat.id,
+      material_name: mat.name,
+      unit_id: uId,
+      unit_name: uName
+    });
   };
 
   // Handle Supplier Selection
@@ -198,6 +280,26 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
       return;
     }
 
+    const cleanedItems = reminderType === 'material_purchase'
+      ? items
+          .filter(i => i.material_name.trim().length > 0)
+          .map(i => ({
+            material_id: i.material_id || null,
+            material_name: i.material_name.trim(),
+            quantity: i.quantity === '' ? 1 : Number(i.quantity),
+            unit_id: i.unit_id || null,
+            unit_name: i.unit_name || null,
+            estimated_price: i.estimated_price !== '' && i.estimated_price !== undefined ? Number(i.estimated_price) : null
+          }))
+      : [];
+
+    if (reminderType === 'material_purchase' && cleanedItems.length === 0) {
+      showError('Por favor indica al menos un material o insumo a comprar.');
+      return;
+    }
+
+    const firstItem = cleanedItems[0] || null;
+
     setIsSubmitting(true);
     try {
       const payload: CreatePurchaseReminderPayload = {
@@ -206,14 +308,15 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
         reminder_type: reminderType,
         priority,
         due_date: dueDate ? new Date(`${dueDate}T12:00:00Z`).toISOString() : null,
-        material_id: reminderType === 'material_purchase' ? materialId : null,
-        material_name: reminderType === 'material_purchase' ? (materialName.trim() || null) : null,
+        material_id: firstItem?.material_id || null,
+        material_name: firstItem?.material_name || null,
         supplier_id: reminderType === 'material_purchase' ? supplierId : null,
-        quantity: reminderType === 'material_purchase' && quantity !== '' ? Number(quantity) : null,
-        unit_id: reminderType === 'material_purchase' ? (unitId || null) : null,
-        unit_name: reminderType === 'material_purchase' ? (unitName || null) : null,
-        estimated_price: reminderType === 'material_purchase' && estimatedPrice !== '' ? Number(estimatedPrice) : null,
+        quantity: firstItem?.quantity ?? null,
+        unit_id: firstItem?.unit_id || null,
+        unit_name: firstItem?.unit_name || null,
+        estimated_price: firstItem?.estimated_price ?? null,
         currency,
+        items: cleanedItems,
         is_recurring: isRecurring,
         recurrence_interval: isRecurring ? recurrenceInterval : null,
         recurrence_days: isRecurring ? (recurrenceInterval === 'custom' ? Number(recurrenceDays || 7) : recurrenceInterval === 'daily' ? 1 : recurrenceInterval === 'weekly' ? 7 : recurrenceInterval === 'biweekly' ? 15 : 30) : null
@@ -306,118 +409,159 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
             />
           </div>
 
-          {/* Si es Compra de Insumo: Selector de Material, Cantidad, Unidad, Proveedor */}
+          {/* Si es Compra de Insumo: Lista de Materiales / Ítems Dinámicos */}
           {reminderType === 'material_purchase' && (
-            <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-100/60 space-y-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-procarni-blue">
-                <Package className="w-4 h-4 text-procarni-primary" />
-                <span>Detalles del Ítem a Comprar (Para generar OC)</span>
+            <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/40 border border-blue-100/60 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-procarni-blue">
+                  <Package className="w-4 h-4 text-procarni-primary" />
+                  <span>Materiales / Insumos a Comprar ({items.length})</span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddItem}
+                  className="h-7 px-2.5 rounded-xl text-[11px] font-bold text-procarni-primary border-procarni-primary/30 hover:bg-procarni-primary/5 flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Agregar Ítem
+                </Button>
               </div>
 
-              {/* Material Search */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                  Material / Insumo (del catálogo o personalizado)
-                </Label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <SmartSearch
-                      placeholder="Buscar material en catálogo..."
-                      displayValue={materialName}
-                      selectedId={materialId || undefined}
-                      fetchFunction={async (q) => {
-                        const res = await searchMaterials(q);
-                        return res.map(m => ({ id: m.id, name: m.name, unit: m.unit, unit_id: m.unit_id }));
-                      }}
-                      onSelect={handleMaterialSelect}
-                      className="w-full"
-                    />
+              {/* Lista dinámica de ítems */}
+              <div className="space-y-3">
+                {items.map((item, index) => (
+                  <div
+                    key={item.tempId}
+                    className="p-3 bg-white rounded-2xl border border-gray-200/80 shadow-xs space-y-2.5 relative group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-procarni-primary bg-procarni-primary/5 px-2 py-0.5 rounded-md">
+                        Ítem #{index + 1}
+                      </span>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.tempId)}
+                          className="h-6 w-6 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Eliminar este ítem"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Material SmartSearch */}
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                        Material / Insumo <span className="text-procarni-primary">*</span>
+                      </Label>
+                      <SmartSearch
+                        placeholder="Buscar material en catálogo o escribir nombre..."
+                        displayValue={item.material_name}
+                        selectedId={item.material_id || undefined}
+                        fetchFunction={async (q) => {
+                          const res = await searchMaterials(q);
+                          return res.map(m => ({ id: m.id, name: m.name, unit: m.unit, unit_id: m.unit_id }));
+                        }}
+                        onSelect={(mat) => handleItemMaterialSelect(item.tempId, mat)}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Cantidad, Unidad y Precio Estimado */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                          Cantidad
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="any"
+                          value={item.quantity}
+                          onChange={(e) => handleUpdateItem(item.tempId, {
+                            quantity: e.target.value === '' ? '' : parseFloat(e.target.value)
+                          })}
+                          placeholder="1"
+                          className="h-9 rounded-xl bg-gray-50/50 border-gray-200 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                          Unidad de Medida
+                        </Label>
+                        <Select
+                          value={item.unit_id || ''}
+                          onValueChange={(val) => {
+                            const found = units.find((u: any) => u.id === val);
+                            handleUpdateItem(item.tempId, {
+                              unit_id: val,
+                              unit_name: found ? found.name : item.unit_name
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-9 rounded-xl bg-gray-50/50 border-gray-200 text-xs">
+                            <SelectValue placeholder="Unidad" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {units.map((u: any) => (
+                              <SelectItem key={u.id} value={u.id} className="text-xs">
+                                {u.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                          Precio Unit. Est. ({currency})
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.estimated_price}
+                          onChange={(e) => handleUpdateItem(item.tempId, {
+                            estimated_price: e.target.value === '' ? '' : parseFloat(e.target.value)
+                          })}
+                          placeholder="0.00"
+                          className="h-9 rounded-xl bg-gray-50/50 border-gray-200 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                {materialName && !materialId && (
-                  <p className="text-[11px] text-amber-700 italic">
-                    * Nombre personalizado (no vinculado a catálogo maestro).
-                  </p>
-                )}
+                ))}
               </div>
 
-              {/* Cantidad y Unidad */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Cantidad a Comprar
-                  </Label>
-                  <Input
-                    type="number"
-                    min="0.01"
-                    step="any"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                    placeholder="1"
-                    className="h-10 rounded-xl bg-white border-gray-200 font-mono text-sm"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Unidad de Medida
-                  </Label>
-                  <Select value={unitId || ''} onValueChange={handleUnitChange}>
-                    <SelectTrigger className="h-10 rounded-xl bg-white border-gray-200 text-sm">
-                      <SelectValue placeholder="Seleccionar unidad" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.map((u: any) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Proveedor Sugerido (Opcional) */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                  Proveedor Sugerido (Opcional)
-                </Label>
-                <SmartSearch
-                  placeholder="Buscar proveedor sugerido..."
-                  displayValue={supplierName}
-                  selectedId={supplierId || undefined}
-                  fetchFunction={async (q) => {
-                    const res = await searchSuppliers(q);
-                    return res.map(s => ({ id: s.id, name: s.name, rif: s.rif }));
-                  }}
-                  onSelect={handleSupplierSelect}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Precio Estimado y Moneda (Opcional) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Proveedor Sugerido y Moneda */}
+              <div className="pt-2 border-t border-blue-100/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2 space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Precio Estimado Unitario (Opcional)
+                    Proveedor Sugerido (Opcional)
                   </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={estimatedPrice}
-                    onChange={(e) => setEstimatedPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                    placeholder="0.00"
-                    className="h-10 rounded-xl bg-white border-gray-200 font-mono text-sm"
+                  <SmartSearch
+                    placeholder="Buscar proveedor sugerido..."
+                    displayValue={supplierName}
+                    selectedId={supplierId || undefined}
+                    fetchFunction={async (q) => {
+                      const res = await searchSuppliers(q);
+                      return res.map(s => ({ id: s.id, name: s.name, rif: s.rif }));
+                    }}
+                    onSelect={handleSupplierSelect}
+                    className="w-full"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    Moneda
+                    Moneda Estimada
                   </Label>
                   <Select value={currency} onValueChange={(val: any) => setCurrency(val)}>
-                    <SelectTrigger className="h-10 rounded-xl bg-white border-gray-200 text-sm">
+                    <SelectTrigger className="h-10 rounded-xl bg-white border-gray-200 text-xs font-semibold">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

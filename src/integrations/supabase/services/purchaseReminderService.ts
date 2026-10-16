@@ -1,5 +1,5 @@
 import { supabase } from '../client';
-import { PurchaseReminder } from '../types';
+import { PurchaseReminder, PurchaseReminderItem } from '../types';
 import { showError, showSuccess } from '@/utils/toast';
 
 export interface CreatePurchaseReminderPayload {
@@ -16,6 +16,7 @@ export interface CreatePurchaseReminderPayload {
   unit_name?: string | null;
   estimated_price?: number | null;
   currency?: 'USD' | 'VES' | 'EUR';
+  items?: PurchaseReminderItem[] | null;
   is_recurring?: boolean | null;
   recurrence_interval?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom' | null;
   recurrence_days?: number | null;
@@ -60,6 +61,27 @@ export const calculateNextDueDate = (
   return nextDate.toISOString();
 };
 
+const normalizeReminder = (r: any): PurchaseReminder => {
+  let items: PurchaseReminderItem[] = [];
+  if (Array.isArray(r.items) && r.items.length > 0) {
+    items = r.items;
+  } else if (r.material_name || r.material_id) {
+    items = [{
+      material_id: r.material_id,
+      material_name: r.material_name || r.title,
+      quantity: r.quantity || 1,
+      unit_id: r.unit_id,
+      unit_name: r.unit_name || r.units_of_measure?.name || 'UND',
+      estimated_price: r.estimated_price
+    }];
+  }
+
+  return {
+    ...r,
+    items
+  } as PurchaseReminder;
+};
+
 export const purchaseReminderService = {
   async getReminders(filter?: {
     status?: string;
@@ -96,7 +118,7 @@ export const purchaseReminderService = {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data as unknown as PurchaseReminder[]) || [];
+      return (data || []).map(normalizeReminder);
     } catch (error: unknown) {
       const err = error as Error;
       console.error('[purchaseReminderService.getReminders] Error:', err);
@@ -119,7 +141,7 @@ export const purchaseReminderService = {
         .single();
 
       if (error) throw error;
-      return data as unknown as PurchaseReminder;
+      return data ? normalizeReminder(data) : null;
     } catch (error: unknown) {
       const err = error as Error;
       console.error('[purchaseReminderService.getReminderById] Error:', err);
@@ -135,30 +157,44 @@ export const purchaseReminderService = {
         return null;
       }
 
-      const { data, error } = await supabase
+      const firstItem = payload.items && payload.items.length > 0 ? payload.items[0] : null;
+      const materialId = payload.material_id !== undefined ? payload.material_id : (firstItem?.material_id || null);
+      const materialName = payload.material_name !== undefined ? payload.material_name : (firstItem?.material_name?.trim() || null);
+      const quantity = payload.quantity !== undefined ? payload.quantity : (firstItem?.quantity ?? null);
+      const unitId = payload.unit_id !== undefined ? payload.unit_id : (firstItem?.unit_id || null);
+      const unitName = payload.unit_name !== undefined ? payload.unit_name : (firstItem?.unit_name?.trim() || null);
+      const estimatedPrice = payload.estimated_price !== undefined ? payload.estimated_price : (firstItem?.estimated_price ?? null);
+
+      const insertBody: Record<string, any> = {
+        user_id: session.user.id,
+        title: payload.title.trim(),
+        description: payload.description?.trim() || null,
+        reminder_type: payload.reminder_type,
+        priority: payload.priority || 'media',
+        due_date: payload.due_date || null,
+        status: 'pending',
+        material_id: materialId,
+        material_name: materialName,
+        supplier_id: payload.supplier_id || null,
+        quantity: quantity,
+        unit_id: unitId,
+        unit_name: unitName,
+        estimated_price: estimatedPrice,
+        currency: payload.currency || 'USD',
+        is_recurring: Boolean(payload.is_recurring),
+        recurrence_interval: payload.is_recurring ? (payload.recurrence_interval || 'weekly') : null,
+        recurrence_days: payload.is_recurring ? (payload.recurrence_days || null) : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (payload.items && payload.items.length > 0) {
+        insertBody.items = payload.items;
+      }
+
+      let res = await supabase
         .from('purchase_reminders')
-        .insert({
-          user_id: session.user.id,
-          title: payload.title.trim(),
-          description: payload.description?.trim() || null,
-          reminder_type: payload.reminder_type,
-          priority: payload.priority || 'media',
-          due_date: payload.due_date || null,
-          status: 'pending',
-          material_id: payload.material_id || null,
-          material_name: payload.material_name?.trim() || null,
-          supplier_id: payload.supplier_id || null,
-          quantity: payload.quantity || null,
-          unit_id: payload.unit_id || null,
-          unit_name: payload.unit_name?.trim() || null,
-          estimated_price: payload.estimated_price || null,
-          currency: payload.currency || 'USD',
-          is_recurring: Boolean(payload.is_recurring),
-          recurrence_interval: payload.is_recurring ? (payload.recurrence_interval || 'weekly') : null,
-          recurrence_days: payload.is_recurring ? (payload.recurrence_days || null) : null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert(insertBody)
         .select(`
           *,
           materials ( id, name, code, unit, unit_id ),
@@ -167,9 +203,25 @@ export const purchaseReminderService = {
         `)
         .single();
 
-      if (error) throw error;
+      // Fallback if column `items` does not exist yet in DB schema
+      if (res.error && (res.error as any).code === '42703' && insertBody.items !== undefined) {
+        console.warn('[purchaseReminderService] Columna "items" no existe aún en la BD. Guardando sin items para compatibilidad.');
+        delete insertBody.items;
+        res = await supabase
+          .from('purchase_reminders')
+          .insert(insertBody)
+          .select(`
+            *,
+            materials ( id, name, code, unit, unit_id ),
+            suppliers ( id, name, rif ),
+            purchase_orders ( id, sequence_number, status, created_at )
+          `)
+          .single();
+      }
+
+      if (res.error) throw res.error;
       showSuccess(payload.is_recurring ? 'Recordatorio recurrente programado' : 'Recordatorio guardado correctamente');
-      return data as unknown as PurchaseReminder;
+      return res.data ? normalizeReminder(res.data) : null;
     } catch (error: unknown) {
       const err = error as Error;
       console.error('[purchaseReminderService.createReminder] Error:', err);
@@ -180,12 +232,30 @@ export const purchaseReminderService = {
 
   async updateReminder(id: string, updates: UpdatePurchaseReminderPayload): Promise<PurchaseReminder | null> {
     try {
-      const { data, error } = await supabase
+      const updateBody: Record<string, any> = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+
+      if (updates.items && updates.items.length > 0) {
+        const first = updates.items[0];
+        if (updates.material_name === undefined && first.material_name) {
+          updateBody.material_name = first.material_name;
+        }
+        if (updates.quantity === undefined && first.quantity) {
+          updateBody.quantity = first.quantity;
+        }
+        if (updates.unit_name === undefined && first.unit_name) {
+          updateBody.unit_name = first.unit_name;
+        }
+        if (updates.estimated_price === undefined && first.estimated_price !== undefined) {
+          updateBody.estimated_price = first.estimated_price;
+        }
+      }
+
+      let res = await supabase
         .from('purchase_reminders')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateBody)
         .eq('id', id)
         .select(`
           *,
@@ -195,9 +265,25 @@ export const purchaseReminderService = {
         `)
         .single();
 
-      if (error) throw error;
+      // Fallback if column `items` does not exist yet
+      if (res.error && (res.error as any).code === '42703' && updateBody.items !== undefined) {
+        delete updateBody.items;
+        res = await supabase
+          .from('purchase_reminders')
+          .update(updateBody)
+          .eq('id', id)
+          .select(`
+            *,
+            materials ( id, name, code, unit, unit_id ),
+            suppliers ( id, name, rif ),
+            purchase_orders ( id, sequence_number, status, created_at )
+          `)
+          .single();
+      }
+
+      if (res.error) throw res.error;
       showSuccess('Recordatorio actualizado');
-      return data as unknown as PurchaseReminder;
+      return res.data ? normalizeReminder(res.data) : null;
     } catch (error: unknown) {
       const err = error as Error;
       console.error('[purchaseReminderService.updateReminder] Error:', err);

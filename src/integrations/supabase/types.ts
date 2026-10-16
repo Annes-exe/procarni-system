@@ -487,6 +487,16 @@ export type Requisition = {
 };
 
 // --- TYPES FOR PURCHASE REMINDERS ---
+export interface PurchaseReminderItem {
+  id?: string;
+  material_id?: string | null;
+  material_name: string;
+  quantity: number;
+  unit_id?: string | null;
+  unit_name?: string | null;
+  estimated_price?: number | null;
+}
+
 export type PurchaseReminder = {
   id: string;
   user_id: string;
@@ -504,6 +514,7 @@ export type PurchaseReminder = {
   unit_name: string | null;
   estimated_price: number | null;
   currency: 'USD' | 'VES' | 'EUR';
+  items?: PurchaseReminderItem[] | null;
   purchase_order_id: string | null;
   is_recurring?: boolean | null;
   recurrence_interval?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom' | null;
