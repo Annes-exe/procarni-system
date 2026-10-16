@@ -23,6 +23,7 @@ interface SmartSearchProps {
   autoFocus?: boolean;
   icon?: React.ReactNode; // New prop for icon
   onCreateItem?: (query: string) => void; // New prop for creating item
+  modal?: boolean; // Controls whether Popover is modal (true is recommended when inside Dialogs to allow wheel scrolling)
 }
 
 const SmartSearch: React.FC<SmartSearchProps> = ({
@@ -35,7 +36,8 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   className,
   autoFocus,
   icon,
-  onCreateItem
+  onCreateItem,
+  modal = false
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -110,9 +112,24 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
   };
 
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.stopPropagation();
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [open, results]);
 
   return (
-    <Popover modal={false} open={open && !disabled} onOpenChange={(newOpen) => {
+    <Popover modal={modal} open={open && !disabled} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (newOpen) {
         // Clear query when opening to allow a fresh search immediately
@@ -141,7 +158,11 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 ml-1" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent 
+        className="w-[--radix-popover-trigger-width] p-0 z-50 pointer-events-auto" 
+        align="start"
+        onWheel={(e) => e.stopPropagation()}
+      >
         <Command shouldFilter={false}>
           <CommandInput
             placeholder={placeholder}
@@ -149,7 +170,13 @@ const SmartSearch: React.FC<SmartSearchProps> = ({
             onValueChange={setQuery}
             autoFocus
           />
-          <CommandList className="max-h-60 overflow-y-auto">
+          <CommandList 
+            ref={listRef}
+            className="max-h-60 overflow-y-auto overscroll-contain touch-pan-y"
+            onWheelCapture={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMoveCapture={(e) => e.stopPropagation()}
+          >
             <CommandEmpty>
               No se encontraron resultados.
               {onCreateItem && query.trim() && (

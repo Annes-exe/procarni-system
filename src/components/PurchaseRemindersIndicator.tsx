@@ -285,36 +285,36 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                           navigate('/purchase-reminders');
                         }}
                         className={cn(
-                          "p-2.5 border border-gray-100 hover:bg-slate-50/80 rounded-2xl transition-all space-y-1.5 relative group cursor-pointer hover:border-procarni-primary/30 hover:shadow-xs",
+                          "p-2.5 border border-gray-100 hover:bg-slate-50/80 rounded-2xl transition-all space-y-1.5 relative group cursor-pointer hover:border-procarni-primary/30 hover:shadow-xs w-full min-w-0 overflow-hidden",
                           isCompleted && "opacity-60 bg-gray-50/50"
                         )}
                         title="Hacer clic para abrir en el panel de recordatorios"
                       >
                         {/* Row 1: Priority dot, Title, Recurrence badge, Date badge, Check */}
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2 w-full min-w-0">
                           <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <div className="mt-1">{getPriorityDot(reminder.priority)}</div>
+                            <div className="mt-1 shrink-0">{getPriorityDot(reminder.priority)}</div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className={cn("text-xs font-bold text-procarni-dark truncate", isCompleted && "line-through text-gray-400")}>
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0 max-w-full">
+                                <p className={cn("text-xs font-bold text-procarni-dark truncate max-w-full", isCompleted && "line-through text-gray-400")}>
                                   {reminder.title}
                                 </p>
                                 {reminder.is_recurring && (
-                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full border border-amber-200">
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full border border-amber-200 shrink-0">
                                     <Repeat className="w-2.5 h-2.5 text-amber-700" />
                                     {reminder.recurrence_interval === 'daily' ? 'Diario' : reminder.recurrence_interval === 'biweekly' ? '15d' : reminder.recurrence_interval === 'monthly' ? 'Mensual' : reminder.recurrence_interval === 'custom' ? `${reminder.recurrence_days}d` : 'Semanal'}
                                   </span>
                                 )}
                               </div>
                               {reminder.description && (
-                                <p className="text-[11px] text-gray-500 truncate leading-snug">
+                                <p className="text-[11px] text-gray-500 line-clamp-2 break-words leading-relaxed max-w-full whitespace-normal">
                                   {reminder.description}
                                 </p>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0 ml-1">
                             {getDueDateLabel(reminder.due_date)}
                             <button
                               type="button"
@@ -323,7 +323,7 @@ export const PurchaseRemindersIndicator: React.FC = () => {
                                 toggleMutation.mutate(reminder);
                               }}
                               className={cn(
-                                "w-6 h-6 rounded-lg border flex items-center justify-center transition-all",
+                                "w-6 h-6 rounded-lg border flex items-center justify-center transition-all shrink-0",
                                 isCompleted
                                   ? "bg-green-600 text-white border-green-600"
                                   : reminder.is_recurring
@@ -343,10 +343,10 @@ export const PurchaseRemindersIndicator: React.FC = () => {
 
                         {/* Row 2 (if purchase): Material / Supplier info & Generar OC button */}
                         {isPurchase && (reminder.material_name || reminder.supplier_id || (reminder.items && reminder.items.length > 0)) && (
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80 text-[11px]">
-                            <div className="flex items-center gap-1.5 text-gray-600 truncate min-w-0">
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80 text-[11px] w-full min-w-0">
+                            <div className="flex items-center gap-1.5 text-gray-600 truncate min-w-0 flex-1">
                               <Package className="w-3 h-3 text-procarni-primary shrink-0" />
-                              <span className="font-semibold truncate">
+                              <span className="font-semibold truncate max-w-[170px]" title={reminder.items && reminder.items.length > 0 ? reminder.items[0].material_name : reminder.material_name || undefined}>
                                 {reminder.items && reminder.items.length > 0 
                                   ? reminder.items[0].material_name 
                                   : reminder.material_name}

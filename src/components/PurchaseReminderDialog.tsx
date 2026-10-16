@@ -461,6 +461,7 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
                         placeholder="Buscar material en catálogo o escribir nombre..."
                         displayValue={item.material_name}
                         selectedId={item.material_id || undefined}
+                        modal={true}
                         fetchFunction={async (q) => {
                           const res = await searchMaterials(q);
                           return res.map(m => ({ id: m.id, name: m.name, unit: m.unit, unit_id: m.unit_id }));
@@ -547,6 +548,7 @@ const PurchaseReminderDialog: React.FC<PurchaseReminderDialogProps> = ({
                     placeholder="Buscar proveedor sugerido..."
                     displayValue={supplierName}
                     selectedId={supplierId || undefined}
+                    modal={true}
                     fetchFunction={async (q) => {
                       const res = await searchSuppliers(q);
                       return res.map(s => ({ id: s.id, name: s.name, rif: s.rif }));
