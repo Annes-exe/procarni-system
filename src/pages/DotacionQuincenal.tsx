@@ -1480,7 +1480,7 @@ export default function DotacionQuincenal() {
                     <strong>Comedor:</strong> +{comedor.kgPerDay * comedor.days} kg Arroz &nbsp;|&nbsp;
                     <strong>Finca:</strong> +{finca.bultosHarina} bulto{finca.bultosHarina > 1 ? 's' : ''} Harina ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und) &nbsp;|&nbsp;
                     <strong>Papel Planta:</strong> +{papelUsoDiarioBultos} bulto ({papelUsoDiarioBultos * presentations.papelUnitsPerPackage} und) &nbsp;|&nbsp;
-                    <strong>Cafetería:</strong> +${azucarUsoMesBultos} bulto${azucarUsoMesBultos === 1 ? '' : 's'} Azúcar (${Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg).
+                    <strong>Cafetería:</strong> +{azucarUsoMesBultos} bulto{azucarUsoMesBultos === 1 ? '' : 's'} Azúcar (${Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg).
                   </span>
                 </div>
               </div>
@@ -1660,26 +1660,25 @@ export default function DotacionQuincenal() {
                         <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                           Buffer Sobrante
                         </span>
-                        <span className={`font-mono font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded ${
-                          item.netSurplusUnits === 0
+                        <span className={`font-mono font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded ${item.netSurplusUnits === 0
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                             : (item.productId === 'arroz' || item.productId === 'papel' || item.productId === 'azucar'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : (item.isWithinTolerance && item.netSurplusUnits > 0
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                : (item.isWithinTolerance && item.netSurplusUnits > 0
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                    : (item.hasDeficitAlert ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700')))
-                        }`}>
+                                : (item.hasDeficitAlert ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700')))
+                          }`}>
                           {item.netSurplusUnits === 0
                             ? '0 und (Exacto)'
                             : (item.productId === 'arroz'
-                                ? `+${item.netSurplusUnits} kg (Comedor)`
-                                : (item.productId === 'papel'
-                                    ? `+${item.netSurplusUnits} rollos (Planta)`
-                                    : (item.productId === 'azucar'
-                                        ? `+${item.netSurplusUnits} kg (Cafetería)`
-                                        : (item.isWithinTolerance
-                                            ? `+${item.netSurplusUnits} und (≤${item.maxSurplusAllowed} tol.)`
-                                            : `+${item.netSurplusUnits} und`))))}
+                              ? `+${item.netSurplusUnits} kg (Comedor)`
+                              : (item.productId === 'papel'
+                                ? `+${item.netSurplusUnits} rollos (Planta)`
+                                : (item.productId === 'azucar'
+                                  ? `+${item.netSurplusUnits} kg (Cafetería)`
+                                  : (item.isWithinTolerance
+                                    ? `+${item.netSurplusUnits} und (≤${item.maxSurplusAllowed} tol.)`
+                                    : `+${item.netSurplusUnits} und`))))}
                         </span>
                       </div>
                     </div>
@@ -1894,26 +1893,25 @@ export default function DotacionQuincenal() {
 
                         {/* Buffer Sobrante */}
                         <TableCell className="text-center font-mono">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                            item.netSurplusUnits === 0
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${item.netSurplusUnits === 0
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : (item.productId === 'arroz' || item.productId === 'papel' || item.productId === 'azucar'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : (item.isWithinTolerance && item.netSurplusUnits > 0
                                   ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                  : (item.isWithinTolerance && item.netSurplusUnits > 0
-                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                      : (item.hasDeficitAlert ? 'bg-red-50 text-red-700 border border-red-200' : 'text-slate-600')))
-                          }`}>
+                                  : (item.hasDeficitAlert ? 'bg-red-50 text-red-700 border border-red-200' : 'text-slate-600')))
+                            }`}>
                             {item.netSurplusUnits === 0
                               ? '0 und (Exacto)'
                               : (item.productId === 'arroz'
-                                  ? `+${item.netSurplusUnits} kg (Comedor)`
-                                  : (item.productId === 'papel'
-                                      ? `+${item.netSurplusUnits} rollos (Planta)`
-                                      : (item.productId === 'azucar'
-                                          ? `+${item.netSurplusUnits} kg (Cafetería)`
-                                          : (item.isWithinTolerance
-                                              ? `+${item.netSurplusUnits} und (≤${item.maxSurplusAllowed} tol.)`
-                                              : `+${item.netSurplusUnits} und`))))}
+                                ? `+${item.netSurplusUnits} kg (Comedor)`
+                                : (item.productId === 'papel'
+                                  ? `+${item.netSurplusUnits} rollos (Planta)`
+                                  : (item.productId === 'azucar'
+                                    ? `+${item.netSurplusUnits} kg (Cafetería)`
+                                    : (item.isWithinTolerance
+                                      ? `+${item.netSurplusUnits} und (≤${item.maxSurplusAllowed} tol.)`
+                                      : `+${item.netSurplusUnits} und`))))}
                           </span>
                         </TableCell>
                       </TableRow>
