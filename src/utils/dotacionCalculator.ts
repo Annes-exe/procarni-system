@@ -60,7 +60,7 @@ export const MONTH_NAMES = [
 ];
 
 export const DEFAULT_PAPEL_USO_DIARIO_BULTOS = 1;
-export const DEFAULT_AZUCAR_USO_MES_BULTOS = 1.25; // 25 kg (1 bulto base + 1/4 bulto / 5 kg consumo cotidiano planta)
+export const DEFAULT_AZUCAR_USO_MES_BULTOS = 1.5; // 30 kg por quincena (1.5 bultos para uso continuo de cafetería y planta)
 
 // POLÍTICA HÍBRIDA SEGÚN NATURALEZA DE CONSUMO:
 // - Consumo Diario Fijo (Arroz, Papel, Azúcar): Bultos cerrados. Sus sobrantes se absorben naturalmente en el uso diario (comedor, baños y café).
@@ -175,14 +175,15 @@ export function calculateDotacion({
   const papelBultosPC = isMaSmaller ? 0 : papelUsoDiarioBultos;
   const papelBultosMA = isMaSmaller ? papelUsoDiarioBultos : 0;
 
-  // --- 4. USO DEL MES (Azúcar Konfit) ---
-  // Excedente para cafetería y uso de todo el mes (por defecto 1.25 bultos / 25 kg). Aplica en 1.ª quincena.
+  // --- 4. USO PLANTA Y CAFETERÍA (Azúcar Konfit) ---
+  // Excedente quincenal para cafetería y consumo continuo en planta (por defecto 1.5 bultos / 30 kg).
+  // Aplica en CADA quincena (1.ª y 2.ª quincena) de forma independiente.
   // Se asigna a la empresa con menor cantidad de colaboradores.
-  const azucarKgTotal = (hasEmployees && isFirstFortnight) ? Math.round(azucarUsoMesBultos * pres.azucarUnitsPerPackage) : 0;
+  const azucarKgTotal = hasEmployees ? Math.round(azucarUsoMesBultos * pres.azucarUnitsPerPackage) : 0;
   const azucarUnitsPC = isMaSmaller ? 0 : azucarKgTotal;
   const azucarUnitsMA = isMaSmaller ? azucarKgTotal : 0;
-  const azucarBultosPC = (hasEmployees && isFirstFortnight) ? (isMaSmaller ? 0 : azucarUsoMesBultos) : 0;
-  const azucarBultosMA = (hasEmployees && isFirstFortnight) ? (isMaSmaller ? azucarUsoMesBultos : 0) : 0;
+  const azucarBultosPC = hasEmployees ? (isMaSmaller ? 0 : azucarUsoMesBultos) : 0;
+  const azucarBultosMA = hasEmployees ? (isMaSmaller ? azucarUsoMesBultos : 0) : 0;
 
   // --- 5. ITEMS DEFINITION & STOCK DISTRIBUTION ---
   type ItemKey = 'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon';
@@ -246,10 +247,10 @@ export function calculateDotacion({
       included: true,
       pcFixedUnits: hasEmployees ? azucarUnitsPC : 0,
       pcFixedBultos: hasEmployees ? azucarBultosPC : 0,
-      pcFixedLabel: hasEmployees && azucarUnitsPC > 0 ? `Uso Mes (${azucarUnitsPC} kg)` : '-',
+      pcFixedLabel: hasEmployees && azucarUnitsPC > 0 ? `Cafetería (${azucarUnitsPC} kg)` : '-',
       maFixedUnits: hasEmployees ? azucarUnitsMA : 0,
       maFixedBultos: hasEmployees ? azucarBultosMA : 0,
-      maFixedLabel: hasEmployees && azucarUnitsMA > 0 ? `Uso Mes (${azucarUnitsMA} kg)` : '-',
+      maFixedLabel: hasEmployees && azucarUnitsMA > 0 ? `Cafetería (${azucarUnitsMA} kg)` : '-',
       stockBultos: stock.azucar.bultos,
       stockLooseUnits: stock.azucar.looseUnits,
     },
@@ -540,8 +541,8 @@ export function calculateDotacion({
         if (p.pcFixedUnits > 0) fixedParts.push(`Comedor PC: +${p.pcFixedUnits} kg`);
         if (p.maFixedUnits > 0) fixedParts.push(`Comedor MA: +${p.maFixedUnits} kg`);
       } else if (p.id === 'azucar') {
-        if (p.pcFixedUnits > 0) fixedParts.push(`Uso del Mes PC: +${p.pcFixedBultos} bulto${p.pcFixedBultos === 1 ? '' : 's'} (${p.pcFixedUnits} kg)`);
-        if (p.maFixedUnits > 0) fixedParts.push(`Uso del Mes MA: +${p.maFixedBultos} bulto${p.maFixedBultos === 1 ? '' : 's'} (${p.maFixedUnits} kg)`);
+        if (p.pcFixedUnits > 0) fixedParts.push(`Cafetería PC: +${p.pcFixedBultos} bulto${p.pcFixedBultos === 1 ? '' : 's'} (${p.pcFixedUnits} kg)`);
+        if (p.maFixedUnits > 0) fixedParts.push(`Cafetería MA: +${p.maFixedBultos} bulto${p.maFixedBultos === 1 ? '' : 's'} (${p.maFixedUnits} kg)`);
       } else if (p.id === 'papel') {
         if (p.pcFixedUnits > 0) fixedParts.push(`Uso Planta PC: +${p.pcFixedBultos} bulto (${p.pcFixedUnits} und)`);
         if (p.maFixedUnits > 0) fixedParts.push(`Uso Planta MA: +${p.maFixedBultos} bulto (${p.maFixedUnits} und)`);

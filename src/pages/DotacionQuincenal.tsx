@@ -130,7 +130,14 @@ export default function DotacionQuincenal() {
   const [comedor, setComedor] = useState<ComedorConfig>({ ...DEFAULT_COMEDOR });
   const [finca, setFinca] = useState<FincaConfig>({ ...DEFAULT_FINCA });
   const [papelUsoDiarioBultos, setPapelUsoDiarioBultos] = useState<number>(DEFAULT_PAPEL_USO_DIARIO_BULTOS);
-  const [azucarUsoMesBultos, setAzucarUsoMesBultos] = useState<number>(DEFAULT_AZUCAR_USO_MES_BULTOS);
+  const [azucarUsoBultosMap, setAzucarUsoBultosMap] = useState<Record<string, number>>({
+    primera: 1.5, // 30 kg en 1.ª quincena (1.5 bultos)
+    segunda: 1.5, // 30 kg en 2.ª quincena (1.5 bultos)
+  });
+  const azucarUsoMesBultos = azucarUsoBultosMap[quincena] ?? 1.5;
+  const setAzucarUsoMesBultos = (val: number) => {
+    setAzucarUsoBultosMap((prev) => ({ ...prev, [quincena]: val }));
+  };
   const [presentations, setPresentations] = useState<ProductPresentationConfig>({ ...DEFAULT_PRESENTATIONS });
   const [globalPurchaseMode, setGlobalPurchaseMode] = useState<PurchaseMode>(DEFAULT_GLOBAL_PURCHASE_MODE);
   const [purchaseModes, setPurchaseModes] = useState<Partial<ProductPurchaseModes>>({});
@@ -243,7 +250,7 @@ export default function DotacionQuincenal() {
     });
     setAdjustments({});
     setPapelUsoDiarioBultos(DEFAULT_PAPEL_USO_DIARIO_BULTOS);
-    setAzucarUsoMesBultos(DEFAULT_AZUCAR_USO_MES_BULTOS);
+    setAzucarUsoBultosMap({ primera: 1.5, segunda: 1.5 });
     setSurplusTolerancePercent(DEFAULT_SURPLUS_TOLERANCE_PERCENT);
     setArrozMaxSurplusKg(DEFAULT_ARROZ_MAX_SURPLUS_KG);
     setActiveSnapshotId(undefined);
@@ -1298,16 +1305,16 @@ export default function DotacionQuincenal() {
               </div>
             </div>
 
-            {/* Uso Mes Azúcar */}
+            {/* Uso Quincenal Cafetería y Planta Azúcar */}
             <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-2 min-h-[24px]">
                   <Coffee className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800">Uso del Mes (Azúcar Konfit)</span>
+                  <span className="text-xs font-bold text-slate-800">Uso Cafetería y Planta (Azúcar Konfit)</span>
                 </div>
                 <div>
                   <Label className="text-[10px] text-slate-500 font-semibold uppercase h-7 flex items-end">
-                    Excedente Mensual (Bultos)
+                    Excedente Quincenal (Bultos)
                   </Label>
                   <Input
                     type="number"
@@ -1326,13 +1333,13 @@ export default function DotacionQuincenal() {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">Total:</span>
                   <span className="font-mono font-bold text-slate-800">
-                    {quincena === 'primera' ? Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage) : 0} kg <span className="text-slate-400 font-normal">({quincena === 'primera' ? azucarUsoMesBultos : 0} {azucarUsoMesBultos === 1 ? 'bulto' : 'bultos'} · 20 kg base + 5 kg cotidiano)</span>
+                    {Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg <span className="text-slate-400 font-normal">({azucarUsoMesBultos} {azucarUsoMesBultos === 1 ? 'bulto' : 'bultos'} · ~1.5 bultos quincenales)</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-slate-400">Asignación:</span>
                   <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                    {quincena === 'primera' ? `Empresa menor (${employeesMA <= employeesPC ? 'MA' : 'PC'}) · Mes` : 'No aplica en 2.ª Q (0 b)'}
+                    Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'}) · {quincena === 'primera' ? '1.ª Q' : '2.ª Q'}
                   </span>
                 </div>
               </div>
@@ -1473,7 +1480,7 @@ export default function DotacionQuincenal() {
                     <strong>Comedor:</strong> +{comedor.kgPerDay * comedor.days} kg Arroz &nbsp;|&nbsp;
                     <strong>Finca:</strong> +{finca.bultosHarina} bulto{finca.bultosHarina > 1 ? 's' : ''} Harina ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und) &nbsp;|&nbsp;
                     <strong>Papel Planta:</strong> +{papelUsoDiarioBultos} bulto ({papelUsoDiarioBultos * presentations.papelUnitsPerPackage} und) &nbsp;|&nbsp;
-                    <strong>Uso Mes:</strong> {quincena === 'primera' ? `+${azucarUsoMesBultos} bulto${azucarUsoMesBultos === 1 ? '' : 's'} Azúcar (${Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg)` : '0 (no aplica en 2.ª Q)'}.
+                    <strong>Cafetería:</strong> +${azucarUsoMesBultos} bulto${azucarUsoMesBultos === 1 ? '' : 's'} Azúcar (${Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg).
                   </span>
                 </div>
               </div>
@@ -1481,7 +1488,7 @@ export default function DotacionQuincenal() {
                 Total Adiciones: +{
                   (employeesPC + employeesMA > 0)
                     ? result.globalItems.filter((x) => x.includedInPeriod).reduce((acc, x) => acc + x.totalFixedUnits, 0)
-                    : (comedor.kgPerDay * comedor.days + finca.bultosHarina * presentations.harinaUnitsPerPackage + papelUsoDiarioBultos * presentations.papelUnitsPerPackage + (quincena === 'primera' ? Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage) : 0))
+                    : (comedor.kgPerDay * comedor.days + finca.bultosHarina * presentations.harinaUnitsPerPackage + papelUsoDiarioBultos * presentations.papelUnitsPerPackage + Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage))
                 } und/kg
               </Badge>
             </div>
