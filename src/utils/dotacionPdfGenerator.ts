@@ -109,11 +109,11 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...PROC_RED);
-  doc.text(`Total: ${result.totalGlobalBultos} bultos a comprar`, margin + colWidth * 2 + 3, y + 9.5);
+  doc.text(`Total: ${result.totalGlobalBultos} bultos${result.totalGlobalLooseUnits > 0 ? ` + ${result.totalGlobalLooseUnits} und` : ""} a comprar`, margin + colWidth * 2 + 3, y + 9.5);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(...TEXT_MUTED);
-  doc.text(`PC: ${result.pc.totalBultos} bultos  |  MA: ${result.ma.totalBultos} bultos`, margin + colWidth * 2 + 3, y + 13.5);
+  doc.text(`PC: ${result.pc.totalBultos} b${result.pc.totalLooseUnits > 0 ? ` + ${result.pc.totalLooseUnits}u` : ""}  |  MA: ${result.ma.totalBultos} b${result.ma.totalLooseUnits > 0 ? ` + ${result.ma.totalLooseUnits}u` : ""}`, margin + colWidth * 2 + 3, y + 13.5);
 
   y += boxHeight + 5;
 
@@ -218,7 +218,17 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
     const maAdjLabel = it.maAdjustment !== 0 ? ` (${it.maAdjustment > 0 ? `+${it.maAdjustment}` : it.maAdjustment} aj)` : '';
 
     let bufferLabel = it.netSurplusUnits >= 0 ? `+${it.netSurplusUnits} und` : `${it.netSurplusUnits} und`;
-    if (it.hasDeficitAlert) {
+    if (it.netSurplusUnits === 0) {
+      bufferLabel = '0 und (Exacto)';
+    } else if (it.productId === 'arroz' && it.netSurplusUnits > 0) {
+      bufferLabel = `+${it.netSurplusUnits} kg (Comedor)`;
+    } else if (it.productId === 'papel' && it.netSurplusUnits > 0) {
+      bufferLabel = `+${it.netSurplusUnits} rollos (Planta)`;
+    } else if (it.productId === 'azucar' && it.netSurplusUnits > 0) {
+      bufferLabel = `+${it.netSurplusUnits} kg (Cafetería)`;
+    } else if (it.isWithinTolerance && it.netSurplusUnits > 0) {
+      bufferLabel = `+${it.netSurplusUnits} und (≤${it.maxSurplusAllowed} tol.)`;
+    } else if (it.hasDeficitAlert) {
       bufferLabel = `${it.netSurplusUnits} und (Faltante)`;
     } else if (it.hasSurplusOverlap) {
       bufferLabel = `+${it.netSurplusUnits} und (Excedente)`;
@@ -236,7 +246,7 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       it.totalStockDeductedUnits > 0 ? `-${it.totalStockDeductedUnits} und` : '0',
       `${it.pcBultos}${pcAdjLabel}`,
       `${it.maBultos}${maAdjLabel}`,
-      it.globalBultosToBuy.toString(),
+      (it.globalLooseUnitsToBuy > 0 ? `${it.globalBultosToBuy} b + ${it.globalLooseUnitsToBuy} u` : it.globalBultosToBuy.toString()),
       `${it.totalUnitsPurchased.toLocaleString('es-VE')} und`,
       bufferLabel,
     ];

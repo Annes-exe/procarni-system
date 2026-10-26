@@ -104,10 +104,9 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   );
 
   // Helper to format presentation and total calculation for items
-  const getItemPresentation = (productId: string, quantity: number) => {
+  const getItemPresentation = (productId: string, quantity: number, unit?: string) => {
     const itemCalc = targetCompanyCalc.items.find((it) => it.productId === productId);
     const unitsPerPkg = itemCalc ? itemCalc.unitsPerPackage : 1;
-    const totalUnits = unitsPerPkg * quantity;
 
     let unitText = 'und';
     if (productId === 'arroz' || productId === 'azucar' || productId === 'harina') {
@@ -118,6 +117,16 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
       unitText = 'barras';
     }
 
+    if (unit && unit !== 'Bulto') {
+      return {
+        unitsPerPkg: 1,
+        unitText,
+        totalUnits: quantity,
+        label: `Unidades sueltas exactas · Total: ${quantity} ${unitText}`,
+      };
+    }
+
+    const totalUnits = unitsPerPkg * quantity;
     return {
       unitsPerPkg,
       unitText,
@@ -147,17 +156,36 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
 
   useEffect(() => {
-    const rows: ItemRowState[] = targetCompanyCalc.items
-      .filter((it) => it.includedInPeriod && it.bultosToBuy > 0)
-      .map((it) => ({
-        productId: it.productId,
-        materialName: it.productName,
-        quantity: it.bultosToBuy,
-        unit: 'Bulto',
-        unitPrice: 0,
-        isExempt: false,
-        selected: true,
-      }));
+    const rows: ItemRowState[] = [];
+    targetCompanyCalc.items
+      .filter((it) => it.includedInPeriod && (it.bultosToBuy > 0 || it.looseUnitsToBuy > 0))
+      .forEach((it) => {
+        if (it.bultosToBuy > 0) {
+          rows.push({
+            productId: it.productId,
+            materialName: it.productName,
+            quantity: it.bultosToBuy,
+            unit: 'Bulto',
+            unitPrice: 0,
+            isExempt: false,
+            selected: true,
+          });
+        }
+        if (it.looseUnitsToBuy > 0) {
+          const unitWord = it.productId === 'azucar' || it.productId === 'arroz'
+            ? 'Kg'
+            : (it.productId === 'papel' ? 'Rollo' : (it.productId === 'jabon' ? 'Barra' : 'Und'));
+          rows.push({
+            productId: it.productId,
+            materialName: `${it.productName} (Sueltas)`,
+            quantity: it.looseUnitsToBuy,
+            unit: unitWord,
+            unitPrice: 0,
+            isExempt: false,
+            selected: true,
+          });
+        }
+      });
 
     setItemRows(rows);
     setObservations(
@@ -227,7 +255,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
       };
 
       const itemsPayload: CreatePurchaseOrderItemInput[] = selectedItems.map((row) => {
-        const pres = getItemPresentation(row.productId, row.quantity);
+        const pres = getItemPresentation(row.productId, row.quantity, row.unit);
         return {
           material_name: row.materialName,
           quantity: row.quantity,
@@ -257,7 +285,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
           companyId: targetCompanyRecord.id,
           supplierName: supplierObj?.name || 'Proveedor General',
           supplierId: selectedSupplierId,
-          totalBultos: selectedItems.reduce((acc, it) => acc + it.quantity, 0),
+          totalBultos: selectedItems.filter(it => it.unit === "Bulto").reduce((acc, it) => acc + it.quantity, 0),
           currency,
           createdAt: new Date().toISOString(),
         };

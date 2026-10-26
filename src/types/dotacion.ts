@@ -42,6 +42,9 @@ export interface ItemAdjustment {
 
 export type DotacionAdjustments = Record<string, ItemAdjustment>;
 
+export type PurchaseMode = 'bultos' | 'mixto';
+export type ProductPurchaseModes = Record<'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon', PurchaseMode>;
+
 export interface DotacionItemCalculation {
   productId: 'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon';
   productName: string;
@@ -57,10 +60,13 @@ export interface DotacionItemCalculation {
   stockDeductionDetail: string;
   netUnitsNeeded: number;
   calculatedBultos: number; // Teórico del cálculo
+  calculatedLooseUnits: number; // Unidades sueltas teóricas
   manualAdjustment: number; // Ajuste manual aplicado (+/-)
   bultosToBuy: number; // Bultos finales a ordenar
+  looseUnitsToBuy: number; // Unidades sueltas finales a ordenar
   totalUnitsPurchased: number;
   surplusUnits: number; // positive = excess buffer, negative = deficit
+  orderSummaryLabel: string; // e.g. "9 bultos + 4 und" o "10 bultos"
   optimizationNote?: string;
   includedInPeriod: boolean;
 }
@@ -72,6 +78,7 @@ export interface CompanyDotacionCalculation {
   employees: number;
   items: DotacionItemCalculation[];
   totalBultos: number;
+  totalLooseUnits: number;
 }
 
 export interface GlobalItemCalculation {
@@ -89,6 +96,8 @@ export interface GlobalItemCalculation {
   stockSummaryLabel: string;
   globalNetUnitsNeeded: number;
   calculatedGlobalBultos: number;
+  calculatedGlobalLooseUnits: number;
+  purchaseMode: PurchaseMode;
   hasSurplusOverlap: boolean; // true if actual bultos ordered > calculated global bultos
   surplusBultosCount: number; // how many bultos can be reduced
   hasDeficitAlert: boolean; // true if actual bultos ordered < calculated global bultos
@@ -96,6 +105,10 @@ export interface GlobalItemCalculation {
   deficitUnitsCount: number; // how many units missing
   statusMessage?: string; // dynamic explanation label
   globalBultosToBuy: number;
+  globalLooseUnitsToBuy: number;
+  orderSummaryLabel: string; // e.g. "9 bultos + 4 und" o "10 bultos"
+  maxSurplusAllowed: number; // Límite de sobrante tolerable (ej: 25% del bulto = 6 und en arroz)
+  isWithinTolerance: boolean; // Si el sobrante está dentro del límite aceptable
   pcBultos: number;
   maBultos: number;
   pcAdjustment: number;
@@ -115,6 +128,7 @@ export interface DotacionCalculationResult {
   ma: CompanyDotacionCalculation;
   globalItems: GlobalItemCalculation[];
   totalGlobalBultos: number;
+  totalGlobalLooseUnits: number;
   formattedMessages: {
     pcMessage: string;
     maMessage: string;
@@ -148,6 +162,10 @@ export interface DotacionSnapshot {
   finca: FincaConfig;
   papelUsoDiarioBultos?: number;
   azucarUsoMesBultos?: number;
+  purchaseModes?: ProductPurchaseModes;
+  globalPurchaseMode?: PurchaseMode;
+  surplusTolerancePercent?: number;
+  arrozMaxSurplusKg?: number;
   presentations: ProductPresentationConfig;
   adjustments?: DotacionAdjustments;
   result: DotacionCalculationResult;

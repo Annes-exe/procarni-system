@@ -43,6 +43,7 @@ import {
   FileSpreadsheet,
   FileText,
   Coffee,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
@@ -55,6 +56,8 @@ import {
   DotacionSnapshot,
   GeneratedPurchaseOrderLink,
   DotacionAdjustments,
+  PurchaseMode,
+  ProductPurchaseModes,
 } from '@/types/dotacion';
 import {
   calculateDotacion,
@@ -67,6 +70,10 @@ import {
   DEFAULT_PAPEL_USO_DIARIO_BULTOS,
   DEFAULT_AZUCAR_USO_MES_BULTOS,
   DEFAULT_PRESENTATIONS,
+  DEFAULT_GLOBAL_PURCHASE_MODE,
+  DEFAULT_PURCHASE_MODES,
+  DEFAULT_SURPLUS_TOLERANCE_PERCENT,
+  DEFAULT_ARROZ_MAX_SURPLUS_KG,
   MONTH_NAMES,
 } from '@/utils/dotacionCalculator';
 import { generateDotacionPDF } from '@/utils/dotacionPdfGenerator';
@@ -125,6 +132,10 @@ export default function DotacionQuincenal() {
   const [papelUsoDiarioBultos, setPapelUsoDiarioBultos] = useState<number>(DEFAULT_PAPEL_USO_DIARIO_BULTOS);
   const [azucarUsoMesBultos, setAzucarUsoMesBultos] = useState<number>(DEFAULT_AZUCAR_USO_MES_BULTOS);
   const [presentations, setPresentations] = useState<ProductPresentationConfig>({ ...DEFAULT_PRESENTATIONS });
+  const [globalPurchaseMode, setGlobalPurchaseMode] = useState<PurchaseMode>(DEFAULT_GLOBAL_PURCHASE_MODE);
+  const [purchaseModes, setPurchaseModes] = useState<Partial<ProductPurchaseModes>>({});
+  const [surplusTolerancePercent, setSurplusTolerancePercent] = useState<number>(DEFAULT_SURPLUS_TOLERANCE_PERCENT);
+  const [arrozMaxSurplusKg, setArrozMaxSurplusKg] = useState<number>(DEFAULT_ARROZ_MAX_SURPLUS_KG);
   const [showAdvancedParams, setShowAdvancedParams] = useState<boolean>(false);
 
   // --- UI DIALOGS & SNAPSHOTS ---
@@ -164,6 +175,10 @@ export default function DotacionQuincenal() {
       finca,
       papelUsoDiarioBultos,
       azucarUsoMesBultos,
+      globalPurchaseMode,
+      purchaseModes,
+      surplusTolerancePercent,
+      arrozMaxSurplusKg,
       presentations,
       adjustments,
     });
@@ -178,6 +193,10 @@ export default function DotacionQuincenal() {
     finca,
     papelUsoDiarioBultos,
     azucarUsoMesBultos,
+    globalPurchaseMode,
+    purchaseModes,
+    surplusTolerancePercent,
+    arrozMaxSurplusKg,
     presentations,
     adjustments,
   ]);
@@ -225,8 +244,10 @@ export default function DotacionQuincenal() {
     setAdjustments({});
     setPapelUsoDiarioBultos(DEFAULT_PAPEL_USO_DIARIO_BULTOS);
     setAzucarUsoMesBultos(DEFAULT_AZUCAR_USO_MES_BULTOS);
+    setSurplusTolerancePercent(DEFAULT_SURPLUS_TOLERANCE_PERCENT);
+    setArrozMaxSurplusKg(DEFAULT_ARROZ_MAX_SURPLUS_KG);
     setActiveSnapshotId(undefined);
-    showSuccess('Nómina y almacén limpiados en 0. Parámetros fijos mantenidos en valores base (1 bulto papel / 1 bulto azúcar).');
+    showSuccess('Nómina y almacén limpiados en 0. Parámetros fijos mantenidos en valores base (1 bulto papel / 1.25 bultos azúcar).');
   };
 
   // --- LOAD EXAMPLE VALUES (OPTIONAL SHORTCUT) ---
@@ -495,6 +516,46 @@ export default function DotacionQuincenal() {
                 <span className="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-black/30 uppercase tracking-tighter">Jabón</span>
               </button>
             </div>
+
+            {/* Modalidad de Pedido Switcher */}
+            <div className="pt-2 border-t border-white/10 space-y-1">
+              <span className="text-[9px] uppercase font-bold text-slate-300 tracking-wider flex items-center justify-between">
+                <span>Modalidad de Compra</span>
+                <span className="text-[9px] text-amber-300 lowercase font-normal">
+                  {globalPurchaseMode === 'mixto' ? '0 sobrante en almacén' : 'redondeo a bulto'}
+                </span>
+              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGlobalPurchaseMode('mixto');
+                    setPurchaseModes({});
+                  }}
+                  className={`h-8 py-1 px-2 text-[10px] sm:text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 ${globalPurchaseMode === 'mixto'
+                    ? 'bg-amber-400 text-slate-900 shadow-sm font-extrabold ring-1 ring-white/40'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  title="Arroz, Papel y Azúcar en bultos (absorbido en consumo diario); Harina y Jabón con tolerancia 25%"
+                >
+                  <span>Mixto (Bultos+Und)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGlobalPurchaseMode('bultos');
+                    setPurchaseModes({});
+                  }}
+                  className={`h-8 py-1 px-2 text-[10px] sm:text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 ${globalPurchaseMode === 'bultos'
+                    ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  title="Redondeo tradicional en bultos enteros"
+                >
+                  <span>Solo Bultos</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -512,11 +573,16 @@ export default function DotacionQuincenal() {
                 <Package className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
               </div>
             </div>
-            <div className="mt-1.5 sm:mt-3 flex items-baseline gap-1 sm:gap-2">
+            <div className="mt-1.5 sm:mt-3 flex flex-wrap items-baseline gap-1 sm:gap-2">
               <span className="text-xl sm:text-3xl font-extrabold font-mono text-procarni-primary">
                 {result.totalGlobalBultos}
               </span>
               <span className="text-[10px] sm:text-xs text-slate-500 font-medium">bultos</span>
+              {result.totalGlobalLooseUnits > 0 && (
+                <span className="text-[10px] sm:text-xs font-mono font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                  +{result.totalGlobalLooseUnits} und
+                </span>
+              )}
             </div>
             <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-[11px] text-slate-400 font-medium truncate">
               {result.periodLabel}
@@ -1245,11 +1311,12 @@ export default function DotacionQuincenal() {
                   </Label>
                   <Input
                     type="number"
+                    step="0.05"
                     min={0}
                     value={azucarUsoMesBultos}
                     onChange={(e) => {
                       const v = e.target.value;
-                      setAzucarUsoMesBultos(v === '' ? 0 : parseInt(v) || 0);
+                      setAzucarUsoMesBultos(v === '' ? 0 : parseFloat(v) || 0);
                     }}
                     className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
                   />
@@ -1259,7 +1326,7 @@ export default function DotacionQuincenal() {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 font-medium">Total:</span>
                   <span className="font-mono font-bold text-slate-800">
-                    {quincena === 'primera' ? azucarUsoMesBultos * presentations.azucarUnitsPerPackage : 0} kg <span className="text-slate-400 font-normal">({quincena === 'primera' ? azucarUsoMesBultos : 0} {azucarUsoMesBultos === 1 ? 'bulto' : 'bultos'})</span>
+                    {quincena === 'primera' ? Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage) : 0} kg <span className="text-slate-400 font-normal">({quincena === 'primera' ? azucarUsoMesBultos : 0} {azucarUsoMesBultos === 1 ? 'bulto' : 'bultos'} · 20 kg base + 5 kg cotidiano)</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
@@ -1267,6 +1334,62 @@ export default function DotacionQuincenal() {
                   <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                     {quincena === 'primera' ? `Empresa menor (${employeesMA <= employeesPC ? 'MA' : 'PC'}) · Mes` : 'No aplica en 2.ª Q (0 b)'}
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tolerancia de Sobrante Aceptable en Bulto */}
+            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2 min-h-[24px]">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-xs font-bold text-slate-800">Tolerancia de Sobrante en Bulto</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div>
+                    <Label className="text-[10px] text-slate-500 font-semibold uppercase block truncate">
+                      Arroz (Día Comedor)
+                    </Label>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={24}
+                        value={arrozMaxSurplusKg}
+                        onChange={(e) => setArrozMaxSurplusKg(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                      />
+                      <span className="text-[11px] font-bold text-slate-600">kg</span>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-500 font-semibold uppercase block truncate">
+                      Otros Insumos (%)
+                    </Label>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={surplusTolerancePercent}
+                        onChange={(e) => setSurplusTolerancePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                        className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                      />
+                      <span className="text-[11px] font-bold text-slate-600">%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between text-slate-500">
+                  <span className="font-medium">Límites activos:</span>
+                  <span className="font-mono text-slate-700 font-semibold">
+                    Arroz: ≤{arrozMaxSurplusKg} kg (1 día comedor) · Harina: ≤{Math.floor(presentations.harinaUnitsPerPackage * surplusTolerancePercent / 100)} kg
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Papel: ≤{Math.floor(presentations.papelUnitsPerPackage * surplusTolerancePercent / 100)} rollos · Jabón: ≤{Math.floor(presentations.jabonUnitsPerPackage * surplusTolerancePercent / 100)} barras</span>
+                  <span className="text-emerald-700 font-medium">Sobrante ≤ límite no se fracciona</span>
                 </div>
               </div>
             </div>
@@ -1347,10 +1470,10 @@ export default function DotacionQuincenal() {
                 <div className="min-w-0 flex-1 text-[11px] sm:text-xs">
                   <span className="font-bold text-slate-900 block sm:inline">Adiciones Fijas Operativas:</span>
                   <span className="text-slate-600 sm:ml-1.5 leading-relaxed break-words">
-                    <strong>Comedor:</strong> +{comedor.kgPerDay * comedor.days} kg Arroz &nbsp;|&nbsp; 
-                    <strong>Finca:</strong> +{finca.bultosHarina} bulto{finca.bultosHarina > 1 ? 's' : ''} Harina ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und) &nbsp;|&nbsp; 
-                    <strong>Papel Planta:</strong> +{papelUsoDiarioBultos} bulto ({papelUsoDiarioBultos * presentations.papelUnitsPerPackage} und) &nbsp;|&nbsp; 
-                    <strong>Uso Mes:</strong> {quincena === 'primera' ? `+${azucarUsoMesBultos} bulto Azúcar (${azucarUsoMesBultos * presentations.azucarUnitsPerPackage} kg)` : '0 (no aplica en 2.ª Q)'}.
+                    <strong>Comedor:</strong> +{comedor.kgPerDay * comedor.days} kg Arroz &nbsp;|&nbsp;
+                    <strong>Finca:</strong> +{finca.bultosHarina} bulto{finca.bultosHarina > 1 ? 's' : ''} Harina ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und) &nbsp;|&nbsp;
+                    <strong>Papel Planta:</strong> +{papelUsoDiarioBultos} bulto ({papelUsoDiarioBultos * presentations.papelUnitsPerPackage} und) &nbsp;|&nbsp;
+                    <strong>Uso Mes:</strong> {quincena === 'primera' ? `+${azucarUsoMesBultos} bulto${azucarUsoMesBultos === 1 ? '' : 's'} Azúcar (${Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg)` : '0 (no aplica en 2.ª Q)'}.
                   </span>
                 </div>
               </div>
@@ -1358,7 +1481,7 @@ export default function DotacionQuincenal() {
                 Total Adiciones: +{
                   (employeesPC + employeesMA > 0)
                     ? result.globalItems.filter((x) => x.includedInPeriod).reduce((acc, x) => acc + x.totalFixedUnits, 0)
-                    : (comedor.kgPerDay * comedor.days + finca.bultosHarina * presentations.harinaUnitsPerPackage + papelUsoDiarioBultos * presentations.papelUnitsPerPackage + (quincena === 'primera' ? azucarUsoMesBultos * presentations.azucarUnitsPerPackage : 0))
+                    : (comedor.kgPerDay * comedor.days + finca.bultosHarina * presentations.harinaUnitsPerPackage + papelUsoDiarioBultos * presentations.papelUnitsPerPackage + (quincena === 'primera' ? Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage) : 0))
                 } und/kg
               </Badge>
             </div>
@@ -1520,18 +1643,36 @@ export default function DotacionQuincenal() {
                     <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-red-50/80 border border-red-200/80">
                       <div>
                         <span className="text-[9px] sm:text-[10px] uppercase font-bold text-procarni-primary block tracking-wider">
-                          Total a Comprar
+                          Total a Comprar {item.purchaseMode === 'mixto' ? '(Mixto)' : ''}
                         </span>
                         <span className="font-mono font-extrabold text-procarni-primary text-base sm:text-lg leading-tight">
-                          {item.globalBultosToBuy} bultos
+                          {item.orderSummaryLabel}
                         </span>
                       </div>
                       <div className="text-right">
                         <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
                           Buffer Sobrante
                         </span>
-                        <span className="font-mono font-bold text-slate-700 text-[11px] sm:text-xs">
-                          {item.netSurplusUnits >= 0 ? `+${item.netSurplusUnits}` : item.netSurplusUnits} und
+                        <span className={`font-mono font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded ${
+                          item.netSurplusUnits === 0
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : (item.productId === 'arroz' || item.productId === 'papel' || item.productId === 'azucar'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : (item.isWithinTolerance && item.netSurplusUnits > 0
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : (item.hasDeficitAlert ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700')))
+                        }`}>
+                          {item.netSurplusUnits === 0
+                            ? '0 und (Exacto)'
+                            : (item.productId === 'arroz'
+                                ? `+${item.netSurplusUnits} kg (Comedor)`
+                                : (item.productId === 'papel'
+                                    ? `+${item.netSurplusUnits} rollos (Planta)`
+                                    : (item.productId === 'azucar'
+                                        ? `+${item.netSurplusUnits} kg (Cafetería)`
+                                        : (item.isWithinTolerance
+                                            ? `+${item.netSurplusUnits} und (≤${item.maxSurplusAllowed} tol.)`
+                                            : `+${item.netSurplusUnits} und`))))}
                         </span>
                       </div>
                     </div>
@@ -1740,13 +1881,33 @@ export default function DotacionQuincenal() {
                         </TableCell>
 
                         {/* Total a Comprar Global */}
-                        <TableCell className="text-center font-mono font-extrabold text-procarni-primary text-base bg-red-50/40">
-                          {item.globalBultosToBuy} bultos
+                        <TableCell className="text-center font-mono font-extrabold text-procarni-primary text-sm sm:text-base bg-red-50/40 whitespace-nowrap">
+                          {item.orderSummaryLabel}
                         </TableCell>
 
                         {/* Buffer Sobrante */}
-                        <TableCell className="text-center font-mono text-slate-500">
-                          {item.netSurplusUnits >= 0 ? `+${item.netSurplusUnits}` : item.netSurplusUnits} und
+                        <TableCell className="text-center font-mono">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                            item.netSurplusUnits === 0
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : (item.productId === 'arroz' || item.productId === 'papel' || item.productId === 'azucar'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : (item.isWithinTolerance && item.netSurplusUnits > 0
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                      : (item.hasDeficitAlert ? 'bg-red-50 text-red-700 border border-red-200' : 'text-slate-600')))
+                          }`}>
+                            {item.netSurplusUnits === 0
+                              ? '0 und (Exacto)'
+                              : (item.productId === 'arroz'
+                                  ? `+${item.netSurplusUnits} kg (Comedor)`
+                                  : (item.productId === 'papel'
+                                      ? `+${item.netSurplusUnits} rollos (Planta)`
+                                      : (item.productId === 'azucar'
+                                          ? `+${item.netSurplusUnits} kg (Cafetería)`
+                                          : (item.isWithinTolerance
+                                              ? `+${item.netSurplusUnits} und (≤${item.maxSurplusAllowed} tol.)`
+                                              : `+${item.netSurplusUnits} und`))))}
+                          </span>
                         </TableCell>
                       </TableRow>
                     );
@@ -1802,7 +1963,7 @@ export default function DotacionQuincenal() {
                 </p>
               </div>
               <Badge className="bg-procarni-blue text-white font-mono font-bold text-xs shrink-0">
-                {result.pc.totalBultos} Bultos
+                {result.pc.totalBultos} Bultos{result.pc.totalLooseUnits > 0 ? ` + ${result.pc.totalLooseUnits} Und` : ''}
               </Badge>
             </div>
             <div className="p-2.5 sm:p-4 space-y-3 sm:space-y-4">
@@ -1893,7 +2054,7 @@ export default function DotacionQuincenal() {
                 </p>
               </div>
               <Badge className="bg-procarni-secondary text-white font-mono font-bold text-xs shrink-0">
-                {result.ma.totalBultos} Bultos
+                {result.ma.totalBultos} Bultos{result.ma.totalLooseUnits > 0 ? ` + ${result.ma.totalLooseUnits} Und` : ''}
               </Badge>
             </div>
             <div className="p-2.5 sm:p-4 space-y-3 sm:space-y-4">
@@ -2151,11 +2312,10 @@ export default function DotacionQuincenal() {
                   {snapshots.map((s) => (
                     <div
                       key={s.id}
-                      className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border space-y-2.5 transition-colors ${
-                        activeSnapshotId === s.id
-                          ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-400/30'
-                          : 'bg-white border-slate-200'
-                      }`}
+                      className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border space-y-2.5 transition-colors ${activeSnapshotId === s.id
+                        ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-400/30'
+                        : 'bg-white border-slate-200'
+                        }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
