@@ -165,9 +165,9 @@ const CurrencyCalculator = () => {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="relative h-11 w-11 rounded-2xl bg-gray-100/50 hover:bg-procarni-primary/10 text-procarni-primary transition-all duration-300 ring-1 ring-gray-200/50 hover:ring-procarni-primary/30 group"
+          className="relative h-9 w-9 md:h-11 md:w-11 rounded-xl md:rounded-2xl bg-gray-100/50 hover:bg-procarni-primary/10 text-procarni-primary transition-all duration-300 ring-1 ring-gray-200/50 hover:ring-procarni-primary/30 group"
         >
-          <Calculator className="h-5 w-5 group-hover:scale-110 transition-transform" />
+          <Calculator className="h-4 w-4 md:h-5 md:w-5 group-hover:scale-110 transition-transform" />
           <AnimatePresence>
             {isLoading && (
               <m.div 
@@ -185,7 +185,7 @@ const CurrencyCalculator = () => {
           </AnimatePresence>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 overflow-hidden rounded-[1.5rem] border-none shadow-2xl ring-1 ring-black/5 bg-white/95 backdrop-blur-xl" align="end" sideOffset={8}>
+      <PopoverContent className="w-[calc(100vw-2rem)] max-w-xs sm:w-80 p-0 overflow-hidden rounded-[1.5rem] border-none shadow-2xl ring-1 ring-black/5 bg-white/95 backdrop-blur-xl" align="end" sideOffset={8}>
         <div className="bg-procarni-primary p-4 text-white">
           <div className="flex justify-between items-center mb-2">
             <h3 className="font-bold text-lg flex items-center gap-2">

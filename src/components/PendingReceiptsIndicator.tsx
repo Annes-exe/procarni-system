@@ -376,13 +376,13 @@ export const PendingReceiptsIndicator: React.FC = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="relative hover:bg-procarni-primary/10 text-slate-600 hover:text-procarni-primary rounded-xl transition-all"
+          className="relative h-9 w-9 md:h-10 md:w-10 hover:bg-procarni-primary/10 text-slate-600 hover:text-procarni-primary rounded-xl transition-all"
           title="Recepciones Pendientes"
         >
           {activeReceptionsCount > 0 ? (
-            <PackageOpen className="h-5 w-5 text-procarni-primary animate-bounce" />
+            <PackageOpen className="h-4 w-4 md:h-5 md:w-5 text-procarni-primary animate-bounce" />
           ) : (
-            <Package className="h-5 w-5" />
+            <Package className="h-4 w-4 md:h-5 md:w-5" />
           )}
           {activeReceptionsCount > 0 && (
             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-procarni-primary text-[9px] font-black text-white ring-2 ring-white animate-pulse">
@@ -391,7 +391,7 @@ export const PendingReceiptsIndicator: React.FC = () => {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[28rem] p-4 bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-3xl ring-1 ring-black/5 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+      <PopoverContent className="w-[calc(100vw-2rem)] max-w-md md:w-[28rem] p-4 bg-white/95 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-3xl ring-1 ring-black/5 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200" align="end">
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-1 border-b border-gray-100 pb-2.5">
             <div className="min-w-0">

@@ -123,17 +123,17 @@ const NotificationBell = () => {
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-muted-foreground transition-colors mr-2 focus:outline-none focus:ring-2 focus:ring-procarni-primary">
-                    <Bell className="h-5 w-5" />
+                <button className="relative flex items-center justify-center h-9 w-9 md:h-10 md:w-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-muted-foreground transition-colors md:mr-2 focus:outline-none focus:ring-2 focus:ring-procarni-primary">
+                    <Bell className="h-4 w-4 md:h-5 md:w-5" />
                     {unreadCount > 0 && (
-                        <span className="absolute top-2 right-2 flex h-3 w-3">
+                        <span className="absolute top-1.5 right-1.5 md:top-2 md:right-2 flex h-2.5 w-2.5 md:h-3 md:w-3">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-procarni-primary opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-procarni-primary border-2 border-white dark:border-slate-900"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 md:h-3 md:w-3 bg-procarni-primary border-2 border-white dark:border-slate-900"></span>
                         </span>
                     )}
                 </button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0 mr-4" align="end">
+            <PopoverContent className="w-[calc(100vw-2rem)] max-w-xs sm:w-80 p-0 md:mr-4" align="end">
                 <div className="flex items-center justify-between p-4 border-b">
                     <h4 className="font-semibold text-sm">Notificaciones</h4>
                     {unreadCount > 0 && (

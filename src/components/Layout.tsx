@@ -191,11 +191,11 @@ const Layout = () => {
 
 
   const MobileHeader = () => (
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 bg-white/70 backdrop-blur-lg px-4 shadow-sm border-none ring-1 ring-black/5 mx-4 mt-4 rounded-2xl">
+    <header className="sticky top-0 z-50 flex h-14 sm:h-16 items-center justify-between bg-white/80 backdrop-blur-xl px-3 sm:px-4 shadow-sm border-none ring-1 ring-black/5 mx-2.5 sm:mx-4 mt-2.5 sm:mt-4 rounded-2xl min-w-0">
       <Sheet>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="shrink-0 md:hidden hover:bg-procarni-primary/10 text-procarni-primary">
-            <Menu className="h-6 w-6" />
+          <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9 md:hidden hover:bg-procarni-primary/10 text-procarni-primary rounded-xl">
+            <Menu className="h-5 w-5" />
             <span className="sr-only">Toggle navigation menu</span>
           </Button>
         </SheetTrigger>
@@ -218,23 +218,22 @@ const Layout = () => {
           </div>
         </SheetContent>
       </Sheet>
-      <div className="w-full flex-1 flex items-center justify-between">
-        <span className="font-black text-xl text-procarni-blue tracking-tighter md:hidden">Procarni</span>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSearchOpen(true)}
-            className="md:hidden"
-          >
-            <Search className="h-5 w-5" />
-          </Button>
-          <CurrencyCalculator />
-          <PurchaseRemindersIndicator />
-          <PendingReceiptsIndicator />
-          <NotificationBell />
-        </div>
+
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsSearchOpen(true)}
+          className="h-9 w-9 md:hidden text-slate-600 hover:text-procarni-primary hover:bg-procarni-primary/10 rounded-xl"
+          title="Buscar en el sistema"
+        >
+          <Search className="h-4 w-4" />
+        </Button>
+        <CurrencyCalculator />
+        <PurchaseRemindersIndicator />
+        <PendingReceiptsIndicator />
+        <NotificationBell />
       </div>
     </header>
   );
