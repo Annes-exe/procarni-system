@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   ShoppingCart, Users, Box, Upload, Building2, Cog, FileUp, 
-  ScrollText, Scale, LayoutDashboard, FileQuestion, Briefcase, 
+  ScrollText, Scale, MessageCircle, LayoutDashboard, FileQuestion, Briefcase, 
   BarChart3, ChevronDown, Home, Warehouse, Download, Wrench,
   Package, Layers, CreditCard, CheckCircle, FileSpreadsheet, PieChart,
   ClipboardList, BellRing, CalendarDays
@@ -22,7 +22,7 @@ const navItems = [
   {
     category: 'Operaciones',
     items: [
-      { to: '/quote-request-management', icon: <FileQuestion className="h-5 w-5" />, label: 'Cotizaciones' },
+      { to: '/search-suppliers-by-material', icon: <MessageCircle className="h-5 w-5 text-emerald-500" />, label: 'Cotizar WhatsApp' },
       { to: '/purchase-order-management', icon: <ShoppingCart className="h-5 w-5" />, label: 'Órdenes de Compra' },
       { to: '/service-order-management', icon: <Wrench className="h-5 w-5" />, label: 'Órdenes de Servicio' },
       { to: '/quote-comparison-management', icon: <Scale className="h-5 w-5" />, label: 'Gest. Comparaciones' },

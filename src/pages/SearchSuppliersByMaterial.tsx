@@ -48,6 +48,8 @@ import { getGeminiApiKey } from '@/services/invoiceExtractionService';
 import SupplierCreationDialog from '@/components/SupplierCreationDialog';
 import { SupplierFormInitialData } from '@/components/SupplierForm';
 import { Supplier } from '@/integrations/supabase/types';
+import WhatsAppQuickQuoteModal, { QuickQuoteSupplierItem } from '@/components/WhatsAppQuickQuoteModal';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export interface SmartSupplierResult {
   id: string;
@@ -135,6 +137,44 @@ const SearchSuppliersByMaterial: React.FC = () => {
   const [activeOpenRouterStatus, setActiveOpenRouterStatus] = useState<string>('');
   const [activeSerperStatus, setActiveSerperStatus] = useState<string>('');
   const [activeApifyStatus, setActiveApifyStatus] = useState<string>('');
+
+  // WhatsApp Quick Quote Batch State
+  const [isQuickQuoteModalOpen, setIsQuickQuoteModalOpen] = useState<boolean>(false);
+  const [selectedQuoteSuppliers, setSelectedQuoteSuppliers] = useState<QuickQuoteSupplierItem[]>([]);
+
+  const toggleSelectSupplier = (supItem: QuickQuoteSupplierItem) => {
+    setSelectedQuoteSuppliers(prev => {
+      const exists = prev.some(s => s.id === supItem.id);
+      if (exists) {
+        return prev.filter(s => s.id !== supItem.id);
+      } else {
+        return [...prev, supItem];
+      }
+    });
+  };
+
+  const isSupplierSelected = (id: string) => selectedQuoteSuppliers.some(s => s.id === id);
+
+  const clearSelectedQuoteSuppliers = () => setSelectedQuoteSuppliers([]);
+
+  const handleOpenQuickQuoteWithSelected = () => {
+    if (selectedQuoteSuppliers.length === 0) {
+      showError('Selecciona al menos un proveedor para consultar por WhatsApp.');
+      return;
+    }
+    setIsQuickQuoteModalOpen(true);
+  };
+
+  const handleOpenQuickQuoteSingle = (supItem: QuickQuoteSupplierItem) => {
+    setSelectedQuoteSuppliers(prev => {
+      const exists = prev.some(s => s.id === supItem.id);
+      if (!exists) {
+        return [...prev, supItem];
+      }
+      return prev;
+    });
+    setIsQuickQuoteModalOpen(true);
+  };
 
   // Supplier Creation Dialog State
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState<boolean>(false);
@@ -583,6 +623,21 @@ const SearchSuppliersByMaterial: React.FC = () => {
 
           {/* MODE TABS & API KEY SETTINGS */}
           <div className="flex items-center gap-2 w-full md:w-auto">
+            {/* Boton Lanzador Directo Express (Icono compacto con Badge) */}
+            <Button
+              type="button"
+              size="icon"
+              onClick={() => setIsQuickQuoteModalOpen(true)}
+              className="relative bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 w-9 shadow-sm shrink-0 transition-transform active:scale-95"
+              title="Cotizador Express por WhatsApp"
+            >
+              <MessageCircle className="h-5 w-5" />
+              {selectedQuoteSuppliers.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white font-black text-[10px] h-5 w-5 rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-in zoom-in-50">
+                  {selectedQuoteSuppliers.length}
+                </span>
+              )}
+            </Button>
             <div className="flex items-center bg-gray-100/90 p-1 rounded-xl border border-gray-200/80 shadow-2xs flex-1 md:flex-initial">
               <button
                 type="button"
@@ -732,7 +787,7 @@ const SearchSuppliersByMaterial: React.FC = () => {
                 className="h-10 border-gray-200 text-gray-700 hover:text-procarni-primary hover:bg-slate-50 text-xs font-semibold gap-1.5 rounded-xl shrink-0"
               >
                 <FileText className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Exportar PDF</span>
+                <span>Descargar reporte de resultados</span>
               </Button>
             </div>
           </div>
@@ -752,10 +807,45 @@ const SearchSuppliersByMaterial: React.FC = () => {
                 return (
                   <Card
                     key={supplier.id}
-                    className="border border-gray-200/90 bg-white/90 backdrop-blur-xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between rounded-2xl overflow-hidden group hover:border-procarni-blue/30"
+                    onClick={(e) => {
+                      // Prevent toggle if clicking on interactive elements
+                      const target = e.target as HTMLElement;
+                      if (target.closest('button, a, input, [role="checkbox"]')) {
+                        return;
+                      }
+                      toggleSelectSupplier({
+                        id: supplier.id,
+                        name: supplier.name,
+                        phone: supplier.phone || supplier.phone_2 || '',
+                        rif: supplier.rif,
+                        city: supplier.city,
+                        rubros: supplier.rubros
+                      });
+                    }}
+                    className={cn(
+                      "cursor-pointer border transition-all flex flex-col justify-between rounded-2xl overflow-hidden group shadow-xs hover:shadow-md",
+                      isSupplierSelected(supplier.id)
+                        ? "border-emerald-500 bg-emerald-50/20 ring-2 ring-emerald-500/20"
+                        : "border-gray-200/90 bg-white/90 backdrop-blur-xl hover:border-procarni-blue/30"
+                    )}
                   >
                     <CardHeader className="p-5 pb-3 bg-gradient-to-br from-gray-50/50 to-transparent border-b border-gray-100">
                       <div className="flex justify-between items-start gap-2">
+                        <div className="pt-0.5">
+                          <Checkbox
+                            checked={isSupplierSelected(supplier.id)}
+                            onCheckedChange={() => toggleSelectSupplier({
+                              id: supplier.id,
+                              name: supplier.name,
+                              phone: supplier.phone || supplier.phone_2 || '',
+                              rif: supplier.rif,
+                              city: supplier.city,
+                              rubros: supplier.rubros
+                            })}
+                            className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 rounded-md"
+                            title="Seleccionar para consulta rápida por WhatsApp"
+                          />
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold py-0 px-1.5 shadow-none">
@@ -872,26 +962,35 @@ const SearchSuppliersByMaterial: React.FC = () => {
                       </div>
                     </CardContent>
 
-                    <CardFooter className="p-3 bg-gray-50/70 border-t border-gray-100 gap-2 flex">
+                    <CardFooter className="p-3 bg-slate-50/80 border-t border-gray-100/80 gap-2 flex items-center">
                       <Button
                         type="button"
-                        variant="outline"
                         size="sm"
-                        onClick={() => handleCreateQuoteRequest(supplier, primaryMaterial)}
-                        className="flex-1 h-8 text-xs font-bold border-gray-200 text-gray-700 hover:bg-white hover:text-procarni-blue shadow-2xs gap-1"
+                        onClick={() => handleOpenQuickQuoteSingle({
+                          id: supplier.id,
+                          name: supplier.name,
+                          phone: supplier.phone || supplier.phone_2 || '',
+                          rif: supplier.rif,
+                          city: supplier.city,
+                          rubros: supplier.rubros
+                        })}
+                        className="flex-1 h-9 text-xs font-bold bg-white text-emerald-700 border border-emerald-200/90 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 rounded-2xl shadow-xs hover:shadow-md hover:shadow-emerald-600/15 gap-2 transition-all duration-200 active:scale-[0.98]"
+                        title="Enviar requerimiento rápido por WhatsApp"
                       >
-                        <Send className="h-3 w-3" />
-                        Cotizar
+                        <div className="p-1 rounded-full bg-emerald-50 text-emerald-600 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </div>
+                        <span>WhatsApp</span>
                       </Button>
 
                       <Button
                         type="button"
                         size="sm"
                         onClick={() => handleCreatePurchaseOrder(supplier, primaryMaterial)}
-                        className="flex-1 h-8 text-xs font-bold bg-procarni-primary hover:bg-red-800 text-white shadow-2xs gap-1"
+                        className="flex-1 h-9 text-xs font-bold bg-gradient-to-r from-procarni-primary to-red-700 hover:from-red-800 hover:to-red-900 text-white border-0 rounded-2xl shadow-sm hover:shadow-md hover:shadow-red-900/20 gap-2 transition-all duration-200 active:scale-[0.98]"
                       >
-                        <ShoppingCart className="h-3 w-3" />
-                        Comprar
+                        <ShoppingCart className="h-3.5 w-3.5 text-red-200" />
+                        <span>Comprar</span>
                       </Button>
                     </CardFooter>
                   </Card>
@@ -1475,18 +1574,18 @@ const SearchSuppliersByMaterial: React.FC = () => {
                             </div>
                           </CardContent>
 
-                          <CardFooter className="p-3 bg-gray-50/80 border-t border-gray-100 gap-2 flex">
+                          <CardFooter className="p-3 bg-slate-50/80 border-t border-gray-100/80 gap-2 flex items-center">
                             {whatsAppLink && (
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
                                 asChild
-                                className="flex-1 h-9 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50 shadow-2xs gap-1.5"
+                                className="flex-1 h-9 text-xs font-bold bg-white text-emerald-700 border border-emerald-200/90 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 rounded-2xl shadow-xs hover:shadow-md hover:shadow-emerald-600/15 gap-2 transition-all duration-200 active:scale-[0.98]"
                               >
-                                <a href={whatsAppLink} target="_blank" rel="noopener noreferrer">
+                                <a href={whatsAppLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
                                   <MessageCircle className="h-3.5 w-3.5" />
-                                  WhatsApp
+                                  <span>WhatsApp</span>
                                 </a>
                               </Button>
                             )}
@@ -1495,11 +1594,11 @@ const SearchSuppliersByMaterial: React.FC = () => {
                               type="button"
                               size="sm"
                               onClick={() => handleOpenRegisterCandidate(candidate)}
-                              className="flex-1 h-9 text-xs font-bold bg-procarni-primary hover:bg-red-800 text-white shadow-2xs gap-1.5 min-w-0"
+                              className="flex-1 h-9 text-xs font-bold bg-gradient-to-r from-procarni-primary to-red-700 hover:from-red-800 hover:to-red-900 text-white border-0 rounded-2xl shadow-sm hover:shadow-md hover:shadow-red-900/20 gap-2 transition-all duration-200 active:scale-[0.98] min-w-0"
                             >
-                              <UserPlus className="h-3.5 w-3.5 shrink-0" />
-                              <span className="hidden sm:inline">Registrar Proveedor con 1-Click</span>
-                              <span className="inline sm:hidden truncate">Registrar 1-Click</span>
+                              <UserPlus className="h-3.5 w-3.5 text-red-200 shrink-0" />
+                              <span className="hidden sm:inline">Registrar 1-Click</span>
+                              <span className="inline sm:hidden truncate">Registrar</span>
                             </Button>
                           </CardFooter>
                         </Card>
@@ -1860,6 +1959,57 @@ const SearchSuppliersByMaterial: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 4. BARRA FLOTANTE DE ACCION MASIVA DE WHATSAPP (MOBILE-FIRST) */}
+      {selectedQuoteSuppliers.length > 0 && (
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[94%] max-w-xl pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="bg-procarni-dark/95 backdrop-blur-xl text-white p-3 sm:px-5 sm:py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center justify-between gap-2.5 sm:gap-4">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs sm:text-sm font-extrabold tracking-tight truncate flex items-center gap-1.5">
+                  <span>{selectedQuoteSuppliers.length} Proveedores</span>
+                  <Badge className="bg-emerald-500 text-white text-[9px] sm:text-[10px] font-bold py-0 px-1">En cola</Badge>
+                </div>
+                <div className="text-[10px] sm:text-xs text-gray-300 truncate">
+                  {selectedQuoteSuppliers.map(s => s.name).join(', ')}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={clearSelectedQuoteSuppliers}
+                className="text-[11px] sm:text-xs text-gray-400 hover:text-white hover:bg-white/10 h-8 px-2 rounded-xl"
+              >
+                Limpiar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleOpenQuickQuoteWithSelected}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-9 sm:h-9 px-3 sm:px-4 rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">Disparar WhatsApp</span>
+                <span className="inline xs:hidden">Disparar</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EXPRESS WHATSAPP */}
+      <WhatsAppQuickQuoteModal
+        isOpen={isQuickQuoteModalOpen}
+        onClose={() => setIsQuickQuoteModalOpen(false)}
+        initialSuppliers={selectedQuoteSuppliers}
+        initialTerm={searchTerm || webSearchTerm}
+      />
     </div>
   );
 };
