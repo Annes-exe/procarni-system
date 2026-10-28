@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
+import { PriceInput } from '@/components/PriceInput';
 
 interface DotacionGeneratePODialogProps {
   open: boolean;
@@ -563,13 +564,15 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                         <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2 border-t border-slate-100">
                           <div>
                             <Label className="text-[10px] uppercase font-bold text-slate-400 block">
-                              Cant. (Bultos)
+                              Cant. ({row.unit || 'Bultos'})
                             </Label>
                             <Input
                               type="number"
                               min={0}
-                              value={row.quantity}
-                              onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value) || 0)}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              value={row.quantity || ''}
+                              placeholder="0"
+                              onChange={(e) => handleQuantityChange(idx, e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                               className="h-10 text-center font-mono font-bold text-sm mt-1 bg-white"
                             />
                           </div>
@@ -577,12 +580,9 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                             <Label className="text-[10px] uppercase font-bold text-slate-400 block">
                               P. Unit ({currency})
                             </Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
+                            <PriceInput
                               value={row.unitPrice}
-                              onChange={(e) => handlePriceChange(idx, parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePriceChange(idx, val)}
                               placeholder="0.00"
                               className="h-10 text-center font-mono font-bold text-sm mt-1 bg-white"
                             />
@@ -601,7 +601,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                     <TableRow className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
                       <TableHead className="w-10 text-center">Sel.</TableHead>
                       <TableHead>Insumo y Presentación</TableHead>
-                      <TableHead className="text-center w-28">Cant. (Bultos)</TableHead>
+                      <TableHead className="text-center w-28">Cantidad</TableHead>
                       <TableHead className="text-center w-28">P. Unit ({currency})</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -628,20 +628,19 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                             <Input
                               type="number"
                               min={0}
-                              value={row.quantity}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              value={row.quantity || ''}
+                              placeholder="0"
                               disabled={!row.selected}
-                              onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleQuantityChange(idx, e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                               className="h-7 w-20 mx-auto text-center font-mono text-xs"
                             />
                           </TableCell>
                           <TableCell className="text-center">
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
+                            <PriceInput
                               value={row.unitPrice}
                               disabled={!row.selected}
-                              onChange={(e) => handlePriceChange(idx, parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePriceChange(idx, val)}
                               placeholder="0.00"
                               className="h-7 w-24 mx-auto text-center font-mono text-xs"
                             />
