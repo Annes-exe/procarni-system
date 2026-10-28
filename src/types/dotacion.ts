@@ -106,6 +106,10 @@ export interface GlobalItemCalculation {
   statusMessage?: string; // dynamic explanation label
   globalBultosToBuy: number;
   globalLooseUnitsToBuy: number;
+  pcLooseUnitsToBuy: number;
+  maLooseUnitsToBuy: number;
+  looseUnitsAdjudication?: string;
+  looseUnitsAdjudicationShort?: string;
   orderSummaryLabel: string; // e.g. "9 bultos + 4 und" o "10 bultos"
   maxSurplusAllowed: number; // Límite de sobrante tolerable (ej: 25% del bulto = 6 und en arroz)
   isWithinTolerance: boolean; // Si el sobrante está dentro del límite aceptable

@@ -948,7 +948,7 @@ export default function DotacionQuincenal() {
               <div className={`p-2.5 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 ${quincena === 'primera' ? 'opacity-40' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-slate-900 text-xs sm:text-sm block">Jabón en Barra</span>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm block">Jabón Azul Las Llaves</span>
                     {quincena === 'primera' && (
                       <span className="text-[9px] text-slate-400 font-normal">Exclusivo 2.ª Quincena</span>
                     )}
@@ -1140,7 +1140,7 @@ export default function DotacionQuincenal() {
                   {/* Jabón en Barra */}
                   <tr className={quincena === 'primera' ? 'opacity-40 bg-slate-50/50' : ''}>
                     <td className="py-2.5 font-bold text-slate-800">
-                      Jabón en Barra
+                      Jabón Azul Las Llaves
                       {quincena === 'primera' && (
                         <span className="text-[10px] text-slate-400 block font-normal">(Exclusivo 2.ª quincena)</span>
                       )}
@@ -1626,7 +1626,11 @@ export default function DotacionQuincenal() {
                           </button>
                         </div>
                         <div className="text-[9px] sm:text-[10px] font-mono text-slate-500 text-center min-h-[14px]">
-                          {item.pcAdjustment !== 0 ? (
+                          {item.pcLooseUnitsToBuy > 0 ? (
+                            <span className="text-procarni-blue font-semibold">
+                              +{item.pcLooseUnitsToBuy} u {item.pcAdjustment !== 0 ? `(${item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj)` : ''}
+                            </span>
+                          ) : item.pcAdjustment !== 0 ? (
                             <span className="text-amber-700 font-semibold">
                               {item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj.
                             </span>
@@ -1664,7 +1668,11 @@ export default function DotacionQuincenal() {
                           </button>
                         </div>
                         <div className="text-[9px] sm:text-[10px] font-mono text-slate-500 text-center min-h-[14px]">
-                          {item.maAdjustment !== 0 ? (
+                          {item.maLooseUnitsToBuy > 0 ? (
+                            <span className="text-procarni-secondary font-semibold">
+                              +{item.maLooseUnitsToBuy} u {item.maAdjustment !== 0 ? `(${item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj)` : ''}
+                            </span>
+                          ) : item.maAdjustment !== 0 ? (
                             <span className="text-amber-700 font-semibold">
                               {item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj.
                             </span>
@@ -1678,6 +1686,10 @@ export default function DotacionQuincenal() {
                     {/* Total a Comprar & Buffer Row */}
                     <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-red-50/80 border border-red-200/80">
                       <div>
+
+
+
+
                         <span className="text-[9px] sm:text-[10px] uppercase font-bold text-procarni-primary block tracking-wider">
                           Total a Comprar {item.purchaseMode === 'mixto' ? '(Mixto)' : ''}
                         </span>
@@ -1863,7 +1875,11 @@ export default function DotacionQuincenal() {
                               </button>
                             </div>
                             <div className="h-4 flex items-center justify-center mt-0.5">
-                              {item.pcAdjustment !== 0 ? (
+                              {item.pcLooseUnitsToBuy > 0 ? (
+                            <span className="text-procarni-blue font-semibold">
+                              +{item.pcLooseUnitsToBuy} u {item.pcAdjustment !== 0 ? `(${item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj)` : ''}
+                            </span>
+                          ) : item.pcAdjustment !== 0 ? (
                                 <span className="text-[10px] font-mono text-amber-700 font-semibold leading-none whitespace-nowrap">
                                   {item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj. (calc: {pcCalcItem?.calculatedBultos})
                                 </span>
@@ -1902,7 +1918,11 @@ export default function DotacionQuincenal() {
                               </button>
                             </div>
                             <div className="h-4 flex items-center justify-center mt-0.5">
-                              {item.maAdjustment !== 0 ? (
+                              {item.maLooseUnitsToBuy > 0 ? (
+                            <span className="text-procarni-secondary font-semibold">
+                              +{item.maLooseUnitsToBuy} u {item.maAdjustment !== 0 ? `(${item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj)` : ''}
+                            </span>
+                          ) : item.maAdjustment !== 0 ? (
                                 <span className="text-[10px] font-mono text-amber-700 font-semibold leading-none whitespace-nowrap">
                                   {item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj. (calc: {maCalcItem?.calculatedBultos})
                                 </span>
@@ -1916,7 +1936,11 @@ export default function DotacionQuincenal() {
                         </TableCell>
 
                         {/* Total a Comprar Global */}
-                        <TableCell className="text-center font-mono font-extrabold text-procarni-primary text-sm sm:text-base bg-red-50/40 whitespace-nowrap">
+                        <TableCell className="text-center font-mono font-extrabold text-procarni-primary text-sm sm:text-base bg-red-50/40">
+  
+
+
+
                           {item.orderSummaryLabel}
                         </TableCell>
 

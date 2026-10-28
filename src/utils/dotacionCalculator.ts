@@ -272,7 +272,7 @@ export function calculateDotacion({
     },
     {
       id: 'jabon',
-      name: 'Jabón de Tocador',
+      name: 'Jabón Azul Las Llaves',
       brandDetail: 'Jabón en Barra',
       unitsPerPkg: pres.jabonUnitsPerPackage,
       unitsPerCombo: 1,
@@ -355,6 +355,10 @@ export function calculateDotacion({
         statusMessage: undefined,
         globalBultosToBuy: 0,
         globalLooseUnitsToBuy: 0,
+        pcLooseUnitsToBuy: 0,
+        maLooseUnitsToBuy: 0,
+        looseUnitsAdjudication: undefined,
+        looseUnitsAdjudicationShort: undefined,
         orderSummaryLabel: '-',
         pcBultos: 0,
         maBultos: 0,
@@ -630,6 +634,23 @@ export function calculateDotacion({
       includedInPeriod: true,
     });
 
+    let looseUnitsAdjudication: string | undefined = undefined;
+    let looseUnitsAdjudicationShort: string | undefined = undefined;
+
+    if (globalLooseUnitsToBuy > 0) {
+      const unitWord = p.id === 'azucar' || p.id === 'arroz' ? 'kg' : (p.id === 'papel' ? 'rollos' : (p.id === 'jabon' ? 'barras' : 'und'));
+      if (pcLooseUnitsToBuy > 0 && maLooseUnitsToBuy === 0) {
+        looseUnitsAdjudication = `Sueltas adjudicadas a PC (${pcLooseUnitsToBuy} ${unitWord})`;
+        looseUnitsAdjudicationShort = `${pcLooseUnitsToBuy} ${unitWord} a PC`;
+      } else if (maLooseUnitsToBuy > 0 && pcLooseUnitsToBuy === 0) {
+        looseUnitsAdjudication = `Sueltas adjudicadas a MA (${maLooseUnitsToBuy} ${unitWord})`;
+        looseUnitsAdjudicationShort = `${maLooseUnitsToBuy} ${unitWord} a MA`;
+      } else if (pcLooseUnitsToBuy > 0 && maLooseUnitsToBuy > 0) {
+        looseUnitsAdjudication = `Sueltas adjudicadas: PC (${pcLooseUnitsToBuy} ${unitWord}) · MA (${maLooseUnitsToBuy} ${unitWord})`;
+        looseUnitsAdjudicationShort = `PC: ${pcLooseUnitsToBuy} · MA: ${maLooseUnitsToBuy} ${unitWord}`;
+      }
+    }
+
     globalItems.push({
       productId: p.id,
       productName: p.name,
@@ -655,6 +676,10 @@ export function calculateDotacion({
       statusMessage,
       globalBultosToBuy,
       globalLooseUnitsToBuy,
+      pcLooseUnitsToBuy,
+      maLooseUnitsToBuy,
+      looseUnitsAdjudication,
+      looseUnitsAdjudicationShort,
       orderSummaryLabel: formatOrderSummary(globalBultosToBuy, globalLooseUnitsToBuy, p.id),
       maxSurplusAllowed,
       isWithinTolerance,

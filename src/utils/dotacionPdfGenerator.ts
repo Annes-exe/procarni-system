@@ -244,9 +244,11 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       `${it.totalComboUnits} und`,
       fixedCell,
       it.totalStockDeductedUnits > 0 ? `-${it.totalStockDeductedUnits} und` : '0',
-      `${it.pcBultos}${pcAdjLabel}`,
-      `${it.maBultos}${maAdjLabel}`,
-      (it.globalLooseUnitsToBuy > 0 ? `${it.globalBultosToBuy} b + ${it.globalLooseUnitsToBuy} u` : it.globalBultosToBuy.toString()),
+      `${it.pcBultos}${pcAdjLabel}${it.pcLooseUnitsToBuy > 0 ? `\n(+${it.pcLooseUnitsToBuy} u)` : ''}`,
+      `${it.maBultos}${maAdjLabel}${it.maLooseUnitsToBuy > 0 ? `\n(+${it.maLooseUnitsToBuy} u)` : ''}`,
+      (it.globalLooseUnitsToBuy > 0
+        ? `${it.globalBultosToBuy} b + ${it.globalLooseUnitsToBuy} u`
+        : it.globalBultosToBuy.toString()),
       `${it.totalUnitsPurchased.toLocaleString('es-VE')} und`,
       bufferLabel,
     ];
@@ -254,7 +256,7 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
 
   autoTable(doc, {
     startY: y,
-    head: [['Insumo / Rubro', 'Presentación', 'Combos', 'Adiciones Fijas', 'Stock', 'Bultos PC', 'Bultos MA', 'Total Bultos', 'Total Und', 'Buffer']],
+    head: [['Insumo / Rubro', 'Presentación', 'Combos', 'Adiciones Fijas', 'Stock', 'Bultos PC', 'Bultos MA', 'Total Compra', 'Total Und', 'Buffer']],
     body: purchaseRows,
     theme: 'grid',
     headStyles: {
@@ -265,16 +267,16 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       halign: 'center',
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 38 },
-      1: { halign: 'center', cellWidth: 20 },
+      0: { fontStyle: 'bold', cellWidth: 36 },
+      1: { halign: 'center', cellWidth: 19 },
       2: { halign: 'center', cellWidth: 14 },
       3: { halign: 'center', cellWidth: 18 },
       4: { halign: 'center', cellWidth: 14 },
-      5: { halign: 'center', fontStyle: 'bold', cellWidth: 16 },
-      6: { halign: 'center', fontStyle: 'bold', cellWidth: 16 },
-      7: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 18 },
+      5: { halign: 'center', fontStyle: 'bold', cellWidth: 17 },
+      6: { halign: 'center', fontStyle: 'bold', cellWidth: 17 },
+      7: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 20 },
       8: { halign: 'center', cellWidth: 15 },
-      9: { halign: 'center', cellWidth: 14 },
+      9: { halign: 'center', cellWidth: 13 },
     },
     styles: {
       fontSize: 7.5,
@@ -319,11 +321,11 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       const ma = result.ma.items.find((x) => x.productId === it.productId);
 
       const pcBultosText = pc
-        ? `${pc.bultosToBuy} bultos${pc.manualAdjustment !== 0 ? ` (${pc.manualAdjustment > 0 ? `+${pc.manualAdjustment}` : pc.manualAdjustment} aj.)` : ''}`
+        ? `${pc.bultosToBuy} bultos${pc.looseUnitsToBuy > 0 ? ` + ${pc.looseUnitsToBuy} u` : ''}${pc.manualAdjustment !== 0 ? ` (${pc.manualAdjustment > 0 ? `+${pc.manualAdjustment}` : pc.manualAdjustment} aj.)` : ''}`
         : '0 bultos';
 
       const maBultosText = ma
-        ? `${ma.bultosToBuy} bultos${ma.manualAdjustment !== 0 ? ` (${ma.manualAdjustment > 0 ? `+${ma.manualAdjustment}` : ma.manualAdjustment} aj.)` : ''}`
+        ? `${ma.bultosToBuy} bultos${ma.looseUnitsToBuy > 0 ? ` + ${ma.looseUnitsToBuy} u` : ''}${ma.manualAdjustment !== 0 ? ` (${ma.manualAdjustment > 0 ? `+${ma.manualAdjustment}` : ma.manualAdjustment} aj.)` : ''}`
         : '0 bultos';
       const formatBufferText = (itemCalc: typeof pc) => {
         if (!itemCalc) return '0 und';
