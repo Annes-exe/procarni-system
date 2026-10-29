@@ -17,8 +17,10 @@ import { DotacionCalculationResult, GeneratedPurchaseOrderLink } from '@/types/d
 import { Company, Supplier } from '@/integrations/supabase/types';
 import { purchaseOrderService, CreatePurchaseOrderItemInput, CreatePurchaseOrderInput } from '@/services/purchaseOrderService';
 import { dotacionSnapshotService } from '@/services/dotacionSnapshotService';
+import { dotacionConfigService } from '@/services/dotacionConfigService';
 import { getAllCompanies } from '@/integrations/supabase/services/companyService';
 import { getAllSuppliers } from '@/integrations/supabase/services/supplierService';
+import { getAllUnits, UnitOfMeasure } from '@/integrations/supabase/services/unitService';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck, ChevronsUpDown, Search } from 'lucide-react';
@@ -39,11 +41,15 @@ interface DotacionGeneratePODialogProps {
 interface ItemRowState {
   productId: string;
   materialName: string;
+  materialId: string | null;
+  materialCode: string | null;
+  unitId: string | null;
   quantity: number;
   unit: string;
   unitPrice: number;
   isExempt: boolean;
   selected: boolean;
+  isLoose?: boolean;
 }
 
 export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> = ({
@@ -59,6 +65,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [selectedCompanyId, setSelectedCompanyId] = useState<'pc' | 'ma'>('pc');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [unitsList, setUnitsList] = useState<UnitOfMeasure[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [supplierComboboxOpen, setSupplierComboboxOpen] = useState<boolean>(false);
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
@@ -105,7 +112,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   );
 
   // Helper to format presentation and total calculation for items
-  const getItemPresentation = (productId: string, quantity: number, unit?: string) => {
+  const getItemPresentation = (productId: string, quantity: number, isLoose?: boolean) => {
     const itemCalc = targetCompanyCalc.items.find((it) => it.productId === productId);
     const unitsPerPkg = itemCalc ? itemCalc.unitsPerPackage : 1;
 
@@ -118,12 +125,12 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
       unitText = 'barras';
     }
 
-    if (unit && unit !== 'Bulto') {
+    if (isLoose) {
       return {
         unitsPerPkg: 1,
         unitText,
         totalUnits: quantity,
-        label: `Unidades sueltas exactas · Total: ${quantity} ${unitText}`,
+        label: `(sueltas) · ${quantity} ${unitText} exactas`,
       };
     }
 
@@ -157,33 +164,53 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
 
   useEffect(() => {
+    const mappings = dotacionConfigService.getMappings();
     const rows: ItemRowState[] = [];
+
+    const undUnit = unitsList.find((u) => {
+      const n = u.name.trim().toUpperCase();
+      return n === 'UND' || n === 'UNIDAD' || n === 'UNIDADES' || n === 'U';
+    });
+
+    const bultoUnit = unitsList.find((u) => {
+      const n = u.name.trim().toUpperCase();
+      return n === 'BULTO' || n === 'BTO' || n === 'BULTOS';
+    });
+
     targetCompanyCalc.items
       .filter((it) => it.includedInPeriod && (it.bultosToBuy > 0 || it.looseUnitsToBuy > 0))
       .forEach((it) => {
+        const mapping = mappings.find((m) => m.productId === it.productId);
+        const poName = mapping?.customPoName || mapping?.materialName || it.productName;
+
         if (it.bultosToBuy > 0) {
           rows.push({
             productId: it.productId,
-            materialName: it.productName,
+            materialName: poName,
+            materialId: mapping?.materialId || null,
+            materialCode: mapping?.materialCode || null,
+            unitId: mapping?.bultoUnitId || bultoUnit?.id || null,
             quantity: it.bultosToBuy,
-            unit: 'Bulto',
+            unit: mapping?.bultoUnitName || 'Bulto',
             unitPrice: 0,
-            isExempt: false,
+            isExempt: mapping ? mapping.isExempt : false,
             selected: true,
+            isLoose: false,
           });
         }
         if (it.looseUnitsToBuy > 0) {
-          const unitWord = it.productId === 'azucar' || it.productId === 'arroz'
-            ? 'Kg'
-            : (it.productId === 'papel' ? 'Rollo' : (it.productId === 'jabon' ? 'Barra' : 'Und'));
           rows.push({
             productId: it.productId,
-            materialName: `${it.productName} (Sueltas)`,
+            materialName: poName, // Nombre limpio oficial sin "(Sueltas)"
+            materialId: mapping?.materialId || null,
+            materialCode: mapping?.materialCode || null,
+            unitId: undUnit?.id || mapping?.unitId || null,
             quantity: it.looseUnitsToBuy,
-            unit: unitWord,
+            unit: 'UND', // Unidad de medida exacta solicitada: UND
             unitPrice: 0,
-            isExempt: false,
+            isExempt: mapping ? mapping.isExempt : false,
             selected: true,
+            isLoose: true,
           });
         }
       });
@@ -193,7 +220,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
       `Orden de Dotación Quincenal (${result.periodLabel}) para ${targetCompanyCalc.companyName}. Requerimiento calculado por Sistema de Compras.`
     );
     setCreatedOrderLink(null);
-  }, [selectedCompanyId, result, targetCompanyCalc]);
+  }, [selectedCompanyId, result, targetCompanyCalc, unitsList]);
 
   const handleToggleItem = (index: number) => {
     const updated = [...itemRows];
@@ -256,7 +283,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
       };
 
       const itemsPayload: CreatePurchaseOrderItemInput[] = selectedItems.map((row) => {
-        const pres = getItemPresentation(row.productId, row.quantity, row.unit);
+        const pres = getItemPresentation(row.productId, row.quantity, row.isLoose);
         return {
           material_name: row.materialName,
           quantity: row.quantity,
@@ -264,10 +291,10 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
           unit_price: row.unitPrice,
           tax_rate: row.isExempt ? 0 : 0.16,
           is_exempt: row.isExempt,
-          supplier_code: null,
+          supplier_code: row.materialCode || null,
           description: pres.label,
-          unit_id: null,
-          material_id: null,
+          unit_id: row.unitId || null,
+          material_id: row.materialId || null,
           sales_percentage: 0,
           discount_percentage: 0,
           was_recalculated: false,
@@ -537,10 +564,10 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               {/* MOBILE STACKED CARDS (< md) */}
               <div className="block md:hidden space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {itemRows.map((row, idx) => {
-                  const pres = getItemPresentation(row.productId, row.quantity);
+                  const pres = getItemPresentation(row.productId, row.quantity, row.isLoose);
                   return (
                     <div
-                      key={row.productId}
+                      key={`${row.productId}-${row.unit}-${idx}`}
                       className={`p-3 rounded-xl border transition-all ${
                         row.selected ? 'bg-white border-slate-300 shadow-xs' : 'bg-slate-50/70 border-slate-200 opacity-50'
                       }`}
@@ -553,7 +580,28 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                           className="mt-0.5 rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-5 h-5 cursor-pointer shrink-0"
                         />
                         <div className="min-w-0 flex-1">
-                          <span className="font-bold text-slate-900 text-xs block truncate">{row.materialName}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900 text-xs truncate">{row.materialName}</span>
+                            {row.isLoose && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Sueltas
+                              </span>
+                            )}
+                            {row.materialCode && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-blue-50 text-procarni-blue border border-blue-200">
+                                [{row.materialCode}]
+                              </span>
+                            )}
+                            {row.isExempt ? (
+                              <span className="px-1 py-0.2 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Exento
+                              </span>
+                            ) : (
+                              <span className="px-1 py-0.2 rounded text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                +16% IVA
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
                             {pres.label}
                           </span>
@@ -607,9 +655,9 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                   </TableHeader>
                   <TableBody className="text-xs divide-y divide-slate-100">
                     {itemRows.map((row, idx) => {
-                      const pres = getItemPresentation(row.productId, row.quantity);
+                      const pres = getItemPresentation(row.productId, row.quantity, row.isLoose);
                       return (
-                        <TableRow key={row.productId} className={row.selected ? 'bg-white' : 'opacity-40 bg-slate-50'}>
+                        <TableRow key={`${row.productId}-${row.unit}-${idx}`} className={row.selected ? 'bg-white' : 'opacity-40 bg-slate-50'}>
                           <TableCell className="text-center">
                             <input
                               type="checkbox"
@@ -619,7 +667,28 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                             />
                           </TableCell>
                           <TableCell className="py-2.5">
-                            <span className="font-bold text-slate-800 block text-xs">{row.materialName}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-800 text-xs">{row.materialName}</span>
+                              {row.isLoose && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  Sueltas
+                                </span>
+                              )}
+                              {row.materialCode && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-blue-50 text-procarni-blue border border-blue-200">
+                                  [{row.materialCode}]
+                                </span>
+                              )}
+                              {row.isExempt ? (
+                                <span className="px-1 py-0.2 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  Exento
+                                </span>
+                              ) : (
+                                <span className="px-1 py-0.2 rounded text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                  +16% IVA
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
                               {pres.label}
                             </span>

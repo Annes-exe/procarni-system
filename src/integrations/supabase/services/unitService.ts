@@ -107,3 +107,5 @@ export const {
     create: createUnit,
     delete: deleteUnit,
 } = UnitService;
+
+export default UnitService;

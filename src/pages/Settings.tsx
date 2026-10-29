@@ -10,6 +10,7 @@ import PinConfirmationDialog from '@/components/PinConfirmationDialog';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Cog, FolderTree, MapPin } from 'lucide-react';
 import LocationsManager from '@/components/settings/LocationsManager';
+import DotacionMaterialMappingManager from '@/components/settings/DotacionMaterialMappingManager';
 
 const Settings = () => {
   const { session, role, isLoadingSession } = useSession();
@@ -191,6 +192,9 @@ const Settings = () => {
                 <LocationsManager />
               </div>
             </div>
+
+            {/* Dotación Material Linking Management */}
+            <DotacionMaterialMappingManager />
 
           </div>
         </CardContent>

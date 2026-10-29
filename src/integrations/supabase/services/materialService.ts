@@ -41,6 +41,20 @@ const MaterialService = {
     return data || [];
   },
 
+  getAllSystemMaterials: async (): Promise<Material[]> => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .order('name', { ascending: true })
+      .limit(10000);
+
+    if (error) {
+      console.error('[MaterialService.getAllSystemMaterials] Error:', error);
+      return [];
+    }
+    return data || [];
+  },
+
   create: async (materialData: Omit<Material, 'id' | 'created_at' | 'updated_at'>): Promise<Material | null> => {
     const payload = {
       ...materialData,
@@ -477,6 +491,7 @@ const MaterialService = {
 export const {
   getAll: getAllMaterials,
   getAllWithoutFilters: getAllMaterialsWithoutFilters,
+  getAllSystemMaterials: getAllSystemMaterials,
   create: createMaterial,
   update: updateMaterial,
   delete: deleteMaterial,
@@ -490,3 +505,5 @@ export const {
   getPendingMaterials,
   searchMaterialsForTrends,
 } = MaterialService;
+
+export default MaterialService;

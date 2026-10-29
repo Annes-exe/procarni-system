@@ -42,6 +42,23 @@ export interface ItemAdjustment {
 
 export type DotacionAdjustments = Record<string, ItemAdjustment>;
 
+export type DotacionProductId = 'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon';
+
+export interface DotacionMaterialMapping {
+  productId: DotacionProductId;
+  productLabel: string;
+  defaultBrand: string;
+  materialId: string | null;
+  materialName: string | null;
+  materialCode: string | null;
+  unitId: string | null;
+  unitName: string | null;
+  isExempt: boolean;
+  bultoUnitId?: string | null;
+  bultoUnitName?: string;
+  customPoName?: string | null;
+}
+
 export type PurchaseMode = 'bultos' | 'mixto';
 export type ProductPurchaseModes = Record<'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon', PurchaseMode>;
 
