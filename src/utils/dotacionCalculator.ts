@@ -30,6 +30,7 @@ export const DEFAULT_COMEDOR: ComedorConfig = {
 
 export const DEFAULT_FINCA: FincaConfig = {
   bultosHarina: 2,
+  bultosArroz: 0.5,
   splitPercentPC: 50,
   splitPercentMA: 50,
 };
@@ -153,14 +154,24 @@ export function calculateDotacion({
   const comedorBultosPC = Math.ceil(comedorUnitsPC / pres.arrozUnitsPerPackage);
   const comedorBultosMA = Math.ceil(comedorUnitsMA / pres.arrozUnitsPerPackage);
 
-  // --- 2. FINCA (Harina Pan) ---
-  // Reserva de almacén para la Finca. Reparto 50% PC y 50% MA (ej. 1 bulto PC y 1 bulto MA).
+  // --- 2. FINCA (Harina Pan y Arroz) ---
+  // Reserva de almacén para la Finca. Reparto 50% PC y 50% MA.
   // REGLA: Aplica CADA QUINCENA (1.ª y 2.ª quincena).
   const fincaBultosTotal = hasEmployees ? finca.bultosHarina : 0;
   const fincaBultosPC = Math.round(fincaBultosTotal * (finca.splitPercentPC / 100));
   const fincaBultosMA = fincaBultosTotal - fincaBultosPC;
   const fincaUnitsPC = fincaBultosPC * pres.harinaUnitsPerPackage;
   const fincaUnitsMA = fincaBultosMA * pres.harinaUnitsPerPackage;
+
+  // Finca Arroz (por defecto al menos 0.5 bultos = 12 kg)
+  const fincaArrozBultos = typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5;
+  const fincaArrozKgTotal = hasEmployees ? Math.round(fincaArrozBultos * pres.arrozUnitsPerPackage) : 0;
+  const fincaArrozUnitsPC = hasEmployees ? Math.round(fincaArrozKgTotal * (finca.splitPercentPC / 100)) : 0;
+  const fincaArrozUnitsMA = hasEmployees ? fincaArrozKgTotal - fincaArrozUnitsPC : 0;
+  const totalArrozUnitsPC = comedorUnitsPC + fincaArrozUnitsPC;
+  const totalArrozUnitsMA = comedorUnitsMA + fincaArrozUnitsMA;
+  const totalArrozBultosPC = Math.ceil(totalArrozUnitsPC / pres.arrozUnitsPerPackage);
+  const totalArrozBultosMA = Math.ceil(totalArrozUnitsMA / pres.arrozUnitsPerPackage);
 
   // Determinar qué empresa tiene menor cantidad de colaboradores/combos
   // REGLA: No hay insumos exclusivos de PC o MA; el excedente se le agrega a la empresa con menor cantidad.
@@ -229,12 +240,16 @@ export function calculateDotacion({
       unitsPerPkg: pres.arrozUnitsPerPackage,
       unitsPerCombo: 1,
       included: true,
-      pcFixedUnits: hasEmployees ? comedorUnitsPC : 0,
-      pcFixedBultos: hasEmployees ? comedorBultosPC : 0,
-      pcFixedLabel: hasEmployees && comedorUnitsPC > 0 ? `Comedor (${comedorUnitsPC} kg)` : '-',
-      maFixedUnits: hasEmployees ? comedorUnitsMA : 0,
-      maFixedBultos: hasEmployees ? comedorBultosMA : 0,
-      maFixedLabel: hasEmployees && comedorUnitsMA > 0 ? `Comedor (${comedorUnitsMA} kg)` : '-',
+      pcFixedUnits: hasEmployees ? totalArrozUnitsPC : 0,
+      pcFixedBultos: hasEmployees ? totalArrozBultosPC : 0,
+      pcFixedLabel: hasEmployees && totalArrozUnitsPC > 0
+        ? (fincaArrozUnitsPC > 0 ? `Comedor (${comedorUnitsPC} kg) + Finca (${fincaArrozUnitsPC} kg)` : `Comedor (${comedorUnitsPC} kg)`)
+        : '-',
+      maFixedUnits: hasEmployees ? totalArrozUnitsMA : 0,
+      maFixedBultos: hasEmployees ? totalArrozBultosMA : 0,
+      maFixedLabel: hasEmployees && totalArrozUnitsMA > 0
+        ? (fincaArrozUnitsMA > 0 ? `Comedor (${comedorUnitsMA} kg) + Finca (${fincaArrozUnitsMA} kg)` : `Comedor (${comedorUnitsMA} kg)`)
+        : '-',
       stockBultos: stock.arroz.bultos,
       stockLooseUnits: stock.arroz.looseUnits,
     },
@@ -542,8 +557,14 @@ export function calculateDotacion({
         if (p.pcFixedBultos > 0) fixedParts.push(`Finca PC: +${p.pcFixedBultos} bulto${p.pcFixedBultos > 1 ? 's' : ''} (${p.pcFixedUnits} und)`);
         if (p.maFixedBultos > 0) fixedParts.push(`Finca MA: +${p.maFixedBultos} bulto${p.maFixedBultos > 1 ? 's' : ''} (${p.maFixedUnits} und)`);
       } else if (p.id === 'arroz') {
-        if (p.pcFixedUnits > 0) fixedParts.push(`Comedor PC: +${p.pcFixedUnits} kg`);
-        if (p.maFixedUnits > 0) fixedParts.push(`Comedor MA: +${p.maFixedUnits} kg`);
+        const pcLabel = fincaArrozUnitsPC > 0
+          ? `PC: +${p.pcFixedUnits} kg (Comedor ${comedorUnitsPC} kg + Finca ${fincaArrozUnitsPC} kg)`
+          : `Comedor PC: +${p.pcFixedUnits} kg`;
+        const maLabel = fincaArrozUnitsMA > 0
+          ? `MA: +${p.maFixedUnits} kg (Comedor ${comedorUnitsMA} kg + Finca ${fincaArrozUnitsMA} kg)`
+          : `Comedor MA: +${p.maFixedUnits} kg`;
+        if (p.pcFixedUnits > 0) fixedParts.push(pcLabel);
+        if (p.maFixedUnits > 0) fixedParts.push(maLabel);
       } else if (p.id === 'azucar') {
         if (p.pcFixedUnits > 0) fixedParts.push(`Cafetería PC: +${p.pcFixedBultos} bulto${p.pcFixedBultos === 1 ? '' : 's'} (${p.pcFixedUnits} kg)`);
         if (p.maFixedUnits > 0) fixedParts.push(`Cafetería MA: +${p.maFixedBultos} bulto${p.maFixedBultos === 1 ? '' : 's'} (${p.maFixedUnits} kg)`);
@@ -735,6 +756,106 @@ export function calculateDotacion({
     .map((it) => formatItemLine(it.globalBultosToBuy, it.globalLooseUnitsToBuy, it.productName));
   const globalMessage = `Total Global a Comprar (${quincena === 'primera' ? '1.ª Quincena' : '2.ª Quincena'}):\n\n${globalLines.join('\n')}\n`;
 
+    // --- CONSTRUCCIÓN DEL DESGLOSE DE DESTINOS (COMBOS + OPERATIVO / NO-COMBOS) ---
+  const nonComboDestinations: NonComboDestinationItem[] = [];
+
+  if (hasEmployees) {
+    const totalEmployees = employeesPC + employeesMA;
+
+    // 1. Armado de Combos de Trabajadores
+    globalItems
+      .filter((it) => it.includedInPeriod && it.totalComboUnits > 0)
+      .forEach((it) => {
+        const unitWord = it.productId === 'azucar' || it.productId === 'arroz'
+          ? 'kg'
+          : (it.productId === 'papel' ? 'rollos' : (it.productId === 'jabon' ? 'barras' : 'und'));
+
+        const bultosVal = Number((it.totalComboUnits / it.unitsPerPackage).toFixed(2));
+
+        nonComboDestinations.push({
+          destination: 'Armado de Combos',
+          productId: it.productId,
+          productName: it.productName,
+          quantityUnits: it.totalComboUnits,
+          unitLabel: unitWord,
+          equivalentBultos: bultosVal,
+          observations: `Combos de trabajadores: ${it.unitsPerCombo} ${unitWord}/combo × ${totalEmployees} colaboradores (${employeesPC} PC + ${employeesMA} MA)`,
+          category: 'combos',
+        });
+      });
+
+    // 2. Destinos Operativos Diferentes a Combos
+    // 2.1 Comedor (Arroz Mary)
+    if (comedorKgTotal > 0) {
+      const comedorBultosRedondeados = Math.ceil(comedorKgTotal / pres.arrozUnitsPerPackage);
+      nonComboDestinations.push({
+        destination: 'Comedor Trabajadores',
+        productId: 'arroz',
+        productName: 'Arroz Mary Superior',
+        quantityUnits: comedorKgTotal,
+        unitLabel: 'kg',
+        equivalentBultos: comedorBultosRedondeados,
+        observations: `Consumo comedor: ${comedor.kgPerDay} kg/día × ${comedor.days} días quincenales = ${comedorKgTotal} kg (${(comedorKgTotal / pres.arrozUnitsPerPackage).toFixed(2)} bto exactos, redondeado a ${comedorBultosRedondeados} bultos para compra)`,
+        category: 'operativo',
+      });
+    }
+
+    // 2.2 Finca (Harina Pan y Arroz)
+    if (fincaUnitsPC + fincaUnitsMA > 0) {
+      nonComboDestinations.push({
+        destination: 'Finca (Alimentación)',
+        productId: 'harina',
+        productName: 'Harina Pan',
+        quantityUnits: fincaUnitsPC + fincaUnitsMA,
+        unitLabel: 'und',
+        equivalentBultos: fincaBultosTotal,
+        observations: `Reserva fija quincenal Finca: ${fincaBultosTotal} bultos Harina (50% PC / 50% MA)`,
+        category: 'operativo',
+      });
+    }
+
+    if (fincaArrozKgTotal > 0) {
+      nonComboDestinations.push({
+        destination: 'Finca (Alimentación)',
+        productId: 'arroz',
+        productName: 'Arroz Mary Superior',
+        quantityUnits: fincaArrozKgTotal,
+        unitLabel: 'kg',
+        equivalentBultos: Number(fincaArrozBultos.toFixed(2)),
+        observations: `Reserva fija quincenal Finca: ${fincaArrozBultos} bto (${fincaArrozKgTotal} kg) Arroz (50% PC / 50% MA)`,
+        category: 'operativo',
+      });
+    }
+
+    // 2.3 Uso Interno Planta y Baños (Papel Caricia)
+    if (papelUnitsTotal > 0) {
+      nonComboDestinations.push({
+        destination: 'Planta y Servicios Sanitarios',
+        productId: 'papel',
+        productName: 'Papel Higiénico Caricia',
+        quantityUnits: papelUnitsTotal,
+        unitLabel: 'rollos',
+        equivalentBultos: papelUsoDiarioBultos,
+        observations: `Excedente quincenal baños/planta: ${papelUsoDiarioBultos} bto (${papelUnitsTotal} rollos)`,
+        category: 'operativo',
+      });
+    }
+
+    // 2.4 Cafetería y Uso Continuo Planta (Azúcar Konfit)
+    if (azucarKgTotal > 0) {
+      nonComboDestinations.push({
+        destination: 'Cafetería y Áreas Operativas',
+        productId: 'azucar',
+        productName: 'Azúcar Konfit',
+        quantityUnits: azucarKgTotal,
+        unitLabel: 'kg',
+        equivalentBultos: azucarUsoMesBultos,
+        observations: `Consumo cafetería/planta: ${azucarUsoMesBultos} bto (${azucarKgTotal} kg)`,
+        category: 'operativo',
+      });
+    }
+  }
+
   return {
     quincena,
     month,
@@ -762,6 +883,7 @@ export function calculateDotacion({
     globalItems,
     totalGlobalBultos,
     totalGlobalLooseUnits,
+    nonComboDestinations,
     formattedMessages: {
       pcMessage,
       maMessage,

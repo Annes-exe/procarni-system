@@ -163,7 +163,7 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       halign: 'center',
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 62 },
+      0: { fontStyle: 'bold', cellWidth: 58 },
       1: { halign: 'center', cellWidth: 30 },
       2: { halign: 'center', cellWidth: 30 },
       3: { halign: 'center', cellWidth: 30 },
@@ -267,16 +267,16 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       halign: 'center',
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 36 },
-      1: { halign: 'center', cellWidth: 19 },
+      0: { fontStyle: 'bold', cellWidth: 34 },
+      1: { halign: 'center', cellWidth: 18 },
       2: { halign: 'center', cellWidth: 14 },
       3: { halign: 'center', cellWidth: 18 },
       4: { halign: 'center', cellWidth: 14 },
       5: { halign: 'center', fontStyle: 'bold', cellWidth: 17 },
       6: { halign: 'center', fontStyle: 'bold', cellWidth: 17 },
       7: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 20 },
-      8: { halign: 'center', cellWidth: 15 },
-      9: { halign: 'center', cellWidth: 13 },
+      8: { halign: 'center', cellWidth: 14 },
+      9: { halign: 'center', cellWidth: 12 },
     },
     styles: {
       fontSize: 7.5,
@@ -380,9 +380,74 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
   });
 
   const finalY3 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || 240;
+  y = finalY3 + 6;
+
+  // --- TABLA 4: DESTINOS DE INSUMOS (ARMADO DE COMBOS Y USOS OPERATIVOS) ---
+  const nonComboItems = result.nonComboDestinations || [];
+  let finalY4 = finalY3;
+
+  if (nonComboItems.length > 0) {
+    if (y + 40 > pageHeight - 35) {
+      doc.addPage();
+      y = margin + 5;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...PROC_BLUE);
+    doc.text('4. DESTINO DETALLADO DE INSUMOS (ARMADO DE COMBOS Y CONSUMOS OPERATIVOS)', margin, y);
+
+    y += 2;
+
+    const nonComboRows = nonComboItems.map((item) => [
+      item.destination,
+      item.productName,
+      `${item.quantityUnits} ${item.unitLabel}`,
+      `${item.equivalentBultos} bto`,
+      item.observations,
+    ]);
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Destino / Área', 'Insumo Requerido', 'Total Cantidad', 'Equivalente en Bultos', 'Detalle / Criterio Operativo']],
+      body: nonComboRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: PROC_BLUE,
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        halign: 'center',
+      },
+      styles: {
+        fontSize: 7,
+        cellPadding: 1.6,
+        textColor: TEXT_DARK,
+      },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 38 },
+        1: { cellWidth: 32 },
+        2: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },
+        3: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },
+        4: { fontSize: 6.8, cellWidth: 60 },
+      },
+      alternateRowStyles: {
+        fillColor: [255, 255, 255],
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body') {
+          const dest = String(data.row.raw[0] || '');
+          if (dest.includes('Armado de Combos')) {
+            data.cell.styles.fillColor = [240, 246, 255]; // Azul sutil para combos
+          }
+        }
+      },
+    });
+
+    finalY4 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || (y + 30);
+  }
 
   // Check if signatures fit on current page or require page break
-  let sigY = finalY3 + 14;
+  let sigY = finalY4 + 12;
   if (sigY + 22 > pageHeight - 15) {
     doc.addPage();
     sigY = margin + 15;

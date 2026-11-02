@@ -1,6 +1,19 @@
-import { DotacionMaterialMapping, DotacionProductId } from '@/types/dotacion';
+import {
+  DotacionMaterialMapping,
+  DotacionProductId,
+  DotacionOperationalParameters,
+} from '@/types/dotacion';
 import { Material } from '@/integrations/supabase/types';
 import { UnitOfMeasure } from '@/integrations/supabase/services/unitService';
+import {
+  DEFAULT_COMEDOR,
+  DEFAULT_FINCA,
+  DEFAULT_PAPEL_USO_DIARIO_BULTOS,
+  DEFAULT_PRESENTATIONS,
+  DEFAULT_SURPLUS_TOLERANCE_PERCENT,
+  DEFAULT_ARROZ_MAX_SURPLUS_KG,
+  DEFAULT_GLOBAL_PURCHASE_MODE,
+} from '@/utils/dotacionCalculator';
 
 const normalizeText = (str: string): string =>
   (str || '')
@@ -9,7 +22,22 @@ const normalizeText = (str: string): string =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
-const STORAGE_KEY = 'procarni_dotacion_material_mappings_v2';
+const MAPPINGS_STORAGE_KEY = 'procarni_dotacion_material_mappings_v2';
+const PARAMS_STORAGE_KEY = 'procarni_dotacion_operational_params_v1';
+
+export const DEFAULT_OPERATIONAL_PARAMETERS: DotacionOperationalParameters = {
+  comedor: { ...DEFAULT_COMEDOR },
+  finca: { ...DEFAULT_FINCA },
+  papelUsoDiarioBultos: DEFAULT_PAPEL_USO_DIARIO_BULTOS,
+  azucarUsoBultosMap: {
+    primera: 1.5,
+    segunda: 1.5,
+  },
+  presentations: { ...DEFAULT_PRESENTATIONS },
+  surplusTolerancePercent: DEFAULT_SURPLUS_TOLERANCE_PERCENT,
+  arrozMaxSurplusKg: DEFAULT_ARROZ_MAX_SURPLUS_KG,
+  globalPurchaseMode: DEFAULT_GLOBAL_PURCHASE_MODE,
+};
 
 export const DEFAULT_DOTACION_MAPPINGS: DotacionMaterialMapping[] = [
   {
@@ -85,9 +113,78 @@ export const DEFAULT_DOTACION_MAPPINGS: DotacionMaterialMapping[] = [
 ];
 
 export const dotacionConfigService = {
+  // --- PARÁMETROS OPERATIVOS BASE ---
+  getOperationalParameters: (): DotacionOperationalParameters => {
+    try {
+      const stored = localStorage.getItem(PARAMS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<DotacionOperationalParameters>;
+        return {
+          comedor: { ...DEFAULT_OPERATIONAL_PARAMETERS.comedor, ...(parsed.comedor || {}) },
+          finca: { ...DEFAULT_OPERATIONAL_PARAMETERS.finca, ...(parsed.finca || {}) },
+          papelUsoDiarioBultos:
+            parsed.papelUsoDiarioBultos ?? DEFAULT_OPERATIONAL_PARAMETERS.papelUsoDiarioBultos,
+          azucarUsoBultosMap: {
+            ...DEFAULT_OPERATIONAL_PARAMETERS.azucarUsoBultosMap,
+            ...(parsed.azucarUsoBultosMap || {}),
+          },
+          presentations: {
+            ...DEFAULT_OPERATIONAL_PARAMETERS.presentations,
+            ...(parsed.presentations || {}),
+          },
+          surplusTolerancePercent:
+            parsed.surplusTolerancePercent ?? DEFAULT_OPERATIONAL_PARAMETERS.surplusTolerancePercent,
+          arrozMaxSurplusKg:
+            parsed.arrozMaxSurplusKg ?? DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
+          globalPurchaseMode:
+            parsed.globalPurchaseMode ?? DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+        };
+      }
+    } catch (e) {
+      console.error('[dotacionConfigService.getOperationalParameters] Error reading localStorage:', e);
+    }
+    return {
+      comedor: { ...DEFAULT_OPERATIONAL_PARAMETERS.comedor },
+      finca: { ...DEFAULT_OPERATIONAL_PARAMETERS.finca },
+      papelUsoDiarioBultos: DEFAULT_OPERATIONAL_PARAMETERS.papelUsoDiarioBultos,
+      azucarUsoBultosMap: { ...DEFAULT_OPERATIONAL_PARAMETERS.azucarUsoBultosMap },
+      presentations: { ...DEFAULT_OPERATIONAL_PARAMETERS.presentations },
+      surplusTolerancePercent: DEFAULT_OPERATIONAL_PARAMETERS.surplusTolerancePercent,
+      arrozMaxSurplusKg: DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
+      globalPurchaseMode: DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+    };
+  },
+
+  saveOperationalParameters: (params: DotacionOperationalParameters): void => {
+    try {
+      localStorage.setItem(PARAMS_STORAGE_KEY, JSON.stringify(params));
+    } catch (e) {
+      console.error('[dotacionConfigService.saveOperationalParameters] Error writing localStorage:', e);
+    }
+  },
+
+  resetOperationalParameters: (): DotacionOperationalParameters => {
+    try {
+      localStorage.removeItem(PARAMS_STORAGE_KEY);
+    } catch (e) {
+      console.error('[dotacionConfigService.resetOperationalParameters] Error:', e);
+    }
+    return {
+      comedor: { ...DEFAULT_OPERATIONAL_PARAMETERS.comedor },
+      finca: { ...DEFAULT_OPERATIONAL_PARAMETERS.finca },
+      papelUsoDiarioBultos: DEFAULT_OPERATIONAL_PARAMETERS.papelUsoDiarioBultos,
+      azucarUsoBultosMap: { ...DEFAULT_OPERATIONAL_PARAMETERS.azucarUsoBultosMap },
+      presentations: { ...DEFAULT_OPERATIONAL_PARAMETERS.presentations },
+      surplusTolerancePercent: DEFAULT_OPERATIONAL_PARAMETERS.surplusTolerancePercent,
+      arrozMaxSurplusKg: DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
+      globalPurchaseMode: DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+    };
+  },
+
+  // --- VINCULACIÓN DE MATERIALES ---
   getMappings: (): DotacionMaterialMapping[] => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(MAPPINGS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as DotacionMaterialMapping[];
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -106,7 +203,7 @@ export const dotacionConfigService = {
 
   saveMappings: (mappings: DotacionMaterialMapping[]): void => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mappings));
+      localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(mappings));
     } catch (e) {
       console.error('[dotacionConfigService.saveMappings] Error writing localStorage:', e);
     }

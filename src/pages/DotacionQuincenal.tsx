@@ -30,6 +30,7 @@ import {
   Sparkles,
   ShoppingCart,
   Bookmark,
+  Save,
   History,
   Trash2,
   ExternalLink,
@@ -78,6 +79,7 @@ import {
 } from '@/utils/dotacionCalculator';
 import { generateDotacionPDF } from '@/utils/dotacionPdfGenerator';
 import { dotacionSnapshotService } from '@/services/dotacionSnapshotService';
+import { dotacionConfigService } from '@/services/dotacionConfigService';
 import { DotacionGeneratePODialog } from '@/components/DotacionGeneratePODialog';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -126,24 +128,26 @@ export default function DotacionQuincenal() {
   // --- DYNAMIC USER ADJUSTMENTS (+/- BULTOS PER ITEM FOR PC & MA) ---
   const [adjustments, setAdjustments] = useState<DotacionAdjustments>({});
 
-  // --- COMEDOR, FINCA, USO DIARIO, USO MES & PRESENTATIONS ---
-  const [comedor, setComedor] = useState<ComedorConfig>({ ...DEFAULT_COMEDOR });
-  const [finca, setFinca] = useState<FincaConfig>({ ...DEFAULT_FINCA });
-  const [papelUsoDiarioBultos, setPapelUsoDiarioBultos] = useState<number>(DEFAULT_PAPEL_USO_DIARIO_BULTOS);
+  // --- COMEDOR, FINCA, USO DIARIO, USO MES & PRESENTATIONS (PERSISTENT DEFAULTS) ---
+  const initialSavedParams = useMemo(() => dotacionConfigService.getOperationalParameters(), []);
+  const [comedor, setComedor] = useState<ComedorConfig>({ ...initialSavedParams.comedor });
+  const [finca, setFinca] = useState<FincaConfig>({ ...initialSavedParams.finca });
+  const [papelUsoDiarioBultos, setPapelUsoDiarioBultos] = useState<number>(initialSavedParams.papelUsoDiarioBultos);
   const [azucarUsoBultosMap, setAzucarUsoBultosMap] = useState<Record<string, number>>({
-    primera: 1.5, // 30 kg en 1.ª quincena (1.5 bultos)
-    segunda: 1.5, // 30 kg en 2.ª quincena (1.5 bultos)
+    ...initialSavedParams.azucarUsoBultosMap,
   });
   const azucarUsoMesBultos = azucarUsoBultosMap[quincena] ?? 1.5;
   const setAzucarUsoMesBultos = (val: number) => {
     setAzucarUsoBultosMap((prev) => ({ ...prev, [quincena]: val }));
   };
-  const [presentations, setPresentations] = useState<ProductPresentationConfig>({ ...DEFAULT_PRESENTATIONS });
-  const [globalPurchaseMode, setGlobalPurchaseMode] = useState<PurchaseMode>(DEFAULT_GLOBAL_PURCHASE_MODE);
+  const [presentations, setPresentations] = useState<ProductPresentationConfig>({ ...initialSavedParams.presentations });
+  const [globalPurchaseMode, setGlobalPurchaseMode] = useState<PurchaseMode>(initialSavedParams.globalPurchaseMode || DEFAULT_GLOBAL_PURCHASE_MODE);
   const [purchaseModes, setPurchaseModes] = useState<Partial<ProductPurchaseModes>>({});
-  const [surplusTolerancePercent, setSurplusTolerancePercent] = useState<number>(DEFAULT_SURPLUS_TOLERANCE_PERCENT);
-  const [arrozMaxSurplusKg, setArrozMaxSurplusKg] = useState<number>(DEFAULT_ARROZ_MAX_SURPLUS_KG);
+  const [surplusTolerancePercent, setSurplusTolerancePercent] = useState<number>(initialSavedParams.surplusTolerancePercent);
+  const [arrozMaxSurplusKg, setArrozMaxSurplusKg] = useState<number>(initialSavedParams.arrozMaxSurplusKg);
+  const [hasParamsChanges, setHasParamsChanges] = useState<boolean>(false);
   const [showAdvancedParams, setShowAdvancedParams] = useState<boolean>(false);
+  const [configActiveSection, setConfigActiveSection] = useState<'todas' | 'finca' | 'planta' | 'normas'>('todas');
 
   // --- UI DIALOGS & SNAPSHOTS ---
   const [isPODialogOpen, setIsPODialogOpen] = useState<boolean>(false);
@@ -237,6 +241,36 @@ export default function DotacionQuincenal() {
     showSuccess('Ajustes manuales restablecidos a los valores calculados.');
   };
 
+  // --- GUARDAR PARÁMETROS OPERATIVOS BASE ---
+  const handleSaveOperationalParameters = () => {
+    dotacionConfigService.saveOperationalParameters({
+      comedor,
+      finca,
+      papelUsoDiarioBultos,
+      azucarUsoBultosMap,
+      presentations,
+      surplusTolerancePercent,
+      arrozMaxSurplusKg,
+      globalPurchaseMode,
+    });
+    setHasParamsChanges(false);
+    showSuccess('Parámetros base guardados. Se mantendrán vigentes para futuros cálculos.');
+  };
+
+  const handleResetToSavedParameters = () => {
+    const saved = dotacionConfigService.getOperationalParameters();
+    setComedor({ ...saved.comedor });
+    setFinca({ ...saved.finca });
+    setPapelUsoDiarioBultos(saved.papelUsoDiarioBultos);
+    setAzucarUsoBultosMap({ ...saved.azucarUsoBultosMap });
+    setPresentations({ ...saved.presentations });
+    setSurplusTolerancePercent(saved.surplusTolerancePercent);
+    setArrozMaxSurplusKg(saved.arrozMaxSurplusKg);
+    setGlobalPurchaseMode(saved.globalPurchaseMode || DEFAULT_GLOBAL_PURCHASE_MODE);
+    setHasParamsChanges(false);
+    showSuccess('Parámetros restablecidos a la configuración guardada.');
+  };
+
   // --- RESET ALL (TO 0 IMAGINARIO) ---
   const handleResetToZero = () => {
     setEmployeesPCMap({ primera: 0, segunda: 0 });
@@ -249,12 +283,18 @@ export default function DotacionQuincenal() {
       jabon: { bultos: 0, looseUnits: 0 },
     });
     setAdjustments({});
-    setPapelUsoDiarioBultos(DEFAULT_PAPEL_USO_DIARIO_BULTOS);
-    setAzucarUsoBultosMap({ primera: 1.5, segunda: 1.5 });
-    setSurplusTolerancePercent(DEFAULT_SURPLUS_TOLERANCE_PERCENT);
-    setArrozMaxSurplusKg(DEFAULT_ARROZ_MAX_SURPLUS_KG);
     setActiveSnapshotId(undefined);
-    showSuccess('Nómina y almacén limpiados en 0. Parámetros fijos mantenidos en valores base (1 bulto papel / 1.25 bultos azúcar).');
+
+    // Cargar los parámetros configurados actualmente por el usuario (no los hardcodeados)
+    const currentConfig = dotacionConfigService.getOperationalParameters();
+    setComedor({ ...currentConfig.comedor });
+    setFinca({ ...currentConfig.finca });
+    setPapelUsoDiarioBultos(currentConfig.papelUsoDiarioBultos);
+    setAzucarUsoBultosMap({ ...currentConfig.azucarUsoBultosMap });
+    setSurplusTolerancePercent(currentConfig.surplusTolerancePercent);
+    setArrozMaxSurplusKg(currentConfig.arrozMaxSurplusKg);
+    setHasParamsChanges(false);
+    showSuccess('Nómina y almacén limpiados en 0. Parámetros operativos conservados.');
   };
 
   // --- LOAD EXAMPLE VALUES (OPTIONAL SHORTCUT) ---
@@ -319,8 +359,21 @@ export default function DotacionQuincenal() {
     setAzucarUsoMesBultos(s.azucarUsoMesBultos ?? DEFAULT_AZUCAR_USO_MES_BULTOS);
     setPresentations({ ...s.presentations });
     setAdjustments(s.adjustments || {});
+    if (s.globalPurchaseMode) {
+      setGlobalPurchaseMode(s.globalPurchaseMode);
+    }
+    if (s.purchaseModes) {
+      setPurchaseModes(s.purchaseModes);
+    }
+    if (typeof s.surplusTolerancePercent === 'number') {
+      setSurplusTolerancePercent(s.surplusTolerancePercent);
+    }
+    if (typeof s.arrozMaxSurplusKg === 'number') {
+      setArrozMaxSurplusKg(s.arrozMaxSurplusKg);
+    }
     setActiveSnapshotId(s.id);
-    showSuccess(`Snapshot "${s.name}" cargado en la calculadora.`);
+    setHasParamsChanges(false);
+    showSuccess(`Snapshot "${s.name}" cargado con sus parámetros estáticos originales.`);
   };
 
   const handleDeleteSnapshot = async (id: string, name: string) => {
@@ -1184,251 +1237,632 @@ export default function DotacionQuincenal() {
       </div>
 
       {/* ADVANCED CONFIGURATION COLLAPSIBLE */}
-      <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4">
-        <button
-          type="button"
-          onClick={() => setShowAdvancedParams(!showAdvancedParams)}
-          className="w-full flex items-center justify-between text-left text-xs font-bold text-slate-700 hover:text-procarni-dark"
-        >
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-procarni-blue" />
-            <span>Configuración de Adiciones Fijas (Comedor, Finca, Uso Diario, Uso Mes) y Parámetros</span>
-          </div>
-          <div className="flex items-center gap-1 text-slate-500">
-            <span>{showAdvancedParams ? 'Ocultar' : 'Ajustar parámetros'}</span>
-            {showAdvancedParams ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-        </button>
+      <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setShowAdvancedParams(!showAdvancedParams)}
+            className="flex-1 flex items-center justify-between text-left text-xs font-bold text-slate-700 hover:text-procarni-dark"
+          >
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-procarni-blue" />
+              <span>Configuración de Adiciones Fijas y Normas Operativas</span>
+              {hasParamsChanges && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] font-semibold py-0">
+                  Modificado
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-slate-500">
+              <span>{showAdvancedParams ? 'Ocultar' : 'Ajustar parámetros'}</span>
+              {showAdvancedParams ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          </button>
+
+          {showAdvancedParams && (
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {hasParamsChanges && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetToSavedParameters}
+                  className="h-8 text-xs text-slate-500 hover:text-slate-800"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                  Descartar
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveOperationalParameters}
+                className="h-8 text-xs bg-procarni-secondary hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                title="Guardar estos valores como la configuración predeterminada permanente para futuros cálculos"
+              >
+                <Save className="w-3.5 h-3.5 mr-1.5" />
+                Guardar como Predeterminados
+              </Button>
+            </div>
+          )}
+        </div>
 
         {showAdvancedParams && (
-          <div className="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-200">
-            {/* Comedor Arroz */}
-            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2 min-h-[24px]">
-                  <UtensilsCrossed className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800">Comedor (Arroz Mary)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase h-7 flex items-end">
-                      Consumo (kg/día)
-                    </Label>
-                    <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                      type="number"
-                      min={0}
-                      value={comedor.kgPerDay}
-                      onChange={(e) => setComedor({ ...comedor, kgPerDay: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
-                      className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase h-7 flex items-end">
-                      Días Quincena
-                    </Label>
-                    <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                      type="number"
-                      min={0}
-                      value={comedor.days}
-                      onChange={(e) => setComedor({ ...comedor, days: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
-                      className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Total:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {comedor.kgPerDay * comedor.days} kg <span className="text-slate-400 font-normal">({Math.ceil((comedor.kgPerDay * comedor.days) / presentations.arrozUnitsPerPackage)} bultos)</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-slate-400">Asignación:</span>
-                  <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                    50% PC / 50% MA
-                  </span>
-                </div>
-              </div>
+          <div className="mt-4 pt-4 border-t border-slate-200 space-y-4 animate-in fade-in duration-200">
+            {/* Selector de Sección Rápida */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 mr-1 shrink-0">Sección:</span>
+              <button
+                type="button"
+                onClick={() => setConfigActiveSection('todas')}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shrink-0 ${
+                  configActiveSection === 'todas'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                Ver Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfigActiveSection('finca')}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                  configActiveSection === 'finca'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
+                }`}
+              >
+                <Trees className="w-3.5 h-3.5" />
+                <span>1. Finca</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfigActiveSection('planta')}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                  configActiveSection === 'planta'
+                    ? 'bg-procarni-blue text-white shadow-xs'
+                    : 'bg-white text-procarni-blue hover:bg-blue-50 border border-blue-200'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>2. Planta y Comedor</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfigActiveSection('normas')}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                  configActiveSection === 'normas'
+                    ? 'bg-amber-700 text-white shadow-xs'
+                    : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>3. Normas y Límites</span>
+              </button>
             </div>
 
-            {/* Finca Harina */}
-            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2 min-h-[24px]">
-                  <Trees className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800">Finca (Harina Pan)</span>
-                </div>
-                <div>
-                  <Label className="text-[10px] text-slate-500 font-semibold uppercase h-7 flex items-end">
-                    Reserva Mínima (Bultos)
-                  </Label>
-                  <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                    type="number"
-                    min={0}
-                    value={finca.bultosHarina}
-                    onChange={(e) => setFinca({ ...finca, bultosHarina: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 })}
-                    className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                  />
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Total:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {finca.bultosHarina * presentations.harinaUnitsPerPackage} und <span className="text-slate-400 font-normal">({finca.bultosHarina} {finca.bultosHarina === 1 ? 'bulto' : 'bultos'})</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-slate-400">Asignación:</span>
-                  <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                    {Math.round(finca.bultosHarina * 0.5)} b PC / {finca.bultosHarina - Math.round(finca.bultosHarina * 0.5)} b MA (Cada Q)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Uso Interno Planta y Baños Papel */}
-            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2 min-h-[24px]">
-                  <FileText className="w-4 h-4 text-sky-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800">Uso Planta y Baños (Papel Caricia)</span>
-                </div>
-                <div>
-                  <Label className="text-[10px] text-slate-500 font-semibold uppercase h-7 flex items-end">
-                    Excedente Quincenal (Bultos)
-                  </Label>
-                  <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                    type="number"
-                    min={0}
-                    value={papelUsoDiarioBultos}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPapelUsoDiarioBultos(v === '' ? 0 : parseInt(v) || 0);
-                    }}
-                    className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                  />
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Total:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {papelUsoDiarioBultos * presentations.papelUnitsPerPackage} und <span className="text-slate-400 font-normal">({papelUsoDiarioBultos} {papelUsoDiarioBultos === 1 ? 'bulto' : 'bultos'})</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-slate-400">Asignación:</span>
-                  <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                    Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'})
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Uso Quincenal Cafetería y Planta Azúcar */}
-            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2 min-h-[24px]">
-                  <Coffee className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800">Uso Cafetería y Planta (Azúcar Konfit)</span>
-                </div>
-                <div>
-                  <Label className="text-[10px] text-slate-500 font-semibold uppercase h-7 flex items-end">
-                    Excedente Quincenal (Bultos)
-                  </Label>
-                  <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                    type="number"
-                    step="0.05"
-                    min={0}
-                    value={azucarUsoMesBultos}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setAzucarUsoMesBultos(v === '' ? 0 : parseFloat(v) || 0);
-                    }}
-                    className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                  />
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Total:</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg <span className="text-slate-400 font-normal">({azucarUsoMesBultos} {azucarUsoMesBultos === 1 ? 'bulto' : 'bultos'} · ~1.5 bultos quincenales)</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-slate-400">Asignación:</span>
-                  <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                    Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'}) · {quincena === 'primera' ? '1.ª Q' : '2.ª Q'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Tolerancia de Sobrante Aceptable en Bulto */}
-            <div className="space-y-3 bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-2 min-h-[24px]">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800">Tolerancia de Sobrante en Bulto</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <div>
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase block truncate">
-                      Arroz (Día Comedor)
-                    </Label>
-                    <div className="flex items-center gap-1 mt-1">
-                      <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                        type="number"
-                        min={0}
-                        max={24}
-                        value={arrozMaxSurplusKg}
-                        onChange={(e) => setArrozMaxSurplusKg(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                      />
-                      <span className="text-[11px] font-bold text-slate-600">kg</span>
+            {/* SECCIÓN 1: CANTIDADES DE LA FINCA */}
+            {(configActiveSection === 'todas' || configActiveSection === 'finca') && (
+              <div className="rounded-xl border border-emerald-200/90 bg-emerald-50/20 p-3.5 sm:p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                      <Trees className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                        1. Cantidades Asignadas a la Finca
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Reserva fija quincenal para la alimentación del personal de la Finca. Se distribuye 50% PC y 50% MA en ambas quincenas.
+                      </p>
                     </div>
                   </div>
-                  <div>
-                    <Label className="text-[10px] text-slate-500 font-semibold uppercase block truncate">
-                      Otros Insumos (%)
-                    </Label>
-                    <div className="flex items-center gap-1 mt-1">
+                  <Badge className="bg-procarni-secondary text-white font-mono text-xs font-bold shrink-0 self-start sm:self-auto">
+                    Total Finca: {finca.bultosHarina + (typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5)} bultos
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Harina PAN Finca */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-800">Harina PAN (Finca)</span>
+                        <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200">
+                          {presentations.harinaUnitsPerPackage} und/bto
+                        </Badge>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Bultos por Quincena
+                      </Label>
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
-                        max={100}
-                        value={surplusTolerancePercent}
-                        onChange={(e) => setSurplusTolerancePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                        className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                        step="1"
+                        value={finca.bultosHarina}
+                        onChange={(e) => {
+                          setFinca({ ...finca, bultosHarina: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 });
+                          setHasParamsChanges(true);
+                        }}
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
                       />
-                      <span className="text-[11px] font-bold text-slate-600">%</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Equivalente:</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {finca.bultosHarina * presentations.harinaUnitsPerPackage} und
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400">Reparto 50/50:</span>
+                        <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          PC: {Math.round(finca.bultosHarina * (finca.splitPercentPC / 100))} bto · MA: {finca.bultosHarina - Math.round(finca.bultosHarina * (finca.splitPercentPC / 100))} bto
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Arroz Mary Finca */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-800">Arroz Mary Superior (Finca)</span>
+                        <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200">
+                          {presentations.arrozUnitsPerPackage} kg/bto
+                        </Badge>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Bultos por Quincena (mín. 0.5 bto)
+                      </Label>
+                      <Input
+                        onWheel={(e) => e.currentTarget.blur()}
+                        type="number"
+                        min={0}
+                        step="0.5"
+                        value={typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5}
+                        onChange={(e) => {
+                          setFinca({ ...finca, bultosArroz: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 });
+                          setHasParamsChanges(true);
+                        }}
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                      />
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Equivalente:</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {Math.round((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage)} kg
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400">Reparto 50/50:</span>
+                        <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          PC: {Math.round(((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage) * 0.5)} kg · MA: {Math.round(((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage) * 0.5)} kg
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Resumen Operativo Finca */}
+                  <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-200/70 flex flex-col justify-between text-xs sm:col-span-2 lg:col-span-1">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2 font-bold text-emerald-950">
+                        <Trees className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Criterio Operativo Finca</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-900/80 leading-relaxed">
+                        Insumos despachados como dotación alimentaria fija para las labores agrícolas y de campo. Aplica en <strong>1.ª y 2.ª quincena</strong> por igual.
+                      </p>
+                    </div>
+                    <div className="pt-2.5 border-t border-emerald-200/50 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between font-semibold text-emerald-900">
+                        <span>Finca Harina:</span>
+                        <span>{finca.bultosHarina} bulto{finca.bultosHarina === 1 ? '' : 's'} ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und)</span>
+                      </div>
+                      <div className="flex items-center justify-between font-semibold text-emerald-900">
+                        <span>Finca Arroz:</span>
+                        <span>{typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5} bulto ({Math.round((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage)} kg)</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="font-medium">Límites activos:</span>
-                  <span className="font-mono text-slate-700 font-semibold">
-                    Arroz: ≤{arrozMaxSurplusKg} kg (1 día comedor) · Harina: ≤{Math.floor(presentations.harinaUnitsPerPackage * surplusTolerancePercent / 100)} kg
-                  </span>
+            )}
+
+            {/* SECCIÓN 2: USO EN PLANTA Y COMEDOR */}
+            {(configActiveSection === 'todas' || configActiveSection === 'planta') && (
+              <div className="rounded-xl border border-blue-200/90 bg-blue-50/20 p-3.5 sm:p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-100 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-procarni-blue flex items-center justify-center shrink-0">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                        2. Uso en Planta y Comedor de Trabajadores
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Consumo diario de almuerzos en comedor, insumos higiénicos de planta/baños y servicio de cafetería.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge className="bg-procarni-blue text-white font-mono text-xs font-bold shrink-0 self-start sm:self-auto">
+                    Comedor + Planta + Cafetería
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Papel: ≤{Math.floor(presentations.papelUnitsPerPackage * surplusTolerancePercent / 100)} rollos · Jabón: ≤{Math.floor(presentations.jabonUnitsPerPackage * surplusTolerancePercent / 100)} barras</span>
-                  <span className="text-emerald-700 font-medium">Sobrante ≤ límite no se fracciona</span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Comedor Arroz */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <UtensilsCrossed className="w-4 h-4 text-amber-600" />
+                          <span className="text-xs font-bold text-slate-800">Comedor (Arroz Mary)</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-amber-700 bg-amber-50 border-amber-200">
+                          50% PC / 50% MA
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <Label className="text-[10px] text-slate-500 font-semibold uppercase h-6 flex items-end">
+                            Consumo (kg/día)
+                          </Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={0}
+                            value={comedor.kgPerDay}
+                            onChange={(e) => {
+                              setComedor({ ...comedor, kgPerDay: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 font-semibold uppercase h-6 flex items-end">
+                            Días Quincena
+                          </Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={0}
+                            value={comedor.days}
+                            onChange={(e) => {
+                              setComedor({ ...comedor, days: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Requerimiento:</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {comedor.kgPerDay * comedor.days} kg <span className="text-slate-400 font-normal">({(comedor.kgPerDay * comedor.days / presentations.arrozUnitsPerPackage).toFixed(2)} bto)</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400">Redondeo Compra:</span>
+                        <span className="font-mono font-bold text-procarni-secondary bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          {Math.ceil((comedor.kgPerDay * comedor.days) / presentations.arrozUnitsPerPackage)} bultos ({Math.ceil((comedor.kgPerDay * comedor.days) / presentations.arrozUnitsPerPackage) * presentations.arrozUnitsPerPackage} kg)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Uso Interno Planta Papel */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-sky-600" />
+                          <span className="text-xs font-bold text-slate-800">Uso Planta y Baños (Papel)</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-sky-700 bg-sky-50 border-sky-200">
+                          {presentations.papelUnitsPerPackage} rollos/bto
+                        </Badge>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Excedente Quincenal (Bultos)
+                      </Label>
+                      <Input
+                        onWheel={(e) => e.currentTarget.blur()}
+                        type="number"
+                        min={0}
+                        value={papelUsoDiarioBultos}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPapelUsoDiarioBultos(v === '' ? 0 : parseInt(v) || 0);
+                          setHasParamsChanges(true);
+                        }}
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                      />
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Equivalente:</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {papelUsoDiarioBultos * presentations.papelUnitsPerPackage} rollos
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400">Asignación automática:</span>
+                        <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Uso Cafetería Azúcar */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs sm:col-span-2 lg:col-span-1">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Coffee className="w-4 h-4 text-amber-700" />
+                          <span className="text-xs font-bold text-slate-800">Cafetería y Planta (Azúcar)</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-amber-800 bg-amber-50 border-amber-200">
+                          {presentations.azucarUnitsPerPackage} kg/bto
+                        </Badge>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Excedente Quincenal (Bultos)
+                      </Label>
+                      <Input
+                        onWheel={(e) => e.currentTarget.blur()}
+                        type="number"
+                        step="0.05"
+                        min={0}
+                        value={azucarUsoMesBultos}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setAzucarUsoMesBultos(v === '' ? 0 : parseFloat(v) || 0);
+                          setHasParamsChanges(true);
+                        }}
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                      />
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Equivalente:</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {Math.round(azucarUsoMesBultos * presentations.azucarUnitsPerPackage)} kg ({azucarUsoMesBultos} bto)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-400">Asignación automática:</span>
+                        <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* SECCIÓN 3: NORMAS Y LÍMITES */}
+            {(configActiveSection === 'todas' || configActiveSection === 'normas') && (
+              <div className="rounded-xl border border-slate-300 bg-slate-100/40 p-3.5 sm:p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-800 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                        3. Normas, Límites y Reglas de Compra
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Parámetros para determinar cuándo redondear al bulto completo, cuándo fraccionar en unidades sueltas y presentaciones de fábrica.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="border-slate-300 text-slate-700 bg-white font-mono text-xs font-bold shrink-0 self-start sm:self-auto">
+                    Políticas de Abastecimiento
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Tolerancia de Sobrante */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-slate-800">Tolerancia de Sobrante en Bulto</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <Label className="text-[10px] text-slate-500 font-semibold uppercase block truncate">
+                            Arroz (Día Comedor)
+                          </Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Input
+                              onWheel={(e) => e.currentTarget.blur()}
+                              type="number"
+                              min={0}
+                              max={24}
+                              value={arrozMaxSurplusKg}
+                              onChange={(e) => {
+                                setArrozMaxSurplusKg(Math.max(0, parseInt(e.target.value) || 0));
+                                setHasParamsChanges(true);
+                              }}
+                              className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                            />
+                            <span className="text-[11px] font-bold text-slate-600">kg</span>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 font-semibold uppercase block truncate">
+                            Otros Insumos (%)
+                          </Label>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Input
+                              onWheel={(e) => e.currentTarget.blur()}
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={surplusTolerancePercent}
+                              onChange={(e) => {
+                                setSurplusTolerancePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)));
+                                setHasParamsChanges(true);
+                              }}
+                              className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                            />
+                            <span className="text-[11px] font-bold text-slate-600">%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                      <div className="text-slate-500 text-[10px]">
+                        Límites de tolerancia activos:
+                      </div>
+                      <div className="font-mono text-[10px] text-slate-700 font-medium">
+                        Arroz: ≤{arrozMaxSurplusKg} kg · Harina: ≤{Math.floor(presentations.harinaUnitsPerPackage * surplusTolerancePercent / 100)} kg · Papel: ≤{Math.floor(presentations.papelUnitsPerPackage * surplusTolerancePercent / 100)} rollos · Jabón: ≤{Math.floor(presentations.jabonUnitsPerPackage * surplusTolerancePercent / 100)} barras
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Modalidad de Compra Predeterminada */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <ShoppingCart className="w-4 h-4 text-procarni-blue" />
+                        <span className="text-xs font-bold text-slate-800">Modalidad de Compra Base</span>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Criterio de Redondeo para Órdenes
+                      </Label>
+                      <Select
+                        value={globalPurchaseMode}
+                        onValueChange={(val: PurchaseMode) => {
+                          setGlobalPurchaseMode(val);
+                          setHasParamsChanges(true);
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs font-semibold mt-1">
+                          <SelectValue placeholder="Seleccionar modalidad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mixto" className="text-xs font-medium">
+                            Modalidad Mixta (Bultos + Unidades Sueltas)
+                          </SelectItem>
+                          <SelectItem value="bultos" className="text-xs font-medium">
+                            Bultos Completos Cerrados (Sin Sueltos)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-600 leading-tight">
+                      {globalPurchaseMode === 'mixto' ? (
+                        <span>
+                          En <strong>Modalidad Mixta</strong>, si el sobrante supera la tolerancia se pide el bulto cerrado más los kilos o unidades sueltas exactas para optimizar costos.
+                        </span>
+                      ) : (
+                        <span>
+                          En <strong>Bultos Completos</strong>, todo requerimiento fraccionado se redondea hacia arriba al bulto cerrado más cercano.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Presentaciones de Empaque (Unidades por Bulto) */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs sm:col-span-2 lg:col-span-1">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Package className="w-4 h-4 text-procarni-primary" />
+                        <span className="text-xs font-bold text-slate-800">Presentación de Empaque (und/bto)</span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5 text-center text-xs">
+                        <div>
+                          <Label className="text-[9px] text-slate-400 font-bold block uppercase">Harina</Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={1}
+                            value={presentations.harinaUnitsPerPackage}
+                            onChange={(e) => {
+                              setPresentations({ ...presentations, harinaUnitsPerPackage: parseInt(e.target.value) || 20 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[9px] text-slate-400 font-bold block uppercase">Arroz</Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={1}
+                            value={presentations.arrozUnitsPerPackage}
+                            onChange={(e) => {
+                              setPresentations({ ...presentations, arrozUnitsPerPackage: parseInt(e.target.value) || 24 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[9px] text-slate-400 font-bold block uppercase">Azúcar</Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={1}
+                            value={presentations.azucarUnitsPerPackage}
+                            onChange={(e) => {
+                              setPresentations({ ...presentations, azucarUnitsPerPackage: parseInt(e.target.value) || 20 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[9px] text-slate-400 font-bold block uppercase">Papel</Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={1}
+                            value={presentations.papelUnitsPerPackage}
+                            onChange={(e) => {
+                              setPresentations({ ...presentations, papelUnitsPerPackage: parseInt(e.target.value) || 48 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[9px] text-slate-400 font-bold block uppercase">Jabón</Label>
+                          <Input
+                            onWheel={(e) => e.currentTarget.blur()}
+                            type="number"
+                            min={1}
+                            value={presentations.jabonUnitsPerPackage}
+                            onChange={(e) => {
+                              setPresentations({ ...presentations, jabonUnitsPerPackage: parseInt(e.target.value) || 44 });
+                              setHasParamsChanges(true);
+                            }}
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-500">
+                      Capacidad estándar por bulto según especificación de proveedores mayoristas.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2006,6 +2440,139 @@ export default function DotacionQuincenal() {
               </Table>
             </div>
           </Card>
+
+          {/* CUADRO DESGLOSE: DESTINOS DE INSUMOS (ARMADO DE COMBOS + USOS OPERATIVOS) */}
+          {result.nonComboDestinations && result.nonComboDestinations.length > 0 && (() => {
+            const comboItems = result.nonComboDestinations.filter((d) => d.category === 'combos');
+            const operativoItems = result.nonComboDestinations.filter((d) => d.category !== 'combos');
+            const comboBultosTotal = comboItems.reduce((acc, d) => acc + d.equivalentBultos, 0);
+            const operativoBultosTotal = operativoItems.reduce((acc, d) => acc + d.equivalentBultos, 0);
+            const totalDestinosBultos = comboBultosTotal + operativoBultosTotal;
+
+            return (
+              <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl overflow-hidden min-w-0">
+                <div className="p-3 sm:p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-xs sm:text-sm font-extrabold text-procarni-dark flex items-center gap-1.5 flex-wrap">
+                      <Package className="w-4 h-4 text-procarni-blue" />
+                      <span>Destino de los Insumos (Combos + Usos Operativos)</span>
+                      <Badge variant="outline" className="text-[9px] sm:text-[10px] text-blue-700 border-blue-300 bg-blue-50 font-semibold">
+                        {result.totalEmployees} Combos de Personal
+                      </Badge>
+                      <Badge variant="outline" className="text-[9px] sm:text-[10px] text-emerald-700 border-emerald-300 bg-emerald-50 font-semibold">
+                        Adiciones Operativas
+                      </Badge>
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-slate-500">
+                      Desglose consolidado: requerimiento para armado de combos individuales y consumo en áreas operativas (Comedor, Finca, Planta, Cafetería).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    <Badge className="bg-procarni-blue text-white font-mono font-bold text-[11px] sm:text-xs">
+                      Combos: {comboBultosTotal.toFixed(1)} bto
+                    </Badge>
+                    <Badge className="bg-procarni-secondary text-white font-mono font-bold text-[11px] sm:text-xs">
+                      Operativo: {operativoBultosTotal.toFixed(1)} bto
+                    </Badge>
+                    <Badge variant="outline" className="border-slate-300 text-slate-800 font-mono font-extrabold text-[11px] sm:text-xs bg-white">
+                      Gran Total: {totalDestinosBultos.toFixed(1)} bto
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Resumen KPI Rápido */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 bg-slate-50/40 border-b border-slate-100">
+                  <div className="p-3 sm:p-3.5">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Armado de Combos</span>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-lg font-extrabold font-mono text-procarni-blue">{comboBultosTotal.toFixed(1)} bultos eq.</span>
+                      <span className="text-xs text-slate-500 font-medium">({result.totalEmployees} colaboradores)</span>
+                    </div>
+                  </div>
+                  <div className="p-3 sm:p-3.5">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Consumos Operativos / Otros</span>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-lg font-extrabold font-mono text-procarni-secondary">{operativoBultosTotal.toFixed(1)} bultos eq.</span>
+                      <span className="text-xs text-slate-500 font-medium">(Comedor, Finca, Planta, Cafetería)</span>
+                    </div>
+                  </div>
+                  <div className="p-3 sm:p-3.5">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Requerimiento Bruto Total</span>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-lg font-extrabold font-mono text-procarni-dark">{totalDestinosBultos.toFixed(1)} bultos eq.</span>
+                      <span className="text-xs text-slate-500 font-medium">(Antes de descontar inventario)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vista Móvil: Tarjetas apiladas simples */}
+                <div className="block md:hidden p-2.5 sm:p-4 space-y-2.5">
+                  {result.nonComboDestinations.map((d, idx) => {
+                    const isCombo = d.category === 'combos';
+                    return (
+                      <div key={idx} className={`p-3 rounded-xl border space-y-1.5 ${isCombo ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${isCombo ? 'bg-procarni-blue' : 'bg-procarni-secondary'}`} />
+                            {d.destination}
+                          </span>
+                          <span className={`font-mono font-extrabold text-xs px-2 py-0.5 rounded border ${isCombo ? 'text-procarni-blue bg-blue-50 border-blue-200' : 'text-procarni-secondary bg-emerald-50 border-emerald-200'}`}>
+                            {d.quantityUnits} {d.unitLabel} ({d.equivalentBultos} bto)
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-medium">
+                          Insumo: <span className="text-slate-800 font-bold">{d.productName}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-200/60">
+                          {d.observations}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Vista Desktop: Tabla sin división por empresa */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500">
+                        <TableHead>Destino / Área</TableHead>
+                        <TableHead>Insumo Requerido</TableHead>
+                        <TableHead className="text-center">Total Cantidad</TableHead>
+                        <TableHead className="text-center">Equivalente en Bultos</TableHead>
+                        <TableHead>Detalle / Criterio Operativo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="text-xs divide-y divide-slate-100">
+                      {result.nonComboDestinations.map((d, idx) => {
+                        const isCombo = d.category === 'combos';
+                        return (
+                          <TableRow key={idx} className={`hover:bg-slate-50/60 ${isCombo ? 'bg-blue-50/15' : ''}`}>
+                            <TableCell className="font-bold text-slate-900">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${isCombo ? 'bg-blue-50 text-procarni-blue border border-blue-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isCombo ? 'bg-procarni-blue' : 'bg-emerald-600'}`} />
+                                {d.destination}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-medium text-slate-700">{d.productName}</TableCell>
+                            <TableCell className="text-center font-mono font-extrabold text-procarni-dark text-sm">
+                              {d.quantityUnits} {d.unitLabel}
+                            </TableCell>
+                            <TableCell className={`text-center font-mono font-bold ${isCombo ? 'text-procarni-blue' : 'text-procarni-secondary'}`}>
+                              {d.equivalentBultos} bto
+                            </TableCell>
+                            <TableCell className="text-[11px] text-slate-500 font-sans">
+                              {d.observations}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            );
+          })()}
         </TabsContent>
 
         {/* TAB 2: PRODUCTOS CÁRNICOS (PC) */}

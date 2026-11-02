@@ -22,6 +22,7 @@ export interface ComedorConfig {
 
 export interface FincaConfig {
   bultosHarina: number; // default 2
+  bultosArroz?: number; // default 0.5 (medio bulto de arroz = 12 kg)
   splitPercentPC: number; // 50
   splitPercentMA: number; // 50
 }
@@ -43,6 +44,17 @@ export interface ItemAdjustment {
 export type DotacionAdjustments = Record<string, ItemAdjustment>;
 
 export type DotacionProductId = 'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon';
+
+export interface DotacionOperationalParameters {
+  comedor: ComedorConfig;
+  finca: FincaConfig;
+  papelUsoDiarioBultos: number;
+  azucarUsoBultosMap: Record<string, number>;
+  presentations: ProductPresentationConfig;
+  surplusTolerancePercent: number;
+  arrozMaxSurplusKg: number;
+  globalPurchaseMode?: PurchaseMode;
+}
 
 export interface DotacionMaterialMapping {
   productId: DotacionProductId;
@@ -139,6 +151,17 @@ export interface GlobalItemCalculation {
   includedInPeriod: boolean;
 }
 
+export interface NonComboDestinationItem {
+  destination: string; // e.g. "Armado de Combos", "Comedor", "Finca", "Uso Planta y Baños", "Cafetería y Uso Continuo Planta"
+  productId: DotacionProductId;
+  productName: string;
+  quantityUnits: number;
+  unitLabel: string; // "kg", "und", "rollos", "barras"
+  equivalentBultos: number;
+  observations: string;
+  category?: 'combos' | 'operativo';
+}
+
 export interface DotacionCalculationResult {
   quincena: QuincenaTipo;
   month: number; // 1 - 12
@@ -150,6 +173,7 @@ export interface DotacionCalculationResult {
   globalItems: GlobalItemCalculation[];
   totalGlobalBultos: number;
   totalGlobalLooseUnits: number;
+  nonComboDestinations?: NonComboDestinationItem[];
   formattedMessages: {
     pcMessage: string;
     maMessage: string;
