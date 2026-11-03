@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Plus,
   Trash2,
@@ -24,7 +25,11 @@ import {
   ChevronRight,
   RefreshCw,
   Eye,
-  Check
+  Check,
+  ClipboardPaste,
+  Camera,
+  Bot,
+  FileText
 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -51,12 +56,17 @@ interface WhatsAppQuickQuoteModalProps {
   initialTerm?: string;
 }
 
+export const GEMINI_REQUISITION_GEM_URL = 'https://gemini.google.com/gem/1cxkCfl8h5PmkU8HNU21Zi7KkpMXCnEum?usp=sharing';
+
 export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = ({
   isOpen,
   onClose,
   initialSuppliers,
   initialTerm = '',
 }) => {
+  // Modal de pegado de items de requisición
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
+  const [pasteInputText, setPasteInputText] = useState('');
   // Pestaña activa en móvil: 'items' (requerimiento) o 'suppliers' (envío a proveedores)
   const [mobileTab, setMobileTab] = useState<'items' | 'suppliers'>('items');
   const [isCopied, setIsCopied] = useState(false);
@@ -84,6 +94,105 @@ export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = (
     if (clean.startsWith('58')) return clean;
     if (clean.startsWith('0')) return `58${clean.substring(1)}`;
     return `58${clean}`;
+  };
+
+  // Parser tolerante de items pegados desde Gemini o portapapeles
+  const parsePastedItems = (rawText: string): QuickQuoteItem[] => {
+    const lines = rawText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    const parsed: QuickQuoteItem[] = [];
+
+    for (const line of lines) {
+      // 1. Quitar viñetas iniciales ("•", "-", "*", "1.", "1)", etc.)
+      let cleanLine = line
+        .replace(/^[\s•\-\*]+/, '')
+        .replace(/^\d+[\.\)]\s*/, '')
+        .trim();
+      if (!cleanLine) continue;
+
+      let quantity = '1';
+      let description = cleanLine;
+      let notes = '';
+
+      // 2. Extraer notas entre paréntesis al final si existen: ej "alambre (calibre 16)"
+      const notesMatch = cleanLine.match(/^(.*?)\s*\((.*?)\)$/);
+      if (notesMatch) {
+        cleanLine = notesMatch[1].trim();
+        notes = notesMatch[2].trim();
+      }
+
+      // 3. Separador con guión, dos puntos o tabulación: "10 rollo - alambre" o "10 rollo: alambre"
+      const dashMatch = cleanLine.match(/^([^\-:\t]+)[\-:\t](.+)$/);
+      if (dashMatch) {
+        quantity = dashMatch[1].trim();
+        description = dashMatch[2].trim();
+      } else {
+        // 4. Prefijo numérico con unidad: "10 rollo alambre" o "3 uds rolinera"
+        const numberPrefixMatch = cleanLine.match(
+          /^(\d+(?:[.,]\d+)?(?:\s*(?:rollo|rollos|ud|uds|und|unds|unidad|unidades|kg|kgs|kilo|kilos|lt|lts|litro|litros|mt|mts|metro|metros|caja|cajas|paquete|paquetes|pqte|pqtes|bolsa|bolsas|pza|pzas|pz|piezas?))?)\s+(.+)$/i
+        );
+        if (numberPrefixMatch) {
+          quantity = numberPrefixMatch[1].trim();
+          description = numberPrefixMatch[2].trim();
+        }
+      }
+
+      parsed.push({
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        quantity: quantity || '1',
+        description: description || cleanLine,
+        notes,
+      });
+    }
+
+    return parsed;
+  };
+
+  // Importar items y combinar con la lista existente
+  const applyImportedItems = (imported: QuickQuoteItem[]) => {
+    if (imported.length === 0) {
+      showError('No se encontraron ítems válidos en el texto.');
+      return;
+    }
+
+    setItems((prev) => {
+      // Si la lista solo tenía 1 ítem vacío inicial, se reemplaza por completo
+      if (prev.length === 1 && !prev[0].description.trim()) {
+        return imported;
+      }
+      return [...prev, ...imported];
+    });
+
+    showSuccess(`¡Se cargaron ${imported.length} ítems correctamente!`);
+    setIsPasteModalOpen(false);
+    setPasteInputText('');
+  };
+
+  // Pegado inteligente con 1 clic desde el portapapeles
+  const handleSmartPasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim().length > 3) {
+        const parsed = parsePastedItems(text);
+        if (parsed.length > 0) {
+          applyImportedItems(parsed);
+          return;
+        }
+      }
+      // Si no se pudo parsear directamente o está vacío, abrir modal manual
+      setIsPasteModalOpen(true);
+    } catch {
+      // Si el navegador bloquea permisos de lectura de portapapeles, abrir modal
+      setIsPasteModalOpen(true);
+    }
+  };
+
+  // Abrir Custom Gem de Gemini en nueva pestaña
+  const handleOpenGeminiRequisitionGem = () => {
+    window.open(GEMINI_REQUISITION_GEM_URL, '_blank', 'noopener,noreferrer');
   };
 
   // Agregar nuevo item libre
@@ -255,20 +364,54 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
             >
               {/* Canasta de Items Libres */}
               <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-gray-200/80 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-procarni-primary" />
-                    Ítems ({items.filter((i) => i.description.trim()).length})
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddItem}
-                    className="h-8 text-xs border-dashed border-gray-300 hover:border-procarni-primary text-procarni-dark font-semibold rounded-xl"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1 text-procarni-primary" /> Agregar ítem
-                  </Button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-procarni-primary" />
+                      Ítems ({items.filter((i) => i.description.trim()).length})
+                    </span>
+                  </div>
+
+                  {/* Barra de Acciones de Carga: Gemini Gem, Pegar y Manual */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Botón Abrir Custom Gem de Requisiciones */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleOpenGeminiRequisitionGem}
+                      className="h-7.5 px-2.5 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-xs gap-1.5 transition-all active:scale-95"
+                      title="Abrir el Custom Gem de Procarni en Gemini para transcribir foto de la requisición"
+                    >
+                      <Bot className="h-3.5 w-3.5 text-blue-200" />
+                      <span>Transcribir con Gemini</span>
+                      <ExternalLink className="h-3 w-3 opacity-70" />
+                    </Button>
+
+                    {/* Botón Pegar Lista */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSmartPasteFromClipboard}
+                      className="h-7.5 px-2.5 text-xs font-bold border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl shadow-xs gap-1.5 transition-all active:scale-95"
+                      title="Pegar los ítems transcritos por Gemini o desde Excel"
+                    >
+                      <ClipboardPaste className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Pegar Lista</span>
+                    </Button>
+
+                    {/* Botón Agregar Ítem Manual */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddItem}
+                      className="h-7.5 px-2 text-xs border border-dashed border-gray-300 hover:border-procarni-primary text-procarni-dark font-semibold rounded-xl gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-procarni-primary" />
+                      <span className="hidden sm:inline">Ítem manual</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2.5 max-h-[35vh] sm:max-h-[240px] overflow-y-auto pr-0.5">
@@ -541,6 +684,80 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
             </div>
           </div>
         </div>
+
+        {/* DIALOG SECUNDARIO: PEGAR LISTA DE GEMINI O EXCEL */}
+        {isPasteModalOpen && (
+          <Dialog open={isPasteModalOpen} onOpenChange={setIsPasteModalOpen}>
+            <DialogContent className="max-w-lg p-5 bg-white rounded-3xl border border-gray-200 shadow-2xl z-[120]">
+              <DialogHeader className="pb-2">
+                <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <ClipboardPaste className="h-5 w-5 text-emerald-600" />
+                  Pegar Lista de Ítems (Gemini / Requisición)
+                </DialogTitle>
+                <DialogDescription className="text-xs text-gray-500">
+                  Pega aquí la respuesta que te entregó Gemini o una lista de ítems. Se separarán cantidades y descripciones automáticamente.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 py-2">
+                <Textarea
+                  value={pasteInputText}
+                  onChange={(e) => setPasteInputText(e.target.value)}
+                  placeholder={`• 10 rollo - alambre galvanizado calibre 16\n• 3 uds - rolinera SKF 6204\n• 2 cajas - guantes de nitrilo talla L`}
+                  rows={6}
+                  className="font-mono text-xs bg-slate-50 border-gray-200 rounded-xl resize-none focus-visible:ring-emerald-500/20"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-gray-400">
+                  <span>Ejemplo: <code>• 10 rollo - alambre</code> o <code>5 cajas guantes</code></span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const t = await navigator.clipboard.readText();
+                        setPasteInputText(t);
+                      } catch {
+                        showError('No se pudo acceder al portapapeles.');
+                      }
+                    }}
+                    className="h-6 text-[11px] text-emerald-700 hover:bg-emerald-50 font-semibold"
+                  >
+                    Pegar del portapapeles
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsPasteModalOpen(false);
+                    setPasteInputText('');
+                  }}
+                  className="text-xs font-semibold rounded-xl"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!pasteInputText.trim()}
+                  onClick={() => {
+                    const parsed = parsePastedItems(pasteInputText);
+                    applyImportedItems(parsed);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs"
+                >
+                  Cargar Ítems al Requerimiento
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </DialogContent>
     </Dialog>
   );
