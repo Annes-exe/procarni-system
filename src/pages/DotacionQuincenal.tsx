@@ -86,7 +86,7 @@ import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 
 export default function DotacionQuincenal() {
-  const { userName } = useSession();
+  const { userName, session } = useSession();
   const navigate = useNavigate();
 
   // --- PERIOD STATE ---
@@ -146,8 +146,10 @@ export default function DotacionQuincenal() {
   const [surplusTolerancePercent, setSurplusTolerancePercent] = useState<number>(initialSavedParams.surplusTolerancePercent);
   const [arrozMaxSurplusKg, setArrozMaxSurplusKg] = useState<number>(initialSavedParams.arrozMaxSurplusKg);
   const [hasParamsChanges, setHasParamsChanges] = useState<boolean>(false);
+  const [contingencyCombosPC, setContingencyCombosPC] = useState<number>(initialSavedParams.contingencyCombosPC ?? 0);
+  const [contingencyCombosMA, setContingencyCombosMA] = useState<number>(initialSavedParams.contingencyCombosMA ?? 0);
   const [showAdvancedParams, setShowAdvancedParams] = useState<boolean>(false);
-  const [configActiveSection, setConfigActiveSection] = useState<'todas' | 'finca' | 'planta' | 'normas'>('todas');
+  const [configActiveSection, setConfigActiveSection] = useState<'todas' | 'finca' | 'planta' | 'normas' | 'contingencia'>('todas');
 
   // --- UI DIALOGS & SNAPSHOTS ---
   const [isPODialogOpen, setIsPODialogOpen] = useState<boolean>(false);
@@ -171,6 +173,28 @@ export default function DotacionQuincenal() {
 
   useEffect(() => {
     loadSnapshots();
+
+    // Sincronizar parámetros operativos desde Supabase si existen en la nube
+    dotacionConfigService.fetchRemoteOperationalParameters().then((remote) => {
+      if (remote) {
+        setComedor({ ...remote.comedor });
+        setFinca({ ...remote.finca });
+        setPapelUsoDiarioBultos(remote.papelUsoDiarioBultos);
+        setAzucarUsoBultosMap({ ...remote.azucarUsoBultosMap });
+        setPresentations({ ...remote.presentations });
+        setSurplusTolerancePercent(remote.surplusTolerancePercent);
+        setArrozMaxSurplusKg(remote.arrozMaxSurplusKg);
+        if (remote.globalPurchaseMode) {
+          setGlobalPurchaseMode(remote.globalPurchaseMode);
+        }
+        if (typeof remote.contingencyCombosPC === 'number') {
+          setContingencyCombosPC(remote.contingencyCombosPC);
+        }
+        if (typeof remote.contingencyCombosMA === 'number') {
+          setContingencyCombosMA(remote.contingencyCombosMA);
+        }
+      }
+    });
   }, [loadSnapshots]);
 
   // --- CALCULATION RESULT (RECOMPUTES IN REAL TIME) ---
@@ -178,6 +202,8 @@ export default function DotacionQuincenal() {
     return calculateDotacion({
       employeesPC,
       employeesMA,
+      contingencyCombosPC,
+      contingencyCombosMA,
       quincena,
       month: selectedMonth,
       year: selectedYear,
@@ -196,6 +222,8 @@ export default function DotacionQuincenal() {
   }, [
     employeesPC,
     employeesMA,
+    contingencyCombosPC,
+    contingencyCombosMA,
     quincena,
     selectedMonth,
     selectedYear,
@@ -241,9 +269,9 @@ export default function DotacionQuincenal() {
     showSuccess('Ajustes manuales restablecidos a los valores calculados.');
   };
 
-  // --- GUARDAR PARÁMETROS OPERATIVOS BASE ---
-  const handleSaveOperationalParameters = () => {
-    dotacionConfigService.saveOperationalParameters({
+  // --- GUARDAR PARÁMETROS OPERATIVOS BASE (LOCAL + SUPABASE) ---
+  const handleSaveOperationalParameters = async () => {
+    const paramsToSave = {
       comedor,
       finca,
       papelUsoDiarioBultos,
@@ -252,9 +280,17 @@ export default function DotacionQuincenal() {
       surplusTolerancePercent,
       arrozMaxSurplusKg,
       globalPurchaseMode,
-    });
+      contingencyCombosPC,
+      contingencyCombosMA,
+    };
+
+    const synced = await dotacionConfigService.saveRemoteOperationalParameters(paramsToSave, session?.user?.email || userName || 'Usuario Almacén');
     setHasParamsChanges(false);
-    showSuccess('Parámetros base guardados. Se mantendrán vigentes para futuros cálculos.');
+    if (synced) {
+      showSuccess('Parámetros guardados y sincronizados con la nube.');
+    } else {
+      showSuccess('Parámetros guardados localmente. Se mantendrán vigentes para futuros cálculos.');
+    }
   };
 
   const handleResetToSavedParameters = () => {
@@ -267,6 +303,8 @@ export default function DotacionQuincenal() {
     setSurplusTolerancePercent(saved.surplusTolerancePercent);
     setArrozMaxSurplusKg(saved.arrozMaxSurplusKg);
     setGlobalPurchaseMode(saved.globalPurchaseMode || DEFAULT_GLOBAL_PURCHASE_MODE);
+    setContingencyCombosPC(saved.contingencyCombosPC ?? 0);
+    setContingencyCombosMA(saved.contingencyCombosMA ?? 0);
     setHasParamsChanges(false);
     showSuccess('Parámetros restablecidos a la configuración guardada.');
   };
@@ -293,6 +331,8 @@ export default function DotacionQuincenal() {
     setAzucarUsoBultosMap({ ...currentConfig.azucarUsoBultosMap });
     setSurplusTolerancePercent(currentConfig.surplusTolerancePercent);
     setArrozMaxSurplusKg(currentConfig.arrozMaxSurplusKg);
+    setContingencyCombosPC(currentConfig.contingencyCombosPC ?? 0);
+    setContingencyCombosMA(currentConfig.contingencyCombosMA ?? 0);
     setHasParamsChanges(false);
     showSuccess('Nómina y almacén limpiados en 0. Parámetros operativos conservados.');
   };
@@ -756,6 +796,7 @@ export default function DotacionQuincenal() {
                   min={0}
                   value={employeesPC === 0 ? '' : employeesPC}
                   placeholder="0"
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setEmployeesPC(parseInt(e.target.value) || 0)}
                   className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                 />
@@ -775,6 +816,7 @@ export default function DotacionQuincenal() {
                   min={0}
                   value={employeesMA === 0 ? '' : employeesMA}
                   placeholder="0"
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setEmployeesMA(parseInt(e.target.value) || 0)}
                   className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                 />
@@ -794,21 +836,31 @@ export default function DotacionQuincenal() {
 
         {/* EXISTENCIAS EN ALMACÉN DE DOTACIÓN (CONSOLIDADO, 0 IMAGINARIO EN ESPERA DE INGRESO) */}
         <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
-          <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex flex-row items-center justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <Package className="w-4 h-4 text-procarni-primary shrink-0" />
-                <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider truncate">
-                  Existencias en Almacén (Stock)
-                </CardTitle>
+          <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex flex-col gap-2">
+            <div className="flex flex-row items-center justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Package className="w-4 h-4 text-procarni-primary shrink-0" />
+                  <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider truncate">
+                    Existencias en Almacén (Stock)
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-[11px] sm:text-xs text-slate-500 truncate">
+                  Inventario físico global deducible. Registra bultos y/o sueltos.
+                </CardDescription>
               </div>
-              <CardDescription className="text-[11px] sm:text-xs text-slate-500 truncate">
-                Inventario físico global deducible. Registra bultos y/o sueltos.
-              </CardDescription>
+              <Badge variant="secondary" className="text-[9px] sm:text-[10px] bg-red-50 text-procarni-primary font-bold shrink-0">
+                Descuento Global
+              </Badge>
             </div>
-            <Badge variant="secondary" className="text-[9px] sm:text-[10px] bg-red-50 text-procarni-primary font-bold shrink-0">
-              Descuento Global
-            </Badge>
+
+            {/* Mensaje sutil sobre margen de tiempo y consumo previsto */}
+            <div className="flex items-start gap-2 p-2 sm:p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/60 text-[11px] text-amber-900 leading-snug">
+              <Info className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Nota operativa:</strong> Considere el margen de días entre el levantamiento de esta solicitud y la fecha efectiva de compra/llegada. El inventario actual continuará consumiéndose durante ese lapso (ej. comedor y planta).
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="p-2.5 sm:p-6 pt-0 sm:pt-1">
             {/* MOBILE STACKED CARDS (< md) - No horizontal scroll, touch-friendly inputs */}
@@ -827,11 +879,12 @@ export default function DotacionQuincenal() {
                       Bultos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.harina.bultos === 0 ? '' : stock.harina.bultos}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('harina', 'bultos', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -841,11 +894,12 @@ export default function DotacionQuincenal() {
                       Kg Sueltos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.harina.looseUnits === 0 ? '' : stock.harina.looseUnits}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('harina', 'looseUnits', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -873,11 +927,12 @@ export default function DotacionQuincenal() {
                       Bultos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.arroz.bultos === 0 ? '' : stock.arroz.bultos}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('arroz', 'bultos', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -887,11 +942,12 @@ export default function DotacionQuincenal() {
                       Kg Sueltos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.arroz.looseUnits === 0 ? '' : stock.arroz.looseUnits}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('arroz', 'looseUnits', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -919,11 +975,12 @@ export default function DotacionQuincenal() {
                       Bultos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.azucar.bultos === 0 ? '' : stock.azucar.bultos}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('azucar', 'bultos', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -933,11 +990,12 @@ export default function DotacionQuincenal() {
                       Kg Sueltos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.azucar.looseUnits === 0 ? '' : stock.azucar.looseUnits}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('azucar', 'looseUnits', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -965,11 +1023,12 @@ export default function DotacionQuincenal() {
                       Bultos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.papel.bultos === 0 ? '' : stock.papel.bultos}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('papel', 'bultos', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -979,11 +1038,12 @@ export default function DotacionQuincenal() {
                       Rollos Sueltos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       value={stock.papel.looseUnits === 0 ? '' : stock.papel.looseUnits}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('papel', 'looseUnits', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300"
                     />
@@ -1016,12 +1076,13 @@ export default function DotacionQuincenal() {
                       Bultos
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       disabled={quincena === 'primera'}
                       value={stock.jabon.bultos === 0 ? '' : stock.jabon.bultos}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('jabon', 'bultos', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300 disabled:bg-slate-100"
                     />
@@ -1031,12 +1092,13 @@ export default function DotacionQuincenal() {
                       Barras Sueltas
                     </Label>
                     <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                      onWheel={(e) => e.currentTarget.blur()}
                       type="number"
                       min={0}
                       disabled={quincena === 'primera'}
                       value={stock.jabon.looseUnits === 0 ? '' : stock.jabon.looseUnits}
                       placeholder="0"
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) => updateStock('jabon', 'looseUnits', parseInt(e.target.value) || 0)}
                       className="h-9 text-sm text-center font-mono font-bold bg-white placeholder:text-slate-300 disabled:bg-slate-100"
                     />
@@ -1072,22 +1134,24 @@ export default function DotacionQuincenal() {
                     <td className="text-center text-slate-500 font-mono">20 und/bulto</td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.harina.bultos === 0 ? '' : stock.harina.bultos}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('harina', 'bultos', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.harina.looseUnits === 0 ? '' : stock.harina.looseUnits}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('harina', 'looseUnits', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
@@ -1103,22 +1167,24 @@ export default function DotacionQuincenal() {
                     <td className="text-center text-slate-500 font-mono">24 und/bulto</td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.arroz.bultos === 0 ? '' : stock.arroz.bultos}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('arroz', 'bultos', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.arroz.looseUnits === 0 ? '' : stock.arroz.looseUnits}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('arroz', 'looseUnits', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
@@ -1134,22 +1200,24 @@ export default function DotacionQuincenal() {
                     <td className="text-center text-slate-500 font-mono">20 und/bulto</td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.azucar.bultos === 0 ? '' : stock.azucar.bultos}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('azucar', 'bultos', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.azucar.looseUnits === 0 ? '' : stock.azucar.looseUnits}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('azucar', 'looseUnits', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
@@ -1165,22 +1233,24 @@ export default function DotacionQuincenal() {
                     <td className="text-center text-slate-500 font-mono">48 und/bulto</td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.papel.bultos === 0 ? '' : stock.papel.bultos}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('papel', 'bultos', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         value={stock.papel.looseUnits === 0 ? '' : stock.papel.looseUnits}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('papel', 'looseUnits', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
@@ -1201,24 +1271,26 @@ export default function DotacionQuincenal() {
                     <td className="text-center text-slate-500 font-mono">44 und/bulto</td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         disabled={quincena === 'primera'}
                         value={stock.jabon.bultos === 0 ? '' : stock.jabon.bultos}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('jabon', 'bultos', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
                     <td className="text-center px-2">
                       <Input
-                  onWheel={(e) => e.currentTarget.blur()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
                         disabled={quincena === 'primera'}
                         value={stock.jabon.looseUnits === 0 ? '' : stock.jabon.looseUnits}
                         placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => updateStock('jabon', 'looseUnits', parseInt(e.target.value) || 0)}
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
@@ -1295,22 +1367,20 @@ export default function DotacionQuincenal() {
               <button
                 type="button"
                 onClick={() => setConfigActiveSection('todas')}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shrink-0 ${
-                  configActiveSection === 'todas'
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shrink-0 ${configActiveSection === 'todas'
                     ? 'bg-slate-800 text-white shadow-xs'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
+                  }`}
               >
                 Ver Todas
               </button>
               <button
                 type="button"
                 onClick={() => setConfigActiveSection('finca')}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
-                  configActiveSection === 'finca'
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'finca'
                     ? 'bg-emerald-700 text-white shadow-xs'
                     : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
-                }`}
+                  }`}
               >
                 <Trees className="w-3.5 h-3.5" />
                 <span>1. Finca</span>
@@ -1318,11 +1388,10 @@ export default function DotacionQuincenal() {
               <button
                 type="button"
                 onClick={() => setConfigActiveSection('planta')}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
-                  configActiveSection === 'planta'
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'planta'
                     ? 'bg-procarni-blue text-white shadow-xs'
                     : 'bg-white text-procarni-blue hover:bg-blue-50 border border-blue-200'
-                }`}
+                  }`}
               >
                 <Building2 className="w-3.5 h-3.5" />
                 <span>2. Planta y Comedor</span>
@@ -1330,147 +1399,192 @@ export default function DotacionQuincenal() {
               <button
                 type="button"
                 onClick={() => setConfigActiveSection('normas')}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
-                  configActiveSection === 'normas'
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'normas'
                     ? 'bg-amber-700 text-white shadow-xs'
                     : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200'
-                }`}
+                  }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>3. Normas y Límites</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setConfigActiveSection('contingencia')}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'contingencia'
+                    ? 'bg-purple-700 text-white shadow-xs'
+                    : 'bg-white text-purple-800 hover:bg-purple-50 border border-purple-200'
+                  }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>4. Colchón Contingencia</span>
+              </button>
             </div>
 
             {/* SECCIÓN 1: CANTIDADES DE LA FINCA */}
-            {(configActiveSection === 'todas' || configActiveSection === 'finca') && (
-              <div className="rounded-xl border border-emerald-200/90 bg-emerald-50/20 p-3.5 sm:p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                      <Trees className="w-4 h-4" />
+            {(configActiveSection === 'todas' || configActiveSection === 'finca') && (() => {
+              const curHarinaKg = typeof finca.kgHarina === 'number' ? finca.kgHarina : (finca.bultosHarina ? Math.round(finca.bultosHarina * presentations.harinaUnitsPerPackage) : 12);
+              const curArrozKg = typeof finca.kgArroz === 'number' ? finca.kgArroz : (typeof finca.bultosArroz === 'number' ? Math.round(finca.bultosArroz * presentations.arrozUnitsPerPackage) : 12);
+              const curAzucarKg = typeof finca.kgAzucar === 'number' ? finca.kgAzucar : 3;
+
+              return (
+                <div className="rounded-xl border border-emerald-200/90 bg-emerald-50/20 p-3.5 sm:p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                        <Trees className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                          1. Cantidades Asignadas a la Finca
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Dotación fija quincenal de campo: <strong>3 KG AZÚCAR</strong>, <strong>12 KG HARINA PAN</strong> y <strong>12 KG ARROZ</strong> (reparto 50% PC / 50% MA).
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
-                        1. Cantidades Asignadas a la Finca
-                      </h4>
-                      <p className="text-[11px] text-slate-500">
-                        Reserva fija quincenal para la alimentación del personal de la Finca. Se distribuye 50% PC y 50% MA en ambas quincenas.
-                      </p>
+                    <Badge className="bg-procarni-secondary text-white font-mono text-xs font-bold shrink-0 self-start sm:self-auto">
+                      Total Finca: {curHarinaKg + curArrozKg + curAzucarKg} kg
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Azúcar Konfit Finca (3 kg) */}
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-800">Azúcar (Finca)</span>
+                          <Badge variant="outline" className="text-[10px] text-amber-800 bg-amber-50 border-amber-200 font-bold">
+                            3 KG FIJO
+                          </Badge>
+                        </div>
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                          Kilos por Quincena
+                        </Label>
+                        <Input
+                          onWheel={(e) => e.currentTarget.blur()}
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={curAzucarKg === 0 ? '' : curAzucarKg}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                            setFinca({ ...finca, kgAzucar: val });
+                            setHasParamsChanges(true);
+                          }}
+                          className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                        />
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Equivalente:</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {(curAzucarKg / presentations.azucarUnitsPerPackage).toFixed(2)} bto <span className="text-slate-400 font-normal">({presentations.azucarUnitsPerPackage} kg/bto)</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400">Reparto 50/50:</span>
+                          <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                            PC: {(curAzucarKg * 0.5).toFixed(1)} kg · MA: {(curAzucarKg * 0.5).toFixed(1)} kg
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Harina PAN Finca (12 kg) */}
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-800">Harina PAN (Finca)</span>
+                          <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200 font-bold">
+                            12 KG FIJO
+                          </Badge>
+                        </div>
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                          Kilos por Quincena
+                        </Label>
+                        <Input
+                          onWheel={(e) => e.currentTarget.blur()}
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={curHarinaKg === 0 ? '' : curHarinaKg}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                            const bto = Number((val / presentations.harinaUnitsPerPackage).toFixed(2));
+                            setFinca({ ...finca, kgHarina: val, bultosHarina: bto });
+                            setHasParamsChanges(true);
+                          }}
+                          className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                        />
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Equivalente:</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {curHarinaKg} und/kg <span className="text-slate-400 font-normal">({(curHarinaKg / presentations.harinaUnitsPerPackage).toFixed(2)} bto)</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400">Reparto 50/50:</span>
+                          <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                            PC: {curHarinaKg * 0.5} kg · MA: {curHarinaKg * 0.5} kg
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Arroz Mary Finca (12 kg) */}
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-800">Arroz Mary Superior (Finca)</span>
+                          <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200 font-bold">
+                            12 KG FIJO
+                          </Badge>
+                        </div>
+                        <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                          Kilos por Quincena
+                        </Label>
+                        <Input
+                          onWheel={(e) => e.currentTarget.blur()}
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={curArrozKg === 0 ? '' : curArrozKg}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                            const bto = Number((val / presentations.arrozUnitsPerPackage).toFixed(2));
+                            setFinca({ ...finca, kgArroz: val, bultosArroz: bto });
+                            setHasParamsChanges(true);
+                          }}
+                          className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                        />
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Equivalente:</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {curArrozKg} kg <span className="text-slate-400 font-normal">({(curArrozKg / presentations.arrozUnitsPerPackage).toFixed(2)} bto = medio bulto)</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400">Reparto 50/50:</span>
+                          <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                            PC: {curArrozKg * 0.5} kg · MA: {curArrozKg * 0.5} kg
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <Badge className="bg-procarni-secondary text-white font-mono text-xs font-bold shrink-0 self-start sm:self-auto">
-                    Total Finca: {finca.bultosHarina + (typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5)} bultos
-                  </Badge>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {/* Harina PAN Finca */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-slate-800">Harina PAN (Finca)</span>
-                        <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200">
-                          {presentations.harinaUnitsPerPackage} und/bto
-                        </Badge>
-                      </div>
-                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
-                        Bultos por Quincena
-                      </Label>
-                      <Input
-                        onWheel={(e) => e.currentTarget.blur()}
-                        type="number"
-                        min={0}
-                        step="1"
-                        value={finca.bultosHarina}
-                        onChange={(e) => {
-                          setFinca({ ...finca, bultosHarina: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 });
-                          setHasParamsChanges(true);
-                        }}
-                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                      />
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500 font-medium">Equivalente:</span>
-                        <span className="font-mono font-bold text-slate-800">
-                          {finca.bultosHarina * presentations.harinaUnitsPerPackage} und
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400">Reparto 50/50:</span>
-                        <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          PC: {Math.round(finca.bultosHarina * (finca.splitPercentPC / 100))} bto · MA: {finca.bultosHarina - Math.round(finca.bultosHarina * (finca.splitPercentPC / 100))} bto
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Arroz Mary Finca */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-slate-800">Arroz Mary Superior (Finca)</span>
-                        <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200">
-                          {presentations.arrozUnitsPerPackage} kg/bto
-                        </Badge>
-                      </div>
-                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
-                        Bultos por Quincena (mín. 0.5 bto)
-                      </Label>
-                      <Input
-                        onWheel={(e) => e.currentTarget.blur()}
-                        type="number"
-                        min={0}
-                        step="0.5"
-                        value={typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5}
-                        onChange={(e) => {
-                          setFinca({ ...finca, bultosArroz: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 });
-                          setHasParamsChanges(true);
-                        }}
-                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
-                      />
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500 font-medium">Equivalente:</span>
-                        <span className="font-mono font-bold text-slate-800">
-                          {Math.round((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage)} kg
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400">Reparto 50/50:</span>
-                        <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          PC: {Math.round(((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage) * 0.5)} kg · MA: {Math.round(((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage) * 0.5)} kg
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Resumen Operativo Finca */}
-                  <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-200/70 flex flex-col justify-between text-xs sm:col-span-2 lg:col-span-1">
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2 font-bold text-emerald-950">
-                        <Trees className="w-3.5 h-3.5 text-emerald-700" />
-                        <span>Criterio Operativo Finca</span>
-                      </div>
-                      <p className="text-[11px] text-emerald-900/80 leading-relaxed">
-                        Insumos despachados como dotación alimentaria fija para las labores agrícolas y de campo. Aplica en <strong>1.ª y 2.ª quincena</strong> por igual.
-                      </p>
-                    </div>
-                    <div className="pt-2.5 border-t border-emerald-200/50 space-y-1 text-[11px]">
-                      <div className="flex items-center justify-between font-semibold text-emerald-900">
-                        <span>Finca Harina:</span>
-                        <span>{finca.bultosHarina} bulto{finca.bultosHarina === 1 ? '' : 's'} ({finca.bultosHarina * presentations.harinaUnitsPerPackage} und)</span>
-                      </div>
-                      <div className="flex items-center justify-between font-semibold text-emerald-900">
-                        <span>Finca Arroz:</span>
-                        <span>{typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5} bulto ({Math.round((typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5) * presentations.arrozUnitsPerPackage)} kg)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* SECCIÓN 2: USO EN PLANTA Y COMEDOR */}
             {(configActiveSection === 'todas' || configActiveSection === 'planta') && (
@@ -1516,12 +1630,16 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={0}
-                            value={comedor.kgPerDay}
+                            value={comedor.kgPerDay === 0 ? '' : comedor.kgPerDay}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
-                              setComedor({ ...comedor, kgPerDay: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 });
+                              const newKgPerDay = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                              setComedor({ ...comedor, kgPerDay: newKgPerDay });
+                              setArrozMaxSurplusKg(newKgPerDay);
                               setHasParamsChanges(true);
                             }}
-                            className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                            className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                           />
                         </div>
                         <div>
@@ -1532,12 +1650,14 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={0}
-                            value={comedor.days}
+                            value={comedor.days === 0 ? '' : comedor.days}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               setComedor({ ...comedor, days: e.target.value === '' ? 0 : parseInt(e.target.value) || 0 });
                               setHasParamsChanges(true);
                             }}
-                            className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                            className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                           />
                         </div>
                       </div>
@@ -1577,13 +1697,16 @@ export default function DotacionQuincenal() {
                         onWheel={(e) => e.currentTarget.blur()}
                         type="number"
                         min={0}
-                        value={papelUsoDiarioBultos}
+                        step="any"
+                        value={papelUsoDiarioBultos === 0 ? '' : papelUsoDiarioBultos}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => {
                           const v = e.target.value;
-                          setPapelUsoDiarioBultos(v === '' ? 0 : parseInt(v) || 0);
+                          setPapelUsoDiarioBultos(v === '' ? 0 : parseFloat(v) || 0);
                           setHasParamsChanges(true);
                         }}
-                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                       />
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
@@ -1594,9 +1717,9 @@ export default function DotacionQuincenal() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400">Asignación automática:</span>
+                        <span className="text-slate-400">Reparto equitativo:</span>
                         <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'})
+                          Proporcional a nómina ({employeesPC + employeesMA > 0 ? Math.round((employeesPC / (employeesPC + employeesMA)) * 100) : 50}% PC / {employeesPC + employeesMA > 0 ? Math.round((employeesMA / (employeesPC + employeesMA)) * 100) : 50}% MA)
                         </span>
                       </div>
                     </div>
@@ -1620,15 +1743,17 @@ export default function DotacionQuincenal() {
                       <Input
                         onWheel={(e) => e.currentTarget.blur()}
                         type="number"
-                        step="0.05"
+                        step="any"
                         min={0}
-                        value={azucarUsoMesBultos}
+                        value={azucarUsoMesBultos === 0 ? '' : azucarUsoMesBultos}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => {
                           const v = e.target.value;
                           setAzucarUsoMesBultos(v === '' ? 0 : parseFloat(v) || 0);
                           setHasParamsChanges(true);
                         }}
-                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                       />
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px]">
@@ -1639,9 +1764,9 @@ export default function DotacionQuincenal() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400">Asignación automática:</span>
+                        <span className="text-slate-400">Reparto equitativo:</span>
                         <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                          Empresa menor ({employeesMA <= employeesPC ? 'MA' : 'PC'})
+                          Proporcional a nómina ({employeesPC + employeesMA > 0 ? Math.round((employeesPC / (employeesPC + employeesMA)) * 100) : 50}% PC / {employeesPC + employeesMA > 0 ? Math.round((employeesMA / (employeesPC + employeesMA)) * 100) : 50}% MA)
                         </span>
                       </div>
                     </div>
@@ -1691,12 +1816,14 @@ export default function DotacionQuincenal() {
                               type="number"
                               min={0}
                               max={24}
-                              value={arrozMaxSurplusKg}
+                              value={arrozMaxSurplusKg === 0 ? '' : arrozMaxSurplusKg}
+                              placeholder="0"
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => {
                                 setArrozMaxSurplusKg(Math.max(0, parseInt(e.target.value) || 0));
                                 setHasParamsChanges(true);
                               }}
-                              className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                              className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                             />
                             <span className="text-[11px] font-bold text-slate-600">kg</span>
                           </div>
@@ -1711,12 +1838,14 @@ export default function DotacionQuincenal() {
                               type="number"
                               min={0}
                               max={100}
-                              value={surplusTolerancePercent}
+                              value={surplusTolerancePercent === 0 ? '' : surplusTolerancePercent}
+                              placeholder="0"
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => {
                                 setSurplusTolerancePercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)));
                                 setHasParamsChanges(true);
                               }}
-                              className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20"
+                              className="h-8 font-mono text-xs text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
                             />
                             <span className="text-[11px] font-bold text-slate-600">%</span>
                           </div>
@@ -1790,12 +1919,14 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={1}
-                            value={presentations.harinaUnitsPerPackage}
+                            value={presentations.harinaUnitsPerPackage === 0 ? '' : presentations.harinaUnitsPerPackage}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
-                              setPresentations({ ...presentations, harinaUnitsPerPackage: parseInt(e.target.value) || 20 });
+                              setPresentations({ ...presentations, harinaUnitsPerPackage: parseInt(e.target.value) || 0 });
                               setHasParamsChanges(true);
                             }}
-                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold placeholder:text-slate-300"
                           />
                         </div>
                         <div>
@@ -1804,12 +1935,14 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={1}
-                            value={presentations.arrozUnitsPerPackage}
+                            value={presentations.arrozUnitsPerPackage === 0 ? '' : presentations.arrozUnitsPerPackage}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
-                              setPresentations({ ...presentations, arrozUnitsPerPackage: parseInt(e.target.value) || 24 });
+                              setPresentations({ ...presentations, arrozUnitsPerPackage: parseInt(e.target.value) || 0 });
                               setHasParamsChanges(true);
                             }}
-                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold placeholder:text-slate-300"
                           />
                         </div>
                         <div>
@@ -1818,12 +1951,14 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={1}
-                            value={presentations.azucarUnitsPerPackage}
+                            value={presentations.azucarUnitsPerPackage === 0 ? '' : presentations.azucarUnitsPerPackage}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
-                              setPresentations({ ...presentations, azucarUnitsPerPackage: parseInt(e.target.value) || 20 });
+                              setPresentations({ ...presentations, azucarUnitsPerPackage: parseInt(e.target.value) || 0 });
                               setHasParamsChanges(true);
                             }}
-                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold placeholder:text-slate-300"
                           />
                         </div>
                         <div>
@@ -1832,12 +1967,14 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={1}
-                            value={presentations.papelUnitsPerPackage}
+                            value={presentations.papelUnitsPerPackage === 0 ? '' : presentations.papelUnitsPerPackage}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
-                              setPresentations({ ...presentations, papelUnitsPerPackage: parseInt(e.target.value) || 48 });
+                              setPresentations({ ...presentations, papelUnitsPerPackage: parseInt(e.target.value) || 0 });
                               setHasParamsChanges(true);
                             }}
-                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold placeholder:text-slate-300"
                           />
                         </div>
                         <div>
@@ -1846,18 +1983,129 @@ export default function DotacionQuincenal() {
                             onWheel={(e) => e.currentTarget.blur()}
                             type="number"
                             min={1}
-                            value={presentations.jabonUnitsPerPackage}
+                            value={presentations.jabonUnitsPerPackage === 0 ? '' : presentations.jabonUnitsPerPackage}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
-                              setPresentations({ ...presentations, jabonUnitsPerPackage: parseInt(e.target.value) || 44 });
+                              setPresentations({ ...presentations, jabonUnitsPerPackage: parseInt(e.target.value) || 0 });
                               setHasParamsChanges(true);
                             }}
-                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold"
+                            className="h-7 text-center font-mono text-xs px-1 mt-1 font-bold placeholder:text-slate-300"
                           />
                         </div>
                       </div>
                     </div>
                     <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-500">
                       Capacidad estándar por bulto según especificación de proveedores mayoristas.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN 4: COLCHÓN DE CONTINGENCIA DE NÓMINA (+N COMBOS) */}
+            {(configActiveSection === 'todas' || configActiveSection === 'contingencia') && (
+              <div className="rounded-xl border border-purple-200/90 bg-purple-50/20 p-3.5 sm:p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-100 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-800 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                        4. Colchón de Contingencia de Nómina (+N Combos de Reserva)
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Reserva preventiva de combos completos para absorber variaciones o contrataciones de última hora sin mermar los insumos del almacén.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge className="bg-purple-700 text-white font-mono text-xs font-bold shrink-0 self-start sm:self-auto">
+                    Colchón Total: +{contingencyCombosPC + contingencyCombosMA} combos
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Contingencia PC */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-800">Contingencia PC</span>
+                        <Badge variant="outline" className="text-[10px] text-procarni-blue bg-blue-50 border-blue-200 font-bold">
+                          Productos Cárnicos
+                        </Badge>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Combos de Reserva
+                      </Label>
+                      <Input
+                        onWheel={(e) => e.currentTarget.blur()}
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={contingencyCombosPC === 0 ? '' : contingencyCombosPC}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          setContingencyCombosPC(Math.max(0, parseInt(e.target.value) || 0));
+                          setHasParamsChanges(true);
+                        }}
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                      />
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                      <span>Nómina base: {employeesPC}</span>
+                      <span className="font-mono font-bold text-procarni-blue">Total: {employeesPC + contingencyCombosPC} combos</span>
+                    </div>
+                  </div>
+
+                  {/* Contingencia MA */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3 shadow-2xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-800">Contingencia MA</span>
+                        <Badge variant="outline" className="text-[10px] text-emerald-800 bg-emerald-50 border-emerald-200 font-bold">
+                          Montano Antilia
+                        </Badge>
+                      </div>
+                      <Label className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Combos de Reserva
+                      </Label>
+                      <Input
+                        onWheel={(e) => e.currentTarget.blur()}
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={contingencyCombosMA === 0 ? '' : contingencyCombosMA}
+                        placeholder="0"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          setContingencyCombosMA(Math.max(0, parseInt(e.target.value) || 0));
+                          setHasParamsChanges(true);
+                        }}
+                        className="h-8 font-mono text-xs mt-1 text-slate-800 font-bold focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                      />
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                      <span>Nómina base: {employeesMA}</span>
+                      <span className="font-mono font-bold text-procarni-secondary">Total: {employeesMA + contingencyCombosMA} combos</span>
+                    </div>
+                  </div>
+
+                  {/* Resumen Total Colchón */}
+                  <div className="bg-purple-50/50 p-3.5 rounded-xl border border-purple-200/70 flex flex-col justify-between text-xs sm:col-span-1">
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2 font-bold text-purple-950">
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
+                        <span>Reserva Operativa</span>
+                      </div>
+                      <p className="text-[11px] text-purple-900/80 leading-relaxed">
+                        Los insumos para estos <strong>{contingencyCombosPC + contingencyCombosMA} combos</strong> se sumarán a la Orden de Compra automáticamente según la receta quincenal.
+                      </p>
+                    </div>
+                    <div className="pt-2.5 border-t border-purple-200/50 flex items-center justify-between font-mono font-bold text-xs text-purple-950">
+                      <span>Total con Reserva:</span>
+                      <span>{employeesPC + employeesMA + contingencyCombosPC + contingencyCombosMA} combos</span>
                     </div>
                   </div>
                 </div>
@@ -2310,10 +2558,10 @@ export default function DotacionQuincenal() {
                             </div>
                             <div className="h-4 flex items-center justify-center mt-0.5">
                               {item.pcLooseUnitsToBuy > 0 ? (
-                            <span className="text-procarni-blue font-semibold">
-                              +{item.pcLooseUnitsToBuy} u {item.pcAdjustment !== 0 ? `(${item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj)` : ''}
-                            </span>
-                          ) : item.pcAdjustment !== 0 ? (
+                                <span className="text-procarni-blue font-semibold">
+                                  +{item.pcLooseUnitsToBuy} u {item.pcAdjustment !== 0 ? `(${item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj)` : ''}
+                                </span>
+                              ) : item.pcAdjustment !== 0 ? (
                                 <span className="text-[10px] font-mono text-amber-700 font-semibold leading-none whitespace-nowrap">
                                   {item.pcAdjustment > 0 ? `+${item.pcAdjustment}` : item.pcAdjustment} aj. (calc: {pcCalcItem?.calculatedBultos})
                                 </span>
@@ -2353,10 +2601,10 @@ export default function DotacionQuincenal() {
                             </div>
                             <div className="h-4 flex items-center justify-center mt-0.5">
                               {item.maLooseUnitsToBuy > 0 ? (
-                            <span className="text-procarni-secondary font-semibold">
-                              +{item.maLooseUnitsToBuy} u {item.maAdjustment !== 0 ? `(${item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj)` : ''}
-                            </span>
-                          ) : item.maAdjustment !== 0 ? (
+                                <span className="text-procarni-secondary font-semibold">
+                                  +{item.maLooseUnitsToBuy} u {item.maAdjustment !== 0 ? `(${item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj)` : ''}
+                                </span>
+                              ) : item.maAdjustment !== 0 ? (
                                 <span className="text-[10px] font-mono text-amber-700 font-semibold leading-none whitespace-nowrap">
                                   {item.maAdjustment > 0 ? `+${item.maAdjustment}` : item.maAdjustment} aj. (calc: {maCalcItem?.calculatedBultos})
                                 </span>
@@ -2371,7 +2619,7 @@ export default function DotacionQuincenal() {
 
                         {/* Total a Comprar Global */}
                         <TableCell className="text-center font-mono font-extrabold text-procarni-primary text-sm sm:text-base bg-red-50/40">
-  
+
 
 
 
@@ -2441,13 +2689,15 @@ export default function DotacionQuincenal() {
             </div>
           </Card>
 
-          {/* CUADRO DESGLOSE: DESTINOS DE INSUMOS (ARMADO DE COMBOS + USOS OPERATIVOS) */}
+          {/* CUADRO DESGLOSE: DESTINOS DE INSUMOS (ARMADO DE COMBOS + CONTINGENCIA + USOS OPERATIVOS) */}
           {result.nonComboDestinations && result.nonComboDestinations.length > 0 && (() => {
             const comboItems = result.nonComboDestinations.filter((d) => d.category === 'combos');
-            const operativoItems = result.nonComboDestinations.filter((d) => d.category !== 'combos');
+            const contingencyItems = result.nonComboDestinations.filter((d) => d.category === 'contingencia');
+            const operativoItems = result.nonComboDestinations.filter((d) => d.category !== 'combos' && d.category !== 'contingencia');
             const comboBultosTotal = comboItems.reduce((acc, d) => acc + d.equivalentBultos, 0);
+            const contingencyBultosTotal = contingencyItems.reduce((acc, d) => acc + d.equivalentBultos, 0);
             const operativoBultosTotal = operativoItems.reduce((acc, d) => acc + d.equivalentBultos, 0);
-            const totalDestinosBultos = comboBultosTotal + operativoBultosTotal;
+            const totalDestinosBultos = comboBultosTotal + contingencyBultosTotal + operativoBultosTotal;
 
             return (
               <Card className="bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl overflow-hidden min-w-0">
@@ -2469,8 +2719,13 @@ export default function DotacionQuincenal() {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap shrink-0">
                     <Badge className="bg-procarni-blue text-white font-mono font-bold text-[11px] sm:text-xs">
-                      Combos: {comboBultosTotal.toFixed(1)} bto
+                      Nómina: {comboBultosTotal.toFixed(1)} bto
                     </Badge>
+                    {(result.totalContingencyCombos ?? 0) > 0 && (
+                      <Badge className="bg-purple-700 text-white font-mono font-bold text-[11px] sm:text-xs">
+                        Contingencia (+{result.totalContingencyCombos}): {contingencyBultosTotal.toFixed(1)} bto
+                      </Badge>
+                    )}
                     <Badge className="bg-procarni-secondary text-white font-mono font-bold text-[11px] sm:text-xs">
                       Operativo: {operativoBultosTotal.toFixed(1)} bto
                     </Badge>
@@ -2509,14 +2764,19 @@ export default function DotacionQuincenal() {
                 <div className="block md:hidden p-2.5 sm:p-4 space-y-2.5">
                   {result.nonComboDestinations.map((d, idx) => {
                     const isCombo = d.category === 'combos';
+                    const isContingency = d.category === 'contingencia';
+                    const rowBg = isContingency ? 'border-purple-200 bg-purple-50/30' : (isCombo ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50');
                     return (
-                      <div key={idx} className={`p-3 rounded-xl border space-y-1.5 ${isCombo ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                      <div key={idx} className={`p-3 rounded-xl border space-y-1.5 ${rowBg}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                             <span className={`w-2 h-2 rounded-full ${isCombo ? 'bg-procarni-blue' : 'bg-procarni-secondary'}`} />
                             {d.destination}
                           </span>
-                          <span className={`font-mono font-extrabold text-xs px-2 py-0.5 rounded border ${isCombo ? 'text-procarni-blue bg-blue-50 border-blue-200' : 'text-procarni-secondary bg-emerald-50 border-emerald-200'}`}>
+                          <span className={`font-mono font-extrabold text-xs px-2 py-0.5 rounded border ${isContingency
+                              ? 'text-purple-700 bg-purple-50 border-purple-200'
+                              : (isCombo ? 'text-procarni-blue bg-blue-50 border-blue-200' : 'text-procarni-secondary bg-emerald-50 border-emerald-200')
+                            }`}>
                             {d.quantityUnits} {d.unitLabel} ({d.equivalentBultos} bto)
                           </span>
                         </div>
@@ -2546,11 +2806,17 @@ export default function DotacionQuincenal() {
                     <TableBody className="text-xs divide-y divide-slate-100">
                       {result.nonComboDestinations.map((d, idx) => {
                         const isCombo = d.category === 'combos';
+                        const isContingency = d.category === 'contingencia';
+                        const rowClass = isContingency ? 'bg-purple-50/20' : (isCombo ? 'bg-blue-50/15' : '');
                         return (
-                          <TableRow key={idx} className={`hover:bg-slate-50/60 ${isCombo ? 'bg-blue-50/15' : ''}`}>
+                          <TableRow key={idx} className={`hover:bg-slate-50/60 ${rowClass}`}>
                             <TableCell className="font-bold text-slate-900">
-                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${isCombo ? 'bg-blue-50 text-procarni-blue border border-blue-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${isCombo ? 'bg-procarni-blue' : 'bg-emerald-600'}`} />
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${isContingency
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : (isCombo ? 'bg-blue-50 text-procarni-blue border border-blue-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200')
+                                }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isContingency ? 'bg-purple-600' : (isCombo ? 'bg-procarni-blue' : 'bg-emerald-600')
+                                  }`} />
                                 {d.destination}
                               </span>
                             </TableCell>
@@ -2558,7 +2824,10 @@ export default function DotacionQuincenal() {
                             <TableCell className="text-center font-mono font-extrabold text-procarni-dark text-sm">
                               {d.quantityUnits} {d.unitLabel}
                             </TableCell>
-                            <TableCell className={`text-center font-mono font-bold ${isCombo ? 'text-procarni-blue' : 'text-procarni-secondary'}`}>
+                            <TableCell className={`text-center font-mono font-bold ${isContingency
+                                ? 'text-purple-700'
+                                : (isCombo ? 'text-procarni-blue' : 'text-procarni-secondary')
+                              }`}>
                               {d.equivalentBultos} bto
                             </TableCell>
                             <TableCell className="text-[11px] text-slate-500 font-sans">

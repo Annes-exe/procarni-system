@@ -95,11 +95,14 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...TEXT_DARK);
-  doc.text(`Total: ${result.totalEmployees} combos`, margin + colWidth + 3, y + 9.5);
+  const contingencyNotice = result.totalContingencyCombos ? ` (+${result.totalContingencyCombos} cont.)` : '';
+  doc.text(`Total: ${result.totalEmployees} combos${contingencyNotice}`, margin + colWidth + 3, y + 9.5);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(...TEXT_MUTED);
-  doc.text(`PC: ${result.pc.employees} combos  |  MA: ${result.ma.employees} combos`, margin + colWidth + 3, y + 13.5);
+  const pcSub = result.contingencyCombosPC ? `PC: ${result.pc.employees} (+${result.contingencyCombosPC})` : `PC: ${result.pc.employees}`;
+  const maSub = result.contingencyCombosMA ? `MA: ${result.ma.employees} (+${result.contingencyCombosMA})` : `MA: ${result.ma.employees}`;
+  doc.text(`${pcSub}  |  ${maSub} combos`, margin + colWidth + 3, y + 13.5);
 
   // Cell 3: Resumen de Requerimiento de Compra
   doc.setFont('helvetica', 'bold');
@@ -438,6 +441,8 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
           const dest = String(data.row.raw[0] || '');
           if (dest.includes('Armado de Combos')) {
             data.cell.styles.fillColor = [240, 246, 255]; // Azul sutil para combos
+          } else if (dest.includes('Colchón de Contingencia')) {
+            data.cell.styles.fillColor = [250, 245, 255]; // Púrpura sutil para contingencia
           }
         }
       },

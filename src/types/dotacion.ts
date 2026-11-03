@@ -21,8 +21,11 @@ export interface ComedorConfig {
 }
 
 export interface FincaConfig {
-  bultosHarina: number; // default 2
-  bultosArroz?: number; // default 0.5 (medio bulto de arroz = 12 kg)
+  bultosHarina: number; // default 0.6 bultos (= 12 kg a 20 und/bulto) o unidades/kg
+  bultosArroz?: number; // default 0.5 bultos (= 12 kg a 24 kg/bulto)
+  kgHarina?: number; // default 12 kg
+  kgArroz?: number; // default 12 kg
+  kgAzucar?: number; // default 3 kg
   splitPercentPC: number; // 50
   splitPercentMA: number; // 50
 }
@@ -54,6 +57,8 @@ export interface DotacionOperationalParameters {
   surplusTolerancePercent: number;
   arrozMaxSurplusKg: number;
   globalPurchaseMode?: PurchaseMode;
+  contingencyCombosPC?: number;
+  contingencyCombosMA?: number;
 }
 
 export interface DotacionMaterialMapping {
@@ -105,6 +110,8 @@ export interface CompanyDotacionCalculation {
   companyName: string;
   shortName: string;
   employees: number;
+  contingencyCombos?: number;
+  totalCombos?: number;
   items: DotacionItemCalculation[];
   totalBultos: number;
   totalLooseUnits: number;
@@ -115,6 +122,7 @@ export interface GlobalItemCalculation {
   productName: string;
   brandDetail: string;
   unitsPerPackage: number;
+  unitsPerCombo: number;
   totalComboUnits: number;
   totalFixedUnits: number;
   totalFixedBultos: number;
@@ -152,14 +160,14 @@ export interface GlobalItemCalculation {
 }
 
 export interface NonComboDestinationItem {
-  destination: string; // e.g. "Armado de Combos", "Comedor", "Finca", "Uso Planta y Baños", "Cafetería y Uso Continuo Planta"
+  destination: string; // e.g. "Armado de Combos", "Colchón de Contingencia", "Comedor", "Finca", "Uso Planta y Baños", "Cafetería"
   productId: DotacionProductId;
   productName: string;
   quantityUnits: number;
   unitLabel: string; // "kg", "und", "rollos", "barras"
   equivalentBultos: number;
   observations: string;
-  category?: 'combos' | 'operativo';
+  category?: 'combos' | 'operativo' | 'contingencia';
 }
 
 export interface DotacionCalculationResult {
@@ -168,6 +176,10 @@ export interface DotacionCalculationResult {
   year: number;
   periodLabel: string;
   totalEmployees: number;
+  contingencyCombosPC?: number;
+  contingencyCombosMA?: number;
+  totalContingencyCombos?: number;
+  totalCombosEffective?: number;
   pc: CompanyDotacionCalculation;
   ma: CompanyDotacionCalculation;
   globalItems: GlobalItemCalculation[];

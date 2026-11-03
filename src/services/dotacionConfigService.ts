@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import {
   DotacionMaterialMapping,
   DotacionProductId,
@@ -37,6 +38,8 @@ export const DEFAULT_OPERATIONAL_PARAMETERS: DotacionOperationalParameters = {
   surplusTolerancePercent: DEFAULT_SURPLUS_TOLERANCE_PERCENT,
   arrozMaxSurplusKg: DEFAULT_ARROZ_MAX_SURPLUS_KG,
   globalPurchaseMode: DEFAULT_GLOBAL_PURCHASE_MODE,
+  contingencyCombosPC: 0,
+  contingencyCombosMA: 0,
 };
 
 export const DEFAULT_DOTACION_MAPPINGS: DotacionMaterialMapping[] = [
@@ -138,6 +141,10 @@ export const dotacionConfigService = {
             parsed.arrozMaxSurplusKg ?? DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
           globalPurchaseMode:
             parsed.globalPurchaseMode ?? DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+          contingencyCombosPC:
+            parsed.contingencyCombosPC ?? DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosPC,
+          contingencyCombosMA:
+            parsed.contingencyCombosMA ?? DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosMA,
         };
       }
     } catch (e) {
@@ -152,6 +159,8 @@ export const dotacionConfigService = {
       surplusTolerancePercent: DEFAULT_OPERATIONAL_PARAMETERS.surplusTolerancePercent,
       arrozMaxSurplusKg: DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
       globalPurchaseMode: DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+      contingencyCombosPC: DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosPC,
+      contingencyCombosMA: DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosMA,
     };
   },
 
@@ -160,6 +169,76 @@ export const dotacionConfigService = {
       localStorage.setItem(PARAMS_STORAGE_KEY, JSON.stringify(params));
     } catch (e) {
       console.error('[dotacionConfigService.saveOperationalParameters] Error writing localStorage:', e);
+    }
+  },
+
+  // --- SINCRONIZACIÓN SUPABASE (PERSISTENCIA REMOTA EN LA NUBE) ---
+  fetchRemoteOperationalParameters: async (): Promise<DotacionOperationalParameters | null> => {
+    try {
+      const { data, error, status } = await supabase
+        .from('dotacion_operational_config')
+        .select('*')
+        .eq('id', 'global_config')
+        .maybeSingle();
+
+      if (error || status === 404 || !data) {
+        return null;
+      }
+
+      const remoteParams: DotacionOperationalParameters = {
+        comedor: { ...DEFAULT_OPERATIONAL_PARAMETERS.comedor, ...(data.comedor_data || {}) },
+        finca: { ...DEFAULT_OPERATIONAL_PARAMETERS.finca, ...(data.finca_data || {}) },
+        papelUsoDiarioBultos: data.papel_uso_diario_bultos ?? DEFAULT_OPERATIONAL_PARAMETERS.papelUsoDiarioBultos,
+        azucarUsoBultosMap: {
+          ...DEFAULT_OPERATIONAL_PARAMETERS.azucarUsoBultosMap,
+          ...(data.azucar_uso_bultos_map || {}),
+        },
+        presentations: {
+          ...DEFAULT_OPERATIONAL_PARAMETERS.presentations,
+          ...(data.presentations_data || {}),
+        },
+        surplusTolerancePercent: data.surplus_tolerance_percent ?? DEFAULT_OPERATIONAL_PARAMETERS.surplusTolerancePercent,
+        arrozMaxSurplusKg: data.arroz_max_surplus_kg ?? DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
+        globalPurchaseMode: data.global_purchase_mode ?? DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+        contingencyCombosPC: data.contingency_combos_pc ?? DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosPC,
+        contingencyCombosMA: data.contingency_combos_ma ?? DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosMA,
+      };
+
+      // Actualizar caché local
+      localStorage.setItem(PARAMS_STORAGE_KEY, JSON.stringify(remoteParams));
+      return remoteParams;
+    } catch {
+      return null;
+    }
+  },
+
+  saveRemoteOperationalParameters: async (params: DotacionOperationalParameters, userEmail?: string | null): Promise<boolean> => {
+    // 1. Guardar siempre en local primero para respuesta instantánea
+    dotacionConfigService.saveOperationalParameters(params);
+
+    // 2. Intentar guardar en Supabase para sincronizar con todos los usuarios
+    try {
+      const { error } = await supabase
+        .from('dotacion_operational_config')
+        .upsert({
+          id: 'global_config',
+          comedor_data: params.comedor,
+          finca_data: params.finca,
+          papel_uso_diario_bultos: params.papelUsoDiarioBultos,
+          azucar_uso_bultos_map: params.azucarUsoBultosMap,
+          presentations_data: params.presentations,
+          surplus_tolerance_percent: params.surplusTolerancePercent,
+          arroz_max_surplus_kg: params.arrozMaxSurplusKg,
+          global_purchase_mode: params.globalPurchaseMode || 'mixto',
+          contingency_combos_pc: params.contingencyCombosPC ?? 0,
+          contingency_combos_ma: params.contingencyCombosMA ?? 0,
+          updated_at: new Date().toISOString(),
+          updated_by: userEmail || 'Sistema',
+        }, { onConflict: 'id' });
+
+      return !error;
+    } catch {
+      return false;
     }
   },
 
@@ -178,6 +257,8 @@ export const dotacionConfigService = {
       surplusTolerancePercent: DEFAULT_OPERATIONAL_PARAMETERS.surplusTolerancePercent,
       arrozMaxSurplusKg: DEFAULT_OPERATIONAL_PARAMETERS.arrozMaxSurplusKg,
       globalPurchaseMode: DEFAULT_OPERATIONAL_PARAMETERS.globalPurchaseMode,
+      contingencyCombosPC: DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosPC,
+      contingencyCombosMA: DEFAULT_OPERATIONAL_PARAMETERS.contingencyCombosMA,
     };
   },
 

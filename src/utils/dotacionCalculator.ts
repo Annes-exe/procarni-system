@@ -29,8 +29,11 @@ export const DEFAULT_COMEDOR: ComedorConfig = {
 };
 
 export const DEFAULT_FINCA: FincaConfig = {
-  bultosHarina: 2,
+  bultosHarina: 0.6,
   bultosArroz: 0.5,
+  kgHarina: 12,
+  kgArroz: 12,
+  kgAzucar: 3,
   splitPercentPC: 50,
   splitPercentMA: 50,
 };
@@ -60,7 +63,7 @@ export const MONTH_NAMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
-export const DEFAULT_PAPEL_USO_DIARIO_BULTOS = 1;
+export const DEFAULT_PAPEL_USO_DIARIO_BULTOS = 3;
 export const DEFAULT_AZUCAR_USO_MES_BULTOS = 1.5; // 30 kg por quincena (1.5 bultos para uso continuo de cafetería y planta)
 
 // POLÍTICA HÍBRIDA SEGÚN NATURALEZA DE CONSUMO:
@@ -76,11 +79,13 @@ export const DEFAULT_PURCHASE_MODES: ProductPurchaseModes = {
 
 export const DEFAULT_GLOBAL_PURCHASE_MODE: PurchaseMode = 'mixto';
 export const DEFAULT_SURPLUS_TOLERANCE_PERCENT = 25; // 25% del bulto para insumos generales
-export const DEFAULT_ARROZ_MAX_SURPLUS_KG = 18; // 18 kg (1 día completo de consumo del comedor)
+export const DEFAULT_ARROZ_MAX_SURPLUS_KG = 18; // 18 kg (1 día completo de consumo del comedor a 18 kg/día)
 
 export interface CalculateDotacionParams {
   employeesPC: number;
   employeesMA: number;
+  contingencyCombosPC?: number;
+  contingencyCombosMA?: number;
   quincena: QuincenaTipo;
   month?: number; // 1 - 12
   year?: number;
@@ -112,6 +117,8 @@ export const formatOrderSummary = (bultos: number, looseUnits: number, id: strin
 export function calculateDotacion({
   employeesPC = 0,
   employeesMA = 0,
+  contingencyCombosPC = 0,
+  contingencyCombosMA = 0,
   quincena = 'primera',
   month = new Date().getMonth() + 1,
   year = new Date().getFullYear(),
@@ -144,7 +151,12 @@ export function calculateDotacion({
   const monthName = MONTH_NAMES[Math.max(0, Math.min(11, month - 1))];
   const periodLabel = `${monthName} ${year} - ${quincena === 'primera' ? '1.ª Quincena (Día 15)' : '2.ª Quincena (Día 30)'}`;
 
-  const hasEmployees = employeesPC + employeesMA > 0;
+  const totalEmployees = employeesPC + employeesMA;
+  const totalContingencyCombos = (contingencyCombosPC || 0) + (contingencyCombosMA || 0);
+  const effectiveEmployeesPC = employeesPC + (contingencyCombosPC || 0);
+  const effectiveEmployeesMA = employeesMA + (contingencyCombosMA || 0);
+  const totalCombosEffective = effectiveEmployeesPC + effectiveEmployeesMA;
+  const hasEmployees = totalCombosEffective > 0;
 
   // --- 1. COMEDOR (Arroz) ---
   // 18 kg/día * 15 días = 270 kg. Reparto 50% PC (135 kg) y 50% MA (135 kg). Ambas quincenas.
@@ -154,18 +166,20 @@ export function calculateDotacion({
   const comedorBultosPC = Math.ceil(comedorUnitsPC / pres.arrozUnitsPerPackage);
   const comedorBultosMA = Math.ceil(comedorUnitsMA / pres.arrozUnitsPerPackage);
 
-  // --- 2. FINCA (Harina Pan y Arroz) ---
+  // --- 2. FINCA (Azúcar 3 kg, Harina 12 kg, Arroz 12 kg) ---
   // Reserva de almacén para la Finca. Reparto 50% PC y 50% MA.
   // REGLA: Aplica CADA QUINCENA (1.ª y 2.ª quincena).
-  const fincaBultosTotal = hasEmployees ? finca.bultosHarina : 0;
-  const fincaBultosPC = Math.round(fincaBultosTotal * (finca.splitPercentPC / 100));
-  const fincaBultosMA = fincaBultosTotal - fincaBultosPC;
-  const fincaUnitsPC = fincaBultosPC * pres.harinaUnitsPerPackage;
-  const fincaUnitsMA = fincaBultosMA * pres.harinaUnitsPerPackage;
+  const fincaHarinaKg = typeof finca.kgHarina === 'number' ? finca.kgHarina : (finca.bultosHarina ? Math.round(finca.bultosHarina * pres.harinaUnitsPerPackage) : 12);
+  const fincaUnitsPC = hasEmployees ? Math.round(fincaHarinaKg * (finca.splitPercentPC / 100)) : 0;
+  const fincaUnitsMA = hasEmployees ? fincaHarinaKg - fincaUnitsPC : 0;
+  const fincaHarinaBultos = Number((fincaHarinaKg / pres.harinaUnitsPerPackage).toFixed(2));
+  const fincaBultosPC = Math.ceil(fincaUnitsPC / pres.harinaUnitsPerPackage);
+  const fincaBultosMA = Math.ceil(fincaUnitsMA / pres.harinaUnitsPerPackage);
+  const fincaBultosTotal = fincaHarinaBultos;
 
-  // Finca Arroz (por defecto al menos 0.5 bultos = 12 kg)
-  const fincaArrozBultos = typeof finca.bultosArroz === 'number' ? finca.bultosArroz : 0.5;
-  const fincaArrozKgTotal = hasEmployees ? Math.round(fincaArrozBultos * pres.arrozUnitsPerPackage) : 0;
+  // Finca Arroz (12 kg = 0.5 bultos a 24 kg/bto)
+  const fincaArrozKgTotal = hasEmployees ? (typeof finca.kgArroz === 'number' ? finca.kgArroz : (typeof finca.bultosArroz === 'number' ? Math.round(finca.bultosArroz * pres.arrozUnitsPerPackage) : 12)) : 0;
+  const fincaArrozBultos = Number((fincaArrozKgTotal / pres.arrozUnitsPerPackage).toFixed(2));
   const fincaArrozUnitsPC = hasEmployees ? Math.round(fincaArrozKgTotal * (finca.splitPercentPC / 100)) : 0;
   const fincaArrozUnitsMA = hasEmployees ? fincaArrozKgTotal - fincaArrozUnitsPC : 0;
   const totalArrozUnitsPC = comedorUnitsPC + fincaArrozUnitsPC;
@@ -173,28 +187,32 @@ export function calculateDotacion({
   const totalArrozBultosPC = Math.ceil(totalArrozUnitsPC / pres.arrozUnitsPerPackage);
   const totalArrozBultosMA = Math.ceil(totalArrozUnitsMA / pres.arrozUnitsPerPackage);
 
-  // Determinar qué empresa tiene menor cantidad de colaboradores/combos
-  // REGLA: No hay insumos exclusivos de PC o MA; el excedente se le agrega a la empresa con menor cantidad.
-  const isMaSmaller = employeesMA <= employeesPC;
+  // Finca Azúcar (3 kg)
+  const fincaAzucarKgTotal = hasEmployees ? (typeof finca.kgAzucar === 'number' ? finca.kgAzucar : 3) : 0;
+  const fincaAzucarBultos = Number((fincaAzucarKgTotal / pres.azucarUnitsPerPackage).toFixed(2));
+  const fincaAzucarUnitsPC = hasEmployees ? Math.round(fincaAzucarKgTotal * (finca.splitPercentPC / 100)) : 0;
+  const fincaAzucarUnitsMA = hasEmployees ? fincaAzucarKgTotal - fincaAzucarUnitsPC : 0;
+
+  // Proporción de colaboradores para reparto equitativo de insumos de uso común (Planta, Baños, Cafetería)
+  const ratioHeadcountPC = hasEmployees && totalCombosEffective > 0
+    ? effectiveEmployeesPC / totalCombosEffective
+    : 0.5;
 
   // --- 3. USO DIARIO PLANTA (Papel Higiénico) ---
-  // Excedente de uso diario quincenal (por defecto 1 bulto / 48 und). Aplica en ambas quincenas.
-  // Se asigna a la empresa con menor cantidad de colaboradores para equilibrar la dotación.
-  const papelUnitsTotal = hasEmployees ? papelUsoDiarioBultos * pres.papelUnitsPerPackage : 0;
-  const papelUnitsPC = isMaSmaller ? 0 : papelUnitsTotal;
-  const papelUnitsMA = isMaSmaller ? papelUnitsTotal : 0;
-  const papelBultosPC = isMaSmaller ? 0 : papelUsoDiarioBultos;
-  const papelBultosMA = isMaSmaller ? papelUsoDiarioBultos : 0;
+  // Reparto equitativo y proporcional al personal: la mayor parte a la empresa con más colaboradores.
+  const papelBultosPC = hasEmployees ? Math.round(papelUsoDiarioBultos * ratioHeadcountPC) : 0;
+  const papelBultosMA = hasEmployees ? Math.max(0, papelUsoDiarioBultos - papelBultosPC) : 0;
+  const papelUnitsPC = papelBultosPC * pres.papelUnitsPerPackage;
+  const papelUnitsMA = papelBultosMA * pres.papelUnitsPerPackage;
+  const papelUnitsTotal = papelUnitsPC + papelUnitsMA;
 
   // --- 4. USO PLANTA Y CAFETERÍA (Azúcar Konfit) ---
-  // Excedente quincenal para cafetería y consumo continuo en planta (por defecto 1.5 bultos / 30 kg).
-  // Aplica en CADA quincena (1.ª y 2.ª quincena) de forma independiente.
-  // Se asigna a la empresa con menor cantidad de colaboradores.
-  const azucarKgTotal = hasEmployees ? Math.round(azucarUsoMesBultos * pres.azucarUnitsPerPackage) : 0;
-  const azucarUnitsPC = isMaSmaller ? 0 : azucarKgTotal;
-  const azucarUnitsMA = isMaSmaller ? azucarKgTotal : 0;
-  const azucarBultosPC = hasEmployees ? (isMaSmaller ? 0 : azucarUsoMesBultos) : 0;
-  const azucarBultosMA = hasEmployees ? (isMaSmaller ? azucarUsoMesBultos : 0) : 0;
+  // Reparto proporcional a nómina entre PC y MA.
+  const azucarBultosPC = hasEmployees ? Number((azucarUsoMesBultos * ratioHeadcountPC).toFixed(2)) : 0;
+  const azucarBultosMA = hasEmployees ? Number(Math.max(0, azucarUsoMesBultos - azucarBultosPC).toFixed(2)) : 0;
+  const azucarUnitsPC = hasEmployees ? Math.round(azucarBultosPC * pres.azucarUnitsPerPackage) : 0;
+  const azucarUnitsMA = hasEmployees ? Math.round(azucarBultosMA * pres.azucarUnitsPerPackage) : 0;
+  const azucarKgTotal = azucarUnitsPC + azucarUnitsMA;
 
   // --- 5. ITEMS DEFINITION & STOCK DISTRIBUTION ---
   type ItemKey = 'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon';
@@ -260,12 +278,20 @@ export function calculateDotacion({
       unitsPerPkg: pres.azucarUnitsPerPackage,
       unitsPerCombo: 1,
       included: true,
-      pcFixedUnits: hasEmployees ? azucarUnitsPC : 0,
-      pcFixedBultos: hasEmployees ? azucarBultosPC : 0,
-      pcFixedLabel: hasEmployees && azucarUnitsPC > 0 ? `Cafetería (${azucarUnitsPC} kg)` : '-',
-      maFixedUnits: hasEmployees ? azucarUnitsMA : 0,
-      maFixedBultos: hasEmployees ? azucarBultosMA : 0,
-      maFixedLabel: hasEmployees && azucarUnitsMA > 0 ? `Cafetería (${azucarUnitsMA} kg)` : '-',
+      pcFixedUnits: hasEmployees ? (azucarUnitsPC + fincaAzucarUnitsPC) : 0,
+      pcFixedBultos: hasEmployees ? (azucarBultosPC + Math.ceil(fincaAzucarUnitsPC / pres.azucarUnitsPerPackage)) : 0,
+      pcFixedLabel: hasEmployees && (azucarUnitsPC + fincaAzucarUnitsPC) > 0 
+        ? (fincaAzucarUnitsPC > 0 && azucarUnitsPC > 0 
+            ? `Cafetería (${azucarUnitsPC} kg) + Finca (${fincaAzucarUnitsPC} kg)` 
+            : (fincaAzucarUnitsPC > 0 ? `Finca (${fincaAzucarUnitsPC} kg)` : `Cafetería (${azucarUnitsPC} kg)`)) 
+        : '-',
+      maFixedUnits: hasEmployees ? (azucarUnitsMA + fincaAzucarUnitsMA) : 0,
+      maFixedBultos: hasEmployees ? (azucarBultosMA + Math.ceil(fincaAzucarUnitsMA / pres.azucarUnitsPerPackage)) : 0,
+      maFixedLabel: hasEmployees && (azucarUnitsMA + fincaAzucarUnitsMA) > 0 
+        ? (fincaAzucarUnitsMA > 0 && azucarUnitsMA > 0 
+            ? `Cafetería (${azucarUnitsMA} kg) + Finca (${fincaAzucarUnitsMA} kg)` 
+            : (fincaAzucarUnitsMA > 0 ? `Finca (${fincaAzucarUnitsMA} kg)` : `Cafetería (${azucarUnitsMA} kg)`)) 
+        : '-',
       stockBultos: stock.azucar.bultos,
       stockLooseUnits: stock.azucar.looseUnits,
     },
@@ -386,8 +412,8 @@ export function calculateDotacion({
       return;
     }
 
-    const pcComboUnits = employeesPC * p.unitsPerCombo;
-    const maComboUnits = employeesMA * p.unitsPerCombo;
+    const pcComboUnits = effectiveEmployeesPC * p.unitsPerCombo;
+    const maComboUnits = effectiveEmployeesMA * p.unitsPerCombo;
     const pcGrossUnits = pcComboUnits + p.pcFixedUnits;
     const maGrossUnits = maComboUnits + p.maFixedUnits;
     const totalGrossUnits = pcGrossUnits + maGrossUnits;
@@ -395,22 +421,13 @@ export function calculateDotacion({
     // Total consolidated stock units in warehouse
     const totalStockUnits = p.stockBultos * p.unitsPerPkg + p.stockLooseUnits;
 
-    // Distribute consolidated stock between PC and MA
-    const stockBultosPC = Math.ceil(p.stockBultos / 2);
+    // Distribuir existencias consolidadas de almacén de forma equitativa y proporcional al requerimiento bruto
+    const ratioStock = totalGrossUnits > 0 ? pcGrossUnits / totalGrossUnits : ratioHeadcountPC;
+    const stockBultosPC = Math.round(p.stockBultos * ratioStock);
     const stockBultosMA = p.stockBultos - stockBultosPC;
 
-    let stockLooseUnitsPC = 0;
-    let stockLooseUnitsMA = 0;
-    if (p.stockLooseUnits > 0) {
-      if (p.stockBultos === 0) {
-        stockLooseUnitsPC = p.stockLooseUnits;
-        stockLooseUnitsMA = 0;
-      } else {
-        const ratio = totalGrossUnits > 0 ? pcGrossUnits / totalGrossUnits : 0.5;
-        stockLooseUnitsPC = Math.round(p.stockLooseUnits * ratio);
-        stockLooseUnitsMA = p.stockLooseUnits - stockLooseUnitsPC;
-      }
-    }
+    const stockLooseUnitsPC = Math.round(p.stockLooseUnits * ratioStock);
+    const stockLooseUnitsMA = p.stockLooseUnits - stockLooseUnitsPC;
 
     const pcDeductionUnits = stockBultosPC * p.unitsPerPkg + stockLooseUnitsPC;
     const maDeductionUnits = stockBultosMA * p.unitsPerPkg + stockLooseUnitsMA;
@@ -677,6 +694,7 @@ export function calculateDotacion({
       productName: p.name,
       brandDetail: p.brandDetail,
       unitsPerPackage: p.unitsPerPkg,
+      unitsPerCombo: p.unitsPerCombo,
       totalComboUnits: pcComboUnits + maComboUnits,
       totalFixedUnits,
       totalFixedBultos,
@@ -762,7 +780,7 @@ export function calculateDotacion({
   if (hasEmployees) {
     const totalEmployees = employeesPC + employeesMA;
 
-    // 1. Armado de Combos de Trabajadores
+    // 1. Armado de Combos de Trabajadores (Nómina Base)
     globalItems
       .filter((it) => it.includedInPeriod && it.totalComboUnits > 0)
       .forEach((it) => {
@@ -770,18 +788,38 @@ export function calculateDotacion({
           ? 'kg'
           : (it.productId === 'papel' ? 'rollos' : (it.productId === 'jabon' ? 'barras' : 'und'));
 
-        const bultosVal = Number((it.totalComboUnits / it.unitsPerPackage).toFixed(2));
+        const unitsPerCombo = it.unitsPerCombo || (it.productId === 'harina' ? 2 : 1);
+        const baseUnits = totalEmployees * unitsPerCombo;
+        const baseBultos = Number((baseUnits / it.unitsPerPackage).toFixed(2));
 
         nonComboDestinations.push({
-          destination: 'Armado de Combos',
+          destination: 'Armado de Combos (Nómina)',
           productId: it.productId,
           productName: it.productName,
-          quantityUnits: it.totalComboUnits,
+          quantityUnits: baseUnits,
           unitLabel: unitWord,
-          equivalentBultos: bultosVal,
-          observations: `Combos de trabajadores: ${it.unitsPerCombo} ${unitWord}/combo × ${totalEmployees} colaboradores (${employeesPC} PC + ${employeesMA} MA)`,
+          equivalentBultos: baseBultos,
+          observations: `Combos nómina base: ${unitsPerCombo} ${unitWord}/combo × ${totalEmployees} colaboradores (${employeesPC} PC + ${employeesMA} MA)`,
           category: 'combos',
         });
+
+        // 1.1 Colchón de Contingencia de Nómina (+N combos de reserva)
+        if (totalContingencyCombos > 0) {
+          const unitsPerCombo = it.unitsPerCombo || (it.productId === 'harina' ? 2 : 1);
+          const contUnits = totalContingencyCombos * unitsPerCombo;
+          const contBultos = Number((contUnits / it.unitsPerPackage).toFixed(2));
+
+          nonComboDestinations.push({
+            destination: 'Colchón de Contingencia',
+            productId: it.productId,
+            productName: it.productName,
+            quantityUnits: contUnits,
+            unitLabel: unitWord,
+            equivalentBultos: contBultos,
+            observations: `Reserva para nómina imprevista: +${totalContingencyCombos} combos (+${contingencyCombosPC} PC / +${contingencyCombosMA} MA) × ${unitsPerCombo} ${unitWord}/combo`,
+            category: 'contingencia',
+          });
+        }
       });
 
     // 2. Destinos Operativos Diferentes a Combos
@@ -800,7 +838,7 @@ export function calculateDotacion({
       });
     }
 
-    // 2.2 Finca (Harina Pan y Arroz)
+    // 2.2 Finca (3 kg Azúcar, 12 kg Harina Pan, 12 kg Arroz)
     if (fincaUnitsPC + fincaUnitsMA > 0) {
       nonComboDestinations.push({
         destination: 'Finca (Alimentación)',
@@ -808,8 +846,8 @@ export function calculateDotacion({
         productName: 'Harina Pan',
         quantityUnits: fincaUnitsPC + fincaUnitsMA,
         unitLabel: 'und',
-        equivalentBultos: fincaBultosTotal,
-        observations: `Reserva fija quincenal Finca: ${fincaBultosTotal} bultos Harina (50% PC / 50% MA)`,
+        equivalentBultos: fincaHarinaBultos,
+        observations: `Reserva fija quincenal Finca: ${fincaHarinaKg} kg (${fincaUnitsPC + fincaUnitsMA} und / ${fincaHarinaBultos} bto) Harina (50% PC / 50% MA)`,
         category: 'operativo',
       });
     }
@@ -822,7 +860,20 @@ export function calculateDotacion({
         quantityUnits: fincaArrozKgTotal,
         unitLabel: 'kg',
         equivalentBultos: Number(fincaArrozBultos.toFixed(2)),
-        observations: `Reserva fija quincenal Finca: ${fincaArrozBultos} bto (${fincaArrozKgTotal} kg) Arroz (50% PC / 50% MA)`,
+        observations: `Reserva fija quincenal Finca: ${fincaArrozKgTotal} kg (${fincaArrozBultos} bto) Arroz (50% PC / 50% MA)`,
+        category: 'operativo',
+      });
+    }
+
+    if (fincaAzucarKgTotal > 0) {
+      nonComboDestinations.push({
+        destination: 'Finca (Alimentación)',
+        productId: 'azucar',
+        productName: 'Azúcar Konfit',
+        quantityUnits: fincaAzucarKgTotal,
+        unitLabel: 'kg',
+        equivalentBultos: fincaAzucarBultos,
+        observations: `Reserva fija quincenal Finca: ${fincaAzucarKgTotal} kg (${fincaAzucarBultos} bto) Azúcar (50% PC / 50% MA)`,
         category: 'operativo',
       });
     }
@@ -861,12 +912,18 @@ export function calculateDotacion({
     month,
     year,
     periodLabel,
-    totalEmployees: employeesPC + employeesMA,
+    totalEmployees,
+    contingencyCombosPC,
+    contingencyCombosMA,
+    totalContingencyCombos,
+    totalCombosEffective,
     pc: {
       companyId: 'pc',
       companyName: 'Productos Cárnicos (PC)',
       shortName: 'PC',
       employees: employeesPC,
+      contingencyCombos: contingencyCombosPC,
+      totalCombos: effectiveEmployeesPC,
       items: pcItems,
       totalBultos: totalPcBultos,
       totalLooseUnits: totalPcLooseUnits,
@@ -876,6 +933,8 @@ export function calculateDotacion({
       companyName: 'Montano Antilia (MA)',
       shortName: 'MA',
       employees: employeesMA,
+      contingencyCombos: contingencyCombosMA,
+      totalCombos: effectiveEmployeesMA,
       items: maItems,
       totalBultos: totalMaBultos,
       totalLooseUnits: totalMaLooseUnits,
