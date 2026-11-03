@@ -325,7 +325,7 @@ const supplierFormSchema = z.object({
   }),
   name: z.string().min(1, 'Nombre es requerido'),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
-  phone: z.string().optional().or(z.literal('')), // MODIFIED: Made optional
+  phone: z.string().trim().min(1, 'El teléfono principal es requerido'),
   phone_2: z.string().optional().or(z.literal('')),
   instagram: z.string().optional().or(z.literal('')),
   website: z.string().url('URL inválida. Ej: https://ejemplo.com').optional().or(z.literal('')),
@@ -1053,7 +1053,7 @@ const SupplierForm = ({ initialData, onSubmit, onCancel, isSubmitting }: Supplie
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs">Teléfono Principal</FormLabel>
+                      <FormLabel className="text-xs">Teléfono Principal <span className="text-red-500 font-bold">*</span></FormLabel>
                       <FormControl>
                         <Input placeholder="0412-1234567" {...field} value={field.value || ''} className="h-9" />
                       </FormControl>

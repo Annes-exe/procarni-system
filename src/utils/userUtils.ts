@@ -56,3 +56,25 @@ export const getCurrentUserName = async (fallbackUserId?: string): Promise<strin
     return 'Sistema';
   }
 };
+
+/**
+ * Checks whether the current user is a Developer (username "Dev", role "dev", or dev email).
+ */
+export const isDevUser = (
+  user?: { email?: string | null } | null,
+  profile?: { username?: string | null; role?: string | null } | null,
+  role?: string | null
+): boolean => {
+  const r = (role || profile?.role || '').toLowerCase();
+  const u = (profile?.username || '').toLowerCase();
+  const e = (user?.email || '').toLowerCase();
+
+  return (
+    u === 'dev' ||
+    u === 'developer' ||
+    r === 'dev' ||
+    r === 'developer' ||
+    e === 'dev@master.com' ||
+    e.startsWith('dev@')
+  );
+};

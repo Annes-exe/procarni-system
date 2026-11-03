@@ -1,3 +1,4 @@
+import CategoryMigrationModal from '@/components/CategoryMigrationModal';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2, MoreHorizontal, Package } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Ruler, Tag, Combine, Network, Info, X, ChevronRight, ChevronDown, Sparkles, Loader2, MoreHorizontal, Package, FolderSync } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -312,7 +313,8 @@ const MobileChildMaterialsList = ({
 
 const MaterialManagement = () => {
   const queryClient = useQueryClient();
-  const { session, role } = useSession();
+  const { session, role, isDev } = useSession();
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const userId = session?.user?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -616,6 +618,19 @@ const MaterialManagement = () => {
               >
                 <Tag className="h-4 w-4" />
               </Button>
+
+              {isDev && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsMigrationModalOpen(true)}
+                  className="border-purple-200 bg-purple-50/80 hover:bg-purple-100 text-purple-700 h-10 px-3 rounded-2xl shadow-sm flex items-center gap-1.5 font-bold text-xs transition-all hover:scale-[1.01]"
+                  title="Migración de Categorías (Dev)"
+                >
+                  <FolderSync className="h-4 w-4 text-purple-600" />
+                  <span className="hidden sm:inline">Migrar Categoría</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-purple-200 text-purple-800 text-[9px] font-extrabold uppercase">Dev</span>
+                </Button>
+              )}
             </>
           )}
 
@@ -1171,6 +1186,14 @@ const MaterialManagement = () => {
         open={isCategoriesModalOpen}
         onOpenChange={setIsCategoriesModalOpen}
       />
+
+      {isDev && (
+        <CategoryMigrationModal
+          open={isMigrationModalOpen}
+          onOpenChange={setIsMigrationModalOpen}
+          defaultSourceCategory={selectedCategory !== 'all' ? selectedCategory : undefined}
+        />
+      )}
 
       {materialsList && isResolutionModalOpen && (
         <MaterialResolutionModal

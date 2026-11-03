@@ -1,3 +1,4 @@
+import { isDevUser } from '@/utils/userUtils';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +19,7 @@ interface SessionContextType {
   role: string | null;
   profile: UserProfile | null;
   userName: string;
+  isDev: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -135,8 +137,10 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
     );
   }
 
+  const isDev = isDevUser(session?.user, profile, role);
+
   return (
-    <SessionContext.Provider value={{ session, supabase, isLoadingSession: loading, role, profile, userName }}>
+    <SessionContext.Provider value={{ session, supabase, isLoadingSession: loading, role, profile, userName, isDev }}>
       {children}
     </SessionContext.Provider>
   );

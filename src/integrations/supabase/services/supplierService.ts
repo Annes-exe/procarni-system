@@ -28,6 +28,10 @@ const SupplierService = {
     supplierData: Omit<Supplier, 'id' | 'created_at' | 'updated_at'>,
     materials: SupplierMaterialPayload[],
   ): Promise<Supplier | null> => {
+    if (!supplierData.phone || !supplierData.phone.trim()) {
+      showError('El teléfono principal es obligatorio al crear un proveedor.');
+      return null;
+    }
     let finalUserId = supplierData.user_id && String(supplierData.user_id).trim() !== '' 
       ? supplierData.user_id 
       : null;
@@ -384,11 +388,11 @@ const SupplierService = {
     }
 
     if (dataQualityFilter === 'MissingCritical') {
-      // Datos Críticos: rif, phone, address (incluye RIFs genéricos SR o J000000)
-      query = query.or('rif.is.null,rif.eq."",rif.like.SR%,rif.ilike.J000000%,phone.is.null,phone.eq."",address.is.null,address.eq.""');
+      // Datos Críticos: rif, phone (incluye RIFs genéricos SR o J000000)
+      query = query.or('rif.is.null,rif.eq."",rif.like.SR%,rif.ilike.J000000%,phone.is.null,phone.eq.""');
     } else if (dataQualityFilter === 'MissingSecondary') {
-      // Datos Secundarios: email, instagram, phone_2, payment_terms
-      query = query.or('email.is.null,email.eq."",instagram.is.null,instagram.eq."",phone_2.is.null,phone_2.eq."",payment_terms.is.null,payment_terms.eq.""');
+      // Datos Secundarios: email, instagram, phone_2, payment_terms, address
+      query = query.or('email.is.null,email.eq."",instagram.is.null,instagram.eq."",phone_2.is.null,phone_2.eq."",payment_terms.is.null,payment_terms.eq."",address.is.null,address.eq.""');
     }
 
     const { data, count, error } = await query

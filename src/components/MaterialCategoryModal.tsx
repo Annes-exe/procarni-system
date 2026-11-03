@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlusCircle, Trash2, Loader2, Tags } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Tags, FolderSync } from 'lucide-react';
+import CategoryMigrationModal from '@/components/CategoryMigrationModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -19,7 +20,8 @@ interface MaterialCategoryModalProps {
 
 const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onOpenChange }) => {
     const queryClient = useQueryClient();
-    const { session } = useSession();
+    const { session, isDev } = useSession();
+    const [isMigrationOpen, setIsMigrationOpen] = useState(false);
     const userId = session?.user?.id;
     const [newCategoryName, setNewCategoryName] = useState('');
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -151,11 +153,30 @@ const MaterialCategoryModal: React.FC<MaterialCategoryModalProps> = ({ open, onO
                     </Table>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+                    {isDev && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsMigrationOpen(true)}
+                            className="border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs h-9 rounded-xl flex items-center gap-1.5 shadow-sm"
+                        >
+                            <FolderSync className="h-4 w-4 text-purple-600" />
+                            <span>Migrar Ítems</span>
+                            <span className="px-1.5 py-0.2 rounded bg-purple-200 text-purple-800 text-[9px] font-extrabold uppercase">Dev</span>
+                        </Button>
+                    )}
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cerrar
                     </Button>
                 </DialogFooter>
+
+                {isDev && (
+                    <CategoryMigrationModal
+                        open={isMigrationOpen}
+                        onOpenChange={setIsMigrationOpen}
+                    />
+                )}
 
                 <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                     <AlertDialogContent>

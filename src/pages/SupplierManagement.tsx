@@ -478,8 +478,8 @@ const SupplierManagement = () => {
                             <span className="font-bold text-sm text-procarni-dark hover:text-procarni-primary transition-colors block truncate">
                               {supplier.name}
                             </span>
-                            {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
-                              <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-0.5 font-medium" title="Falta RIF, Teléfono o Dirección">
+                            {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone) && (
+                              <span className="flex items-center gap-1 text-[10px] text-blue-500 mt-0.5 font-medium" title="Falta RIF o Teléfono">
                                 <Search className="h-3 w-3" /> Info incompleta
                               </span>
                             )}
@@ -616,8 +616,8 @@ const SupplierManagement = () => {
                               <span className="font-bold text-sm text-procarni-dark group-hover:text-procarni-primary transition-colors block truncate">
                                 {supplier.name}
                               </span>
-                              {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone || !supplier.address) && (
-                                <span className="flex items-center gap-1 text-[10px] text-blue-500 font-medium" title="Falta RIF, Teléfono o Dirección">
+                              {(!supplier.rif || isGenericRif(supplier.rif) || !supplier.phone) && (
+                                <span className="flex items-center gap-1 text-[10px] text-blue-500 font-medium" title="Falta RIF o Teléfono">
                                   <Search className="h-3 w-3" /> Info incompleta
                                 </span>
                               )}

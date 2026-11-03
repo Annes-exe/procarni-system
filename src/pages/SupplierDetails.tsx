@@ -355,6 +355,11 @@ const SupplierDetails = () => {
       return;
     }
 
+    if (isNew && !phone.trim()) {
+      toast.error('El teléfono principal es obligatorio al crear un proveedor.');
+      return;
+    }
+
     let formattedRif = rif.trim();
     if (formattedRif && formattedRif.toUpperCase() !== 'SR' && !formattedRif.toUpperCase().startsWith('SR')) {
       const validated = validateRif(formattedRif);
@@ -1202,7 +1207,7 @@ const SupplierDetails = () => {
                 {/* Teléfono 1 */}
                 <div className="space-y-1.5">
                   <Label htmlFor="supplierPhone" className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-                    Teléfono Principal
+                    Teléfono Principal <span className="text-red-500 font-bold">*</span>
                   </Label>
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">

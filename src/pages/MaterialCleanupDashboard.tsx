@@ -1,3 +1,5 @@
+import CategoryMigrationModal from '@/components/CategoryMigrationModal';
+import { useSession } from '@/components/SessionContextProvider';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw, Sparkles, Wrench, ArrowRight, Loader2 } from 'lucide-react';
+import { AlertCircle, Combine, Search, Network, History, Undo, Info, EyeOff, RotateCcw, Sparkles, Wrench, ArrowRight, Loader2, FolderSync } from 'lucide-react';
 import { getAllMaterials, getAllMaterialCategories } from '@/integrations/supabase/data';
 import { showSuccess, showError } from '@/utils/toast';
 import { cn } from '@/lib/utils';
@@ -426,6 +428,13 @@ const MaterialCleanupDashboard = () => {
               <EyeOff className="w-4 h-4 shrink-0" />
               Ignorados
             </TabsTrigger>
+            {isDev && (
+              <TabsTrigger value="migration" className="flex items-center gap-2 text-purple-700 data-[state=active]:bg-purple-50 data-[state=active]:text-purple-900 font-bold">
+                <FolderSync className="w-4 h-4 shrink-0 text-purple-600" />
+                Migrar Categorías
+                <span className="px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 text-[9px] font-extrabold uppercase">Dev</span>
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -799,7 +808,42 @@ const MaterialCleanupDashboard = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isDev && (
+          <TabsContent value="migration" className="space-y-6">
+            <Card className="rounded-3xl border border-purple-100 bg-white/90 backdrop-blur-xl shadow-xl shadow-purple-900/5 p-8 text-center flex flex-col items-center gap-4">
+              <div className="h-14 w-14 rounded-3xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold shadow-sm">
+                <FolderSync className="h-7 w-7" />
+              </div>
+              <div className="max-w-md space-y-1">
+                <h3 className="text-xl font-extrabold text-procarni-dark flex items-center justify-center gap-2">
+                  Migración de Ítems entre Categorías
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 text-purple-800 border border-purple-200 uppercase">
+                    Dev
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Mueve materiales de forma masiva o selectiva de una categoría a otra, creando categorías nuevas automáticamente y adaptando unidades estandarizadas.
+                </p>
+              </div>
+              <Button
+                onClick={() => setIsMigrationModalOpen(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white rounded-2xl h-11 px-6 font-bold text-xs shadow-lg shadow-purple-600/20 transition-all hover:scale-[1.01]"
+              >
+                <FolderSync className="h-4 w-4 mr-2" />
+                Abrir Asistente de Migración
+              </Button>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
+
+      {isDev && (
+        <CategoryMigrationModal
+          open={isMigrationModalOpen}
+          onOpenChange={setIsMigrationModalOpen}
+        />
+      )}
 
       {isResolutionModalOpen && (
         <MaterialResolutionModal
