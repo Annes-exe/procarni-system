@@ -29,7 +29,9 @@ import {
   ClipboardPaste,
   Camera,
   Bot,
-  FileText
+  FileText,
+  Share2,
+  Users
 } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -259,6 +261,38 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
       setTimeout(() => setIsCopied(false), 2500);
     } catch {
       showError('No se pudo copiar automáticamente. Por favor selecciónalo manualmente.');
+    }
+  };
+
+  // Compartir masivo en WhatsApp (hasta 5 contactos a la vez vía protocolo nativo)
+  const handleShareMultiWhatsApp = () => {
+    const text = genericMessage;
+    const encodedText = encodeURIComponent(text);
+
+    // Detección móvil para abrir app nativa con whatsapp:// o web en desktop
+    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobileDevice) {
+      window.location.href = `whatsapp://send?text=${encodedText}`;
+    } else {
+      window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank', 'noopener,noreferrer');
+    }
+
+    // Marcar automáticamente hasta 5 proveedores pendientes como contactados
+    const uncontacted = initialSuppliers.filter((s) => !contactedSuppliers[s.id]);
+    const toMark = uncontacted.slice(0, 5);
+
+    if (toMark.length > 0) {
+      const updated = { ...contactedSuppliers };
+      toMark.forEach((s) => {
+        updated[s.id] = true;
+      });
+      setContactedSuppliers(updated);
+      const nextIdx = Math.min(currentIndex + toMark.length, Math.max(0, initialSuppliers.length - 1));
+      setCurrentIndex(nextIdx);
+      showSuccess(`WhatsApp abierto. Se marcaron ${toMark.length} proveedores del lote.`);
+    } else {
+      showSuccess('WhatsApp abierto para selección múltiple.');
     }
   };
 
@@ -563,30 +597,57 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                   </Badge>
                 </div>
 
-                {/* Botón Lanzador Secuencial (Ráfaga) */}
-                {initialSuppliers.length > 0 && (
-                  <div className="p-3.5 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl text-white shadow-lg shadow-emerald-600/20 space-y-2">
-                    <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-emerald-200">
-                      <span>Ráfaga 1 a 1</span>
-                      <span className="bg-emerald-800/40 px-2 py-0.5 rounded-full text-white">
-                        {Math.min(currentIndex + 1, initialSuppliers.length)} / {initialSuppliers.length}
+                {/* ACCIONES DE ENVÍO: COMPARTIR MULTI (5 EN 5) + RÁFAGA 1 A 1 */}
+                <div className="space-y-2.5">
+                  {/* Botón Principal: Compartir Masivo nativo en WhatsApp (5 a la vez) */}
+                  <div className="p-3 bg-gradient-to-br from-emerald-50 to-emerald-100/70 border border-emerald-200/90 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-black tracking-wider text-emerald-900 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-emerald-700" />
+                        Compartir Masivo
                       </span>
+                      <Badge className="bg-emerald-700 text-white text-[9px] font-bold py-0 px-1.5">
+                        Hasta 5 a la vez
+                      </Badge>
                     </div>
+                    <p className="text-[11px] text-emerald-800 leading-snug">
+                      Abre tu lista de contactos de WhatsApp para reenviar el requerimiento a varios proveedores simultáneamente.
+                    </p>
                     <Button
                       type="button"
-                      onClick={handleSendCurrentAndNext}
-                      className="w-full bg-white text-emerald-800 hover:bg-emerald-50 font-extrabold h-11 rounded-xl shadow-sm flex items-center justify-between px-3.5 gap-2 group transition-all"
+                      onClick={handleShareMultiWhatsApp}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs h-10 rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Send className="h-4 w-4 text-emerald-600 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                        <span className="truncate text-xs">
-                          Enviar a <u>{initialSuppliers[currentIndex]?.name || 'Siguiente'}</u>
-                        </span>
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-emerald-700" />
+                      <Share2 className="h-4 w-4" />
+                      <span>Reenviar a Contactos en WhatsApp</span>
                     </Button>
                   </div>
-                )}
+
+                  {/* Botón Secundario: Disparador 1 a 1 con números del sistema */}
+                  {initialSuppliers.length > 0 && (
+                    <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-sm space-y-2">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-slate-300">
+                        <span>Envío Directo 1 a 1</span>
+                        <span className="bg-slate-800 px-2 py-0.5 rounded-full text-slate-200">
+                          {Math.min(currentIndex + 1, initialSuppliers.length)} / {initialSuppliers.length}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleSendCurrentAndNext}
+                        className="w-full bg-white text-slate-900 hover:bg-slate-100 font-extrabold h-9.5 rounded-xl shadow-xs flex items-center justify-between px-3 gap-2 group transition-all text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Send className="h-3.5 w-3.5 text-procarni-primary shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                          <span className="truncate">
+                            Abrir chat de <u>{initialSuppliers[currentIndex]?.name || 'Siguiente'}</u>
+                          </span>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Lista Detallada de Proveedores */}
                 <div className="space-y-2 max-h-[42vh] sm:max-h-[280px] overflow-y-auto pr-0.5">
