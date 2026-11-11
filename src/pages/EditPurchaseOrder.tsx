@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { searchMaterialsBySupplier, searchSuppliers, searchCompanies } from '@/integrations/supabase/data'; // Removed updatePurchaseOrder, getPurchaseOrderDetails
 import { purchaseOrderService } from '@/services/purchaseOrderService';
+import { dotacionConfigService } from '@/services/dotacionConfigService';
+import { getAllSystemMaterials } from '@/integrations/supabase/services/materialService';
+import { getAllUnits } from '@/integrations/supabase/services/unitService';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { calculateTotals } from '@/utils/calculations';
@@ -144,7 +147,7 @@ const EditPurchaseOrder = () => {
       setObservations(initialOrder.observations || '');
       setRequisitionNumber(initialOrder.requisition_number || '');
 
-      setItems(initialOrder.purchase_order_items.map(item => ({
+      const mappedItems: PurchaseOrderItemForm[] = initialOrder.purchase_order_items.map(item => ({
         id: item.id,
         material_id: item.material_id,
         material_name: item.material_name,
@@ -160,7 +163,53 @@ const EditPurchaseOrder = () => {
         sales_percentage: item.sales_percentage || 0,
         discount_percentage: item.discount_percentage || 0,
         category: item.materials?.category,
-      })));
+      }));
+      setItems(mappedItems);
+
+      // Auto-resolver ítems sin material_id (ej. órdenes generadas antes de persistir vinculación de dotación)
+      const hasMissingIds = mappedItems.some(it => !it.material_id && !!it.material_name);
+      if (hasMissingIds) {
+        Promise.all([
+          getAllSystemMaterials(),
+          getAllUnits(),
+          dotacionConfigService.fetchRemoteMappings(),
+        ])
+          .then(([materialsData, unitsData, remoteMappings]) => {
+            const safeMaterials = materialsData || [];
+            const safeUnits = unitsData || [];
+            if (safeMaterials.length === 0) return;
+
+            const baseMappings = remoteMappings || dotacionConfigService.getMappings();
+            const resolvedMappings = dotacionConfigService.autoMatchMaterials(safeMaterials, safeUnits, baseMappings);
+
+            setItems(prevItems =>
+              prevItems.map(item => {
+                if (item.material_id || !item.material_name) return item;
+                const match = dotacionConfigService.resolveMaterialForOrderItem(
+                  item.material_name,
+                  resolvedMappings,
+                  safeMaterials
+                );
+                if (!match) return item;
+
+                const matchedUnit = item.unit
+                  ? safeUnits.find(u => u.name.trim().toUpperCase() === item.unit!.trim().toUpperCase())
+                  : undefined;
+
+                return {
+                  ...item,
+                  material_id: match.material.id,
+                  material_name: match.mapping?.customPoName || match.material.name,
+                  supplier_code: match.material.code || item.supplier_code || '',
+                  is_exempt: match.mapping ? match.mapping.isExempt : (match.material.is_exempt ?? item.is_exempt),
+                  unit_id: item.unit_id || matchedUnit?.id || match.material.unit_id || null,
+                  category: match.material.category || item.category,
+                };
+              })
+            );
+          })
+          .catch(err => console.warn('[EditPurchaseOrder] Error auto-resolving unlinked items:', err));
+      }
     }
   }, [initialOrder]);
 

@@ -459,6 +459,13 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
             />
           </div>
 
+          {!item.material_id && item.material_name && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 rounded-xl border border-red-200/80 text-red-700 text-[11px] font-medium animate-in fade-in slide-in-from-top-1">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+              <span>Falta ID de catálogo: selecciona el material desde el buscador.</span>
+            </div>
+          )}
+
           {item.material_id && !associatedMaterialIds.has(item.material_id) && (
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 rounded-xl border border-amber-200/80 text-amber-800 text-[11px] animate-in fade-in slide-in-from-top-1">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
@@ -749,6 +756,13 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({
                   }}
                 />
                 
+                {!item.material_id && item.material_name && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 rounded border border-red-200 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <AlertTriangle className="h-3 w-3 text-red-600 shrink-0" />
+                    <span className="text-[10px] text-red-700 font-medium">Falta ID de catálogo: selecciónalo en el buscador.</span>
+                  </div>
+                )}
+
                 {item.material_id && !associatedMaterialIds.has(item.material_id) && (
                   <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded border border-amber-100 animate-in fade-in slide-in-from-top-1 duration-300">
                     <AlertTriangle className="h-3 w-3 text-amber-600" />

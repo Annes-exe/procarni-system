@@ -290,6 +290,61 @@ export const dotacionConfigService = {
     }
   },
 
+  fetchRemoteMappings: async (): Promise<DotacionMaterialMapping[] | null> => {
+    try {
+      const { data, error, status } = await supabase
+        .from('dotacion_operational_config')
+        .select('material_mappings_data')
+        .eq('id', 'global_config')
+        .maybeSingle();
+
+      if (error || status === 404 || !data) {
+        return null;
+      }
+
+      const remoteRaw = data.material_mappings_data;
+      if (!Array.isArray(remoteRaw) || remoteRaw.length === 0) {
+        return null;
+      }
+
+      const parsed = remoteRaw as DotacionMaterialMapping[];
+      const merged = DEFAULT_DOTACION_MAPPINGS.map((def) => {
+        const found = parsed.find((p) => p.productId === def.productId);
+        return found ? { ...def, ...found } : def;
+      });
+
+      dotacionConfigService.saveMappings(merged);
+      return merged;
+    } catch {
+      return null;
+    }
+  },
+
+  saveRemoteMappings: async (
+    mappings: DotacionMaterialMapping[],
+    userEmail?: string | null
+  ): Promise<boolean> => {
+    dotacionConfigService.saveMappings(mappings);
+
+    try {
+      const { error } = await supabase
+        .from('dotacion_operational_config')
+        .upsert(
+          {
+            id: 'global_config',
+            material_mappings_data: mappings,
+            updated_at: new Date().toISOString(),
+            updated_by: userEmail || 'Sistema',
+          },
+          { onConflict: 'id' }
+        );
+
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
   getMappingForProduct: (productId: DotacionProductId): DotacionMaterialMapping => {
     const all = dotacionConfigService.getMappings();
     return all.find((m) => m.productId === productId) || {
@@ -314,15 +369,15 @@ export const dotacionConfigService = {
     });
 
     const searchPatterns: Record<DotacionProductId, string[][]> = {
-      harina: [['harina', 'pan'], ['harina'], ['pan blanca']],
-      arroz: [['arroz', 'primor'], ['arroz']],
-      azucar: [['azucar', 'konfit'], ['azúcar', 'konfit'], ['azucar'], ['azúcar']],
-      papel: [['papel', 'caricia'], ['papel', 'higienico'], ['papel', 'higiénico'], ['papel']],
-      jabon: [['jabon', 'llaves'], ['jabón', 'llaves'], ['jabon', 'azul'], ['jabón', 'azul'], ['jabon'], ['jabón']],
+      harina: [['harina', 'pan'], ['harina', 'maiz'], ['harina'], ['pan blanca']],
+      arroz: [['arroz', 'mary', 'superior'], ['arroz', 'mary'], ['arroz', 'primor'], ['arroz', 'blanco'], ['arroz']],
+      azucar: [['azucar', 'refinada'], ['azucar', 'konfit'], ['azucar']],
+      papel: [['papel', 'higienico'], ['papel', 'caricia'], ['papel']],
+      jabon: [['las llaves', 'panela'], ['llaves', 'panela'], ['jabon', 'llaves'], ['jabon', 'azul'], ['jabon', 'panela'], ['jabon']],
     };
 
     return base.map((mapping) => {
-      // Si ya tiene un material asignado válido, conservarlo
+      // Si ya tiene un material asignado válido en esta base de datos, conservarlo y refrescar metadatos
       if (mapping.materialId) {
         const stillExists = materials.find((m) => m.id === mapping.materialId);
         if (stillExists) {
@@ -339,16 +394,23 @@ export const dotacionConfigService = {
         }
       }
 
-      // Buscar candidato por patrones
+      // Buscar candidato por patrones, priorizando coincidencia exacta o nombre más corto/específico
       const patterns = searchPatterns[mapping.productId] || [];
       let matchedMaterial: Material | undefined;
 
       for (const group of patterns) {
-        matchedMaterial = materials.find((m) => {
+        const candidates = materials.filter((m) => {
           const matName = normalizeText(m.name);
           return group.every((word) => matName.includes(normalizeText(word)));
         });
-        if (matchedMaterial) break;
+
+        if (candidates.length > 0) {
+          const joinedGroup = normalizeText(group.join(' '));
+          const exact = candidates.find((c) => normalizeText(c.name) === joinedGroup);
+          matchedMaterial =
+            exact || [...candidates].sort((a, b) => a.name.length - b.name.length)[0];
+          break;
+        }
       }
 
       if (matchedMaterial) {
@@ -362,14 +424,67 @@ export const dotacionConfigService = {
           isExempt: matchedMaterial.is_exempt ?? mapping.isExempt,
           bultoUnitId: bultoUnit ? bultoUnit.id : mapping.bultoUnitId,
           bultoUnitName: bultoUnit ? bultoUnit.name : mapping.bultoUnitName,
+          customPoName: mapping.customPoName || matchedMaterial.name,
         };
       }
 
       return {
         ...mapping,
+        materialId: null,
+        materialName: null,
+        materialCode: null,
         bultoUnitId: bultoUnit ? bultoUnit.id : mapping.bultoUnitId,
         bultoUnitName: bultoUnit ? bultoUnit.name : mapping.bultoUnitName,
       };
     });
+  },
+
+  /**
+   * Resuelve un ítem de orden de compra huérfano (sin material_id) contra las vinculaciones de dotación o el catálogo.
+   */
+  resolveMaterialForOrderItem: (
+    itemName: string,
+    mappings: DotacionMaterialMapping[],
+    materials: Material[]
+  ): { material: Material; mapping?: DotacionMaterialMapping } | null => {
+    const cleanName = normalizeText(itemName.replace(/(sueltas)/gi, ''));
+    if (!cleanName) return null;
+
+    const knownAliases: Record<DotacionProductId, string[]> = {
+      harina: ['harina pan', 'harina de maiz'],
+      arroz: ['arroz mary superior', 'arroz primor clasico', 'arroz blanco', 'arroz'],
+      azucar: ['azucar konfit', 'azucar refinada', 'azucar'],
+      papel: ['papel higienico caricia individual', 'papel higienico', 'papel'],
+      jabon: ['jabon azul las llaves', 'las llaves panela', 'jabon'],
+    };
+
+    const matchedMapping = mappings.find((m) => {
+      if (!m.materialId) return false;
+      const candidates = [
+        m.materialName,
+        m.customPoName,
+        m.productLabel,
+        m.defaultBrand,
+        ...(knownAliases[m.productId] || []),
+      ]
+        .filter((v): v is string => !!v)
+        .map(normalizeText);
+
+      return candidates.includes(cleanName);
+    });
+
+    if (matchedMapping?.materialId) {
+      const mat = materials.find((m) => m.id === matchedMapping.materialId);
+      if (mat) {
+        return { material: mat, mapping: matchedMapping };
+      }
+    }
+
+    const exactCatalogMatch = materials.find((m) => normalizeText(m.name) === cleanName);
+    if (exactCatalogMatch) {
+      return { material: exactCatalogMatch };
+    }
+
+    return null;
   },
 };

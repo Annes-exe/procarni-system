@@ -13,17 +13,18 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DotacionCalculationResult, GeneratedPurchaseOrderLink } from '@/types/dotacion';
-import { Company, Supplier } from '@/integrations/supabase/types';
+import { DotacionCalculationResult, DotacionMaterialMapping, GeneratedPurchaseOrderLink } from '@/types/dotacion';
+import { Company, Material, Supplier } from '@/integrations/supabase/types';
 import { purchaseOrderService, CreatePurchaseOrderItemInput, CreatePurchaseOrderInput } from '@/services/purchaseOrderService';
 import { dotacionSnapshotService } from '@/services/dotacionSnapshotService';
 import { dotacionConfigService } from '@/services/dotacionConfigService';
 import { getAllCompanies } from '@/integrations/supabase/services/companyService';
 import { getAllSuppliers } from '@/integrations/supabase/services/supplierService';
 import { getAllUnits, UnitOfMeasure } from '@/integrations/supabase/services/unitService';
+import { getAllSystemMaterials } from '@/integrations/supabase/services/materialService';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
-import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck, ChevronsUpDown, Search } from 'lucide-react';
+import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck, ChevronsUpDown, Search, AlertTriangle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useNavigate } from 'react-router-dom';
@@ -66,6 +67,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [companies, setCompanies] = useState<Company[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [unitsList, setUnitsList] = useState<UnitOfMeasure[]>([]);
+  const [resolvedMappings, setResolvedMappings] = useState<DotacionMaterialMapping[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [supplierComboboxOpen, setSupplierComboboxOpen] = useState<boolean>(false);
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
@@ -77,24 +79,39 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [createdOrderLink, setCreatedOrderLink] = useState<GeneratedPurchaseOrderLink | null>(null);
 
-  // Load companies and suppliers
+  // Load companies, suppliers, units, catalog materials and remote dotacion mappings
   useEffect(() => {
     if (!open) return;
     const fetchMetadata = async () => {
       setIsLoadingMeta(true);
       try {
-        const [companiesData, suppliersData] = await Promise.all([
+        const [companiesData, suppliersData, unitsData, materialsData, remoteMappings] = await Promise.all([
           getAllCompanies(),
           getAllSuppliers(),
+          getAllUnits(),
+          getAllSystemMaterials(),
+          dotacionConfigService.fetchRemoteMappings(),
         ]);
         setCompanies(companiesData || []);
         setSuppliers(suppliersData || []);
+        const safeUnits = unitsData || [];
+        const safeMaterials: Material[] = materialsData || [];
+        setUnitsList(safeUnits);
+
+        const baseMappings = remoteMappings || dotacionConfigService.getMappings();
+        const finalMappings =
+          safeMaterials.length > 0
+            ? dotacionConfigService.autoMatchMaterials(safeMaterials, safeUnits, baseMappings)
+            : baseMappings;
+
+        dotacionConfigService.saveMappings(finalMappings);
+        setResolvedMappings(finalMappings);
 
         if (suppliersData && suppliersData.length > 0) {
           setSelectedSupplierId((prev) => prev || suppliersData[0].id);
         }
       } catch (err) {
-        console.error('Error loading companies/suppliers:', err);
+        console.error('Error loading metadata for Dotacion PO:', err);
       } finally {
         setIsLoadingMeta(false);
       }
@@ -164,7 +181,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [itemRows, setItemRows] = useState<ItemRowState[]>([]);
 
   useEffect(() => {
-    const mappings = dotacionConfigService.getMappings();
+    const mappings = resolvedMappings.length > 0 ? resolvedMappings : dotacionConfigService.getMappings();
     const rows: ItemRowState[] = [];
 
     const undUnit = unitsList.find((u) => {
@@ -189,9 +206,9 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
             materialName: poName,
             materialId: mapping?.materialId || null,
             materialCode: mapping?.materialCode || null,
-            unitId: mapping?.bultoUnitId || bultoUnit?.id || null,
+            unitId: mapping?.bultoUnitId || bultoUnit?.id || mapping?.unitId || null,
             quantity: it.bultosToBuy,
-            unit: mapping?.bultoUnitName || 'Bulto',
+            unit: mapping?.bultoUnitName || bultoUnit?.name || 'BULTO',
             unitPrice: 0,
             isExempt: mapping ? mapping.isExempt : false,
             selected: true,
@@ -206,7 +223,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
             materialCode: mapping?.materialCode || null,
             unitId: undUnit?.id || mapping?.unitId || null,
             quantity: it.looseUnitsToBuy,
-            unit: 'UND', // Unidad de medida exacta solicitada: UND
+            unit: undUnit?.name || 'UND', // Unidad de medida exacta solicitada: UND
             unitPrice: 0,
             isExempt: mapping ? mapping.isExempt : false,
             selected: true,
@@ -220,7 +237,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
       `Orden de Dotación Quincenal (${result.periodLabel}) para ${targetCompanyCalc.companyName}. Requerimiento calculado por Sistema de Compras.`
     );
     setCreatedOrderLink(null);
-  }, [selectedCompanyId, result, targetCompanyCalc, unitsList]);
+  }, [selectedCompanyId, result, targetCompanyCalc, unitsList, resolvedMappings]);
 
   const handleToggleItem = (index: number) => {
     const updated = [...itemRows];
@@ -257,6 +274,14 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
     const selectedItems = itemRows.filter((row) => row.selected && row.quantity > 0);
     if (selectedItems.length === 0) {
       showError('Debes seleccionar al menos un insumo con cantidad mayor a 0.');
+      return;
+    }
+
+    const unlinkedItem = selectedItems.find((row) => !row.materialId);
+    if (unlinkedItem) {
+      showError(
+        `El ítem "${unlinkedItem.materialName}" no está vinculado a un material oficial del catálogo (falta ID). Revisa Configuración > Vinculación de Ítems.`
+      );
       return;
     }
 
@@ -561,6 +586,16 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                 </span>
               </div>
 
+              {!isLoadingMeta && itemRows.some((r) => r.selected && !r.materialId) && (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-[11px] text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    Uno o más ítems no tienen un material oficial vinculado en el catálogo (falta ID). Configúralos en{' '}
+                    <strong>Configuración &gt; Vinculación de Ítems de Dotación</strong> antes de emitir la orden.
+                  </span>
+                </div>
+              )}
+
               {/* MOBILE STACKED CARDS (< md) */}
               <div className="block md:hidden space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {itemRows.map((row, idx) => {
@@ -587,11 +622,15 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                                 Sueltas
                               </span>
                             )}
-                            {row.materialCode && (
+                            {row.materialCode ? (
                               <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-blue-50 text-procarni-blue border border-blue-200">
                                 [{row.materialCode}]
                               </span>
-                            )}
+                            ) : !isLoadingMeta && !row.materialId ? (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-50 text-red-700 border border-red-200">
+                                Sin ID catálogo
+                              </span>
+                            ) : null}
                             {row.isExempt ? (
                               <span className="px-1 py-0.2 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 Exento
@@ -674,11 +713,15 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                                   Sueltas
                                 </span>
                               )}
-                              {row.materialCode && (
+                              {row.materialCode ? (
                                 <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-blue-50 text-procarni-blue border border-blue-200">
                                   [{row.materialCode}]
                                 </span>
-                              )}
+                              ) : !isLoadingMeta && !row.materialId ? (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-50 text-red-700 border border-red-200">
+                                  Sin ID catálogo
+                                </span>
+                              ) : null}
                               {row.isExempt ? (
                                 <span className="px-1 py-0.2 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   Exento

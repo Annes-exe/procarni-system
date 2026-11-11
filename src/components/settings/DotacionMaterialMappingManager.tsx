@@ -14,6 +14,7 @@ import {
   DEFAULT_DOTACION_MAPPINGS,
 } from '@/services/dotacionConfigService';
 import { DotacionMaterialMapping, DotacionProductId } from '@/types/dotacion';
+import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
 import {
   Sparkles,
@@ -44,29 +45,48 @@ const normalizeStr = (str: string): string =>
     .trim();
 
 export const DotacionMaterialMappingManager: React.FC = () => {
+  const { session, userName } = useSession();
   const [mappings, setMappings] = useState<DotacionMaterialMapping[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [openComboboxIndex, setOpenComboboxIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchingRemote, setIsSearchingRemote] = useState<boolean>(false);
 
-  // Cargar todos los materiales del sistema y unidades
+  // Cargar todos los materiales del sistema, unidades y vinculaciones guardadas en Supabase
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [loadedMaterials, loadedUnits] = await Promise.all([
+        const [loadedMaterials, loadedUnits, remoteMappings] = await Promise.all([
           getAllSystemMaterials(),
           getAllUnits(),
+          dotacionConfigService.fetchRemoteMappings(),
         ]);
-        setMaterials(loadedMaterials || []);
-        setUnits(loadedUnits || []);
+        const safeMaterials = loadedMaterials || [];
+        const safeUnits = loadedUnits || [];
+        setMaterials(safeMaterials);
+        setUnits(safeUnits);
 
-        const saved = dotacionConfigService.getMappings();
-        setMappings(saved);
+        const base = remoteMappings || dotacionConfigService.getMappings();
+        const hasAnyLinked = base.some((m) => !!m.materialId);
+
+        if (!hasAnyLinked && safeMaterials.length > 0) {
+          const autoMatched = dotacionConfigService.autoMatchMaterials(safeMaterials, safeUnits, base);
+          setMappings(autoMatched);
+          const linkedNow = autoMatched.some((m) => !!m.materialId);
+          setHasUnsavedChanges(linkedNow);
+        } else {
+          const refreshed =
+            safeMaterials.length > 0
+              ? dotacionConfigService.autoMatchMaterials(safeMaterials, safeUnits, base)
+              : base;
+          setMappings(refreshed);
+          setHasUnsavedChanges(false);
+        }
       } catch (err) {
         console.error('[DotacionMaterialMappingManager] Error cargando datos:', err);
         showError('Error al cargar catálogo de materiales.');
@@ -133,6 +153,7 @@ export const DotacionMaterialMappingManager: React.FC = () => {
       return n === 'bulto' || n === 'bto' || n === 'bultos';
     });
 
+    const previousMaterialName = target.materialName;
     target.materialId = material.id;
     target.materialName = material.name;
     target.materialCode = material.code;
@@ -142,11 +163,12 @@ export const DotacionMaterialMappingManager: React.FC = () => {
     target.bultoUnitId = bultoUnit ? bultoUnit.id : target.bultoUnitId;
     target.bultoUnitName = bultoUnit ? bultoUnit.name : target.bultoUnitName || 'Bulto';
 
-    if (!target.customPoName) {
+    if (!target.customPoName || target.customPoName === previousMaterialName) {
       target.customPoName = material.name;
     }
 
     setMappings(updated);
+    setHasUnsavedChanges(true);
     setOpenComboboxIndex(null);
     setSearchQuery('');
   };
@@ -159,18 +181,21 @@ export const DotacionMaterialMappingManager: React.FC = () => {
     target.materialCode = null;
     target.customPoName = null;
     setMappings(updated);
+    setHasUnsavedChanges(true);
   };
 
   const handleCustomPoNameChange = (index: number, val: string) => {
     const updated = [...mappings];
     updated[index].customPoName = val;
     setMappings(updated);
+    setHasUnsavedChanges(true);
   };
 
   const handleToggleExempt = (index: number, val: boolean) => {
     const updated = [...mappings];
     updated[index].isExempt = val;
     setMappings(updated);
+    setHasUnsavedChanges(true);
   };
 
   const handleAutoMatch = () => {
@@ -180,21 +205,31 @@ export const DotacionMaterialMappingManager: React.FC = () => {
     }
     const matched = dotacionConfigService.autoMatchMaterials(materials, units, mappings);
     setMappings(matched);
+    setHasUnsavedChanges(true);
 
     const linkedCount = matched.filter((m) => !!m.materialId).length;
-    showSuccess(`Búsqueda automática completada: ${linkedCount} de ${matched.length} productos vinculados.`);
+    showSuccess(`Búsqueda automática completada (${linkedCount}/${matched.length}). Pulsa "Guardar Vinculación" para confirmar en Supabase.`);
   };
 
   const handleResetDefaults = () => {
     setMappings([...DEFAULT_DOTACION_MAPPINGS]);
-    showSuccess('Valores restablecidos a los valores predeterminados.');
+    setHasUnsavedChanges(true);
+    showSuccess('Valores restablecidos. Pulsa "Guardar Vinculación" para aplicar.');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
     try {
-      dotacionConfigService.saveMappings(mappings);
-      showSuccess('Configuración de ítems de dotación guardada exitosamente.');
+      const synced = await dotacionConfigService.saveRemoteMappings(
+        mappings,
+        session?.user?.email || userName || 'Sistema'
+      );
+      setHasUnsavedChanges(false);
+      if (synced) {
+        showSuccess('Vinculación guardada y sincronizada con la nube (Supabase).');
+      } else {
+        showSuccess('Vinculación guardada localmente.');
+      }
     } catch (e) {
       console.error(e);
       showError('Error al guardar la configuración.');
@@ -280,6 +315,25 @@ export const DotacionMaterialMappingManager: React.FC = () => {
 
       {/* Content */}
       <div className="p-4 md:p-6 space-y-4">
+        {hasUnsavedChanges && !isLoading && (
+          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2 text-xs text-amber-900">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>
+                Tienes cambios pendientes en la vinculación de ítems. Pulsa <strong>Guardar Vinculación</strong> para sincronizarlos con Supabase.
+              </span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-7 px-3 shrink-0"
+            >
+              Guardar Ahora
+            </Button>
+          </div>
+        )}
         {isLoading ? (
           <div className="py-12 text-center text-slate-500 text-sm">
             <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-procarni-primary" />
