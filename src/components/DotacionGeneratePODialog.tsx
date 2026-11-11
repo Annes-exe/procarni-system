@@ -24,12 +24,15 @@ import { getAllUnits, UnitOfMeasure } from '@/integrations/supabase/services/uni
 import { getAllSystemMaterials } from '@/integrations/supabase/services/materialService';
 import { useSession } from '@/components/SessionContextProvider';
 import { showSuccess, showError } from '@/utils/toast';
-import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck, ChevronsUpDown, Search, AlertTriangle } from 'lucide-react';
+import { getPriceHistoryByMaterialId } from '@/integrations/supabase/data';
+import { ShoppingCart, Loader2, Building2, Check, ExternalLink, Calendar, Truck, ChevronsUpDown, Search, AlertTriangle, Clock } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 import { PriceInput } from '@/components/PriceInput';
+import { LastPriceButton, convertPriceToCurrency } from '@/components/LastPriceButton';
+import ExchangeRateInput from '@/components/ExchangeRateInput';
 
 interface DotacionGeneratePODialogProps {
   open: boolean;
@@ -70,12 +73,14 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
   const [resolvedMappings, setResolvedMappings] = useState<DotacionMaterialMapping[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [supplierComboboxOpen, setSupplierComboboxOpen] = useState<boolean>(false);
+  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'EUR'>('USD');
   const [currency, setCurrency] = useState<'USD' | 'VES' | 'EUR'>('USD');
-  const [exchangeRate, setExchangeRate] = useState<number>(1);
+  const [exchangeRate, setExchangeRate] = useState<number | undefined>(undefined);
   const [deliveryDate, setDeliveryDate] = useState<string>(format(addDays(new Date(), 3), 'yyyy-MM-dd'));
   const [paymentTerms, setPaymentTerms] = useState<string>('Contado');
   const [observations, setObservations] = useState<string>('');
   const [isLoadingMeta, setIsLoadingMeta] = useState<boolean>(false);
+  const [isApplyingPrices, setIsApplyingPrices] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [createdOrderLink, setCreatedOrderLink] = useState<GeneratedPurchaseOrderLink | null>(null);
 
@@ -257,6 +262,58 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
     setItemRows(updated);
   };
 
+  const handleApplyAllLastPrices = async () => {
+    const targetIndices = itemRows
+      .map((row, idx) => ({ row, idx }))
+      .filter(({ row }) => row.selected && !!row.materialId);
+
+    if (targetIndices.length === 0) return;
+
+    setIsApplyingPrices(true);
+    try {
+      const results = await Promise.all(
+        targetIndices.map(async ({ row, idx }) => {
+          const history = await getPriceHistoryByMaterialId(row.materialId!, row.unitId || undefined);
+          if (!history || history.length === 0) return { idx, price: null };
+
+          const sameSupplier = selectedSupplierId
+            ? history.find((h) => h.supplier_id === selectedSupplierId)
+            : undefined;
+          const entry = sameSupplier || history[0];
+          const converted = convertPriceToCurrency(
+            entry.unit_price,
+            entry.currency,
+            currency,
+            exchangeRate,
+            entry.exchange_rate
+          );
+          return { idx, price: converted };
+        })
+      );
+
+      let appliedCount = 0;
+      const updated = [...itemRows];
+      results.forEach(({ idx, price }) => {
+        if (price !== null && price > 0) {
+          updated[idx] = { ...updated[idx], unitPrice: price };
+          appliedCount++;
+        }
+      });
+      setItemRows(updated);
+
+      if (appliedCount > 0) {
+        showSuccess(`Último precio aplicado a ${appliedCount} ${appliedCount === 1 ? 'ítem' : 'ítems'}.`);
+      } else {
+        showError('No se encontraron precios históricos registrados para los ítems seleccionados.');
+      }
+    } catch (err) {
+      console.error('[DotacionGeneratePODialog] Error applying last prices:', err);
+      showError('Error al consultar el historial de precios.');
+    } finally {
+      setIsApplyingPrices(false);
+    }
+  };
+
   const handleCreateOrder = async () => {
     if (!session?.user?.id) {
       showError('No hay sesión de usuario activa.');
@@ -268,6 +325,10 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
     }
     if (!selectedSupplierId) {
       showError('Por favor selecciona un proveedor.');
+      return;
+    }
+    if (!exchangeRate || exchangeRate <= 0) {
+      showError('La tasa de cambio es requerida y debe ser mayor a cero.');
       return;
     }
 
@@ -292,7 +353,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
         company_id: targetCompanyRecord.id,
         supplier_id: selectedSupplierId,
         currency,
-        base_currency: currency === 'EUR' ? 'EUR' : 'USD',
+        base_currency: baseCurrency,
         exchange_rate: exchangeRate,
         status: 'Draft',
         created_by: userName || 'Sistema Dotación',
@@ -338,7 +399,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
           companyId: targetCompanyRecord.id,
           supplierName: supplierObj?.name || 'Proveedor General',
           supplierId: selectedSupplierId,
-          totalBultos: selectedItems.filter(it => it.unit === "Bulto").reduce((acc, it) => acc + it.quantity, 0),
+          totalBultos: selectedItems.filter(it => !it.isLoose).reduce((acc, it) => acc + it.quantity, 0),
           currency,
           createdAt: new Date().toISOString(),
         };
@@ -533,11 +594,20 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               </div>
             </div>
 
-            {/* Condiciones Comerciales */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            {/* Condiciones Comerciales y Tasa de Cambio */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
               <div>
                 <Label className="text-[10px] font-bold text-slate-500 uppercase">Moneda</Label>
-                <Select value={currency} onValueChange={(val) => setCurrency(val as 'USD' | 'VES' | 'EUR')}>
+                <Select
+                  value={currency}
+                  onValueChange={(val) => {
+                    const nextCurr = val as 'USD' | 'VES' | 'EUR';
+                    setCurrency(nextCurr);
+                    if (nextCurr === 'USD' || nextCurr === 'EUR') {
+                      setBaseCurrency(nextCurr);
+                    }
+                  }}
+                >
                   <SelectTrigger className="h-10 sm:h-8 text-xs mt-1 bg-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -547,6 +617,42 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                     <SelectItem value="EUR">EUR (€)</SelectItem>
                   </SelectContent>
                 </Select>
+                {currency === 'VES' && (
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <span className="text-[10px] text-slate-500 font-medium">Ref:</span>
+                    <button
+                      type="button"
+                      onClick={() => setBaseCurrency('USD')}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                        baseCurrency === 'USD'
+                          ? 'bg-procarni-primary text-white border-procarni-primary'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      USD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBaseCurrency('EUR')}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                        baseCurrency === 'EUR'
+                          ? 'bg-procarni-primary text-white border-procarni-primary'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      EUR
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <ExchangeRateInput
+                  compact
+                  baseCurrency={baseCurrency}
+                  exchangeRate={exchangeRate}
+                  onExchangeRateChange={setExchangeRate}
+                />
               </div>
 
               <div>
@@ -577,13 +683,30 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
 
             {/* Insumos a Incluir en la Orden */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Insumos a Incluir en la Orden
-                </Label>
-                <span className="text-[11px] text-slate-500">
-                  {itemRows.filter((r) => r.selected).length} de {itemRows.length} ítems seleccionados
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Insumos a Incluir en la Orden
+                  </Label>
+                  <span className="text-[11px] text-slate-500">
+                    ({itemRows.filter((r) => r.selected).length}/{itemRows.length})
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleApplyAllLastPrices}
+                  disabled={isApplyingPrices || isLoadingMeta || itemRows.filter((r) => r.selected && !!r.materialId).length === 0}
+                  className="h-7 text-[11px] font-semibold border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-procarni-primary"
+                >
+                  {isApplyingPrices ? (
+                    <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                  ) : (
+                    <Clock className="w-3 h-3 mr-1.5 text-procarni-primary" />
+                  )}
+                  Aplicar Últimos Precios
+                </Button>
               </div>
 
               {!isLoadingMeta && itemRows.some((r) => r.selected && !r.materialId) && (
@@ -664,9 +787,20 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                             />
                           </div>
                           <div>
-                            <Label className="text-[10px] uppercase font-bold text-slate-400 block">
-                              P. Unit ({currency})
-                            </Label>
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <Label className="text-[10px] uppercase font-bold text-slate-400 block">
+                                P. Unit ({currency})
+                              </Label>
+                              <LastPriceButton
+                                materialId={row.materialId}
+                                unitId={row.unitId}
+                                supplierId={selectedSupplierId}
+                                currency={currency}
+                                exchangeRate={exchangeRate}
+                                currentPrice={row.unitPrice}
+                                onApplyPrice={(price) => handlePriceChange(idx, price)}
+                              />
+                            </div>
                             <PriceInput
                               value={row.unitPrice}
                               onChange={(val) => handlePriceChange(idx, val)}
@@ -689,7 +823,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                       <TableHead className="w-10 text-center">Sel.</TableHead>
                       <TableHead>Insumo y Presentación</TableHead>
                       <TableHead className="text-center w-28">Cantidad</TableHead>
-                      <TableHead className="text-center w-28">P. Unit ({currency})</TableHead>
+                      <TableHead className="text-center w-36">P. Unit ({currency})</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="text-xs divide-y divide-slate-100">
@@ -749,13 +883,26 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                             />
                           </TableCell>
                           <TableCell className="text-center">
-                            <PriceInput
-                              value={row.unitPrice}
-                              disabled={!row.selected}
-                              onChange={(val) => handlePriceChange(idx, val)}
-                              placeholder="0.00"
-                              className="h-7 w-24 mx-auto text-center font-mono text-xs"
-                            />
+                            <div className="flex flex-col items-center gap-1">
+                              <PriceInput
+                                value={row.unitPrice}
+                                disabled={!row.selected}
+                                onChange={(val) => handlePriceChange(idx, val)}
+                                placeholder="0.00"
+                                className="h-7 w-24 mx-auto text-center font-mono text-xs"
+                              />
+                              {row.selected && (
+                                <LastPriceButton
+                                  materialId={row.materialId}
+                                  unitId={row.unitId}
+                                  supplierId={selectedSupplierId}
+                                  currency={currency}
+                                  exchangeRate={exchangeRate}
+                                  currentPrice={row.unitPrice}
+                                  onApplyPrice={(price) => handlePriceChange(idx, price)}
+                                />
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
