@@ -121,6 +121,7 @@ export interface TransitionProjection {
   calculationDate: string; // YYYY-MM-DD
   targetStartDate: string; // YYYY-MM-DD
   daysRemaining: number;
+  // Arroz (Comedor)
   arrozDailyRateKg: number;
   arrozIntermediateConsumptionKg: number;
   arrozPhysicalStockKg: number;
@@ -129,6 +130,24 @@ export interface TransitionProjection {
   arrozProjectedLooseKg: number;
   isRiceDeficit: boolean;
   riceDeficitKg: number;
+  // Papel (Planta y Baños)
+  papelDailyRateRollos: number;
+  papelIntermediateConsumptionRollos: number;
+  papelPhysicalStockRollos: number;
+  papelProjectedStockRollos: number;
+  papelProjectedBultos: number;
+  papelProjectedLooseRollos: number;
+  isPapelDeficit: boolean;
+  papelDeficitRollos: number;
+  // Azúcar (Cafetería y Uso Continuo)
+  azucarDailyRateKg: number;
+  azucarIntermediateConsumptionKg: number;
+  azucarPhysicalStockKg: number;
+  azucarProjectedStockKg: number;
+  azucarProjectedBultos: number;
+  azucarProjectedLooseKg: number;
+  isAzucarDeficit: boolean;
+  azucarDeficitKg: number;
 }
 
 export interface GlobalItemCalculation {

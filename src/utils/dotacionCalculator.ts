@@ -215,7 +215,7 @@ export function calculateDotacion({
     ? Math.max(0, daysUntilQuincena)
     : autoDays;
 
-  // Arroz del Comedor: consumo continuo en los días de transición
+  // 1. Arroz del Comedor: consumo continuo en los días de transición
   const physicalRiceBultos = stock.arroz.bultos;
   const physicalRiceLooseKg = stock.arroz.looseUnits;
   const physicalRiceKg = physicalRiceBultos * pres.arrozUnitsPerPackage + physicalRiceLooseKg;
@@ -226,6 +226,32 @@ export function calculateDotacion({
   const projectedRiceLooseKg = projectedRiceKg % pres.arrozUnitsPerPackage;
   const isRiceDeficit = physicalRiceKg < arrozIntermediateConsumptionKg;
   const riceDeficitKg = isRiceDeficit ? arrozIntermediateConsumptionKg - physicalRiceKg : 0;
+
+  // 2. Papel Higiénico (Uso Diario Planta y Baños): consumo continuo en los días de transición
+  const papelQuincenaUnits = papelUsoDiarioBultos * pres.papelUnitsPerPackage;
+  const papelDailyRateRollos = Number((papelQuincenaUnits / 15).toFixed(2));
+  const papelIntermediateConsumptionRollos = Math.round(effectiveTransitionDays * papelDailyRateRollos);
+  const physicalPapelBultos = stock.papel.bultos;
+  const physicalPapelLooseRollos = stock.papel.looseUnits;
+  const physicalPapelRollos = physicalPapelBultos * pres.papelUnitsPerPackage + physicalPapelLooseRollos;
+  const projectedPapelRollos = Math.max(0, physicalPapelRollos - papelIntermediateConsumptionRollos);
+  const projectedPapelBultos = Math.floor(projectedPapelRollos / pres.papelUnitsPerPackage);
+  const projectedPapelLooseRollos = projectedPapelRollos % pres.papelUnitsPerPackage;
+  const isPapelDeficit = physicalPapelRollos < papelIntermediateConsumptionRollos;
+  const papelDeficitRollos = isPapelDeficit ? papelIntermediateConsumptionRollos - physicalPapelRollos : 0;
+
+  // 3. Azúcar (Cafetería y Uso Continuo Planta): consumo continuo en los días de transición
+  const azucarQuincenaUnits = azucarUsoMesBultos * pres.azucarUnitsPerPackage;
+  const azucarDailyRateKg = Number((azucarQuincenaUnits / 15).toFixed(2));
+  const azucarIntermediateConsumptionKg = Math.round(effectiveTransitionDays * azucarDailyRateKg);
+  const physicalAzucarBultos = stock.azucar.bultos;
+  const physicalAzucarLooseKg = stock.azucar.looseUnits;
+  const physicalAzucarKg = physicalAzucarBultos * pres.azucarUnitsPerPackage + physicalAzucarLooseKg;
+  const projectedAzucarKg = Math.max(0, physicalAzucarKg - azucarIntermediateConsumptionKg);
+  const projectedAzucarBultos = Math.floor(projectedAzucarKg / pres.azucarUnitsPerPackage);
+  const projectedAzucarLooseKg = projectedAzucarKg % pres.azucarUnitsPerPackage;
+  const isAzucarDeficit = physicalAzucarKg < azucarIntermediateConsumptionKg;
+  const azucarDeficitKg = isAzucarDeficit ? azucarIntermediateConsumptionKg - physicalAzucarKg : 0;
 
   const totalEmployees = employeesPC + employeesMA;
   const totalContingencyCombos = (contingencyCombosPC || 0) + (contingencyCombosMA || 0);
@@ -386,13 +412,15 @@ export function calculateDotacion({
             ? `Cafetería (${azucarUnitsMA} kg) + Finca (${fincaAzucarUnitsMA} kg)` 
             : (fincaAzucarUnitsMA > 0 ? `Finca (${fincaAzucarUnitsMA} kg)` : `Cafetería (${azucarUnitsMA} kg)`)) 
         : '-',
-      stockBultos: stock.azucar.bultos,
-      stockLooseUnits: stock.azucar.looseUnits,
-      physicalStockBultos: stock.azucar.bultos,
-      physicalStockLooseUnits: stock.azucar.looseUnits,
-      physicalStockTotalUnits: stock.azucar.bultos * pres.azucarUnitsPerPackage + stock.azucar.looseUnits,
-      transitionConsumptionUnits: 0,
-      transitionNote: undefined,
+      stockBultos: projectedAzucarBultos,
+      stockLooseUnits: projectedAzucarLooseKg,
+      physicalStockBultos: physicalAzucarBultos,
+      physicalStockLooseUnits: physicalAzucarLooseKg,
+      physicalStockTotalUnits: physicalAzucarKg,
+      transitionConsumptionUnits: azucarIntermediateConsumptionKg,
+      transitionNote: effectiveTransitionDays > 0
+        ? `Consumo previo cafetería (${effectiveTransitionDays} día${effectiveTransitionDays > 1 ? 's' : ''} @ ${azucarDailyRateKg} kg/d): -${azucarIntermediateConsumptionKg} kg. Stock neto proyectado: ${projectedAzucarBultos} b + ${projectedAzucarLooseKg} kg (${projectedAzucarKg} kg)`
+        : undefined,
     },
     {
       id: 'papel',
@@ -407,13 +435,15 @@ export function calculateDotacion({
       maFixedUnits: hasEmployees ? papelUnitsMA : 0,
       maFixedBultos: hasEmployees ? papelBultosMA : 0,
       maFixedLabel: hasEmployees && papelBultosMA > 0 ? `Uso Planta (${papelBultosMA} bulto)` : '-',
-      stockBultos: stock.papel.bultos,
-      stockLooseUnits: stock.papel.looseUnits,
-      physicalStockBultos: stock.papel.bultos,
-      physicalStockLooseUnits: stock.papel.looseUnits,
-      physicalStockTotalUnits: stock.papel.bultos * pres.papelUnitsPerPackage + stock.papel.looseUnits,
-      transitionConsumptionUnits: 0,
-      transitionNote: undefined,
+      stockBultos: projectedPapelBultos,
+      stockLooseUnits: projectedPapelLooseRollos,
+      physicalStockBultos: physicalPapelBultos,
+      physicalStockLooseUnits: physicalPapelLooseRollos,
+      physicalStockTotalUnits: physicalPapelRollos,
+      transitionConsumptionUnits: papelIntermediateConsumptionRollos,
+      transitionNote: effectiveTransitionDays > 0
+        ? `Consumo previo planta/baños (${effectiveTransitionDays} día${effectiveTransitionDays > 1 ? 's' : ''} @ ${papelDailyRateRollos} rollos/d): -${papelIntermediateConsumptionRollos} rollos. Stock neto proyectado: ${projectedPapelBultos} b + ${projectedPapelLooseRollos} rollos (${projectedPapelRollos} rollos)`
+        : undefined,
     },
     {
       id: 'jabon',
@@ -1069,6 +1099,22 @@ export function calculateDotacion({
       arrozProjectedLooseKg: projectedRiceLooseKg,
       isRiceDeficit,
       riceDeficitKg,
+      papelDailyRateRollos,
+      papelIntermediateConsumptionRollos,
+      papelPhysicalStockRollos: physicalPapelRollos,
+      papelProjectedStockRollos: projectedPapelRollos,
+      papelProjectedBultos: projectedPapelBultos,
+      papelProjectedLooseRollos: projectedPapelLooseRollos,
+      isPapelDeficit,
+      papelDeficitRollos,
+      azucarDailyRateKg,
+      azucarIntermediateConsumptionKg,
+      azucarPhysicalStockKg: physicalAzucarKg,
+      azucarProjectedStockKg: projectedAzucarKg,
+      azucarProjectedBultos: projectedAzucarBultos,
+      azucarProjectedLooseKg: projectedAzucarLooseKg,
+      isAzucarDeficit,
+      azucarDeficitKg,
     },
     formattedMessages: {
       pcMessage,

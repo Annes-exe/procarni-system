@@ -151,10 +151,17 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
 
     // Consumo Previo
     let transitLabel = '-';
-    if (it.productId === 'arroz' && it.transitionConsumptionUnits && it.transitionConsumptionUnits > 0) {
+    if (it.transitionConsumptionUnits && it.transitionConsumptionUnits > 0) {
       const days = result.transitionProjection?.daysRemaining || 0;
-      const rate = result.transitionProjection?.arrozDailyRateKg || 18;
-      transitLabel = `-${it.transitionConsumptionUnits} kg (${days}d @ ${rate}k/d)`;
+      let rateText = '';
+      if (it.productId === 'arroz') {
+        rateText = `@ ${result.transitionProjection?.arrozDailyRateKg || 18}k/d`;
+      } else if (it.productId === 'papel') {
+        rateText = `@ ${result.transitionProjection?.papelDailyRateRollos || 9.6}u/d`;
+      } else if (it.productId === 'azucar') {
+        rateText = `@ ${result.transitionProjection?.azucarDailyRateKg || 2}k/d`;
+      }
+      transitLabel = `-${it.transitionConsumptionUnits} ${unitLabel} (${days}d ${rateText})`;
     }
 
     // Stock Efectivo al inicio de Quincena
@@ -224,18 +231,29 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
     doc.setFontSize(6.8);
     doc.setTextColor(...TEXT_MUTED);
     doc.text(
-      `* Transición: Conteo al ${result.transitionProjection.calculationDate}. Restan ${result.transitionProjection.daysRemaining} día(s) para la quincena (${result.transitionProjection.targetStartDate}). Consumo Comedor (-${result.transitionProjection.arrozIntermediateConsumptionKg} kg) deducido de stock.`,
+      `* Transición: Conteo al ${result.transitionProjection.calculationDate}. Restan ${result.transitionProjection.daysRemaining} día(s) para la quincena (${result.transitionProjection.targetStartDate}). Se descuenta consumo diario operativo (Arroz Comedor: -${result.transitionProjection.arrozIntermediateConsumptionKg}kg | Papel Baños: -${result.transitionProjection.papelIntermediateConsumptionRollos}u | Azúcar Cafetería: -${result.transitionProjection.azucarIntermediateConsumptionKg}kg).`,
       margin,
       y
     );
     y += 3.5;
 
+    const deficits: string[] = [];
     if (result.transitionProjection.isRiceDeficit) {
+      deficits.push(`Arroz (-${result.transitionProjection.riceDeficitKg}kg)`);
+    }
+    if (result.transitionProjection.isPapelDeficit) {
+      deficits.push(`Papel (-${result.transitionProjection.papelDeficitRollos}u)`);
+    }
+    if (result.transitionProjection.isAzucarDeficit) {
+      deficits.push(`Azúcar (-${result.transitionProjection.azucarDeficitKg}kg)`);
+    }
+
+    if (deficits.length > 0) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.8);
       doc.setTextColor(...PROC_RED);
       doc.text(
-        `* ALERTA: El inventario de arroz (${result.transitionProjection.arrozPhysicalStockKg} kg) no cubre los ${result.transitionProjection.daysRemaining} días previos. Déficit proyectado: ${result.transitionProjection.riceDeficitKg} kg.`,
+        `* ALERTA DE DÉFICIT PREVIO EN ALMACÉN: El stock físico no cubre los ${result.transitionProjection.daysRemaining} días previos en: ${deficits.join(', ')}.`,
         margin,
         y
       );

@@ -807,17 +807,17 @@ export default function DotacionQuincenal() {
         </Card>
       </div>
 
-      {/* INPUTS PANEL: COLABORADORES POR QUINCENA & STOCK CONSOLIDADO EN ALMACÉN */}
+      {/* INPUTS BENTO GRID: COLABORADORES, FECHA/TRANSICIÓN & STOCK ALMACÉN */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-6 min-w-0">
-        {/* COLABORADORES POR EMPRESA (VARIABLE POR QUINCENA - 0 IMAGINARIO EN ESPERA DE INGRESO) */}
+        {/* BENTO ITEM 1: COLABORADORES POR EMPRESA (4 COLS) */}
         <Card className="lg:col-span-4 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl flex flex-col justify-between min-w-0">
           <div>
-            <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
+            <CardHeader className="p-3 sm:p-5 pb-2 sm:pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <Users className="w-4 h-4 text-procarni-blue" />
                   <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider">
-                    Colaboradores por Empresa
+                    Colaboradores
                   </CardTitle>
                 </div>
                 <Badge variant="outline" className="text-[9px] sm:text-[10px] text-slate-600 bg-slate-50">
@@ -825,55 +825,55 @@ export default function DotacionQuincenal() {
                 </Badge>
               </div>
               <CardDescription className="text-[11px] sm:text-xs text-slate-500">
-                Cantidad de combos a repartir en esta quincena. Ingresa el número de colaboradores.
+                Combos individuales a repartir en esta quincena.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-3 sm:p-6 pt-0 sm:pt-1 space-y-3 sm:space-y-4">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="pc-emp" className="text-xs font-semibold text-slate-700">
-                    Productos Cárnicos (PC)
-                  </Label>
-                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">Combos individuales</span>
+            <CardContent className="p-3 sm:p-5 pt-0 space-y-3">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="pc-emp" className="text-xs font-semibold text-slate-700">
+                      PC (Cárnicos)
+                    </Label>
+                  </div>
+                  <Input
+                    onWheel={(e) => e.currentTarget.blur()}
+                    id="pc-emp"
+                    type="number"
+                    min={0}
+                    value={employeesPC === 0 ? '' : employeesPC}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEmployeesPC(parseInt(e.target.value) || 0)}
+                    className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                  />
                 </div>
-                <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                  id="pc-emp"
-                  type="number"
-                  min={0}
-                  value={employeesPC === 0 ? '' : employeesPC}
-                  placeholder="0"
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => setEmployeesPC(parseInt(e.target.value) || 0)}
-                  className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
-                />
-              </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="ma-emp" className="text-xs font-semibold text-slate-700">
-                    Montano Antilia (MA)
-                  </Label>
-                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">Combos individuales</span>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ma-emp" className="text-xs font-semibold text-slate-700">
+                      MA (Montano)
+                    </Label>
+                  </div>
+                  <Input
+                    onWheel={(e) => e.currentTarget.blur()}
+                    id="ma-emp"
+                    type="number"
+                    min={0}
+                    value={employeesMA === 0 ? '' : employeesMA}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEmployeesMA(parseInt(e.target.value) || 0)}
+                    className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
+                  />
                 </div>
-                <Input
-                  onWheel={(e) => e.currentTarget.blur()}
-                  id="ma-emp"
-                  type="number"
-                  min={0}
-                  value={employeesMA === 0 ? '' : employeesMA}
-                  placeholder="0"
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => setEmployeesMA(parseInt(e.target.value) || 0)}
-                  className="h-9 sm:h-10 text-sm font-mono font-medium focus-visible:ring-procarni-primary/20 placeholder:text-slate-300"
-                />
               </div>
             </CardContent>
           </div>
 
-          <div className="p-3 pt-0 sm:p-4 sm:pt-0">
-            <div className="p-2.5 sm:p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500">Total Nómina Activa:</span>
+          <div className="p-3 pt-0 sm:p-5 sm:pt-0">
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-500">Total Nómina:</span>
               <span className="text-xs sm:text-sm font-mono font-bold text-procarni-dark">
                 {employeesPC + employeesMA} colaboradores
               </span>
@@ -881,128 +881,170 @@ export default function DotacionQuincenal() {
           </div>
         </Card>
 
-        {/* EXISTENCIAS EN ALMACÉN DE DOTACIÓN (CONSOLIDADO, 0 IMAGINARIO EN ESPERA DE INGRESO) */}
-        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
-          <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex flex-col gap-2">
-            <div className="flex flex-row items-center justify-between">
-              <div className="min-w-0">
+        {/* BENTO ITEM 2: FECHA CONTEO & DÍAS DE TRANSICIÓN (8 COLS) */}
+        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl flex flex-col justify-between min-w-0">
+          <div>
+            <CardHeader className="p-3 sm:p-5 pb-2 sm:pb-3">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <Package className="w-4 h-4 text-procarni-primary shrink-0" />
+                  <Calendar className="w-4 h-4 text-procarni-blue shrink-0" />
                   <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider truncate">
-                    Existencias en Almacén (Stock)
+                    Fecha Conteo & Días de Transición
                   </CardTitle>
                 </div>
-                <CardDescription className="text-[11px] sm:text-xs text-slate-500 truncate">
-                  Inventario físico global deducible. Registra bultos y/o sueltos.
-                </CardDescription>
+                {result.transitionProjection && (
+                  <Badge variant="outline" className="text-[9px] sm:text-[10px] text-procarni-blue bg-blue-50/50 border-blue-200/60 font-mono font-bold">
+                    {result.transitionProjection.daysRemaining} {result.transitionProjection.daysRemaining === 1 ? 'día previo' : 'días previos'}
+                  </Badge>
+                )}
               </div>
-              <Badge variant="secondary" className="text-[9px] sm:text-[10px] bg-red-50 text-procarni-primary font-bold shrink-0">
-                Descuento Global
-              </Badge>
-            </div>
-
-            {/* Panel de Control de Transición y Días Previos a la Quincena */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-procarni-blue shrink-0" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">
-                      Fecha de Conteo y Días de Transición
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Calcula el consumo del comedor previo al inicio de la quincena ({result.transitionProjection?.targetStartDate})
-                    </span>
-                  </div>
+              <CardDescription className="text-[11px] sm:text-xs text-slate-500 truncate">
+                Deducción de consumo continuo previo al inicio de quincena ({result.transitionProjection?.targetStartDate || targetQuincenaDate})
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-5 pt-0 space-y-3">
+              {/* Controles de Fechas y Días en fila compacta */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                    Fecha Conteo
+                  </Label>
+                  <Input
+                    type="date"
+                    value={calculationDate}
+                    onChange={(e) => {
+                      setCalculationDate(e.target.value);
+                      setManualDaysOverride(null);
+                    }}
+                    className="h-9 text-xs font-mono bg-white"
+                  />
                 </div>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex items-center gap-1.5">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                    Fecha Quincena
+                  </Label>
+                  <Input
+                    type="date"
+                    value={targetQuincenaDate}
+                    onChange={(e) => {
+                      setTargetQuincenaDateOverride(e.target.value);
+                      setManualDaysOverride(null);
+                    }}
+                    className="h-9 text-xs font-mono bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-                      Fecha Conteo:
+                      Días Previos
                     </Label>
-                    <Input
-                      type="date"
-                      value={calculationDate}
-                      onChange={(e) => {
-                        setCalculationDate(e.target.value);
-                        setManualDaysOverride(null);
-                      }}
-                      className="h-8 text-xs font-mono w-32 bg-white"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-                      Fecha Quincena:
-                    </Label>
-                    <Input
-                      type="date"
-                      value={targetQuincenaDate}
-                      onChange={(e) => {
-                        setTargetQuincenaDateOverride(e.target.value);
-                        setManualDaysOverride(null);
-                      }}
-                      className="h-8 text-xs font-mono w-32 bg-white"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-                      Días Previos:
-                    </Label>
-                    <div className="relative flex items-center">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={31}
-                        value={daysUntilQuincena}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          setManualDaysOverride(isNaN(val) ? 0 : Math.max(0, val));
-                        }}
-                        className="h-8 text-xs font-mono font-bold w-16 text-center bg-white pr-5"
-                      />
-                      <span className="absolute right-2 text-[10px] text-slate-400 font-bold pointer-events-none">d</span>
-                    </div>
                     {(manualDaysOverride !== null || targetQuincenaDateOverride !== null) && (
-                      <Button
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="sm"
                         onClick={() => {
                           setManualDaysOverride(null);
                           setTargetQuincenaDateOverride(null);
                         }}
-                        className="h-8 px-2 text-[10px] text-procarni-primary hover:bg-red-50 font-semibold"
-                        title="Restablecer a fecha y días automáticos según calendario"
+                        className="text-[10px] text-procarni-primary hover:underline font-bold"
+                        title="Restablecer a días automáticos según calendario"
                       >
                         Auto ({autoCalculatedDays}d)
-                      </Button>
+                      </button>
                     )}
+                  </div>
+                  <div className="relative flex items-center">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={31}
+                      value={daysUntilQuincena}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setManualDaysOverride(isNaN(val) ? 0 : Math.max(0, val));
+                      }}
+                      className="h-9 text-xs font-mono font-bold text-center bg-white pr-5"
+                    />
+                    <span className="absolute right-2.5 text-[10px] text-slate-400 font-bold pointer-events-none">d</span>
                   </div>
                 </div>
               </div>
 
-              {/* Banner informativo de consumo previsto de Arroz */}
-              {result.transitionProjection && result.transitionProjection.daysRemaining > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900">
-                  <div className="flex items-center gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                    <span>
-                      <strong>Consumo de Arroz comedor previo:</strong> {result.transitionProjection.daysRemaining} días × {result.transitionProjection.arrozDailyRateKg} kg/día = <strong>{result.transitionProjection.arrozIntermediateConsumptionKg} kg</strong> a deducir del almacén antes del día de quincena.
-                    </span>
+              {/* Indicadores horizontales de consumo continuo previsto */}
+              {result.transitionProjection && result.transitionProjection.daysRemaining > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5 text-[11px]">
+                  {/* Arroz */}
+                  <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-0.5">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span>Arroz:</span>
+                      <span className="text-amber-700 font-mono">-{result.transitionProjection.arrozIntermediateConsumptionKg} kg</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>{result.transitionProjection.daysRemaining}d @ {result.transitionProjection.arrozDailyRateKg}k/d</span>
+                      {result.transitionProjection.isRiceDeficit ? (
+                        <span className="text-red-600 font-bold">Faltan {result.transitionProjection.riceDeficitKg}kg</span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold">Neto: {result.transitionProjection.arrozProjectedStockKg}kg</span>
+                      )}
+                    </div>
                   </div>
-                  {result.transitionProjection.isRiceDeficit ? (
-                    <Badge variant="destructive" className="text-[10px] bg-red-600 shrink-0 animate-pulse">
-                      Déficit: Faltan {result.transitionProjection.riceDeficitKg} kg en almacén
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[10px] font-mono bg-white text-emerald-700 border-emerald-300 font-bold shrink-0">
-                      Stock neto quincena: {result.transitionProjection.arrozProjectedBultos} b + {result.transitionProjection.arrozProjectedLooseKg} kg ({result.transitionProjection.arrozProjectedStockKg} kg)
-                    </Badge>
-                  )}
+                  {/* Papel */}
+                  <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-0.5">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span>Papel:</span>
+                      <span className="text-amber-700 font-mono">-{result.transitionProjection.papelIntermediateConsumptionRollos} rollos</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>{result.transitionProjection.daysRemaining}d @ {result.transitionProjection.papelDailyRateRollos}u/d</span>
+                      {result.transitionProjection.isPapelDeficit ? (
+                        <span className="text-red-600 font-bold">Faltan {result.transitionProjection.papelDeficitRollos}u</span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold">Neto: {result.transitionProjection.papelProjectedStockRollos}u</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Azúcar */}
+                  <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-0.5">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span>Azúcar:</span>
+                      <span className="text-amber-700 font-mono">-{result.transitionProjection.azucarIntermediateConsumptionKg} kg</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>{result.transitionProjection.daysRemaining}d @ {result.transitionProjection.azucarDailyRateKg}k/d</span>
+                      {result.transitionProjection.isAzucarDeficit ? (
+                        <span className="text-red-600 font-bold">Faltan {result.transitionProjection.azucarDeficitKg}kg</span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold">Neto: {result.transitionProjection.azucarProjectedStockKg}kg</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px] text-slate-500 text-center">
+                  Sin días de transición (el conteo coincide exactamente con el inicio de quincena).
                 </div>
               )}
+            </CardContent>
+          </div>
+        </Card>
+
+        {/* BENTO ITEM 3: EXISTENCIAS EN ALMACÉN DE DOTACIÓN (ANCHO COMPLETO 12 COLS) */}
+        <Card className="lg:col-span-12 bg-white border-slate-200 shadow-sm rounded-xl sm:rounded-2xl min-w-0">
+          <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex flex-row items-center justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Package className="w-4 h-4 text-procarni-primary shrink-0" />
+                <CardTitle className="text-xs sm:text-sm font-bold text-procarni-dark uppercase tracking-wider truncate">
+                  Existencias en Almacén (Stock)
+                </CardTitle>
+              </div>
+              <CardDescription className="text-[11px] sm:text-xs text-slate-500 truncate">
+                Inventario físico global deducible. Registra bultos y/o sueltos.
+              </CardDescription>
             </div>
+            <Badge variant="secondary" className="text-[9px] sm:text-[10px] bg-red-50 text-procarni-primary font-bold shrink-0">
+              Descuento Global
+            </Badge>
           </CardHeader>
           <CardContent className="p-2.5 sm:p-6 pt-0 sm:pt-1">
             {/* MOBILE STACKED CARDS (< md) - No horizontal scroll, touch-friendly inputs */}
@@ -1159,11 +1201,27 @@ export default function DotacionQuincenal() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
-                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
-                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
-                    {stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg
-                  </span>
+                <div className="pt-1.5 border-t border-slate-200/80 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Stock Físico Contado:</span>
+                    <span className="font-mono font-bold">
+                      {stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg
+                    </span>
+                  </div>
+                  {result.transitionProjection && result.transitionProjection.daysRemaining > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-amber-700 font-medium">
+                      <span>Consumo previo ({result.transitionProjection.daysRemaining}d @ {result.transitionProjection.azucarDailyRateKg}k/d):</span>
+                      <span className="font-mono font-bold">-{result.transitionProjection.azucarIntermediateConsumptionKg} kg</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <span className="text-slate-700 font-bold text-[11px]">Deducción Neta Quincena:</span>
+                    <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                      {result.transitionProjection
+                        ? `${result.transitionProjection.azucarProjectedBultos} b + ${result.transitionProjection.azucarProjectedLooseKg} kg (${result.transitionProjection.azucarProjectedStockKg} kg)`
+                        : `${stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1207,11 +1265,27 @@ export default function DotacionQuincenal() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
-                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
-                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
-                    {stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos
-                  </span>
+                <div className="pt-1.5 border-t border-slate-200/80 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Stock Físico Contado:</span>
+                    <span className="font-mono font-bold">
+                      {stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos
+                    </span>
+                  </div>
+                  {result.transitionProjection && result.transitionProjection.daysRemaining > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-amber-700 font-medium">
+                      <span>Consumo previo ({result.transitionProjection.daysRemaining}d @ {result.transitionProjection.papelDailyRateRollos}u/d):</span>
+                      <span className="font-mono font-bold">-{result.transitionProjection.papelIntermediateConsumptionRollos} rollos</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <span className="text-slate-700 font-bold text-[11px]">Deducción Neta Quincena:</span>
+                    <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                      {result.transitionProjection
+                        ? `${result.transitionProjection.papelProjectedBultos} b + ${result.transitionProjection.papelProjectedLooseRollos} rollos (${result.transitionProjection.papelProjectedStockRollos} rollos)`
+                        : `${stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1358,7 +1432,7 @@ export default function DotacionQuincenal() {
                           </span>
                           {result.transitionProjection.isRiceDeficit && (
                             <span className="text-[9px] text-red-600 font-bold">
-                              ⚠️ Déficit: faltan {result.transitionProjection.riceDeficitKg} kg
+                              Déficit: faltan {result.transitionProjection.riceDeficitKg} kg
                             </span>
                           )}
                         </div>
@@ -1398,8 +1472,26 @@ export default function DotacionQuincenal() {
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
-                    <td className="text-center font-mono font-bold text-procarni-primary text-sm">
-                      {stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg
+                    <td className="text-center py-2">
+                      {result.transitionProjection && result.transitionProjection.daysRemaining > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <span className="font-mono font-bold text-procarni-primary text-sm">
+                            {result.transitionProjection.azucarProjectedBultos} b + {result.transitionProjection.azucarProjectedLooseKg} kg ({result.transitionProjection.azucarProjectedStockKg} kg)
+                          </span>
+                          <span className="text-[10px] text-amber-700 font-medium">
+                            Físico: {stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg - {result.transitionProjection.azucarIntermediateConsumptionKg} kg ({result.transitionProjection.daysRemaining}d @ {result.transitionProjection.azucarDailyRateKg}k/d)
+                          </span>
+                          {result.transitionProjection.isAzucarDeficit && (
+                            <span className="text-[9px] text-red-600 font-bold">
+                              Déficit: faltan {result.transitionProjection.azucarDeficitKg} kg
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-mono font-bold text-procarni-primary text-sm">
+                          {stock.azucar.bultos * presentations.azucarUnitsPerPackage + stock.azucar.looseUnits} kg
+                        </span>
+                      )}
                     </td>
                   </tr>
 
@@ -1431,8 +1523,26 @@ export default function DotacionQuincenal() {
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
-                    <td className="text-center font-mono font-bold text-procarni-primary text-sm">
-                      {stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos
+                    <td className="text-center py-2">
+                      {result.transitionProjection && result.transitionProjection.daysRemaining > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <span className="font-mono font-bold text-procarni-primary text-sm">
+                            {result.transitionProjection.papelProjectedBultos} b + {result.transitionProjection.papelProjectedLooseRollos} rollos ({result.transitionProjection.papelProjectedStockRollos} rollos)
+                          </span>
+                          <span className="text-[10px] text-amber-700 font-medium">
+                            Físico: {stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos - {result.transitionProjection.papelIntermediateConsumptionRollos} rollos ({result.transitionProjection.daysRemaining}d @ {result.transitionProjection.papelDailyRateRollos}u/d)
+                          </span>
+                          {result.transitionProjection.isPapelDeficit && (
+                            <span className="text-[9px] text-red-600 font-bold">
+                              Déficit: faltan {result.transitionProjection.papelDeficitRollos} rollos
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-mono font-bold text-procarni-primary text-sm">
+                          {stock.papel.bultos * presentations.papelUnitsPerPackage + stock.papel.looseUnits} rollos
+                        </span>
+                      )}
                     </td>
                   </tr>
 
@@ -1544,8 +1654,8 @@ export default function DotacionQuincenal() {
                 type="button"
                 onClick={() => setConfigActiveSection('todas')}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shrink-0 ${configActiveSection === 'todas'
-                    ? 'bg-slate-800 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
               >
                 Ver Todas
@@ -1554,8 +1664,8 @@ export default function DotacionQuincenal() {
                 type="button"
                 onClick={() => setConfigActiveSection('finca')}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'finca'
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
                   }`}
               >
                 <Trees className="w-3.5 h-3.5" />
@@ -1565,8 +1675,8 @@ export default function DotacionQuincenal() {
                 type="button"
                 onClick={() => setConfigActiveSection('planta')}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'planta'
-                    ? 'bg-procarni-blue text-white shadow-xs'
-                    : 'bg-white text-procarni-blue hover:bg-blue-50 border border-blue-200'
+                  ? 'bg-procarni-blue text-white shadow-xs'
+                  : 'bg-white text-procarni-blue hover:bg-blue-50 border border-blue-200'
                   }`}
               >
                 <Building2 className="w-3.5 h-3.5" />
@@ -1576,8 +1686,8 @@ export default function DotacionQuincenal() {
                 type="button"
                 onClick={() => setConfigActiveSection('normas')}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'normas'
-                    ? 'bg-amber-700 text-white shadow-xs'
-                    : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200'
+                  ? 'bg-amber-700 text-white shadow-xs'
+                  : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200'
                   }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -1587,8 +1697,8 @@ export default function DotacionQuincenal() {
                 type="button"
                 onClick={() => setConfigActiveSection('contingencia')}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${configActiveSection === 'contingencia'
-                    ? 'bg-purple-700 text-white shadow-xs'
-                    : 'bg-white text-purple-800 hover:bg-purple-50 border border-purple-200'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'bg-white text-purple-800 hover:bg-purple-50 border border-purple-200'
                   }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -2950,8 +3060,8 @@ export default function DotacionQuincenal() {
                             {d.destination}
                           </span>
                           <span className={`font-mono font-extrabold text-xs px-2 py-0.5 rounded border ${isContingency
-                              ? 'text-purple-700 bg-purple-50 border-purple-200'
-                              : (isCombo ? 'text-procarni-blue bg-blue-50 border-blue-200' : 'text-procarni-secondary bg-emerald-50 border-emerald-200')
+                            ? 'text-purple-700 bg-purple-50 border-purple-200'
+                            : (isCombo ? 'text-procarni-blue bg-blue-50 border-blue-200' : 'text-procarni-secondary bg-emerald-50 border-emerald-200')
                             }`}>
                             {d.quantityUnits} {d.unitLabel} ({d.equivalentBultos} bto)
                           </span>
@@ -2988,8 +3098,8 @@ export default function DotacionQuincenal() {
                           <TableRow key={idx} className={`hover:bg-slate-50/60 ${rowClass}`}>
                             <TableCell className="font-bold text-slate-900">
                               <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${isContingency
-                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                  : (isCombo ? 'bg-blue-50 text-procarni-blue border border-blue-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200')
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : (isCombo ? 'bg-blue-50 text-procarni-blue border border-blue-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200')
                                 }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${isContingency ? 'bg-purple-600' : (isCombo ? 'bg-procarni-blue' : 'bg-emerald-600')
                                   }`} />
@@ -3001,8 +3111,8 @@ export default function DotacionQuincenal() {
                               {d.quantityUnits} {d.unitLabel}
                             </TableCell>
                             <TableCell className={`text-center font-mono font-bold ${isContingency
-                                ? 'text-purple-700'
-                                : (isCombo ? 'text-procarni-blue' : 'text-procarni-secondary')
+                              ? 'text-purple-700'
+                              : (isCombo ? 'text-procarni-blue' : 'text-procarni-secondary')
                               }`}>
                               {d.equivalentBultos} bto
                             </TableCell>
