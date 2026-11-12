@@ -140,22 +140,47 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
     }
 
     const unitLabel = it.productId === 'arroz' || it.productId === 'azucar' || it.productId === 'harina' ? 'kg' : (it.productId === 'papel' ? 'rollos' : (it.productId === 'jabon' ? 'barras' : 'und'));
-    const bultosLabel = it.stockBultos > 0 ? `${it.stockBultos} bulto${it.stockBultos > 1 ? 's' : ''}` : '0 bultos';
-    const looseLabel = it.stockLooseUnits > 0 ? `${it.stockLooseUnits} ${unitLabel}` : '0';
-    const totalDeductedLabel = it.totalStockDeductedUnits > 0 ? `${it.totalStockDeductedUnits} ${unitLabel}` : '0';
+    
+    // Stock Físico Contado
+    const physBultos = typeof it.physicalStockBultos === 'number' ? it.physicalStockBultos : it.stockBultos;
+    const physLoose = typeof it.physicalStockLooseUnits === 'number' ? it.physicalStockLooseUnits : it.stockLooseUnits;
+    const physTotal = typeof it.physicalStockTotalUnits === 'number' ? it.physicalStockTotalUnits : (physBultos * it.unitsPerPackage + physLoose);
+    const physLabel = physBultos > 0
+      ? (physLoose > 0 ? `${physBultos} b + ${physLoose} ${unitLabel}` : `${physBultos} b (${physTotal} ${unitLabel})`)
+      : (physLoose > 0 ? `${physLoose} ${unitLabel}` : '0');
+
+    // Consumo Previo
+    let transitLabel = '-';
+    if (it.productId === 'arroz' && it.transitionConsumptionUnits && it.transitionConsumptionUnits > 0) {
+      const days = result.transitionProjection?.daysRemaining || 0;
+      const rate = result.transitionProjection?.arrozDailyRateKg || 18;
+      transitLabel = `-${it.transitionConsumptionUnits} kg (${days}d @ ${rate}k/d)`;
+    }
+
+    // Stock Efectivo al inicio de Quincena
+    let effectiveLabel = '0';
+    if (it.totalStockDeductedUnits > 0) {
+      if (it.stockBultos > 0 && it.stockLooseUnits > 0) {
+        effectiveLabel = `${it.stockBultos} b + ${it.stockLooseUnits} ${unitLabel} (${it.totalStockDeductedUnits} ${unitLabel})`;
+      } else if (it.stockBultos > 0) {
+        effectiveLabel = `${it.stockBultos} b (${it.totalStockDeductedUnits} ${unitLabel})`;
+      } else {
+        effectiveLabel = `${it.totalStockDeductedUnits} ${unitLabel}`;
+      }
+    }
 
     return [
       it.productName,
       `${it.unitsPerPackage} ${unitLabel}/bulto`,
-      bultosLabel,
-      looseLabel,
-      totalDeductedLabel,
+      physLabel,
+      transitLabel,
+      effectiveLabel,
     ];
   });
 
   autoTable(doc, {
     startY: y,
-    head: [['Insumo / Rubro', 'Presentación', 'Bultos Stock', 'Und / Kg Sueltos', 'Total Deducido']],
+    head: [['Insumo / Rubro', 'Presentación', 'Stock Físico', 'Consumo Previo', 'Stock Efectivo Quincena']],
     body: stockTableRows,
     theme: 'grid',
     headStyles: {
@@ -166,14 +191,14 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
       halign: 'center',
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 58 },
-      1: { halign: 'center', cellWidth: 30 },
-      2: { halign: 'center', cellWidth: 30 },
-      3: { halign: 'center', cellWidth: 30 },
-      4: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 30 },
+      0: { fontStyle: 'bold', cellWidth: 54 },
+      1: { halign: 'center', cellWidth: 26 },
+      2: { halign: 'center', cellWidth: 36 },
+      3: { halign: 'center', textColor: [180, 83, 9], cellWidth: 38 },
+      4: { halign: 'center', fontStyle: 'bold', textColor: PROC_RED, cellWidth: 36 },
     },
     styles: {
-      fontSize: 7.5,
+      fontSize: 7.2,
       cellPadding: 1.8,
       textColor: TEXT_DARK,
     },
@@ -191,7 +216,34 @@ export function generateDotacionPDF(result: DotacionCalculationResult, emittedBy
   });
 
   const finalY1 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable?.finalY || (y + 30);
-  y = finalY1 + 5;
+  y = finalY1 + 3;
+
+  // Nota de transición si aplica
+  if (result.transitionProjection && result.transitionProjection.daysRemaining > 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(6.8);
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text(
+      `* Transición: Conteo al ${result.transitionProjection.calculationDate}. Restan ${result.transitionProjection.daysRemaining} día(s) para la quincena (${result.transitionProjection.targetStartDate}). Consumo Comedor (-${result.transitionProjection.arrozIntermediateConsumptionKg} kg) deducido de stock.`,
+      margin,
+      y
+    );
+    y += 3.5;
+
+    if (result.transitionProjection.isRiceDeficit) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      doc.setTextColor(...PROC_RED);
+      doc.text(
+        `* ALERTA: El inventario de arroz (${result.transitionProjection.arrozPhysicalStockKg} kg) no cubre los ${result.transitionProjection.daysRemaining} días previos. Déficit proyectado: ${result.transitionProjection.riceDeficitKg} kg.`,
+        margin,
+        y
+      );
+      y += 3.5;
+    }
+  }
+
+  y += 2;
 
   // --- TABLA 2: PEDIDO DE COMPRA DE BULTOS (REQUERIMIENTO CONSOLIDADO) ---
   doc.setFont('helvetica', 'bold');

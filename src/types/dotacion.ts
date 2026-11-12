@@ -117,6 +117,20 @@ export interface CompanyDotacionCalculation {
   totalLooseUnits: number;
 }
 
+export interface TransitionProjection {
+  calculationDate: string; // YYYY-MM-DD
+  targetStartDate: string; // YYYY-MM-DD
+  daysRemaining: number;
+  arrozDailyRateKg: number;
+  arrozIntermediateConsumptionKg: number;
+  arrozPhysicalStockKg: number;
+  arrozProjectedStockKg: number;
+  arrozProjectedBultos: number;
+  arrozProjectedLooseKg: number;
+  isRiceDeficit: boolean;
+  riceDeficitKg: number;
+}
+
 export interface GlobalItemCalculation {
   productId: 'harina' | 'arroz' | 'azucar' | 'papel' | 'jabon';
   productName: string;
@@ -157,6 +171,11 @@ export interface GlobalItemCalculation {
   totalUnitsPurchased: number;
   netSurplusUnits: number;
   includedInPeriod: boolean;
+  physicalStockBultos?: number;
+  physicalStockLooseUnits?: number;
+  physicalStockTotalUnits?: number;
+  transitionConsumptionUnits?: number;
+  transitionNote?: string;
 }
 
 export interface NonComboDestinationItem {
@@ -186,6 +205,7 @@ export interface DotacionCalculationResult {
   totalGlobalBultos: number;
   totalGlobalLooseUnits: number;
   nonComboDestinations?: NonComboDestinationItem[];
+  transitionProjection?: TransitionProjection;
   formattedMessages: {
     pcMessage: string;
     maMessage: string;
@@ -225,6 +245,9 @@ export interface DotacionSnapshot {
   arrozMaxSurplusKg?: number;
   presentations: ProductPresentationConfig;
   adjustments?: DotacionAdjustments;
+  calculationDate?: string;
+  targetQuincenaDate?: string;
+  daysUntilQuincena?: number;
   result: DotacionCalculationResult;
   createdAt: string;
   createdBy: string;

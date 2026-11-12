@@ -62,6 +62,7 @@ import {
 } from '@/types/dotacion';
 import {
   calculateDotacion,
+  computeDaysUntilQuincena,
   EMPTY_CONSOLIDATED_STOCK,
   EXAMPLE_CONSOLIDATED_STOCK,
   EXAMPLE_EMPLOYEES,
@@ -124,6 +125,30 @@ export default function DotacionQuincenal() {
     papel: { bultos: 0, looseUnits: 0 },
     jabon: { bultos: 0, looseUnits: 0 },
   });
+
+  // --- TRANSICIÓN Y DÍAS PREVIOS AL INICIO DE LA QUINCENA ---
+  const initialTodayStr = useMemo(() => {
+    const d = new Date();
+    const pad = (n: number) => (n < 10 ? '0' + n : n.toString());
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, []);
+  const [calculationDate, setCalculationDate] = useState<string>(initialTodayStr);
+  const [targetQuincenaDateOverride, setTargetQuincenaDateOverride] = useState<string | null>(null);
+  const [manualDaysOverride, setManualDaysOverride] = useState<number | null>(null);
+
+  // Fecha objetivo de la quincena (por defecto Día 15 para 1.ª Qna o Día 30 para 2.ª Qna)
+  const defaultTargetDateStr = useMemo(() => {
+    return computeDaysUntilQuincena(calculationDate, selectedYear, selectedMonth, quincena).targetStartDate;
+  }, [calculationDate, selectedYear, selectedMonth, quincena]);
+  const targetQuincenaDate = targetQuincenaDateOverride || defaultTargetDateStr;
+
+  // Días calculados automáticamente a partir de la fecha seleccionada y la fecha de entrega
+  const autoCalculatedDays = useMemo(() => {
+    return computeDaysUntilQuincena(calculationDate, selectedYear, selectedMonth, quincena, targetQuincenaDate).autoDays;
+  }, [calculationDate, selectedYear, selectedMonth, quincena, targetQuincenaDate]);
+
+  // Días efectivos: manual si el usuario escribió un valor, o autoCalculatedDays
+  const daysUntilQuincena = manualDaysOverride !== null ? manualDaysOverride : autoCalculatedDays;
 
   // --- DYNAMIC USER ADJUSTMENTS (+/- BULTOS PER ITEM FOR PC & MA) ---
   const [adjustments, setAdjustments] = useState<DotacionAdjustments>({});
@@ -207,6 +232,9 @@ export default function DotacionQuincenal() {
       quincena,
       month: selectedMonth,
       year: selectedYear,
+      calculationDate,
+      targetQuincenaDate,
+      daysUntilQuincena,
       stock,
       comedor,
       finca,
@@ -227,6 +255,9 @@ export default function DotacionQuincenal() {
     quincena,
     selectedMonth,
     selectedYear,
+    calculationDate,
+    targetQuincenaDate,
+    daysUntilQuincena,
     stock,
     comedor,
     finca,
@@ -374,6 +405,9 @@ export default function DotacionQuincenal() {
         azucarUsoMesBultos,
         presentations,
         adjustments,
+        calculationDate,
+        targetQuincenaDate,
+        daysUntilQuincena,
         result,
         createdBy: userName || 'Usuario Almacén',
       });
@@ -399,6 +433,19 @@ export default function DotacionQuincenal() {
     setAzucarUsoMesBultos(s.azucarUsoMesBultos ?? DEFAULT_AZUCAR_USO_MES_BULTOS);
     setPresentations({ ...s.presentations });
     setAdjustments(s.adjustments || {});
+    if (s.calculationDate) {
+      setCalculationDate(s.calculationDate);
+    }
+    if (s.targetQuincenaDate) {
+      setTargetQuincenaDateOverride(s.targetQuincenaDate);
+    } else {
+      setTargetQuincenaDateOverride(null);
+    }
+    if (typeof s.daysUntilQuincena === 'number') {
+      setManualDaysOverride(s.daysUntilQuincena);
+    } else {
+      setManualDaysOverride(null);
+    }
     if (s.globalPurchaseMode) {
       setGlobalPurchaseMode(s.globalPurchaseMode);
     }
@@ -854,12 +901,107 @@ export default function DotacionQuincenal() {
               </Badge>
             </div>
 
-            {/* Mensaje sutil sobre margen de tiempo y consumo previsto */}
-            <div className="flex items-start gap-2 p-2 sm:p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/60 text-[11px] text-amber-900 leading-snug">
-              <Info className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                <strong>Nota operativa:</strong> Considere el margen de días entre el levantamiento de esta solicitud y la fecha efectiva de compra/llegada. El inventario actual continuará consumiéndose durante ese lapso (ej. comedor y planta).
-              </span>
+            {/* Panel de Control de Transición y Días Previos a la Quincena */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-procarni-blue shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Fecha de Conteo y Días de Transición
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Calcula el consumo del comedor previo al inicio de la quincena ({result.transitionProjection?.targetStartDate})
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                      Fecha Conteo:
+                    </Label>
+                    <Input
+                      type="date"
+                      value={calculationDate}
+                      onChange={(e) => {
+                        setCalculationDate(e.target.value);
+                        setManualDaysOverride(null);
+                      }}
+                      className="h-8 text-xs font-mono w-32 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                      Fecha Quincena:
+                    </Label>
+                    <Input
+                      type="date"
+                      value={targetQuincenaDate}
+                      onChange={(e) => {
+                        setTargetQuincenaDateOverride(e.target.value);
+                        setManualDaysOverride(null);
+                      }}
+                      className="h-8 text-xs font-mono w-32 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                      Días Previos:
+                    </Label>
+                    <div className="relative flex items-center">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={31}
+                        value={daysUntilQuincena}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setManualDaysOverride(isNaN(val) ? 0 : Math.max(0, val));
+                        }}
+                        className="h-8 text-xs font-mono font-bold w-16 text-center bg-white pr-5"
+                      />
+                      <span className="absolute right-2 text-[10px] text-slate-400 font-bold pointer-events-none">d</span>
+                    </div>
+                    {(manualDaysOverride !== null || targetQuincenaDateOverride !== null) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setManualDaysOverride(null);
+                          setTargetQuincenaDateOverride(null);
+                        }}
+                        className="h-8 px-2 text-[10px] text-procarni-primary hover:bg-red-50 font-semibold"
+                        title="Restablecer a fecha y días automáticos según calendario"
+                      >
+                        Auto ({autoCalculatedDays}d)
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Banner informativo de consumo previsto de Arroz */}
+              {result.transitionProjection && result.transitionProjection.daysRemaining > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900">
+                  <div className="flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>
+                      <strong>Consumo de Arroz comedor previo:</strong> {result.transitionProjection.daysRemaining} días × {result.transitionProjection.arrozDailyRateKg} kg/día = <strong>{result.transitionProjection.arrozIntermediateConsumptionKg} kg</strong> a deducir del almacén antes del día de quincena.
+                    </span>
+                  </div>
+                  {result.transitionProjection.isRiceDeficit ? (
+                    <Badge variant="destructive" className="text-[10px] bg-red-600 shrink-0 animate-pulse">
+                      Déficit: Faltan {result.transitionProjection.riceDeficitKg} kg en almacén
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-mono bg-white text-emerald-700 border-emerald-300 font-bold shrink-0">
+                      Stock neto quincena: {result.transitionProjection.arrozProjectedBultos} b + {result.transitionProjection.arrozProjectedLooseKg} kg ({result.transitionProjection.arrozProjectedStockKg} kg)
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="p-2.5 sm:p-6 pt-0 sm:pt-1">
@@ -953,11 +1095,27 @@ export default function DotacionQuincenal() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 text-xs">
-                  <span className="text-slate-500 font-medium text-[11px]">Total Deducido:</span>
-                  <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
-                    {stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg
-                  </span>
+                <div className="pt-1.5 border-t border-slate-200/80 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Stock Físico Contado:</span>
+                    <span className="font-mono font-bold">
+                      {stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg
+                    </span>
+                  </div>
+                  {result.transitionProjection && result.transitionProjection.daysRemaining > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-amber-700 font-medium">
+                      <span>Consumo previo ({result.transitionProjection.daysRemaining}d @ {result.transitionProjection.arrozDailyRateKg}k/d):</span>
+                      <span className="font-mono font-bold">-{result.transitionProjection.arrozIntermediateConsumptionKg} kg</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <span className="text-slate-700 font-bold text-[11px]">Deducción Neta Quincena:</span>
+                    <span className="font-mono font-bold text-procarni-primary text-xs sm:text-sm">
+                      {result.transitionProjection
+                        ? `${result.transitionProjection.arrozProjectedBultos} b + ${result.transitionProjection.arrozProjectedLooseKg} kg (${result.transitionProjection.arrozProjectedStockKg} kg)`
+                        : `${stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1124,7 +1282,7 @@ export default function DotacionQuincenal() {
                     <th className="text-center pb-2 font-semibold">Presentación</th>
                     <th className="text-center pb-2 font-semibold text-procarni-blue">Bultos Completos</th>
                     <th className="text-center pb-2 font-semibold text-amber-700">Und / Kg Sueltos</th>
-                    <th className="text-center pb-2 font-semibold text-procarni-dark">Total Unidades Deducidas</th>
+                    <th className="text-center pb-2 font-semibold text-procarni-dark">Total Deducido al Inicio de Quincena</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1189,8 +1347,26 @@ export default function DotacionQuincenal() {
                         className="h-8 w-24 mx-auto text-center font-mono text-xs placeholder:text-slate-300"
                       />
                     </td>
-                    <td className="text-center font-mono font-bold text-procarni-primary text-sm">
-                      {stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg
+                    <td className="text-center py-2">
+                      {result.transitionProjection && result.transitionProjection.daysRemaining > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <span className="font-mono font-bold text-procarni-primary text-sm">
+                            {result.transitionProjection.arrozProjectedBultos} b + {result.transitionProjection.arrozProjectedLooseKg} kg ({result.transitionProjection.arrozProjectedStockKg} kg)
+                          </span>
+                          <span className="text-[10px] text-amber-700 font-medium">
+                            Físico: {stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg - {result.transitionProjection.arrozIntermediateConsumptionKg} kg ({result.transitionProjection.daysRemaining}d @ {result.transitionProjection.arrozDailyRateKg}k/d)
+                          </span>
+                          {result.transitionProjection.isRiceDeficit && (
+                            <span className="text-[9px] text-red-600 font-bold">
+                              ⚠️ Déficit: faltan {result.transitionProjection.riceDeficitKg} kg
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-mono font-bold text-procarni-primary text-sm">
+                          {stock.arroz.bultos * presentations.arrozUnitsPerPackage + stock.arroz.looseUnits} kg
+                        </span>
+                      )}
                     </td>
                   </tr>
 

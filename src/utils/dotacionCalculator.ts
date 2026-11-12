@@ -81,6 +81,46 @@ export const DEFAULT_GLOBAL_PURCHASE_MODE: PurchaseMode = 'mixto';
 export const DEFAULT_SURPLUS_TOLERANCE_PERCENT = 25; // 25% del bulto para insumos generales
 export const DEFAULT_ARROZ_MAX_SURPLUS_KG = 18; // 18 kg (1 día completo de consumo del comedor a 18 kg/día)
 
+export function computeQuincenaTargetStartDate(year: number, month: number, quincena: QuincenaTipo): Date {
+  // 1.ª Quincena: se entrega y liquida el Día 15 del mes
+  // 2.ª Quincena: se entrega y liquida el Día 30 (o último día del mes)
+  const lastDayOfMonth = new Date(year, month, 0).getDate();
+  const targetDay = quincena === 'primera' ? 15 : Math.min(30, lastDayOfMonth);
+  return new Date(year, month - 1, targetDay);
+}
+
+export function computeDaysUntilQuincena(
+  calculationDateStr: string,
+  year: number,
+  month: number,
+  quincena: QuincenaTipo,
+  customTargetDateStr?: string
+): { targetStartDate: string; autoDays: number } {
+  const targetDate = customTargetDateStr && customTargetDateStr.split('-').length === 3
+    ? (() => {
+        const p = customTargetDateStr.split('-');
+        return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+      })()
+    : computeQuincenaTargetStartDate(year, month, quincena);
+  
+  // Normalizar fechas a medianoche local
+  const parts = (calculationDateStr || '').split('-');
+  const now = new Date();
+  const calcYear = parts.length === 3 ? parseInt(parts[0], 10) : now.getFullYear();
+  const calcMonth = parts.length === 3 ? parseInt(parts[1], 10) - 1 : now.getMonth();
+  const calcDay = parts.length === 3 ? parseInt(parts[2], 10) : now.getDate();
+  const calcDate = new Date(calcYear, calcMonth, calcDay);
+
+  const diffMs = targetDate.getTime() - calcDate.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const autoDays = Math.max(0, diffDays);
+
+  const pad = (n: number) => (n < 10 ? '0' + n : n.toString());
+  const targetStartDateStr = `${targetDate.getFullYear()}-${pad(targetDate.getMonth() + 1)}-${pad(targetDate.getDate())}`;
+
+  return { targetStartDate: targetStartDateStr, autoDays };
+}
+
 export interface CalculateDotacionParams {
   employeesPC: number;
   employeesMA: number;
@@ -89,6 +129,9 @@ export interface CalculateDotacionParams {
   quincena: QuincenaTipo;
   month?: number; // 1 - 12
   year?: number;
+  calculationDate?: string; // YYYY-MM-DD
+  targetQuincenaDate?: string; // YYYY-MM-DD (por defecto Día 15 o Día 30)
+  daysUntilQuincena?: number; // Días restantes hasta el inicio de la quincena
   stock?: Partial<ConsolidatedWarehouseStock>;
   comedor?: Partial<ComedorConfig>;
   finca?: Partial<FincaConfig>;
@@ -122,6 +165,9 @@ export function calculateDotacion({
   quincena = 'primera',
   month = new Date().getMonth() + 1,
   year = new Date().getFullYear(),
+  calculationDate,
+  targetQuincenaDate,
+  daysUntilQuincena,
   stock: customStock,
   comedor: customComedor,
   finca: customFinca,
@@ -150,6 +196,36 @@ export function calculateDotacion({
   const isSecondFortnight = quincena === 'segunda';
   const monthName = MONTH_NAMES[Math.max(0, Math.min(11, month - 1))];
   const periodLabel = `${monthName} ${year} - ${quincena === 'primera' ? '1.ª Quincena (Día 15)' : '2.ª Quincena (Día 30)'}`;
+
+  // --- TRANSICIÓN Y PROYECCIÓN DE CONSUMO PREVIO HASTA EL INICIO DE QUINCENA ---
+  const todayStr = (() => {
+    const d = new Date();
+    const pad = (n: number) => (n < 10 ? '0' + n : n.toString());
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+  const effectiveCalcDateStr = calculationDate || todayStr;
+  const { targetStartDate: targetStartDateStr, autoDays } = computeDaysUntilQuincena(
+    effectiveCalcDateStr,
+    year,
+    month,
+    quincena,
+    targetQuincenaDate
+  );
+  const effectiveTransitionDays = typeof daysUntilQuincena === 'number'
+    ? Math.max(0, daysUntilQuincena)
+    : autoDays;
+
+  // Arroz del Comedor: consumo continuo en los días de transición
+  const physicalRiceBultos = stock.arroz.bultos;
+  const physicalRiceLooseKg = stock.arroz.looseUnits;
+  const physicalRiceKg = physicalRiceBultos * pres.arrozUnitsPerPackage + physicalRiceLooseKg;
+  const arrozDailyRateKg = comedor.kgPerDay || 18;
+  const arrozIntermediateConsumptionKg = effectiveTransitionDays * arrozDailyRateKg;
+  const projectedRiceKg = Math.max(0, physicalRiceKg - arrozIntermediateConsumptionKg);
+  const projectedRiceBultos = Math.floor(projectedRiceKg / pres.arrozUnitsPerPackage);
+  const projectedRiceLooseKg = projectedRiceKg % pres.arrozUnitsPerPackage;
+  const isRiceDeficit = physicalRiceKg < arrozIntermediateConsumptionKg;
+  const riceDeficitKg = isRiceDeficit ? arrozIntermediateConsumptionKg - physicalRiceKg : 0;
 
   const totalEmployees = employeesPC + employeesMA;
   const totalContingencyCombos = (contingencyCombosPC || 0) + (contingencyCombosMA || 0);
@@ -232,6 +308,11 @@ export function calculateDotacion({
     maFixedLabel: string;
     stockBultos: number;
     stockLooseUnits: number;
+    physicalStockBultos: number;
+    physicalStockLooseUnits: number;
+    physicalStockTotalUnits: number;
+    transitionConsumptionUnits: number;
+    transitionNote?: string;
   }
 
   const preps: ItemPrep[] = [
@@ -250,6 +331,11 @@ export function calculateDotacion({
       maFixedLabel: hasEmployees && fincaBultosMA > 0 ? `Finca (${fincaBultosMA} bulto${fincaBultosMA > 1 ? 's' : ''})` : '-',
       stockBultos: stock.harina.bultos,
       stockLooseUnits: stock.harina.looseUnits,
+      physicalStockBultos: stock.harina.bultos,
+      physicalStockLooseUnits: stock.harina.looseUnits,
+      physicalStockTotalUnits: stock.harina.bultos * pres.harinaUnitsPerPackage + stock.harina.looseUnits,
+      transitionConsumptionUnits: 0,
+      transitionNote: undefined,
     },
     {
       id: 'arroz',
@@ -268,8 +354,16 @@ export function calculateDotacion({
       maFixedLabel: hasEmployees && totalArrozUnitsMA > 0
         ? (fincaArrozUnitsMA > 0 ? `Comedor (${comedorUnitsMA} kg) + Finca (${fincaArrozUnitsMA} kg)` : `Comedor (${comedorUnitsMA} kg)`)
         : '-',
-      stockBultos: stock.arroz.bultos,
-      stockLooseUnits: stock.arroz.looseUnits,
+      // Para Arroz: el stock deducible para la siguiente quincena es el stock proyectado neto
+      stockBultos: projectedRiceBultos,
+      stockLooseUnits: projectedRiceLooseKg,
+      physicalStockBultos: physicalRiceBultos,
+      physicalStockLooseUnits: physicalRiceLooseKg,
+      physicalStockTotalUnits: physicalRiceKg,
+      transitionConsumptionUnits: arrozIntermediateConsumptionKg,
+      transitionNote: effectiveTransitionDays > 0
+        ? `Consumo previo (${effectiveTransitionDays} día${effectiveTransitionDays > 1 ? 's' : ''} @ ${arrozDailyRateKg} kg/d): -${arrozIntermediateConsumptionKg} kg. Stock neto proyectado: ${projectedRiceBultos} b + ${projectedRiceLooseKg} kg (${projectedRiceKg} kg)`
+        : undefined,
     },
     {
       id: 'azucar',
@@ -294,6 +388,11 @@ export function calculateDotacion({
         : '-',
       stockBultos: stock.azucar.bultos,
       stockLooseUnits: stock.azucar.looseUnits,
+      physicalStockBultos: stock.azucar.bultos,
+      physicalStockLooseUnits: stock.azucar.looseUnits,
+      physicalStockTotalUnits: stock.azucar.bultos * pres.azucarUnitsPerPackage + stock.azucar.looseUnits,
+      transitionConsumptionUnits: 0,
+      transitionNote: undefined,
     },
     {
       id: 'papel',
@@ -310,6 +409,11 @@ export function calculateDotacion({
       maFixedLabel: hasEmployees && papelBultosMA > 0 ? `Uso Planta (${papelBultosMA} bulto)` : '-',
       stockBultos: stock.papel.bultos,
       stockLooseUnits: stock.papel.looseUnits,
+      physicalStockBultos: stock.papel.bultos,
+      physicalStockLooseUnits: stock.papel.looseUnits,
+      physicalStockTotalUnits: stock.papel.bultos * pres.papelUnitsPerPackage + stock.papel.looseUnits,
+      transitionConsumptionUnits: 0,
+      transitionNote: undefined,
     },
     {
       id: 'jabon',
@@ -326,6 +430,11 @@ export function calculateDotacion({
       maFixedLabel: '-',
       stockBultos: isSecondFortnight ? stock.jabon.bultos : 0,
       stockLooseUnits: isSecondFortnight ? stock.jabon.looseUnits : 0,
+      physicalStockBultos: isSecondFortnight ? stock.jabon.bultos : 0,
+      physicalStockLooseUnits: isSecondFortnight ? stock.jabon.looseUnits : 0,
+      physicalStockTotalUnits: isSecondFortnight ? (stock.jabon.bultos * pres.jabonUnitsPerPackage + stock.jabon.looseUnits) : 0,
+      transitionConsumptionUnits: 0,
+      transitionNote: undefined,
     },
   ];
 
@@ -729,6 +838,11 @@ export function calculateDotacion({
       totalUnitsPurchased: globalPurchased,
       netSurplusUnits: globalPurchased - globalNetUnits,
       includedInPeriod: true,
+      physicalStockBultos: p.physicalStockBultos,
+      physicalStockLooseUnits: p.physicalStockLooseUnits,
+      physicalStockTotalUnits: p.physicalStockTotalUnits,
+      transitionConsumptionUnits: p.transitionConsumptionUnits,
+      transitionNote: p.transitionNote,
     });
   });
 
@@ -943,6 +1057,19 @@ export function calculateDotacion({
     totalGlobalBultos,
     totalGlobalLooseUnits,
     nonComboDestinations,
+    transitionProjection: {
+      calculationDate: effectiveCalcDateStr,
+      targetStartDate: targetStartDateStr,
+      daysRemaining: effectiveTransitionDays,
+      arrozDailyRateKg,
+      arrozIntermediateConsumptionKg,
+      arrozPhysicalStockKg: physicalRiceKg,
+      arrozProjectedStockKg: projectedRiceKg,
+      arrozProjectedBultos: projectedRiceBultos,
+      arrozProjectedLooseKg: projectedRiceLooseKg,
+      isRiceDeficit,
+      riceDeficitKg,
+    },
     formattedMessages: {
       pcMessage,
       maMessage,
