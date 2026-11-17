@@ -427,20 +427,25 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-3.5 sm:p-6">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-red-100 text-procarni-primary">
-              <ShoppingCart className="w-5 h-5" />
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full sm:max-w-4xl lg:max-w-5xl max-h-[94vh] overflow-y-auto p-3.5 sm:p-5">
+        <DialogHeader className="pb-1 sm:pb-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-red-100 text-procarni-primary shrink-0">
+                <ShoppingCart className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-lg font-bold text-procarni-dark truncate">
+                  Generar Orden de Compra desde Dotación Quincenal
+                </DialogTitle>
+                <DialogDescription className="text-[11px] text-slate-500 truncate">
+                  Convierte los bultos calculados en una Orden de Compra formal en estado Borrador.
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-lg font-bold text-procarni-dark">
-                Generar Orden de Compra desde Dotación Quincenal
-              </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500">
-                Convierte los bultos calculados en una Orden de Compra formal en estado Borrador.
-              </DialogDescription>
-            </div>
+            <Badge variant="outline" className="hidden sm:inline-flex text-[10px] text-slate-600 bg-slate-50 font-mono shrink-0">
+              {result.periodLabel}
+            </Badge>
           </div>
         </DialogHeader>
 
@@ -493,74 +498,77 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
             </div>
           </div>
         ) : (
-          <div className="space-y-5 pt-2">
-            {/* Empresa Selector */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+          <div className="space-y-2.5 pt-0.5">
+            {/* Empresa Selector y Proveedor en fila compacta */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
+              <div className="md:col-span-5 space-y-1">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                   Empresa Compradora
                 </Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setSelectedCompanyId('pc')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
+                    className={`px-2.5 py-1.5 rounded-lg border text-left transition-all flex items-center justify-between ${
                       selectedCompanyId === 'pc'
-                        ? 'border-procarni-blue bg-blue-50/60 ring-2 ring-procarni-blue/20'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                        ? 'border-procarni-blue bg-blue-50/80 ring-1 ring-procarni-blue/30 text-procarni-blue font-bold shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
                     }`}
                   >
-                    <span className="text-[10px] uppercase font-bold text-procarni-blue block">Empresa Principal</span>
-                    <span className="text-xs font-extrabold text-slate-900 block truncate">Productos Cárnicos</span>
-                    <span className="text-[11px] font-mono text-slate-500 font-bold mt-1 block">
-                      {result.pc.totalBultos} bultos
+                    <span className="text-xs truncate">Cárnicos (PC)</span>
+                    <span className="text-[10px] font-mono font-extrabold ml-1 px-1.5 py-0.5 rounded bg-white/90 text-procarni-blue shrink-0">
+                      {result.pc.totalBultos} bto
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setSelectedCompanyId('ma')}
-                    className={`p-3 rounded-xl border text-left transition-all ${
+                    className={`px-2.5 py-1.5 rounded-lg border text-left transition-all flex items-center justify-between ${
                       selectedCompanyId === 'ma'
-                        ? 'border-procarni-secondary bg-emerald-50/60 ring-2 ring-procarni-secondary/20'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                        ? 'border-procarni-secondary bg-emerald-50/80 ring-1 ring-procarni-secondary/30 text-procarni-secondary font-bold shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
                     }`}
                   >
-                    <span className="text-[10px] uppercase font-bold text-procarni-secondary block">Empresa Principal</span>
-                    <span className="text-xs font-extrabold text-slate-900 block truncate">Montano Antilia</span>
-                    <span className="text-[11px] font-mono text-slate-500 font-bold mt-1 block">
-                      {result.ma.totalBultos} bultos
+                    <span className="text-xs truncate">Montano (MA)</span>
+                    <span className="text-[10px] font-mono font-extrabold ml-1 px-1.5 py-0.5 rounded bg-white/90 text-procarni-secondary shrink-0">
+                      {result.ma.totalBultos} bto
                     </span>
                   </button>
                 </div>
               </div>
 
               {/* Proveedor Selector (Combobox con barra de búsqueda) */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Proveedor de Alimentos / Aseo
-                </Label>
+              <div className="md:col-span-7 space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Proveedor de Alimentos / Aseo
+                  </Label>
+                  <span className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                    Adjudicación de la orden
+                  </span>
+                </div>
                 <Popover open={supplierComboboxOpen} onOpenChange={setSupplierComboboxOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={supplierComboboxOpen}
-                      className="w-full justify-between h-10 text-xs bg-white font-normal border-slate-200 hover:bg-slate-50 text-slate-800"
+                      className="w-full justify-between h-8 text-xs bg-white font-normal border-slate-200 hover:bg-slate-50 text-slate-800"
                     >
                       <span className="truncate">
                         {selectedSupplier
                           ? `${selectedSupplier.name} (${selectedSupplier.rif || 'S/R'})`
                           : 'Buscar y seleccionar proveedor...'}
                       </span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      <ChevronsUpDown className="ml-1.5 h-3.5 w-3.5 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[100]" align="start">
                     <Command>
-                      <CommandInput placeholder="Buscar proveedor por nombre o RIF..." className="h-9 text-xs" />
-                      <CommandList className="max-h-60 overflow-y-auto">
-                        <CommandEmpty className="py-3 text-center text-xs text-slate-500">
+                      <CommandInput placeholder="Buscar proveedor por nombre o RIF..." className="h-8 text-xs" />
+                      <CommandList className="max-h-56 overflow-y-auto">
+                        <CommandEmpty className="py-2.5 text-center text-xs text-slate-500">
                           No se encontraron proveedores.
                         </CommandEmpty>
                         <CommandGroup>
@@ -572,7 +580,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                                 setSelectedSupplierId(s.id);
                                 setSupplierComboboxOpen(false);
                               }}
-                              className="text-xs cursor-pointer flex items-center justify-between py-2 px-3 hover:bg-slate-100"
+                              className="text-xs cursor-pointer flex items-center justify-between py-1.5 px-2.5 hover:bg-slate-100"
                             >
                               <div className="flex flex-col min-w-0 pr-2">
                                 <span className="font-semibold text-slate-800 truncate">{s.name}</span>
@@ -588,16 +596,41 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                     </Command>
                   </PopoverContent>
                 </Popover>
-                <p className="text-[10px] text-slate-500">
-                  Proveedor registrado al cual se le adjudicará el pedido.
-                </p>
               </div>
             </div>
 
             {/* Condiciones Comerciales y Tasa de Cambio */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 sm:p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs">
               <div>
-                <Label className="text-[10px] font-bold text-slate-500 uppercase">Moneda</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">Moneda</Label>
+                  {currency === 'VES' && (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setBaseCurrency('USD')}
+                        className={`px-1 py-0.2 rounded text-[9px] font-bold border transition-colors ${
+                          baseCurrency === 'USD'
+                            ? 'bg-procarni-primary text-white border-procarni-primary'
+                            : 'bg-white text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        USD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBaseCurrency('EUR')}
+                        className={`px-1 py-0.2 rounded text-[9px] font-bold border transition-colors ${
+                          baseCurrency === 'EUR'
+                            ? 'bg-procarni-primary text-white border-procarni-primary'
+                            : 'bg-white text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        EUR
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <Select
                   value={currency}
                   onValueChange={(val) => {
@@ -608,7 +641,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                     }
                   }}
                 >
-                  <SelectTrigger className="h-10 sm:h-8 text-xs mt-1 bg-white">
+                  <SelectTrigger className="h-8 text-xs mt-0.5 bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -617,33 +650,6 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                     <SelectItem value="EUR">EUR (€)</SelectItem>
                   </SelectContent>
                 </Select>
-                {currency === 'VES' && (
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <span className="text-[10px] text-slate-500 font-medium">Ref:</span>
-                    <button
-                      type="button"
-                      onClick={() => setBaseCurrency('USD')}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                        baseCurrency === 'USD'
-                          ? 'bg-procarni-primary text-white border-procarni-primary'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      USD
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBaseCurrency('EUR')}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                        baseCurrency === 'EUR'
-                          ? 'bg-procarni-primary text-white border-procarni-primary'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      EUR
-                    </button>
-                  </div>
-                )}
               </div>
 
               <div>
@@ -658,7 +664,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               <div>
                 <Label className="text-[10px] font-bold text-slate-500 uppercase">Condición Pago</Label>
                 <Select value={paymentTerms} onValueChange={setPaymentTerms}>
-                  <SelectTrigger className="h-10 sm:h-8 text-xs mt-1 bg-white">
+                  <SelectTrigger className="h-8 text-xs mt-0.5 bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -676,7 +682,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                   type="date"
                   value={deliveryDate}
                   onChange={(e) => setDeliveryDate(e.target.value)}
-                  className="h-10 sm:h-8 text-xs mt-1 bg-white"
+                  className="h-8 text-xs mt-0.5 bg-white"
                 />
               </div>
             </div>
@@ -710,23 +716,23 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               </div>
 
               {!isLoadingMeta && itemRows.some((r) => r.selected && !r.materialId) && (
-                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-[11px] text-amber-900">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-[11px] text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
                     Uno o más ítems no tienen un material oficial vinculado en el catálogo (falta ID). Configúralos en{' '}
-                    <strong>Configuración &gt; Vinculación de Ítems de Dotación</strong> antes de emitir la orden.
+                    <strong>Configuración &gt; Vinculación de Ítems de Dotación</strong>.
                   </span>
                 </div>
               )}
 
               {/* MOBILE STACKED CARDS (< md) */}
-              <div className="block md:hidden space-y-2.5 max-h-72 overflow-y-auto pr-1">
+              <div className="block md:hidden space-y-2 max-h-72 overflow-y-auto pr-1">
                 {itemRows.map((row, idx) => {
                   const pres = getItemPresentation(row.productId, row.quantity, row.isLoose);
                   return (
                     <div
                       key={`${row.productId}-${row.unit}-${idx}`}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`p-2.5 rounded-xl border transition-all ${
                         row.selected ? 'bg-white border-slate-300 shadow-xs' : 'bg-slate-50/70 border-slate-200 opacity-50'
                       }`}
                     >
@@ -735,7 +741,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                           type="checkbox"
                           checked={row.selected}
                           onChange={() => handleToggleItem(idx)}
-                          className="mt-0.5 rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-5 h-5 cursor-pointer shrink-0"
+                          className="mt-0.5 rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-4 h-4 cursor-pointer shrink-0"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -751,7 +757,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                               </span>
                             ) : !isLoadingMeta && !row.materialId ? (
                               <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-50 text-red-700 border border-red-200">
-                                Sin ID catálogo
+                                Sin ID
                               </span>
                             ) : null}
                             {row.isExempt ? (
@@ -764,16 +770,16 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                               </span>
                             )}
                           </div>
-                          <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                          <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
                             {pres.label}
                           </span>
                         </div>
                       </div>
 
                       {row.selected && (
-                        <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2 border-t border-slate-100">
+                        <div className="grid grid-cols-2 gap-2 mt-2 pt-1.5 border-t border-slate-100">
                           <div>
-                            <Label className="text-[10px] uppercase font-bold text-slate-400 block">
+                            <Label className="text-[9px] uppercase font-bold text-slate-400 block">
                               Cant. ({row.unit || 'Bultos'})
                             </Label>
                             <Input
@@ -783,12 +789,12 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                               value={row.quantity || ''}
                               placeholder="0"
                               onChange={(e) => handleQuantityChange(idx, e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
-                              className="h-10 text-center font-mono font-bold text-sm mt-1 bg-white"
+                              className="h-8 text-center font-mono font-bold text-xs mt-0.5 bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <Label className="text-[10px] uppercase font-bold text-slate-400 block">
+                              <Label className="text-[9px] uppercase font-bold text-slate-400 block">
                                 P. Unit ({currency})
                               </Label>
                               <LastPriceButton
@@ -805,7 +811,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                               value={row.unitPrice}
                               onChange={(val) => handlePriceChange(idx, val)}
                               placeholder="0.00"
-                              className="h-10 text-center font-mono font-bold text-sm mt-1 bg-white"
+                              className="h-8 text-center font-mono font-bold text-xs mt-0.5 bg-white"
                             />
                           </div>
                         </div>
@@ -816,14 +822,14 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               </div>
 
               {/* DESKTOP TABLE (>= md) */}
-              <div className="hidden md:block border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+              <div className="hidden md:block border border-slate-200 rounded-xl overflow-hidden max-h-[380px] overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500">
-                      <TableHead className="w-10 text-center">Sel.</TableHead>
-                      <TableHead>Insumo y Presentación</TableHead>
-                      <TableHead className="text-center w-28">Cantidad</TableHead>
-                      <TableHead className="text-center w-36">P. Unit ({currency})</TableHead>
+                      <TableHead className="w-10 text-center py-2">Sel.</TableHead>
+                      <TableHead className="py-2">Insumo y Presentación</TableHead>
+                      <TableHead className="text-center w-28 py-2">Cantidad</TableHead>
+                      <TableHead className="text-center w-52 py-2">P. Unit ({currency})</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="text-xs divide-y divide-slate-100">
@@ -831,7 +837,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                       const pres = getItemPresentation(row.productId, row.quantity, row.isLoose);
                       return (
                         <TableRow key={`${row.productId}-${row.unit}-${idx}`} className={row.selected ? 'bg-white' : 'opacity-40 bg-slate-50'}>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center py-2">
                             <input
                               type="checkbox"
                               checked={row.selected}
@@ -839,7 +845,7 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                               className="rounded border-slate-300 text-procarni-primary focus:ring-procarni-primary/20 w-4 h-4 cursor-pointer"
                             />
                           </TableCell>
-                          <TableCell className="py-2.5">
+                          <TableCell className="py-2">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-800 text-xs">{row.materialName}</span>
                               {row.isLoose && (
@@ -866,11 +872,11 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                            <span className="text-[10px] text-slate-500 font-medium block mt-0.5 leading-tight">
                               {pres.label}
                             </span>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center py-2">
                             <Input
                               type="number"
                               min={0}
@@ -882,14 +888,14 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
                               className="h-7 w-20 mx-auto text-center font-mono text-xs"
                             />
                           </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center gap-1">
+                          <TableCell className="text-center py-2">
+                            <div className="flex items-center justify-center gap-1.5">
                               <PriceInput
                                 value={row.unitPrice}
                                 disabled={!row.selected}
                                 onChange={(val) => handlePriceChange(idx, val)}
                                 placeholder="0.00"
-                                className="h-7 w-24 mx-auto text-center font-mono text-xs"
+                                className="h-7 w-20 text-center font-mono text-xs"
                               />
                               {row.selected && (
                                 <LastPriceButton
@@ -912,17 +918,17 @@ export const DotacionGeneratePODialog: React.FC<DotacionGeneratePODialogProps> =
               </div>
             </div>
 
-            {/* Observaciones */}
-            <div className="space-y-1">
-              <Label htmlFor="obs" className="text-[10px] font-bold text-slate-500 uppercase">
-                Observaciones de la Orden
+            {/* Observaciones (compacto) */}
+            <div className="flex items-center gap-2 pt-0.5">
+              <Label htmlFor="obs" className="text-[10px] font-bold text-slate-500 uppercase shrink-0">
+                Observaciones:
               </Label>
               <Input
                 id="obs"
                 value={observations}
                 onChange={(e) => setObservations(e.target.value)}
-                className="h-10 sm:h-8 text-xs"
-                placeholder="Observaciones adicionales..."
+                className="h-7.5 text-xs bg-white"
+                placeholder="Observaciones adicionales para la orden..."
               />
             </div>
           </div>
