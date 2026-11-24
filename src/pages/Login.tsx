@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
 const Login = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -19,17 +20,32 @@ const Login = () => {
     setError(null);
 
     try {
-      let loginEmail = identifier;
+      const cleanIdentifier = identifier.trim();
+      let loginEmail = cleanIdentifier;
 
       // Si el identificador no tiene '@', asumimos que es un username
-      if (!identifier.includes('@')) {
+      if (!cleanIdentifier.includes('@')) {
+        // Primero intentamos con el username tal como fue ingresado
         const { data: emailData, error: rpcError } = await supabase
-          .rpc('get_email_by_username', { p_username: identifier });
+          .rpc('get_email_by_username', { p_username: cleanIdentifier });
 
-        if (rpcError) throw new Error('Error al verificar el usuario.');
-        if (!emailData) throw new Error('Usuario no encontrado.');
+        if (rpcError) {
+          console.error('RPC Error:', rpcError);
+          throw new Error('Error al verificar el usuario en el servidor.');
+        }
 
-        loginEmail = emailData;
+        if (!emailData) {
+          // Intentar con el username en minúsculas por si el teclado móvil capitalizó la primera letra
+          const { data: lowerEmailData } = await supabase
+            .rpc('get_email_by_username', { p_username: cleanIdentifier.toLowerCase() });
+
+          if (!lowerEmailData) {
+            throw new Error('Usuario no encontrado. Verifica si está bien escrito o ingresa con tu correo corporativo.');
+          }
+          loginEmail = lowerEmailData;
+        } else {
+          loginEmail = emailData;
+        }
       }
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -39,7 +55,7 @@ const Login = () => {
 
       if (signInError) {
         if (signInError.message === 'Invalid login credentials') {
-          throw new Error('Credenciales inválidas.');
+          throw new Error('Credenciales inválidas. Verifica tu contraseña y que el usuario o correo sea el correcto.');
         }
         throw signInError;
       }
@@ -111,7 +127,12 @@ const Login = () => {
               </label>
               <input
                 id="identifier"
+                name="username"
                 type="text"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="ejemplo@procarni.com o tunombre"
@@ -125,16 +146,32 @@ const Login = () => {
               <label htmlFor="password" className="block text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                 Contraseña
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors"
-                style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="block w-full rounded-md border-gray-200 bg-gray-50 text-gray-900 sm:text-sm focus:border-red-500 focus:ring-red-500 transition-colors pr-10"
+                  style={{ padding: '10px 12px', border: '1px solid #E5E7EB' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none p-1"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             {error && (
