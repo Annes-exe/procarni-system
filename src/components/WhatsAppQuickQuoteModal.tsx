@@ -58,7 +58,8 @@ interface WhatsAppQuickQuoteModalProps {
   initialTerm?: string;
 }
 
-export const GEMINI_REQUISITION_GEM_URL = 'https://gemini.google.com/gem/1cxkCfl8h5PmkU8HNU21Zi7KkpMXCnEum?usp=sharing';
+export const GEMINI_REQUISITION_SKILL_URL = 'https://gemini.google.com/customize/skills/d/1cxkCfl8h5PmkU8HNU21Zi7KkpMXCnEum?usp=sharing';
+export const GEMINI_REQUISITION_GEM_URL = GEMINI_REQUISITION_SKILL_URL;
 
 export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = ({
   isOpen,
@@ -192,9 +193,9 @@ export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = (
     }
   };
 
-  // Abrir Custom Gem de Gemini en nueva pestaña
-  const handleOpenGeminiRequisitionGem = () => {
-    window.open(GEMINI_REQUISITION_GEM_URL, '_blank', 'noopener,noreferrer');
+  // Abrir Skill de Gemini en nueva pestaña
+  const handleOpenGeminiRequisitionSkill = () => {
+    window.open(GEMINI_REQUISITION_SKILL_URL, '_blank', 'noopener,noreferrer');
   };
 
   // Agregar nuevo item libre
@@ -406,15 +407,15 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                     </span>
                   </div>
 
-                  {/* Barra de Acciones de Carga: Gemini Gem, Pegar y Manual */}
+                  {/* Barra de Acciones de Carga: Gemini Skill, Pegar y Manual */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Botón Abrir Custom Gem de Requisiciones */}
+                    {/* Botón Abrir Skill de Gemini de Requisiciones */}
                     <Button
                       type="button"
                       size="sm"
-                      onClick={handleOpenGeminiRequisitionGem}
+                      onClick={handleOpenGeminiRequisitionSkill}
                       className="h-7.5 px-2.5 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-xs gap-1.5 transition-all active:scale-95"
-                      title="Abrir el Custom Gem de Procarni en Gemini para transcribir foto de la requisición"
+                      title="Abrir la Skill de Procarni en Gemini para transcribir foto de la requisición"
                     >
                       <Bot className="h-3.5 w-3.5 text-blue-200" />
                       <span>Transcribir con Gemini</span>
@@ -753,10 +754,10 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
               <DialogHeader className="pb-2">
                 <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <ClipboardPaste className="h-5 w-5 text-emerald-600" />
-                  Pegar Lista de Ítems (Gemini / Requisición)
+                  Pegar Lista de Ítems (Skill Gemini / Requisición)
                 </DialogTitle>
                 <DialogDescription className="text-xs text-gray-500">
-                  Pega aquí la respuesta que te entregó Gemini o una lista de ítems. Se separarán cantidades y descripciones automáticamente.
+                  Pega aquí la respuesta que te entregó la Skill de Gemini o una lista de ítems. Se separarán cantidades y descripciones automáticamente.
                 </DialogDescription>
               </DialogHeader>
 
