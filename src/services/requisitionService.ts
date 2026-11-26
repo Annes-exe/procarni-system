@@ -21,7 +21,11 @@ export const requisitionService = {
     return data as unknown as Requisition[];
   },
 
-  create: async (type: 'purchase' | 'service' | 'warehouse' | 'logbook', quantity: number = 1): Promise<Requisition[] | null> => {
+  create: async (
+    type: 'purchase' | 'service' | 'warehouse' | 'logbook' | 'solvent_red' | 'solvent_brown', 
+    quantity: number = 1,
+    metadata?: { lot_date?: string; lot_number?: string; responsible?: string }
+  ): Promise<Requisition[] | null> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       showError('No hay sesión activa para realizar esta acción.');
@@ -30,22 +34,37 @@ export const requisitionService = {
 
     const payload = Array.from({ length: quantity }, () => ({
       type,
-      user_id: session.user.id
+      user_id: session.user.id,
+      ...(metadata?.lot_date ? { lot_date: metadata.lot_date } : {}),
+      ...(metadata?.lot_number ? { lot_number: metadata.lot_number } : {}),
+      ...(metadata?.responsible ? { responsible: metadata.responsible } : {})
     }));
 
-    const { data, error } = await supabase
+    let res = await supabase
       .from('requisitions')
       .insert(payload)
       .select('*, profiles(first_name, last_name)');
 
-    if (error) {
-      console.error('[requisitionService.create] Error:', error);
-      showError('Error al generar los formatos de requisición.');
+    // Fallback if optional metadata columns do not exist yet in DB schema
+    if (res.error && (res.error.message?.includes('column') || res.error.code === '42703')) {
+      const basicPayload = Array.from({ length: quantity }, () => ({
+        type,
+        user_id: session.user.id
+      }));
+      res = await supabase
+        .from('requisitions')
+        .insert(basicPayload)
+        .select('*, profiles(first_name, last_name)');
+    }
+
+    if (res.error) {
+      console.error('[requisitionService.create] Error:', res.error);
+      showError(`Error al generar los formatos de requisición: ${res.error.message}`);
       return null;
     }
 
     // Sort by sequence_number ascending to match insertion order
-    const sorted = [...data].sort((a, b) => a.sequence_number - b.sequence_number);
+    const sorted = [...(res.data || [])].sort((a, b) => a.sequence_number - b.sequence_number);
     return sorted as unknown as Requisition[];
   },
 

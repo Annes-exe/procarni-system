@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { requisitionService } from '@/services/requisitionService';
+import { Requisition } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,26 +30,26 @@ import {
 } from '@/components/ui/select';
 import { 
   FileSpreadsheet, 
-  Plus, 
   Printer, 
   Search, 
   FileText, 
-  HelpCircle,
-  Calendar,
-  User,
-  ArrowRight
+  Calendar, 
+  User, 
+  ArrowRight,
+  FlaskConical,
+  Droplets,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { DynamicBreadcrumbs } from '@/components/DynamicBreadcrumbs';
 import { showSuccess, showError } from '@/utils/toast';
 
 const RequisitionsManagement = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'service' | 'warehouse' | 'logbook'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'service' | 'warehouse' | 'logbook' | 'solvent_red' | 'solvent_brown'>('all');
   
-  // States for the Row Customization Dialog
+  // States for the Row Customization Dialog (Standard Requisitions)
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'purchase' | 'service' | 'warehouse' | 'logbook'>('purchase');
   const [rowCount, setRowCount] = useState<number>(15);
@@ -56,33 +57,67 @@ const RequisitionsManagement = () => {
   const [activeRequisitionId, setActiveRequisitionId] = useState<string | null>(null);
   const [dialogMode, setDialogMode] = useState<'create' | 'print_existing'>('create');
 
+  // States for Solvent Control Formats (Tapa Roja / Tapa Marrón)
+  const [isSolventDialogOpen, setIsSolventDialogOpen] = useState(false);
+  const [solventType, setSolventType] = useState<'red' | 'brown'>('red');
+  const [solventDate, setSolventDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [solventLot, setSolventLot] = useState<string>('');
+  const [solventResponsible, setSolventResponsible] = useState<string>('');
+  const [solventQuantity, setSolventQuantity] = useState<number>(1);
+
   // Fetch all requisitions
   const { data: requisitions = [], isLoading } = useQuery({
     queryKey: ['requisitions'],
     queryFn: requisitionService.getAll
   });
 
-  // Create requisition mutation
+  // Create requisition mutation (handles all types, persists to DB and creates sequential codes)
   const createMutation = useMutation({
-    mutationFn: ({ type, quantity }: { type: 'purchase' | 'service' | 'warehouse' | 'logbook'; quantity: number }) => 
-      requisitionService.create(type, quantity),
-    onSuccess: (newReqs) => {
+    mutationFn: ({ 
+      type, 
+      quantity,
+      metadata
+    }: { 
+      type: 'purchase' | 'service' | 'warehouse' | 'logbook' | 'solvent_red' | 'solvent_brown'; 
+      quantity: number;
+      metadata?: { lot_date?: string; lot_number?: string; responsible?: string };
+    }) => 
+      requisitionService.create(type, quantity, metadata),
+    onSuccess: (newReqs, variables) => {
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
       if (newReqs && newReqs.length > 0) {
         const codes = newReqs.map(r => {
-          const prefix = r.type === 'purchase' ? 'RC' : r.type === 'service' ? 'RS' : r.type === 'warehouse' ? 'VS' : 'BC';
+          const prefix = 
+            r.type === 'purchase' ? 'RC' : 
+            r.type === 'service' ? 'RS' : 
+            r.type === 'warehouse' ? 'VS' : 
+            r.type === 'logbook' ? 'BC' : 
+            r.type === 'solvent_red' ? 'STR' : 'STM';
           return `${prefix}-${String(r.sequence_number).padStart(3, '0')}`;
         }).join(', ');
-        showSuccess(`Requisiciones creadas con éxito: ${codes}`);
+        showSuccess(`Requisición generada y guardada en historial: ${codes}`);
         
         // Open all created requisitions in a single tab
         const idsJoined = newReqs.map(r => r.id).join(',');
-        window.open(`/requisitions/print/${idsJoined}?rows=${rowCount}`, '_blank');
+        const queryParams = new URLSearchParams();
+        if (variables.type === 'solvent_red' || variables.type === 'solvent_brown') {
+          if (variables.metadata?.lot_date) queryParams.set('date', variables.metadata.lot_date);
+          if (variables.metadata?.lot_number) queryParams.set('lot', variables.metadata.lot_number);
+          if (variables.metadata?.responsible) queryParams.set('responsible', variables.metadata.responsible);
+        } else {
+          queryParams.set('rows', String(rowCount));
+        }
+
+        const queryString = queryParams.toString();
+        const url = `/requisitions/print/${idsJoined}${queryString ? `?${queryString}` : ''}`;
+        window.open(url, '_blank');
       }
       setIsConfigOpen(false);
+      setIsSolventDialogOpen(false);
     },
-    onError: () => {
-      showError('Error al crear la requisición.');
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Error al crear la requisición.';
+      showError(msg);
     }
   });
 
@@ -99,15 +134,24 @@ const RequisitionsManagement = () => {
     setIsConfigOpen(true);
   };
 
-  const handleOpenPrintConfig = (id: string, type: 'purchase' | 'service' | 'warehouse' | 'logbook') => {
-    if (type === 'logbook') {
-      window.open(`/requisitions/print/${id}?rows=18`, '_blank');
+  const handleOpenPrintConfig = (req: Requisition) => {
+    if (req.type === 'logbook') {
+      window.open(`/requisitions/print/${req.id}?rows=18`, '_blank');
+      return;
+    }
+    if (req.type === 'solvent_red' || req.type === 'solvent_brown') {
+      const params = new URLSearchParams();
+      if (req.lot_date) params.set('date', req.lot_date);
+      if (req.lot_number) params.set('lot', req.lot_number);
+      if (req.responsible) params.set('responsible', req.responsible);
+      const queryStr = params.toString();
+      window.open(`/requisitions/print/${req.id}${queryStr ? `?${queryStr}` : ''}`, '_blank');
       return;
     }
     setDialogMode('print_existing');
-    setActiveRequisitionId(id);
-    setSelectedType(type);
-    setRowCount(type === 'service' ? 12 : 15);
+    setActiveRequisitionId(req.id);
+    setSelectedType(req.type);
+    setRowCount(req.type === 'service' ? 12 : 15);
     setIsConfigOpen(true);
   };
 
@@ -120,10 +164,38 @@ const RequisitionsManagement = () => {
     }
   };
 
+  // Open Dialog for Solvent Formats
+  const handleOpenSolventDialog = (type: 'red' | 'brown') => {
+    setSolventType(type);
+    setSolventDate(format(new Date(), 'yyyy-MM-dd'));
+    setSolventLot('');
+    setSolventResponsible('');
+    setSolventQuantity(1);
+    setIsSolventDialogOpen(true);
+  };
+
+  // Launch Solvent Format: Persists to database and opens print view
+  const handleGenerateSolvent = () => {
+    createMutation.mutate({
+      type: solventType === 'red' ? 'solvent_red' : 'solvent_brown',
+      quantity: solventQuantity,
+      metadata: {
+        lot_date: solventDate,
+        lot_number: solventLot.trim(),
+        responsible: solventResponsible.trim()
+      }
+    });
+  };
+
   // Filtered list
   const filteredRequisitions = requisitions.filter((req) => {
     const sequenceStr = String(req.sequence_number);
-    const prefix = req.type === 'purchase' ? 'RC' : req.type === 'service' ? 'RS' : req.type === 'warehouse' ? 'VS' : 'BC';
+    const prefix = 
+      req.type === 'purchase' ? 'RC' : 
+      req.type === 'service' ? 'RS' : 
+      req.type === 'warehouse' ? 'VS' : 
+      req.type === 'logbook' ? 'BC' : 
+      req.type === 'solvent_red' ? 'STR' : 'STM';
     const formattedCode = `${prefix}-${sequenceStr.padStart(3, '0')}`.toLowerCase();
     const search = searchTerm.toLowerCase();
 
@@ -144,16 +216,17 @@ const RequisitionsManagement = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-procarni-blue">
-            Formatos y Requisiciones
+            Formatos del Departamento
           </h1>
           <p className="text-gray-500 font-medium italic text-sm mt-1">
-            Gestión y descarga de requisiciones en blanco con correlativos secuenciales.
+            Generación, descarga e impresión de requisiciones, vales de salida y bitácoras de control de insumos.
           </p>
         </div>
       </div>
 
-      {/* Primary Generation Buttons - Bento Style cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Primary Generation Buttons - Bento Style cards (2 rows of 3) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Requisición de Compra */}
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
           <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
@@ -178,6 +251,7 @@ const RequisitionsManagement = () => {
           </CardContent>
         </Card>
 
+        {/* Requisición de Servicio */}
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
           <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
@@ -202,6 +276,7 @@ const RequisitionsManagement = () => {
           </CardContent>
         </Card>
 
+        {/* Salida de Insumos/Suministros */}
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
           <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
@@ -218,7 +293,7 @@ const RequisitionsManagement = () => {
             </div>
             <Button 
               onClick={() => handleOpenCreateConfig('warehouse')}
-              className="bg-emerald-600 hover:bg-emerald-750 text-white rounded-xl shadow-lg mt-4 self-start flex items-center gap-2 group-hover:translate-x-1 transition-all duration-300"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg mt-4 self-start flex items-center gap-2 group-hover:translate-x-1 transition-all duration-300"
             >
               <span>Generar VS</span>
               <ArrowRight className="w-4 h-4" />
@@ -226,6 +301,7 @@ const RequisitionsManagement = () => {
           </CardContent>
         </Card>
 
+        {/* Bitácora Control (Cuartico) */}
         <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
           <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
             <div className="flex justify-between items-start">
@@ -249,13 +325,63 @@ const RequisitionsManagement = () => {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Solvente Tapa Roja (9 und) */}
+        <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+          <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
+            <div className="flex justify-between items-start">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-[#880a0a] group-hover:scale-110 transition-transform duration-300">
+                <FlaskConical className="w-6 h-6" />
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-[#880a0a] bg-rose-500/5 px-3 py-1 rounded-full">
+                STR • 9 Und.
+              </span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-procarni-dark">Solvente Tapa Roja</h2>
+              <p className="text-gray-400 text-xs mt-1">Formato de control y entrega por lote (9 unidades). Registro de fecha de recepción.</p>
+            </div>
+            <Button 
+              onClick={() => handleOpenSolventDialog('red')}
+              className="bg-[#880a0a] hover:bg-[#880a0a]/90 text-white rounded-xl shadow-lg mt-4 self-start flex items-center gap-2 group-hover:translate-x-1 transition-all duration-300"
+            >
+              <span>Generar STR</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Solvente Tapa Marrón (6 und) */}
+        <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden group hover:scale-[1.01] transition-all duration-300">
+          <CardContent className="p-8 flex flex-col justify-between min-h-[15rem] h-auto gap-4">
+            <div className="flex justify-between items-start">
+              <div className="w-12 h-12 rounded-2xl bg-amber-900/10 flex items-center justify-center text-amber-800 group-hover:scale-110 transition-transform duration-300">
+                <Droplets className="w-6 h-6" />
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-800 bg-amber-900/5 px-3 py-1 rounded-full">
+                STM • 6 Und.
+              </span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-procarni-dark">Solvente Tapa Marrón</h2>
+              <p className="text-gray-400 text-xs mt-1">Formato de control y entrega por lote (6 unidades). Registro de fecha de recepción.</p>
+            </div>
+            <Button 
+              onClick={() => handleOpenSolventDialog('brown')}
+              className="bg-amber-800 hover:bg-amber-900 text-white rounded-xl shadow-lg mt-4 self-start flex items-center gap-2 group-hover:translate-x-1 transition-all duration-300"
+            >
+              <span>Generar STM</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* History and Filtering Table */}
       <Card className="bg-white/70 backdrop-blur-xl border-none shadow-2xl shadow-gray-200/50 ring-1 ring-white rounded-[2rem] overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
           <h3 className="text-lg font-bold text-procarni-dark self-start sm:self-center">
-            Historial de Requisiciones Generadas
+            Historial de Formatos Generados
           </h3>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
@@ -273,17 +399,19 @@ const RequisitionsManagement = () => {
             {/* Type filter */}
             <Select 
               value={typeFilter} 
-              onValueChange={(val) => setTypeFilter(val as any)}
+              onValueChange={(val) => setTypeFilter(val as 'all' | 'purchase' | 'service' | 'warehouse' | 'logbook' | 'solvent_red' | 'solvent_brown')}
             >
-              <SelectTrigger className="w-full sm:w-44 h-10 border-gray-200 rounded-xl bg-gray-50/50 text-sm">
+              <SelectTrigger className="w-full sm:w-56 h-10 border-gray-200 rounded-xl bg-gray-50/50 text-sm">
                 <SelectValue placeholder="Tipo de Formato" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-150">
                 <SelectItem value="all">Todos los formatos</SelectItem>
                 <SelectItem value="purchase">Requisiciones de Compra (RC)</SelectItem>
                 <SelectItem value="service">Requisiciones de Servicio (RS)</SelectItem>
-                <SelectItem value="warehouse">Salida de Insumos/Suministros (VS)</SelectItem>
-                <SelectItem value="logbook">Bitácora de Control (BC)</SelectItem>
+                <SelectItem value="warehouse">Salida de Insumos (VS)</SelectItem>
+                <SelectItem value="logbook">Bitácora Cuartico (BC)</SelectItem>
+                <SelectItem value="solvent_red">Solvente Tapa Roja (STR)</SelectItem>
+                <SelectItem value="solvent_brown">Solvente Tapa Marrón (STM)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -300,8 +428,8 @@ const RequisitionsManagement = () => {
           ) : filteredRequisitions.length === 0 ? (
             <div className="py-24 text-center text-gray-400">
               <FileSpreadsheet className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-              <p className="font-semibold text-gray-600">No se encontraron requisiciones</p>
-              <p className="text-xs text-gray-400 mt-1">Intenta con otros filtros o genera una nueva requisición.</p>
+              <p className="font-semibold text-gray-600">No se encontraron formatos generados</p>
+              <p className="text-xs text-gray-400 mt-1">Intenta con otros filtros o genera un nuevo formato.</p>
             </div>
           ) : (
             <Table>
@@ -316,7 +444,12 @@ const RequisitionsManagement = () => {
               </TableHeader>
               <TableBody>
                 {filteredRequisitions.map((req) => {
-                  const prefix = req.type === 'purchase' ? 'RC' : req.type === 'service' ? 'RS' : req.type === 'warehouse' ? 'VS' : 'BC';
+                  const prefix = 
+                    req.type === 'purchase' ? 'RC' : 
+                    req.type === 'service' ? 'RS' : 
+                    req.type === 'warehouse' ? 'VS' : 
+                    req.type === 'logbook' ? 'BC' : 
+                    req.type === 'solvent_red' ? 'STR' : 'STM';
                   const code = `${prefix}-${String(req.sequence_number).padStart(3, '0')}`;
                   const createdDate = req.created_at 
                     ? format(new Date(req.created_at), "dd 'de' MMMM, yyyy - hh:mm a", { locale: es }) 
@@ -339,9 +472,17 @@ const RequisitionsManagement = () => {
                               ? 'bg-procarni-blue/10 text-procarni-blue'
                               : req.type === 'warehouse'
                                 ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
+                                : req.type === 'logbook'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : req.type === 'solvent_red'
+                                    ? 'bg-rose-100 text-[#880a0a]'
+                                    : 'bg-amber-900/10 text-amber-900'
                         }`}>
-                          {req.type === 'purchase' ? 'Compra' : req.type === 'service' ? 'Servicio' : req.type === 'warehouse' ? 'Salida Insumos' : 'Bitácora'}
+                          {req.type === 'purchase' ? 'Compra' : 
+                           req.type === 'service' ? 'Servicio' : 
+                           req.type === 'warehouse' ? 'Salida Insumos' : 
+                           req.type === 'logbook' ? 'Bitácora Cuartico' : 
+                           req.type === 'solvent_red' ? 'Solvente Tapa Roja' : 'Solvente Tapa Marrón'}
                         </span>
                       </TableCell>
                       <TableCell className="text-gray-500 font-medium text-xs py-4">
@@ -360,7 +501,7 @@ const RequisitionsManagement = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleOpenPrintConfig(req.id, req.type)}
+                          onClick={() => handleOpenPrintConfig(req)}
                           className="text-gray-400 hover:text-procarni-primary hover:bg-procarni-primary/5 rounded-xl h-9 px-3 gap-1.5 font-semibold transition-colors"
                         >
                           <Printer className="w-4 h-4" />
@@ -376,7 +517,7 @@ const RequisitionsManagement = () => {
         </div>
       </Card>
 
-      {/* Row Count configuration dialog */}
+      {/* Row Count configuration dialog (Standard Requisitions) */}
       <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
         <DialogContent className="sm:max-w-md rounded-[1.75rem] border-none bg-white shadow-2xl p-6">
           <DialogHeader>
@@ -438,7 +579,7 @@ const RequisitionsManagement = () => {
             >
               Cancelar
             </Button>
-             <Button
+            <Button
               onClick={handleConfirmAction}
               disabled={createMutation.isPending}
               className={`rounded-xl text-white shadow-lg text-sm h-11 ${
@@ -452,6 +593,130 @@ const RequisitionsManagement = () => {
               }`}
             >
               {createMutation.isPending ? 'Procesando...' : 'Generar y Continuar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Solvent Control Formats Dialog (Tapa Roja / Tapa Marrón) */}
+      <Dialog open={isSolventDialogOpen} onOpenChange={setIsSolventDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-[1.75rem] border-none bg-white shadow-2xl p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                solventType === 'red' ? 'bg-red-50 text-[#880a0a]' : 'bg-amber-50 text-amber-900'
+              }`}>
+                {solventType === 'red' ? <FlaskConical className="w-5 h-5" /> : <Droplets className="w-5 h-5" />}
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-procarni-dark">
+                  {solventType === 'red' ? 'Generar Solvente Tapa Roja' : 'Generar Solvente Tapa Marrón'}
+                </DialogTitle>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                  solventType === 'red' ? 'bg-red-100 text-[#880a0a]' : 'bg-amber-100 text-amber-900'
+                }`}>
+                  Capacidad: {solventType === 'red' ? '9 Unidades por Lote' : '6 Unidades por Lote'}
+                </span>
+              </div>
+            </div>
+            <DialogDescription className="text-gray-500 text-xs italic pt-1">
+              Configura los datos del lote recibido. Al generar, se registrará el correlativo en el historial y se abrirá el formato imprimible.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            {/* Campo: Fecha de Recepción */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-500 block">
+                Fecha de Recepción del Lote *
+              </label>
+              <Input
+                type="date"
+                value={solventDate}
+                onChange={(e) => setSolventDate(e.target.value)}
+                className="h-11 border-gray-200 rounded-xl bg-gray-50/50 focus:ring-procarni-primary/20 text-sm"
+              />
+              <span className="text-[10px] text-gray-400 block font-medium">
+                Esta fecha se insertará automáticamente en la columna &quot;RECIBIDO FECHA&quot; de cada una de las {solventType === 'red' ? '9' : '6'} unidades.
+              </span>
+            </div>
+
+            {/* Campo: N° de Lote (Opcional) */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-500 block">
+                N° de Lote / Código de Control (Opcional)
+              </label>
+              <Input
+                type="text"
+                placeholder="Ej. LOT-2026-01 / Factura"
+                value={solventLot}
+                onChange={(e) => setSolventLot(e.target.value)}
+                className="h-11 border-gray-200 rounded-xl bg-gray-50/50 focus:ring-procarni-primary/20 text-sm"
+              />
+            </div>
+
+            {/* Campo: Responsable / Encargado (Opcional) */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-500 block">
+                Responsable / Encargado(a) (Opcional)
+              </label>
+              <Input
+                type="text"
+                placeholder="Ej. Control de Calidad / Insumos"
+                value={solventResponsible}
+                onChange={(e) => setSolventResponsible(e.target.value)}
+                className="h-11 border-gray-200 rounded-xl bg-gray-50/50 focus:ring-procarni-primary/20 text-sm"
+              />
+            </div>
+
+            {/* Campo: Cantidad de hojas a generar */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold tracking-widest text-gray-500 block">
+                Cantidad de Hojas / Lotes a Imprimir
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                value={solventQuantity}
+                onChange={(e) => setSolventQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                className="h-11 border-gray-200 rounded-xl bg-gray-50/50 focus:ring-procarni-primary/20 text-sm"
+              />
+              <span className="text-[10px] text-gray-400 block font-medium">
+                Cada hoja corresponde a un lote completo ({solventType === 'red' ? '9' : '6'} unidades).
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              disabled={createMutation.isPending}
+              onClick={() => setIsSolventDialogOpen(false)}
+              className="rounded-xl border-gray-200 hover:bg-gray-50 text-sm h-11"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleGenerateSolvent}
+              disabled={createMutation.isPending}
+              className={`rounded-xl text-white shadow-lg text-sm h-11 flex items-center gap-2 ${
+                solventType === 'red' 
+                  ? 'bg-[#880a0a] hover:bg-[#880a0a]/90' 
+                  : 'bg-amber-800 hover:bg-amber-900'
+              }`}
+            >
+              {createMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando en historial...</span>
+                </>
+              ) : (
+                <>
+                  <Printer className="w-4 h-4" />
+                  <span>Generar e Imprimir</span>
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

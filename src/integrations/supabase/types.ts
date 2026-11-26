@@ -479,10 +479,13 @@ export type PaymentTransaction = {
 // --- NEW TYPES FOR REQUISITIONS ---
 export type Requisition = {
   id: string;
-  type: 'purchase' | 'service' | 'warehouse' | 'logbook';
+  type: 'purchase' | 'service' | 'warehouse' | 'logbook' | 'solvent_red' | 'solvent_brown';
   sequence_number: number;
   created_at: string;
   user_id: string;
+  lot_date?: string | null;
+  lot_number?: string | null;
+  responsible?: string | null;
   profiles?: { first_name: string | null; last_name: string | null } | null;
 };
 
