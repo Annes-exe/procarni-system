@@ -431,8 +431,8 @@ const MaterialApproval = () => {
         <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
           {filteredMaterials.length > 0 ? (
             <>
-              {/* VISTA MOBILE: TARJETAS STACKEADAS (< md) */}
-              <div className="block md:hidden space-y-3.5">
+              {/* VISTA MOBILE Y TABLETS: TARJETAS (1 col móvil, 2 cols tablet) (< xl) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 xl:hidden">
                 {filteredMaterials.map((material) => (
                   <div
                     key={`mobile-${material.id}`}
@@ -545,8 +545,8 @@ const MaterialApproval = () => {
                 ))}
               </div>
 
-              {/* VISTA ESCRITORIO: TABLA (>= md) */}
-              <div className="hidden md:block overflow-x-auto">
+              {/* VISTA ESCRITORIO: TABLA (>= xl) */}
+              <div className="hidden xl:block overflow-x-auto">
                 <Table className="bg-white/50 rounded-2xl overflow-hidden border border-gray-100">
                   <TableHeader className="bg-slate-100/50">
                     <TableRow>
