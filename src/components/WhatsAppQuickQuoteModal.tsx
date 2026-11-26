@@ -58,8 +58,10 @@ interface WhatsAppQuickQuoteModalProps {
   initialTerm?: string;
 }
 
-export const GEMINI_REQUISITION_SKILL_URL = 'https://gemini.google.com/gem/1cxkCfl8h5PmkU8HNU21Zi7KkpMXCnEum?usp=sharing';
-export const GEMINI_REQUISITION_GEM_URL = GEMINI_REQUISITION_SKILL_URL;
+export const GEMINI_SKILL_COMMAND = '@asistente-de-compras-procarni';
+export const GEMINI_CHAT_URL = `https://gemini.google.com/app?prompt=${encodeURIComponent(GEMINI_SKILL_COMMAND)}`;
+export const GEMINI_REQUISITION_SKILL_URL = GEMINI_CHAT_URL;
+export const GEMINI_REQUISITION_GEM_URL = GEMINI_CHAT_URL;
 
 export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = ({
   isOpen,
@@ -193,9 +195,15 @@ export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = (
     }
   };
 
-  // Abrir Skill de Gemini en nueva pestaña
-  const handleOpenGeminiRequisitionSkill = () => {
-    window.open(GEMINI_REQUISITION_SKILL_URL, '_blank', 'noopener,noreferrer');
+  // Abrir Gemini Chat e invocar la Skill copiando el comando al portapapeles
+  const handleOpenGeminiRequisitionSkill = async () => {
+    try {
+      await navigator.clipboard.writeText(GEMINI_SKILL_COMMAND);
+      showSuccess(`¡Comando ${GEMINI_SKILL_COMMAND} copiado! Presiona Ctrl+V en Gemini y adjunta la foto.`);
+    } catch {
+      // Continuar si el navegador bloquea escritura en portapapeles
+    }
+    window.open(GEMINI_CHAT_URL, '_blank', 'noopener,noreferrer');
   };
 
   // Agregar nuevo item libre
@@ -230,12 +238,12 @@ export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = (
     const itemsText =
       validItems.length > 0
         ? validItems
-            .map((it) => {
-              const qty = it.quantity.trim() ? `${it.quantity.trim()} - ` : '';
-              const notes = it.notes?.trim() ? ` _(${it.notes.trim()})_` : '';
-              return `• ${qty}*${it.description.trim()}*${notes}`;
-            })
-            .join('\n')
+          .map((it) => {
+            const qty = it.quantity.trim() ? `${it.quantity.trim()} - ` : '';
+            const notes = it.notes?.trim() ? ` _(${it.notes.trim()})_` : '';
+            return `• ${qty}*${it.description.trim()}*${notes}`;
+          })
+          .join('\n')
         : '• 10 rollo - *alambre*';
 
     return `${greeting}
@@ -354,11 +362,10 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
             <button
               type="button"
               onClick={() => setMobileTab('items')}
-              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                mobileTab === 'items'
-                  ? 'bg-white text-procarni-dark shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${mobileTab === 'items'
+                ? 'bg-white text-procarni-dark shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
             >
               <Sparkles className="h-3.5 w-3.5 text-procarni-primary" />
               <span>1. Requerimiento</span>
@@ -369,18 +376,16 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
             <button
               type="button"
               onClick={() => setMobileTab('suppliers')}
-              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                mobileTab === 'suppliers'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${mobileTab === 'suppliers'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-gray-600 hover:text-gray-900'
+                }`}
             >
               <Send className="h-3.5 w-3.5" />
               <span>2. Proveedores</span>
               <Badge
-                className={`text-[10px] h-4 px-1 ${
-                  mobileTab === 'suppliers' ? 'bg-white text-emerald-700' : 'bg-gray-100 text-gray-700'
-                }`}
+                className={`text-[10px] h-4 px-1 ${mobileTab === 'suppliers' ? 'bg-white text-emerald-700' : 'bg-gray-100 text-gray-700'
+                  }`}
               >
                 {initialSuppliers.length}
               </Badge>
@@ -393,9 +398,8 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* COLUMNA IZQUIERDA: ITEMS Y CONDICIONES (7 COLS EN DESKTOP) */}
             <div
-              className={`space-y-4 lg:col-span-7 ${
-                mobileTab === 'items' ? 'block' : 'hidden lg:block'
-              }`}
+              className={`space-y-4 lg:col-span-7 ${mobileTab === 'items' ? 'block' : 'hidden lg:block'
+                }`}
             >
               {/* Canasta de Items Libres */}
               <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-gray-200/80 shadow-xs space-y-3">
@@ -415,7 +419,7 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                       size="sm"
                       onClick={handleOpenGeminiRequisitionSkill}
                       className="h-7.5 px-2.5 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-xs gap-1.5 transition-all active:scale-95"
-                      title="Abrir la Skill de Procarni en Gemini para transcribir foto de la requisición"
+                      title="Abrir Gemini Chat e invocar la skill @asistente-de-compras-procarni para transcribir foto de la requisición"
                     >
                       <Bot className="h-3.5 w-3.5 text-blue-200" />
                       <span>Transcribir con Gemini</span>
@@ -570,9 +574,8 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
 
             {/* COLUMNA DERECHA: PROVEEDORES Y DISPARADOR DE CADENA (5 COLS EN DESKTOP) */}
             <div
-              className={`space-y-4 lg:col-span-5 flex flex-col justify-between ${
-                mobileTab === 'suppliers' ? 'block' : 'hidden lg:block'
-              }`}
+              className={`space-y-4 lg:col-span-5 flex flex-col justify-between ${mobileTab === 'suppliers' ? 'block' : 'hidden lg:block'
+                }`}
             >
               <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-gray-200/80 shadow-xs space-y-3 flex-1">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-100">
@@ -586,11 +589,10 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                   </div>
                   <Badge
                     variant="outline"
-                    className={`shrink-0 ${
-                      completedCount === initialSuppliers.length && initialSuppliers.length > 0
-                        ? 'border-emerald-300 text-emerald-700 bg-emerald-50 font-bold'
-                        : 'border-gray-200 text-gray-600 font-semibold'
-                    }`}
+                    className={`shrink-0 ${completedCount === initialSuppliers.length && initialSuppliers.length > 0
+                      ? 'border-emerald-300 text-emerald-700 bg-emerald-50 font-bold'
+                      : 'border-gray-200 text-gray-600 font-semibold'
+                      }`}
                   >
                     {completedCount === initialSuppliers.length && initialSuppliers.length > 0
                       ? '¡Completado!'
@@ -668,13 +670,12 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                       return (
                         <div
                           key={sup.id}
-                          className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 ${
-                            isDone
-                              ? 'bg-emerald-50/40 border-emerald-200 text-gray-700'
-                              : isCurrent
+                          className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 ${isDone
+                            ? 'bg-emerald-50/40 border-emerald-200 text-gray-700'
+                            : isCurrent
                               ? 'bg-blue-50/60 border-blue-200 shadow-xs'
                               : 'bg-gray-50/60 border-gray-100 hover:border-gray-200'
-                          }`}
+                            }`}
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
@@ -682,9 +683,8 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                               ) : (
                                 <div
-                                  className={`h-2.5 w-2.5 rounded-full shrink-0 ${
-                                    isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
-                                  }`}
+                                  className={`h-2.5 w-2.5 rounded-full shrink-0 ${isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+                                    }`}
                                 />
                               )}
                               <span className="text-xs font-bold text-gray-800 truncate block">
@@ -703,11 +703,10 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                             size="sm"
                             disabled={!phoneFormatted}
                             onClick={() => handleOpenWhatsApp(sup, true)}
-                            className={`h-8 px-2.5 text-xs font-bold shrink-0 rounded-xl ${
-                              isDone
-                                ? 'text-emerald-700 hover:bg-emerald-100/50'
-                                : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                            }`}
+                            className={`h-8 px-2.5 text-xs font-bold shrink-0 rounded-xl ${isDone
+                              ? 'text-emerald-700 hover:bg-emerald-100/50'
+                              : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                              }`}
                             title="Abrir chat en WhatsApp"
                           >
                             <ExternalLink className="h-3.5 w-3.5 mr-1" />
@@ -757,7 +756,7 @@ Quedamos muy atentos a su respuesta. ¡Muchas gracias!`;
                   Pegar Lista de Ítems (Skill Gemini / Requisición)
                 </DialogTitle>
                 <DialogDescription className="text-xs text-gray-500">
-                  Pega aquí la respuesta que te entregó la Skill de Gemini o una lista de ítems. Se separarán cantidades y descripciones automáticamente.
+                  Pega aquí la respuesta entregada por la skill {GEMINI_SKILL_COMMAND} de Gemini o una lista de ítems. Se separarán cantidades y descripciones automáticamente.
                 </DialogDescription>
               </DialogHeader>
 
