@@ -221,6 +221,96 @@ const MaterialApproval = () => {
     return material.category === selectedCategoryFilter;
   });
 
+  // Helper to render origin orders (reused in desktop table and mobile cards)
+  const renderOriginOrders = (materialId: string, isMobile = false) => {
+    const originOrders = materialOriginOrders[materialId] || [];
+    if (isLoadingOriginOrders) {
+      return <span className="text-slate-400 text-xs animate-pulse">Cargando...</span>;
+    }
+    if (originOrders.length === 0) {
+      return (
+        <span className="text-slate-400 text-xs italic">Directo / Catálogo</span>
+      );
+    }
+
+    const primaryOrder = originOrders[0];
+    const otherOrders = originOrders.slice(1);
+    const isPO = primaryOrder.type === 'PO';
+    const linkUrl = isPO 
+      ? `/purchase-orders/${primaryOrder.orderId}` 
+      : `/quote-requests/${primaryOrder.orderId}`;
+    const displayLabel = isPO
+      ? formatOrderNumber(primaryOrder.sequenceNumber, primaryOrder.issueDate || primaryOrder.createdAt)
+      : formatQuoteNumber(primaryOrder.sequenceNumber, primaryOrder.issueDate || primaryOrder.createdAt);
+
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <a
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-procarni-blue hover:bg-blue-100 hover:text-procarni-dark transition-all border border-blue-200/60 shadow-xs group/po"
+            title={`Abrir orden en nueva pestaña: ${displayLabel}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <FileText className="h-3.5 w-3.5 text-blue-600 group-hover/po:scale-110 transition-transform" />
+            <span className="font-mono font-bold">{displayLabel}</span>
+            <ExternalLink className="h-3 w-3 text-blue-400 group-hover/po:text-blue-600 transition-colors ml-0.5" />
+          </a>
+
+          {otherOrders.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <button 
+                  type="button"
+                  className="inline-flex items-center text-[10px] font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded-md transition-colors"
+                  title="Ver más órdenes asociadas"
+                >
+                  +{otherOrders.length} más
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Otras Órdenes / Solicitudes
+                </div>
+                {otherOrders.map((other) => {
+                  const otherIsPO = other.type === 'PO';
+                  const otherLink = otherIsPO ? `/purchase-orders/${other.orderId}` : `/quote-requests/${other.orderId}`;
+                  const otherLabel = otherIsPO
+                    ? formatOrderNumber(other.sequenceNumber, other.issueDate || other.createdAt)
+                    : formatQuoteNumber(other.sequenceNumber, other.issueDate || other.createdAt);
+
+                  return (
+                    <DropdownMenuItem key={other.orderId} asChild>
+                      <a
+                        href={otherLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg cursor-pointer hover:bg-slate-50 text-slate-700 w-full"
+                      >
+                        <span className="font-mono font-semibold text-procarni-blue">{otherLabel}</span>
+                        <span className="text-[10px] text-slate-400 truncate max-w-[90px]" title={other.supplierName || ''}>
+                          {other.supplierName || '-'}
+                        </span>
+                      </a>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        {primaryOrder.supplierName && (
+          <span className={`text-[11px] text-slate-500 font-medium truncate block ${isMobile ? 'max-w-full' : 'max-w-[160px]'}`} title={primaryOrder.supplierName}>
+            {primaryOrder.supplierName}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async (materialId: string) => {
@@ -290,29 +380,29 @@ const MaterialApproval = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="container mx-auto p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-procarni-blue">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-procarni-blue">
             Aprobación de Nuevos Materiales
           </h1>
-          <p className="text-sm text-gray-500 font-medium italic mt-1">
+          <p className="text-xs sm:text-sm text-gray-500 font-medium italic mt-1">
             Revisa, edita, aprueba o vincula materiales pendientes para mantener la integridad del catálogo.
           </p>
         </div>
       </div>
 
       {/* Main Card */}
-      <Card className="bg-white border border-slate-100/80 shadow-2xl shadow-gray-200/50 rounded-[2rem] overflow-hidden">
-        <CardHeader>
+      <Card className="bg-white border border-slate-100/80 shadow-2xl shadow-gray-200/50 rounded-2xl md:rounded-[2rem] overflow-hidden">
+        <CardHeader className="p-4 sm:p-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="space-y-1">
-              <CardTitle className="text-xl font-bold text-procarni-dark flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
-                Bandeja de Entrada de Materiales Pendientes
+              <CardTitle className="text-lg sm:text-xl font-bold text-procarni-dark flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-500 animate-pulse shrink-0" />
+                <span>Bandeja de Entrada de Materiales Pendientes</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 {pendingMaterials.length === 0 
                   ? 'No hay materiales pendientes de aprobación en este momento.' 
                   : `Tienes ${pendingMaterials.length} material(es) en total que requieren revisión.`}
@@ -324,7 +414,7 @@ const MaterialApproval = () => {
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <Label htmlFor="cat-filter" className="text-xs font-bold uppercase tracking-widest text-gray-400 whitespace-nowrap">Filtrar por:</Label>
                 <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
-                  <SelectTrigger id="cat-filter" className="w-full md:w-[200px] bg-white border border-gray-200 rounded-xl h-10">
+                  <SelectTrigger id="cat-filter" className="w-full md:w-[200px] bg-white border border-gray-200 rounded-xl h-10 text-xs sm:text-sm">
                     <SelectValue placeholder="Todas las categorías" />
                   </SelectTrigger>
                   <SelectContent>
@@ -338,183 +428,213 @@ const MaterialApproval = () => {
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
           {filteredMaterials.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table className="bg-white/50 rounded-2xl overflow-hidden border border-gray-100">
-                <TableHeader className="bg-slate-100/50">
-                  <TableRow>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Categoría</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca/Color</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">OC de Origen</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Creado Por</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Fecha</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-wider font-semibold text-gray-500">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMaterials.map((material) => (
-                    <TableRow key={material.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <TableCell className="font-semibold text-slate-800">
-                        <div>
-                          {material.name}
+            <>
+              {/* VISTA MOBILE: TARJETAS STACKEADAS (< md) */}
+              <div className="block md:hidden space-y-3.5">
+                {filteredMaterials.map((material) => (
+                  <div
+                    key={`mobile-${material.id}`}
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-3.5 space-y-3 transition-all hover:border-slate-300"
+                  >
+                    {/* Header: Categoría, Código, Nombre y Unidad */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 text-[10px] font-semibold border-slate-200">
+                            {material.category || 'Sin Categoría'}
+                          </Badge>
                           {material.code && (
-                            <span className="text-[11px] font-mono text-gray-400 block">{material.code}</span>
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                              {material.code}
+                            </span>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="bg-slate-50 text-slate-700">
-                          {material.category || 'Sin Categoría'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-600">{material.unit || 'N/A'}</TableCell>
-                      <TableCell className="text-slate-500 text-xs">
-                        {material.brand && <span>Marca: {material.brand}</span>}
-                        {material.brand && material.color && <br />}
-                        {material.color && <span>Color: {material.color}</span>}
-                        {!material.brand && !material.color && <span className="text-gray-300">-</span>}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {(() => {
-                          const originOrders = materialOriginOrders[material.id] || [];
-                          if (isLoadingOriginOrders) {
-                            return <span className="text-slate-400 text-xs animate-pulse">Cargando...</span>;
-                          }
-                          if (originOrders.length === 0) {
-                            return (
-                              <span className="text-slate-400 text-xs italic">Directo / Catálogo</span>
-                            );
-                          }
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug break-words">
+                          {material.name}
+                        </h4>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Unidad</span>
+                        <span className="text-xs font-mono font-bold text-procarni-dark bg-slate-100/80 px-2 py-0.5 rounded-md inline-block">
+                          {material.unit || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
 
-                          const primaryOrder = originOrders[0];
-                          const otherOrders = originOrders.slice(1);
-                          const isPO = primaryOrder.type === 'PO';
-                          const linkUrl = isPO 
-                            ? `/purchase-orders/${primaryOrder.orderId}` 
-                            : `/quote-requests/${primaryOrder.orderId}`;
-                          const displayLabel = isPO
-                            ? formatOrderNumber(primaryOrder.sequenceNumber, primaryOrder.issueDate || primaryOrder.createdAt)
-                            : formatQuoteNumber(primaryOrder.sequenceNumber, primaryOrder.issueDate || primaryOrder.createdAt);
+                    {/* Atributos: Marca / Color */}
+                    {(material.brand || material.color) && (
+                      <div className="flex items-center gap-3 text-xs text-slate-600 bg-slate-50/70 p-2 rounded-xl border border-slate-100">
+                        {material.brand && (
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Marca:</span>
+                            <span className="font-medium truncate">{material.brand}</span>
+                          </div>
+                        )}
+                        {material.color && (
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Color:</span>
+                            <span className="font-medium truncate">{material.color}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                          return (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <a
-                                  href={linkUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-procarni-blue hover:bg-blue-100 hover:text-procarni-dark transition-all border border-blue-200/60 shadow-xs group/po"
-                                  title={`Abrir orden en nueva pestaña: ${displayLabel}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <FileText className="h-3.5 w-3.5 text-blue-600 group-hover/po:scale-110 transition-transform" />
-                                  <span className="font-mono font-bold">{displayLabel}</span>
-                                  <ExternalLink className="h-3 w-3 text-blue-400 group-hover/po:text-blue-600 transition-colors ml-0.5" />
-                                </a>
+                    {/* Metadata: Origen, Creador y Fecha */}
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1">
+                          OC / SC Origen
+                        </span>
+                        {renderOriginOrders(material.id, true)}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-0.5">
+                            Creado Por
+                          </span>
+                          <span className="text-xs font-medium text-slate-700 truncate block" title={material.user_id ? (creatorProfiles[material.user_id] || '') : ''}>
+                            {material.user_id ? (creatorProfiles[material.user_id] || 'Cargando...') : 'Sistema'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-0.5">
+                            Fecha
+                          </span>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {material.created_at ? new Date(material.created_at).toLocaleDateString() : '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                                {otherOrders.length > 0 && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                      <button 
-                                        type="button"
-                                        className="inline-flex items-center text-[10px] font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded-md transition-colors"
-                                        title="Ver más órdenes asociadas"
-                                      >
-                                        +{otherOrders.length} más
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-xl border border-slate-100" onClick={(e) => e.stopPropagation()}>
-                                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        Otras Órdenes / Solicitudes
-                                      </div>
-                                      {otherOrders.map((other) => {
-                                        const otherIsPO = other.type === 'PO';
-                                        const otherLink = otherIsPO ? `/purchase-orders/${other.orderId}` : `/quote-requests/${other.orderId}`;
-                                        const otherLabel = otherIsPO
-                                          ? formatOrderNumber(other.sequenceNumber, other.issueDate || other.createdAt)
-                                          : formatQuoteNumber(other.sequenceNumber, other.issueDate || other.createdAt);
+                    {/* Acciones Touch-friendly */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                      <Button
+                        size="sm"
+                        onClick={() => approveMutation.mutate(material.id)}
+                        disabled={approveMutation.isPending}
+                        className="flex-1 h-10 bg-procarni-secondary hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-transform active:scale-[0.98]"
+                      >
+                        <Check className="h-4 w-4 shrink-0" />
+                        <span>Aprobar</span>
+                      </Button>
 
-                                        return (
-                                          <DropdownMenuItem key={other.orderId} asChild>
-                                            <a
-                                              href={otherLink}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg cursor-pointer hover:bg-slate-50 text-slate-700 w-full"
-                                            >
-                                              <span className="font-mono font-semibold text-procarni-blue">{otherLabel}</span>
-                                              <span className="text-[10px] text-slate-400 truncate max-w-[90px]" title={other.supplierName || ''}>
-                                                {other.supplierName || '-'}
-                                              </span>
-                                            </a>
-                                          </DropdownMenuItem>
-                                        );
-                                      })}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
-                              </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLinkingMaterial(material)}
+                        className="flex-1 h-10 border-blue-200 bg-blue-50/70 text-procarni-blue hover:bg-blue-100 hover:text-procarni-dark rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-transform active:scale-[0.98]"
+                      >
+                        <Link className="h-4 w-4 shrink-0" />
+                        <span>Vincular</span>
+                      </Button>
 
-                              {primaryOrder.supplierName && (
-                                <span className="text-[11px] text-slate-500 font-medium truncate max-w-[160px] block" title={primaryOrder.supplierName}>
-                                  {primaryOrder.supplierName}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium text-slate-600">
-                        {material.user_id ? (creatorProfiles[material.user_id] || 'Cargando...') : 'Sistema'}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-500">
-                        {material.created_at ? new Date(material.created_at).toLocaleDateString() : '-'}
-                      </TableCell>
-                      <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
-                              title="Opciones"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52 rounded-2xl shadow-xl border border-slate-100 p-1.5">
-                            <DropdownMenuItem
-                              onClick={() => approveMutation.mutate(material.id)}
-                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-emerald-700 hover:bg-emerald-50"
-                            >
-                              <Check className="h-4 w-4 text-emerald-600" />
-                              <span>Aprobar Material</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setLinkingMaterial(material)}
-                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-blue-700 hover:bg-blue-50"
-                            >
-                              <Link className="h-4 w-4 text-blue-600" />
-                              <span>Vincular a Patrón de Oro</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setEditingMaterial(material)}
-                              className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
-                            >
-                              <Edit className="h-4 w-4 text-slate-400" />
-                              <span>Editar Material</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingMaterial(material)}
+                        className="h-10 w-10 p-0 rounded-xl text-slate-500 hover:text-procarni-blue hover:bg-slate-100 shrink-0 border border-slate-200/60"
+                        title="Editar Material"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* VISTA ESCRITORIO: TABLA (>= md) */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table className="bg-white/50 rounded-2xl overflow-hidden border border-gray-100">
+                  <TableHeader className="bg-slate-100/50">
+                    <TableRow>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Nombre</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Categoría</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Unidad</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Marca/Color</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">OC de Origen</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Creado Por</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Fecha</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wider font-semibold text-gray-500">Acciones</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMaterials.map((material) => (
+                      <TableRow key={material.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <TableCell className="font-semibold text-slate-800">
+                          <div>
+                            {material.name}
+                            {material.code && (
+                              <span className="text-[11px] font-mono text-gray-400 block">{material.code}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700">
+                            {material.category || 'Sin Categoría'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-600">{material.unit || 'N/A'}</TableCell>
+                        <TableCell className="text-slate-500 text-xs">
+                          {material.brand && <span>Marca: {material.brand}</span>}
+                          {material.brand && material.color && <br />}
+                          {material.color && <span>Color: {material.color}</span>}
+                          {!material.brand && !material.color && <span className="text-gray-300">-</span>}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {renderOriginOrders(material.id, false)}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-slate-600">
+                          {material.user_id ? (creatorProfiles[material.user_id] || 'Cargando...') : 'Sistema'}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-500">
+                          {material.created_at ? new Date(material.created_at).toLocaleDateString() : '-'}
+                        </TableCell>
+                        <TableCell className="text-right pr-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-xl hover:bg-slate-100 text-slate-500"
+                                title="Opciones"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52 rounded-2xl shadow-xl border border-slate-100 p-1.5">
+                              <DropdownMenuItem
+                                onClick={() => approveMutation.mutate(material.id)}
+                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <Check className="h-4 w-4 text-emerald-600" />
+                                <span>Aprobar Material</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setLinkingMaterial(material)}
+                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-blue-700 hover:bg-blue-50"
+                              >
+                                <Link className="h-4 w-4 text-blue-600" />
+                                <span>Vincular a Patrón de Oro</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setEditingMaterial(material)}
+                                className="flex items-center gap-2 text-xs font-semibold py-2 rounded-xl cursor-pointer text-slate-700 hover:text-procarni-blue hover:bg-slate-50"
+                              >
+                                <Edit className="h-4 w-4 text-slate-400" />
+                                <span>Editar Material</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           ) : pendingMaterials.length > 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <div className="bg-slate-100 text-slate-400 p-4 rounded-full mb-4 ring-8 ring-slate-50/50">
@@ -541,7 +661,7 @@ const MaterialApproval = () => {
 
       {/* Linking to Master Dialog */}
       <Dialog open={!!linkingMaterial} onOpenChange={(open) => !open && setLinkingMaterial(null)}>
-        <DialogContent className="sm:max-w-[450px] rounded-3xl bg-white/95 backdrop-blur-xl border-none shadow-2xl">
+        <DialogContent className="w-[94vw] max-w-[450px] p-4 sm:p-6 rounded-3xl bg-white/95 backdrop-blur-xl border-none shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-procarni-blue">Vincular a Patrón de Oro</DialogTitle>
             <DialogDescription>
