@@ -58,7 +58,7 @@ interface WhatsAppQuickQuoteModalProps {
   initialTerm?: string;
 }
 
-export const GEMINI_REQUISITION_SKILL_URL = 'https://gemini.google.com/customize/skills/d/1cxkCfl8h5PmkU8HNU21Zi7KkpMXCnEum?usp=sharing';
+export const GEMINI_REQUISITION_SKILL_URL = 'https://gemini.google.com/gem/1cxkCfl8h5PmkU8HNU21Zi7KkpMXCnEum?usp=sharing';
 export const GEMINI_REQUISITION_GEM_URL = GEMINI_REQUISITION_SKILL_URL;
 
 export const WhatsAppQuickQuoteModal: React.FC<WhatsAppQuickQuoteModalProps> = ({
