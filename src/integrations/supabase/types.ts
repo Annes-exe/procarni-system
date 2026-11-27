@@ -539,7 +539,7 @@ export type PurchaseReminder = {
 
 // --- TYPES FOR CENTRALIZED EXCHANGE RATES ---
 export type ExchangeRate = {
-  id: string;
+  id?: string;
   rate_date: string;
   currency: 'USD' | 'EUR';
   rate: number;

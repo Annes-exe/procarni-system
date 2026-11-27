@@ -108,10 +108,33 @@ export const exchangeRateService = {
   },
 
   /**
+   * Dispara la sincronización de tasas en el servidor mediante la Edge Function.
+   */
+  async triggerServerSync(): Promise<boolean> {
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-exchange-rates');
+      if (error) {
+        console.warn('[exchangeRateService.triggerServerSync] Warning:', error);
+        return false;
+      }
+      return data?.success ?? true;
+    } catch (e) {
+      console.warn('[exchangeRateService.triggerServerSync] Exception:', e);
+      return false;
+    }
+  },
+
+  /**
    * Inserta o actualiza una tasa de cambio oficial.
    */
   async upsertRate(payload: ExchangeRatePayload): Promise<ExchangeRate | null> {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        // No hay sesión activa; no intentar escritura para no violar RLS
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('exchange_rates')
         .upsert(
@@ -145,6 +168,12 @@ export const exchangeRateService = {
   async batchUpsertRates(rates: ExchangeRatePayload[]): Promise<boolean> {
     if (!rates.length) return true;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        // No hay sesión activa; no intentar escritura para no violar RLS
+        return false;
+      }
+
       const records = rates.map(r => ({
         rate_date: r.rate_date,
         currency: r.currency,

@@ -85,6 +85,11 @@ const CurrencyCalculator = () => {
     }
   }, [selectedUsdRate, selectedEurRate]);
 
+  const handleManualRefresh = async () => {
+    currencyService.clearCache();
+    await fetchData();
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -196,7 +201,7 @@ const CurrencyCalculator = () => {
               variant="ghost" 
               size="icon" 
               className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
-              onClick={fetchData}
+              onClick={handleManualRefresh}
               disabled={isLoading}
             >
               <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
